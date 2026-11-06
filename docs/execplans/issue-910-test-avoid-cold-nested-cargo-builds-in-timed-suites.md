@@ -404,6 +404,100 @@ rather than by reading this branch's comments.
       `ProfileDestination`. The same pass flagged first-person pronouns in
       this plan, which the repository's Markdown path instructions forbid;
       those are now impersonal.
+- [ ] Close two stamp-validity gaps that still allowed cold compilation inside
+      a timed assertion.
+      1. **The stamp did not always share the artefacts' directory.**
+         `fixture_preparation` stamped the scratch root under the workspace
+         `target/`, but `process::child_env_from_vars` preserves an inherited
+         `CARGO_TARGET_DIR`, so a nested build can put its artefacts somewhere
+         else entirely. Prepare with an external target, evict that directory,
+         run again: the scratch stamp survived, its fingerprint still matched,
+         and both the preparation test and the assertion gate accepted it while
+         the dependency artefacts were gone. The child environment now resolves
+         its target directory once (`process::child_target_directory`), the
+         preparation view fingerprints that same value, and the stamp is
+         written under it. Under the default target it coincides with the old
+         location, so warm trees stay warm; under an inherited one it moves
+         with the artefacts. The scratch `.stamp` in `fixtures` stays separate:
+         it records which fixture source the copy came from, which is a
+         different question from which artefacts exist.
+      2. **Cargo configuration was not a preparation input.** All four input
+         lists hashed the workspace manifest, lockfile and `crates/` but not
+         `.cargo/config.toml`, which sets the development profile options and
+         the Linux linker flags. Cargo discovers that file by walking up from
+         the nested build's working directory, so editing it rebuilds
+         dependency artefacts without touching a fixture source — and a stamp
+         that ignored it would skip preparation and leave the rebuild to the
+         timed assertion. `nested_cargo::cargo_config_inputs` now reports the
+         workspace-root `.cargo/config.toml` and the legacy `.cargo/config` when
+         present, and every family — CLI, trybuild, `TrybuildTree` and both
+         rebuild-invalidation fixtures — includes them.
+- [x] Regression coverage —
+      `an_inherited_target_directory_moves_the_stamp_with_the_artefacts`
+      and `evicting_the_artefacts_invalidates_the_preparation` in the rebuild
+      harness (the second removes the resolved artefact directory while leaving
+      the scratch fixture intact and asserts the nextest gate answers
+      `NotFound`); `cargo_configuration_is_an_input` and
+      `the_workspace_cargo_configuration_is_an_input` in the shared policy, the
+      trybuild binary, the CLI binary and `macrotest_support`. The eviction test
+      passes `under_nextest = true` through the newly exposed hidden
+      `ensure_prepared_with`, so it exercises the real gate without mutating the
+      process environment.
+- [x] Close the drain hang that made the per-command bound unbounded.
+      `run_bounded_with_timeout` killed the direct child on timeout and then
+      joined two `read_to_end` threads. A killed `cargo` does not reap the
+      `rustc` it started, that grandchild inherits both pipe write ends, so the
+      join waited for the grandchild rather than for the bound. Measured on the
+      host: the 540 s preparation bound expired on schedule, the UI-lint
+      `rustc` children kept writing into
+      `crates/rstest-bdd/target/tests/ui_lints_clippy/debug/deps` for another
+      five minutes, and nextest killed the test at its 30-minute period with no
+      timeout error in the log. The bound was therefore not merely ineffective
+      — it reported nothing, which is the property it exists for.
+      `nested_cargo::drain::Drain` now moves chunks over a channel so
+      `collect_until` stops at EOF **or** at a 2 s post-kill grace period, and
+      the rebuild harness's private copy of the bounded runner — which had the
+      same bug — now delegates to the shared one instead of duplicating it.
+- [x] Confirm the drain fix on a real preparation, not only in the unit test.
+      Re-running `make prepare-nested-fixtures` on an evicted UI-lint tree
+      reproduced the same overrun — that graph is genuinely cold behind this
+      host's admission pool, so it is a fair reproduction — and the difference
+      is exactly the property the fix claims. The old code printed nothing and
+      was killed by the runner at 1441.185 s. The new code printed
+      `nested cargo exceeded its 540 s wall-clock bound; the child was killed`
+      at the expected moment, **with the captured `Compiling` list and the
+      `[build-limits] ... waiting for a compile slot (39 ahead, 45s)` lines
+      attached**. That header is what identifies the cause as queue contention
+      rather than a wedged build; without it the failure is indistinguishable
+      from a hang, which is what made the original symptom so hard to place.
+      The trybuild family in the same run stamped at 896.5 s, inside its 30 m
+      period but over the 540 s per-command bound — as designed, since that
+      family cannot be bounded (trybuild owns its nested `cargo`).
+- [x] Show that the preparation is idempotent across a re-run, which is the
+      property the whole design rests on. After the six families had been
+      prepared once, a second `make prepare-nested-fixtures` skipped five of
+      them in **under a second each** — 0.935 s, 0.173 s, 0.056 s, 0.302 s,
+      0.084 s against the 64.9 s, 397.7 s, 224.0 s, 972.3 s and 281.2 s they
+      took cold. Only the sixth rebuilt, and only because the first attempt had
+      been cut off mid-graph; it then completed in 773.844 s and the whole run
+      took 775.453 s, **6 of 6 passed**. A stamp that matched too eagerly would
+      have shown the opposite — every family "passing" in milliseconds while
+      the artefacts were absent — so the slow first run and the fast second one
+      are both needed as evidence, and the regression tests
+      (`evicting_the_artefacts_invalidates_the_preparation`) are what
+      distinguish the two.
+- [x] Separate a host-contention failure from a code failure before acting on
+      it. The first of those two runs failed one family at its 1800 s period,
+      which looks like the bug this branch exists to fix. It was not: the
+      nested build itself reported `Finished dev profile ... in 23m 56s`, every
+      crate in the log carried `[build-limits] … waiting for a compile slot
+      (181 ahead, 45s)`, and other lines said
+      `the managed sccache server is not serving compilations; compiling
+      without the cache`. The same family took 239.213 s on CI. The signal that
+      made the diagnosis possible was the captured output — which the drain fix
+      from the previous item is what preserves. Re-running against the now-warm
+      tree passed in 773.844 s. Neither the bound nor the period needed
+      widening; the host did.
 
 ## Surprises & Discoveries
 
@@ -561,6 +655,48 @@ rather than by reading this branch's comments.
   times, which is why nothing caught it. Where a `Result` failure has a
   documented meaning other than `false`, unwrap it with `let Ok(..) = .. else`
   and state the default explicitly.
+- **A stamp in the wrong directory is worse than no stamp.** The harness's own
+  environment code deliberately preserves an inherited `CARGO_TARGET_DIR`, and
+  the preparation layer independently stamped the workspace scratch root. Each
+  was defensible alone; together they meant that under a coverage driver the
+  stamp and the artefacts lived in different trees, and evicting the artefacts
+  left a matching stamp behind. The general lesson is that a cached claim of
+  readiness has to be co-located with the thing it claims, and the way to
+  guarantee that is to derive both from one resolved value rather than to write
+  the same expression twice. `ChildEnv` carries the resolved directory for that
+  reason.
+- **An input set is only as complete as the tool's discovery rules.** Hashing
+  the workspace manifest, lockfile and `crates/` looks exhaustive until one
+  remembers that Cargo walks *up* from the working directory for
+  `.cargo/config.toml` and applies it to the nested build. The file is not near
+  the fixture, is not near the crates, and is still an input. The review found
+  it by asking what else Cargo reads; the fix is a named helper so the next
+  caller does not have to rediscover the discovery rule.
+- **A hidden-API escape hatch can be the honest choice.** Testing the nextest
+  refusal means either mutating `NEXTEST_RUN_ID` — which races every other test
+  in the same binary — or letting the test say which side of the boundary it is
+  on. `ensure_prepared_with` is `#[doc(hidden)] pub` for that reason, matching
+  the crate's existing `macrotest_support` and `binary_test_support` pattern.
+  Exporting test-only policy to the public surface would be worse; silently
+  skipping the coverage would be worse still.
+- **A bound that kills the child is not yet a bound.** The timeout path killed
+  the direct child and then joined both pipe readers, which only return at EOF.
+  `cargo` killed by a signal does not reap its `rustc` children, they inherit
+  the same pipe write ends, and the join therefore waits for them. The 540 s
+  preparation bound expired on time and the call did not return for another
+  five minutes; the runner killed the test first, so the harness's carefully
+  worded timeout error — the entire reason the bound captures output — was
+  never printed. Any "wall-clock bound" over a process that spawns children has
+  to bound its *own* bookkeeping too, which is why the drain now stops on a
+  deadline rather than on EOF.
+- **The test that would have caught it could not be written from the failure.**
+  The failing run's log showed a completed preparation followed by silence, and
+  the obvious reading — a second family's build overran — is wrong: the UI-lint
+  target's mtimes kept advancing after the bound, which is only visible if you
+  look at the filesystem rather than the log. The regression test therefore
+  asserts on *elapsed wall-clock time* with a grandchild holding the pipe, not
+  on the error text, because the defect is precisely that the error text never
+  arrives.
 
 ## Decision Log
 
@@ -574,13 +710,49 @@ rather than by reading this branch's comments.
   name, directory, environment, variant label and input hash.
 - **Stamps live inside the artefact directory.** This makes eviction
   self-invalidating without a separate garbage-collection rule: delete the
-  target directory and the claim of preparedness goes with it.
+  target directory and the claim of preparedness goes with it. "The artefact
+  directory" means *the directory the child environment resolved*, not the
+  workspace default. `process::build_child_env` preserves an inherited
+  `CARGO_TARGET_DIR`, so the two can differ; deriving the stamp path from
+  `process::child_target_directory` is what keeps the rule true when they do.
+  The alternative — dropping the inherited variable so the workspace target is
+  always the answer — would have been simpler and wrong: it would ignore the
+  coverage driver's target directory and rebuild artefacts the harness had been
+  told to reuse.
+- **The scratch `.stamp` and the preparation stamp stay separate.** They answer
+  different questions — *which fixture source was copied* versus *which
+  artefacts exist* — and under the default target they happen to share a root.
+  Merging them would make a source refresh imply an artefact rebuild, or an
+  artefact eviction imply a source recopy, and neither implication holds.
+- **Cargo configuration is an input, not ambient host state.** Cargo discovers
+  `.cargo/config.toml` by walking up from the working directory, so the
+  committed file's development profile options and Linux linker flags change
+  dependency artefacts. `cargo_config_inputs` hashes the workspace-root file;
+  configuration above the workspace is excluded because it varies by host and
+  including it would make stamps non-portable between a developer machine and
+  CI. Configuration *below* the workspace root needs no listing: those files
+  already sit inside the hashed `crates/` and fixture trees.
 - **Fail fast under nextest, prepare lazily under `cargo test`.** Under
   nextest each test is its own process, so a timed test that prepared would pay
   the cost it exists to avoid; failing with the preparation command named is
   more useful than a timeout. Under plain `cargo test` there is no scheduling
   guarantee that a preparation test runs first, so the gate prepares behind a
   process-wide lock instead.
+- **One bounded runner, and it is the shared one.** The rebuild harness had its
+  own copy of the spawn-drain-kill loop, which meant the drain hang would have
+  needed fixing twice and the timed assertions would have been the tests that
+  discovered it. It now delegates to
+  `rstest_bdd_harness::nested_cargo::run_bounded_with_timeout` and keeps only
+  its own two constants. The harness still owns its *environment*, because the
+  two runs of each experiment must be byte-identical and the coverage
+  redirection differs from the shared helper's; owning the environment and
+  owning the process loop are separate concerns.
+- **Drain on a deadline, not on EOF.** The reader thread sends chunks over a
+  channel and the waiting side stops at EOF or at a fixed post-kill grace
+  period, whichever comes first. EOF remains the normal path — output is
+  complete the moment the child exits — so the grace period is pure overhead
+  only in the case that used to hang, and it is bounded overhead rather than
+  none.
 - **The preparation override goes first in the file.** Nextest's first-match
   precedence means position, not priority, is what keeps the preparation from
   inheriting a timed assertion's budget.
@@ -689,6 +861,25 @@ figures above establish that the cold work moved and that the assertions reuse
 the prepared trees; the CI coverage lane is what establishes that the suite
 fits its budget there.
 
+Review found two remaining ways a timed assertion could still pay for a cold
+dependency compile, both of which survived a full suite of passing tests. The
+first was co-location: the stamp went to a fixed workspace path while the child
+environment was free to resolve a different `CARGO_TARGET_DIR`, so an evicted
+external target left a matching stamp behind. Nothing in the passing evidence
+could have shown it, because the default target is the workspace target and CI
+sets no override — the failure required an environment the tests never used.
+The second was input completeness: the workspace Cargo configuration is read by
+Cargo's upward walk and was in no input list, so a configuration-only edit
+would rebuild dependency artefacts under a stamp that never noticed. Both are
+now closed, and both have regression tests that fail on the old code. The
+lesson worth carrying is that a passing suite is evidence about the paths it
+exercises, not about the paths an environment variable can reach.
+
+That is also why the new eviction test guards its own preconditions. It asserts
+the stamp is inside the external target *before* preparing, so a regression
+cannot quietly write one into the shared scratch root and leave the shared
+workspace state dirty for every other test in the binary.
+
 ## Context and orientation
 
 The shared preparation policy is
@@ -706,7 +897,7 @@ The five suites:
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `cargo-bdd::cli`                                                             | `crates/cargo-bdd/tests/cli/preparation.rs`                                        | the CLI child environment's target root                                        |
 | `rstest-bdd::trybuild_macros`                                                | `crates/rstest-bdd/tests/trybuild_macros/preparation.rs`                           | `<target>/tests/trybuild` and `crates/rstest-bdd/target/tests/ui_lints_clippy` |
-| `rstest-bdd::feature_rebuild_invalidation`                                   | `crates/rstest-bdd/tests/feature_rebuild_invalidation/harness/preparation.rs`      | each scratch fixture root                                                      |
+| `rstest-bdd::feature_rebuild_invalidation`                                   | `crates/rstest-bdd/tests/feature_rebuild_invalidation/harness/preparation.rs`      | `<resolved target>/tests/<family>`, one per fixture family                     |
 | Tokio and GPUI harness `macro_compile`, server `workspace_discovery_compile` | `<crate>/tests/.../preparation.rs`, described by `macrotest_support::TrybuildTree` | `<target>/tests/trybuild`, one stamp per family                                |
 
 `.config/nextest.toml` carries the override ordering, and
@@ -801,7 +992,11 @@ whose tests should catch a mutant — from mutation coverage altogether.
 The prose is written: `docs/testing-strategy.md` carries the "Cold fixture
 builds belong to preparation, not to an assertion" section, and
 `docs/developers-guide.md` describes the preparation override, the timeout
-tiers, the `TrybuildTree` helper and the shared trybuild directory.
+tiers, the `TrybuildTree` helper and the shared trybuild directory. Two further
+subsections record the stamp-validity rules the later review added — "Stamps
+live inside the artefact directory" and "Cargo configuration as a preparation
+input" — so the next suite author inherits them as policy rather than
+rediscovering them from the code.
 
 The evidence is recorded in Progress. It comes from the Linux PR coverage lane
 on a two-vCPU runner: preparation elapsed times, `Compiling` counts, timed-test

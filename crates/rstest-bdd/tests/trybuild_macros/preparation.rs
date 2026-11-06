@@ -83,12 +83,19 @@ fn ui_clippy_target_directory() -> Utf8PathBuf {
 /// crate source or manifest can alter what they compile, and a lockfile change
 /// can alter the versions they resolve. `nested_cargo::input_hash` skips every
 /// `target` directory, so build output never invalidates its own stamp.
+///
+/// The workspace's Cargo configuration belongs here too: both nested builds run
+/// beneath the workspace, so Cargo applies it, and changing the development
+/// profile options or the Linux linker flags rebuilds dependency artefacts
+/// without touching a fixture source.
 fn input_roots() -> Vec<PathBuf> {
     let workspace = workspace_root();
-    ["Cargo.toml", "Cargo.lock", "crates"]
+    let mut roots: Vec<PathBuf> = ["Cargo.toml", "Cargo.lock", "crates"]
         .into_iter()
         .map(|entry| workspace.join(entry).into_std_path_buf())
-        .collect()
+        .collect();
+    roots.extend(nested_cargo::cargo_config_inputs(workspace.as_std_path()));
+    roots
 }
 
 /// The variant label that records what the trybuild preparation resolved.
@@ -279,4 +286,46 @@ fn count_checked_units(stderr: &[u8]) -> usize {
             line.starts_with("Compiling ") || line.starts_with("Checking ")
         })
         .count()
+}
+
+#[cfg(test)]
+mod tests {
+    //! Regression coverage for the inputs that invalidate a prepared tree.
+
+    use rstest_bdd_harness::nested_cargo;
+
+    use super::input_roots;
+
+    #[test]
+    fn the_workspace_cargo_configuration_is_an_input() {
+        // Both nested builds run beneath the workspace, so Cargo applies the
+        // committed `.cargo/config.toml`: its profile options and Linux linker
+        // flags change dependency artefacts without changing a fixture source.
+        // A stamp that ignored it would survive a configuration-only edit and
+        // the timed assertion would compile the graph instead.
+        //
+        // Removing the root from the same list, rather than hashing a different
+        // tree, isolates the configuration's contribution: every other input is
+        // identical between the two hashes.
+        let roots = input_roots();
+        let workspace_config = super::workspace_root()
+            .join(".cargo/config.toml")
+            .into_std_path_buf();
+        assert!(
+            roots.contains(&workspace_config),
+            "expected {} among the preparation inputs: {roots:?}",
+            workspace_config.display()
+        );
+
+        let with = nested_cargo::input_hash(&roots).expect("hash with configuration");
+        let without: Vec<std::path::PathBuf> = roots
+            .into_iter()
+            .filter(|root| root != &workspace_config)
+            .collect();
+        let without = nested_cargo::input_hash(&without).expect("hash without configuration");
+        assert_ne!(
+            with, without,
+            "the workspace Cargo configuration must change the input hash"
+        );
+    }
 }

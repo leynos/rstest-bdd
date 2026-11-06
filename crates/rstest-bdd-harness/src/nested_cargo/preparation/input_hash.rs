@@ -16,6 +16,35 @@ use std::{
 
 use super::stamp::{PREPARED_FILE_SUFFIX, STAMP_VERSION};
 
+/// Paths of the Cargo configuration files committed at `workspace_root`.
+///
+/// Cargo discovers configuration by walking from a command's working directory
+/// up to the filesystem root, so a nested fixture build beneath the workspace
+/// applies the workspace `.cargo/config.toml`. That file sets development
+/// profile options and the Linux linker flags, and changing either changes
+/// dependency artefacts without changing a single fixture source. A stamp that
+/// ignored it would survive a configuration-only edit, and the timed assertion
+/// would then compile the graph the preparation was meant to have built.
+///
+/// Only the two files at the workspace root are reported. Configuration deeper
+/// in the tree is already covered, because every caller also hashes the
+/// `crates/` tree and its own fixture directory, and [`input_hash`] walks both.
+/// Configuration above the workspace — `CARGO_HOME` and a user's home
+/// directory — is host state rather than part of the checkout, so it is
+/// deliberately excluded: a stamp has to be reproducible from the repository
+/// alone.
+///
+/// Cargo accepts `config.toml` or the legacy `config` name, and a checkout may
+/// commit neither, so missing files are skipped.
+#[must_use]
+pub fn cargo_config_inputs(workspace_root: &Path) -> Vec<PathBuf> {
+    [".cargo/config.toml", ".cargo/config"]
+        .into_iter()
+        .map(|entry| workspace_root.join(entry))
+        .filter(|path| path.is_file())
+        .collect()
+}
+
 /// Directory names that hold build output rather than fixture inputs.
 ///
 /// `target` holds the nested build's artefacts, `wip` holds `trybuild`'s

@@ -39,12 +39,18 @@ fn cli_preparation() -> Result<(nested_cargo::NestedCargoEnv, PathBuf, String)> 
     // the stamp would survive such an edit and the timed test would rebuild the
     // changed crates inside its own limit.
     let workspace = super::workspace_root();
-    let inputs = nested_cargo::input_hash(&[
+    let mut roots = vec![
         fixture_dir(),
         workspace.join("Cargo.toml"),
         workspace.join("Cargo.lock"),
         workspace.join("crates"),
-    ])?;
+    ];
+    // Cargo discovers the workspace configuration from the nested build's
+    // working directory, so the development profile options and the Linux
+    // linker flags in it change dependency artefacts without touching a
+    // fixture source.
+    roots.extend(nested_cargo::cargo_config_inputs(&workspace));
+    let inputs = nested_cargo::input_hash(&roots)?;
     Ok((child_env, target_root, inputs))
 }
 
@@ -119,4 +125,43 @@ fn nested_fixture_preparation() {
         cli_preparation_description().expect("CLI preparation description should resolve");
     nested_cargo::prepare_now(&preparation, || capture_preparation(&child_env))
         .expect("nested CLI fixture preparation should succeed");
+}
+
+#[cfg(test)]
+mod tests {
+    //! Regression coverage for the inputs that invalidate the prepared CLI
+    //! fixture.
+
+    use super::{cli_preparation, nested_cargo};
+
+    /// The CLI family's inputs without the workspace Cargo configuration.
+    ///
+    /// Kept beside the assertion so a future change to the family's roots makes
+    /// this list visibly stale rather than silently passing.
+    fn inputs_without_cargo_configuration() -> Vec<std::path::PathBuf> {
+        let workspace = crate::workspace_root();
+        vec![
+            crate::fixture_dir(),
+            workspace.join("Cargo.toml"),
+            workspace.join("Cargo.lock"),
+            workspace.join("crates"),
+        ]
+    }
+
+    #[test]
+    fn the_workspace_cargo_configuration_is_an_input() {
+        // The fixture build runs beneath the workspace, so Cargo applies the
+        // committed `.cargo/config.toml`: its development profile options and
+        // Linux linker flags rebuild dependency artefacts without changing a
+        // fixture source. A stamp that ignored it would survive such an edit and
+        // the timed CLI test would compile the graph inside its own 180 s limit.
+        let (_environment, _target_root, inputs) =
+            cli_preparation().expect("preparation description should resolve");
+        let without = nested_cargo::input_hash(&inputs_without_cargo_configuration())
+            .expect("hash without the workspace configuration");
+        assert_ne!(
+            inputs, without,
+            "the workspace Cargo configuration must change the CLI input hash"
+        );
+    }
 }

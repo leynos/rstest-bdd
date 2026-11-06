@@ -1,12 +1,14 @@
 //! Child-process handling for the nested-cargo harness.
 //!
 //! Builds the byte-identical environment every invocation shares, invokes
-//! `env!("CARGO")` (never a PATH lookup), imposes the harness's own
-//! wall-clock bound on the child, and drains both pipes concurrently while
-//! polling for exit — a voluminous build (a cold `--message-format=json` run
-//! reports every fresh unit) would otherwise fill the pipe buffer and
-//! deadlock the child on a blocking write, making it look hung until the
-//! wall-clock bound fires.
+//! `env!("CARGO")` (never a PATH lookup), and runs the child under the shared
+//! bounded runner, which drains both pipes concurrently while polling for
+//! exit — a voluminous build (a cold `--message-format=json` run reports
+//! every fresh unit) would otherwise fill the pipe buffer and deadlock the
+//! child on a blocking write, making it look hung until the wall-clock bound
+//! fires. The bound itself is not reimplemented here: the shared runner caps
+//! its post-kill drain, and a copy that did not would hang past its own
+//! deadline exactly when a killed `cargo` left a `rustc` holding the pipe.
 //!
 //! Environment hygiene is the single most likely spurious-red cause: a
 //! rebuild triggered by an environment difference between run 1 and run 2 of
@@ -15,16 +17,22 @@
 //! surgically adjusted — `CARGO_MAKEFLAGS` (a jobserver a nested process
 //! cannot open, a classic Windows stall), `CARGO_PKG_*` (they describe a
 //! different crate), and `CARGO_LLVM_COV*` (they control the outer coverage
-//! driver) are stripped. `CARGO_TARGET_DIR` falls back to the shared workspace
-//! `target/`, and `LLVM_PROFILE_FILE` is redirected to a scratch directory so
-//! nested coverage never merges into the parent's gated profile.
+//! driver) are stripped. `CARGO_TARGET_DIR` is preserved when the parent has
+//! one and otherwise falls back to the shared workspace `target/`, and
+//! `LLVM_PROFILE_FILE` is redirected to a scratch directory so nested coverage
+//! never merges into the parent's gated profile.
+//!
+//! Because an inherited `CARGO_TARGET_DIR` wins, the directory that actually
+//! receives the nested artefacts is not always the workspace `target/`.
+//! [`child_target_directory`] is the single resolver for it, and the
+//! preparation stamp lives inside whatever it returns, so the stamp and the
+//! artefacts it vouches for cannot drift apart.
 
 use std::{
     io,
     path::Path,
-    process::{Command, Output, Stdio},
-    thread,
-    time::{Duration, Instant},
+    process::{Command, Output},
+    time::Duration,
 };
 
 use serde_json::Value;
@@ -45,14 +53,28 @@ pub(crate) use rstest_bdd_harness::nested_cargo::PREPARATION_COMMAND_TIMEOUT;
 /// run 1 and run 2 of the rebuild experiment are byte-identical.
 pub(crate) struct ChildEnv {
     pub(crate) vars: Vec<(std::ffi::OsString, std::ffi::OsString)>,
+    /// The directory the filtered environment sends build artefacts to.
+    ///
+    /// Resolved once, from the same variable set the child receives, so the
+    /// preparation stamp and the nested build can never disagree about where
+    /// the artefacts live.
+    target_directory: std::path::PathBuf,
 }
 
 /// Capture a snapshot of the parent environment, adjusted for the nested
 /// build. Every invocation of the child uses this exact snapshot.
 pub(crate) fn build_child_env() -> ChildEnv { child_env_from_vars(std::env::vars_os().collect()) }
 
+/// The directory this environment resolves for Cargo's build artefacts.
+pub(crate) fn child_target_directory(env: &ChildEnv) -> &Path { &env.target_directory }
+
 /// Filter one environment snapshot into the deterministic nested-Cargo environment.
-fn child_env_from_vars(mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)>) -> ChildEnv {
+///
+/// Visible to the preparation module's tests so they can pin the resolved
+/// target directory without mutating this process's environment.
+pub(crate) fn child_env_from_vars(
+    mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)>,
+) -> ChildEnv {
     vars.retain(|(key, _)| {
         let key = key.to_string_lossy();
         key != "CARGO_MAKEFLAGS"
@@ -94,7 +116,16 @@ fn child_env_from_vars(mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)>) 
     }
 
     vars.sort_by(|a, b| a.0.cmp(&b.0));
-    ChildEnv { vars }
+    let target_directory = vars
+        .iter()
+        .find(|(key, _)| key.to_string_lossy() == "CARGO_TARGET_DIR")
+        .map_or_else(super::fixtures::shared_target_dir, |(_, value)| {
+            std::path::PathBuf::from(value)
+        });
+    ChildEnv {
+        vars,
+        target_directory,
+    }
 }
 
 /// The preparation policy's view of this harness's child environment.
@@ -104,10 +135,15 @@ fn child_env_from_vars(mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)>) 
 /// helper performs only for [`ProfileDestination::ChildScratch`]. The view
 /// exists so the fingerprints, and therefore the stamps, of the preparation
 /// test and of the timed assertions are computed from the same variables.
+///
+/// The fallback target directory is the one the child environment already
+/// resolved, and the child environment always carries `CARGO_TARGET_DIR` by
+/// this point, so the fingerprint records where the artefacts really go rather
+/// than a workspace default the child never uses.
 pub(crate) fn preparation_view(env: &ChildEnv) -> rstest_bdd_harness::nested_cargo::NestedCargoEnv {
     rstest_bdd_harness::nested_cargo::env_from_vars(
         env.vars.clone(),
-        Some(&super::fixtures::shared_target_dir()),
+        Some(child_target_directory(env)),
         rstest_bdd_harness::nested_cargo::ProfileDestination::ChildScratch,
     )
 }
@@ -173,75 +209,13 @@ pub(crate) fn run_bounded(cmd: &mut Command) -> io::Result<Output> {
 }
 
 /// [`run_bounded`] with an explicit wall-clock bound.
+///
+/// Delegates to the shared runner so the bound has exactly one implementation:
+/// a local copy here would keep the killed-child drain-hang bug that the
+/// shared one no longer has, and the timed assertions would be the tests that
+/// discovered it.
 fn run_bounded_with_timeout(cmd: &mut Command, timeout: Duration) -> io::Result<Output> {
-    let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
-    let Some(stdout) = child.stdout.take() else {
-        panic!("piped stdout must be present; run_bounded always pipes");
-    };
-    let stdout = drain_pipe(stdout);
-    let Some(stderr) = child.stderr.take() else {
-        panic!("piped stderr must be present; run_bounded always pipes");
-    };
-    let stderr = drain_pipe(stderr);
-
-    let deadline = Instant::now() + timeout;
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) => {
-                if Instant::now() >= deadline {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Err(timeout_error(
-                        timeout,
-                        &join_or_panic(stdout, "stdout"),
-                        &join_or_panic(stderr, "stderr"),
-                    ));
-                }
-            }
-            Err(err) => return Err(err),
-        }
-        thread::sleep(Duration::from_millis(50));
-    }
-
-    let status = child.wait()?;
-    let stdout = join_or_panic(stdout, "stdout");
-    let stderr = join_or_panic(stderr, "stderr");
-    Ok(Output {
-        status,
-        stdout,
-        stderr,
-    })
-}
-
-/// Spawn a thread that reads a pipe to EOF and returns its bytes.
-fn drain_pipe(pipe: impl io::Read + Send + 'static) -> thread::JoinHandle<Vec<u8>> {
-    thread::spawn(move || {
-        let mut buf = Vec::new();
-        let mut pipe = pipe;
-        let _ = pipe.read_to_end(&mut buf);
-        buf
-    })
-}
-
-fn join_or_panic(handle: thread::JoinHandle<Vec<u8>>, what: &str) -> Vec<u8> {
-    match handle.join() {
-        Ok(bytes) => bytes,
-        Err(error) => panic!("{what} reader thread panicked: {error:?}"),
-    }
-}
-
-fn timeout_error(timeout: Duration, stdout: &[u8], stderr: &[u8]) -> io::Error {
-    io::Error::new(
-        io::ErrorKind::TimedOut,
-        format!(
-            "nested cargo exceeded its {} s wall-clock bound; the child was killed\nstdout so \
-             far:\n{}\nstderr so far:\n{}",
-            timeout.as_secs(),
-            String::from_utf8_lossy(stdout),
-            String::from_utf8_lossy(stderr)
-        ),
-    )
+    rstest_bdd_harness::nested_cargo::run_bounded_with_timeout(cmd, timeout)
 }
 
 /// Locate the fixture's test-binary executable in cargo's JSON messages.

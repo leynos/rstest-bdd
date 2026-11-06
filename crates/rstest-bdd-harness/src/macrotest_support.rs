@@ -245,10 +245,13 @@ impl TrybuildTree {
     ///
     /// The generated crate is built inside the workspace, so its dependency
     /// graph comes from the workspace manifest and lockfile, the workspace
-    /// crates it depends on, and any vendored path dependencies. Missing
-    /// optional roots are skipped rather than treated as an error, and
-    /// `input_hash` skips every `target` directory, so build output never
-    /// invalidates its own stamp.
+    /// crates it depends on, any vendored path dependencies, and the
+    /// workspace's Cargo configuration — Cargo discovers the latter by walking
+    /// up from the generated crate, so a profile or linker change rebuilds
+    /// dependency artefacts without touching a source. Missing optional roots
+    /// are skipped rather than treated as an error, and `input_hash` skips
+    /// every `target` directory, so build output never invalidates its own
+    /// stamp.
     fn inputs(&self) -> Vec<PathBuf> {
         let Some(workspace_root) = self
             .crate_root
@@ -258,10 +261,44 @@ impl TrybuildTree {
         else {
             return vec![self.crate_root.clone()];
         };
-        ["Cargo.toml", "Cargo.lock", "crates", "vendor"]
+        let mut roots: Vec<PathBuf> = ["Cargo.toml", "Cargo.lock", "crates", "vendor"]
             .into_iter()
             .map(|entry| workspace_root.join(entry))
             .filter(|path| path.exists())
-            .collect()
+            .collect();
+        roots.extend(nested_cargo::cargo_config_inputs(&workspace_root));
+        roots
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Regression coverage for the inputs that invalidate a prepared tree.
+
+    use std::fs;
+
+    use super::TrybuildTree;
+
+    #[test]
+    fn trybuild_inputs_include_the_workspace_cargo_configuration() {
+        // `trybuild` builds the generated crate beneath the workspace, so Cargo
+        // discovers the workspace `.cargo/config.toml` and applies its profile
+        // and linker settings. A stamp that ignored it would survive a
+        // configuration-only edit, and the timed case would compile the changed
+        // graph inside its own deadline.
+        let workspace = tempfile::tempdir().expect("workspace dir");
+        let crate_root = workspace.path().join("crates/under-test");
+        fs::create_dir_all(&crate_root).expect("crate dir");
+        fs::write(workspace.path().join("Cargo.toml"), "[workspace]\n").expect("manifest");
+        fs::create_dir(workspace.path().join(".cargo")).expect("cargo dir");
+        let config = workspace.path().join(".cargo/config.toml");
+        fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
+
+        let tree = TrybuildTree::new(&crate_root, "under-test", "family", "variant");
+        assert!(
+            tree.inputs().contains(&config),
+            "the workspace Cargo configuration must be a preparation input: {:?}",
+            tree.inputs()
+        );
     }
 }

@@ -9,6 +9,7 @@ use std::{
 use super::{
     Preparation,
     PreparationSummary,
+    cargo_config_inputs,
     count_compiling,
     ensure_prepared_with,
     input_hash,
@@ -259,6 +260,41 @@ fn input_hash_ignores_trybuild_wip_scratch() {
     assert_eq!(
         before, after,
         "trybuild's wip scratch must not change the inputs"
+    );
+}
+
+#[test]
+fn cargo_configuration_is_an_input() {
+    // Cargo discovers configuration by walking up from a nested build's working
+    // directory, so the workspace `.cargo/config.toml` applies to every fixture
+    // build here. Changing its profile options or linker flags invalidates
+    // dependency artefacts without changing a fixture source, so a stamp that
+    // ignored it would let a timed assertion pay for the rebuild.
+    let workspace = tempfile::tempdir().expect("workspace dir");
+    fs::create_dir(workspace.path().join(".cargo")).expect("cargo dir");
+    let config = workspace.path().join(".cargo/config.toml");
+    fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
+
+    assert_eq!(cargo_config_inputs(workspace.path()), vec![config.clone()]);
+
+    let before = input_hash(&cargo_config_inputs(workspace.path())).expect("hash before");
+    fs::write(&config, "[profile.dev]\nincremental = true\n").expect("config edit");
+    let after = input_hash(&cargo_config_inputs(workspace.path())).expect("hash after");
+    assert_ne!(
+        before, after,
+        "a configuration-only change must invalidate the prepared artefacts"
+    );
+}
+
+#[test]
+fn missing_cargo_configuration_is_not_an_input() {
+    // A checkout may commit neither accepted file name; naming a missing root
+    // would make every preparation fail on a read error instead of treating the
+    // configuration as absent.
+    let workspace = tempfile::tempdir().expect("workspace dir");
+    assert_eq!(
+        cargo_config_inputs(workspace.path()),
+        [] as [std::path::PathBuf; 0]
     );
 }
 

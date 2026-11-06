@@ -896,10 +896,66 @@ selection to the generated crate, so a different set of features is a different
 dependency graph. Both feed the stamp's fingerprint, which also covers the
 build-relevant environment, the toolchain identity and the workspace inputs.
 
-The inputs hashed are the workspace manifest and lockfile, the `crates/` tree
-and `vendor/`. Hashing `crates/` walks roughly 900 files, about 7 MB, once per
-preparation family; that is the deliberate trade for a stamp that cannot
-survive a change to a workspace crate the generated manifest depends on.
+The inputs hashed are the workspace manifest and lockfile, the `crates/` tree,
+`vendor/`, and the workspace's Cargo configuration. Hashing `crates/` walks
+roughly 900 files, about 7 MB, once per preparation family; that is the
+deliberate trade for a stamp that cannot survive a change to a workspace crate
+the generated manifest depends on.
+
+### Stamps live inside the artefact directory
+
+A preparation stamp is only meaningful if it is evicted together with the
+artefacts it vouches for. That is why every family stamps the **resolved**
+target directory rather than a fixed workspace path: a nested build preserves
+an inherited `CARGO_TARGET_DIR`, so under `cargo llvm-cov` the artefacts land
+in the coverage driver's target, and a stamp left in the workspace `target/`
+would survive an eviction of that directory and keep matching.
+`Preparation::new` therefore takes the directory the artefacts actually occupy,
+and the harnesses resolve theirs from the same environment snapshot they hand
+the child (`process::child_target_directory` for the rebuild suite, the child
+env's `CARGO_TARGET_DIR` for the CLI suite).
+
+The rebuild suite keeps two stamps with two jobs, and they are not
+interchangeable: the preparation stamp records which *artefacts* exist, while
+the scratch `.stamp` in `fixtures` records which *fixture source* the scratch
+copy was made from. Evicting the target directory must invalidate the first
+without disturbing the second.
+
+### Cargo configuration as a preparation input
+
+Cargo discovers configuration by walking from a command's working directory up
+to the filesystem root, so a nested fixture build beneath the workspace applies
+the committed `.cargo/config.toml`. That file sets development-profile options
+and the Linux linker flags, and changing either rebuilds dependency artefacts
+without changing a fixture source. Every family therefore includes it through
+`nested_cargo::cargo_config_inputs`, which reports `.cargo/config.toml` and the
+legacy `.cargo/config` at the workspace root when they exist.
+
+Configuration deeper in the tree needs no separate entry — every caller already
+hashes `crates/` and its own fixture directory, and `input_hash` walks both.
+Configuration *above* the workspace (a user's `~/.cargo/config.toml`, or
+`CARGO_HOME`) is host state rather than part of the checkout and is
+deliberately excluded, so a stamp stays reproducible from the repository alone.
+
+### A bound must bound its own bookkeeping
+
+`run_bounded_with_timeout` pipes both streams and drains them on background
+threads, because a chatty cold build would otherwise fill a pipe buffer and
+deadlock. Draining to EOF is the natural terminator and is wrong on the timeout
+path: killing the direct child does not reap its grandchildren, they inherit
+the pipe write ends, and a join waits for *them* rather than for the bound.
+
+This was observed directly: a 540 s preparation bound expired on schedule, the
+nested `rustc` went on writing for another five minutes, and the test runner
+killed the whole test at its own limit with no timeout error in the log — so
+the diagnostic that motivated the bound was never produced.
+
+`nested_cargo::drain::Drain` therefore collects through a channel and stops at
+EOF **or** at a fixed post-kill grace period. Output is complete the moment the
+child exits, so the grace period costs nothing on the normal path and caps the
+path that used to hang. Any future bounded spawner over a process that forks
+needs the same treatment; the shared helper is the only implementation so the
+rule is applied once rather than rediscovered per suite.
 
 ## Rust documentation policy and gates
 

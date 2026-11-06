@@ -45,7 +45,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub use input_hash::input_hash;
+pub use input_hash::{cargo_config_inputs, input_hash};
 use stamp::{fingerprint, missing_stamp_message, note, stamp_matches, stamp_path, write_stamp};
 
 use super::{NestedCargoEnv, ProfileDestination, env_from_vars};
@@ -229,9 +229,17 @@ where
     ensure_prepared_with(preparation, running_under_nextest(), prepare)
 }
 
-/// [`ensure_prepared`] with the runner decision supplied, so the fail-fast and
-/// lazy paths are testable without mutating the process environment.
-fn ensure_prepared_with<F>(
+/// [`ensure_prepared`] with the runner decision supplied.
+///
+/// Exposed as hidden API so the protocol can be tested — here and in the
+/// workspace suites that gate on it — without mutating the process
+/// environment, which would race every other test in the same binary.
+///
+/// # Errors
+///
+/// As [`ensure_prepared`].
+#[doc(hidden)]
+pub fn ensure_prepared_with<F>(
     preparation: &Preparation,
     under_nextest: bool,
     prepare: F,
