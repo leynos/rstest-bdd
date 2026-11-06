@@ -34,6 +34,10 @@
 //! are drained concurrently (a chatty build would otherwise fill the pipe
 //! buffer and deadlock), the child is killed on timeout, and the error carries
 //! the command context plus the captured output.
+//!
+//! Cold fixture builds are moved out of timed test bodies by the `preparation`
+//! submodule, which stamps prepared artefact directories and fails fast under
+//! nextest when the named preparation test has not run.
 
 use std::{
     collections::BTreeMap,
@@ -46,8 +50,25 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod drain;
+mod preparation;
 mod profile;
 
+use drain::Drain;
+pub use preparation::{
+    MAX_SEQUENTIAL_COMMANDS,
+    PREPARATION_COMMAND_TIMEOUT,
+    Preparation,
+    PreparationSummary,
+    Sources,
+    cargo_config_inputs,
+    count_compiling,
+    ensure_prepared,
+    ensure_prepared_with,
+    input_hash,
+    prepare_now,
+    running_under_nextest,
+};
 pub use profile::ProfileDestination;
 
 /// Per-invocation wall-clock bound for each nested `cargo` call.
@@ -57,6 +78,16 @@ pub use profile::ProfileDestination;
 /// than letting the test runner's own timeout kill the test with a
 /// runner-generated message.
 const CHILD_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Grace period for collecting output after the child has exited or been
+/// killed.
+///
+/// Output is normally at EOF the moment the child exits, so this only covers
+/// descendants that inherited the pipe write ends — `cargo` does not reap a
+/// `rustc` it started when it is itself killed. Waiting for those to exit is
+/// what let an expired preparation bound run on until the test runner killed
+/// the whole test, so the wait is capped instead.
+const DRAIN_GRACE: Duration = Duration::from_secs(2);
 
 /// Build the deterministic nested-Cargo environment for this process.
 ///
@@ -273,27 +304,32 @@ pub fn run_bounded_with_timeout(cmd: &mut Command, timeout: Duration) -> io::Res
     let Some(stderr_pipe) = child.stderr.take() else {
         return Err(broken_pipe("stderr"));
     };
-    let stdout = spawn_drainer(stdout_pipe);
-    let stderr = spawn_drainer(stderr_pipe);
+    let mut stdout = Drain::spawn(stdout_pipe);
+    let mut stderr = Drain::spawn(stderr_pipe);
 
     match wait_bounded(&mut child, timeout) {
         Outcome::Exited(status) => Ok(Output {
             status,
-            stdout: join_or_empty(stdout, "stdout"),
-            stderr: join_or_empty(stderr, "stderr"),
+            // Measured from the exit, not from the spawn: the child may have
+            // used the whole bound, and its output is already buffered in the
+            // drainers by then.
+            stdout: stdout.collect_until(Instant::now() + DRAIN_GRACE),
+            stderr: stderr.collect_until(Instant::now() + DRAIN_GRACE),
         }),
         Outcome::TimedOut => {
             let _ = child.kill();
             let _ = child.wait();
             Err(timeout_error(
                 timeout,
-                &join_or_empty(stdout, "stdout"),
-                &join_or_empty(stderr, "stderr"),
+                &stdout.collect_until(Instant::now() + DRAIN_GRACE),
+                &stderr.collect_until(Instant::now() + DRAIN_GRACE),
             ))
         }
         Outcome::Failed(err) => {
             let _ = child.kill();
             let _ = child.wait();
+            let _ = stdout.collect_until(Instant::now() + DRAIN_GRACE);
+            let _ = stderr.collect_until(Instant::now() + DRAIN_GRACE);
             Err(err)
         }
     }
@@ -332,24 +368,6 @@ fn broken_pipe(stream: &str) -> io::Error {
         io::ErrorKind::UnexpectedEof,
         format!("nested cargo did not provide a piped {stream}; run_bounded always pipes"),
     )
-}
-
-/// Drain a pipe to EOF on a background thread.
-fn spawn_drainer(pipe: impl std::io::Read + Send + 'static) -> thread::JoinHandle<Vec<u8>> {
-    thread::spawn(move || {
-        let mut buf = Vec::new();
-        let mut pipe = pipe;
-        let _ = pipe.read_to_end(&mut buf);
-        buf
-    })
-}
-
-/// Join a drainer thread, returning empty bytes on a panicking reader.
-fn join_or_empty(handle: thread::JoinHandle<Vec<u8>>, what: &str) -> Vec<u8> {
-    handle.join().unwrap_or_else(|error| {
-        tracing::warn!(stream = what, ?error, "nested-cargo output reader panicked");
-        Vec::new()
-    })
 }
 
 /// Build the timeout error with the command context and captured output.

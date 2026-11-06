@@ -875,11 +875,95 @@ so they are intended for small, human-readable `.expanded.rs` snapshots.
 
 ### Trybuild crate root resolution
 
-`trybuild_crate_root(manifest_path, target_subdir)` resolves the per-crate
-trybuild scratch directory by querying `cargo metadata` for the workspace
-`target` directory and appending `tests/trybuild/<target_subdir>`. It returns
-`Result<PathBuf, Box<dyn Error>>` and is consumed by
+`trybuild_target_root(manifest_path)` resolves the directory `trybuild` builds
+every generated crate in: it queries `cargo metadata` for the workspace
+`target` directory and appends `tests/trybuild`. That is deliberately the
+shared root rather than a per-crate path, because `trybuild` sets the nested
+build's `CARGO_TARGET_DIR` to exactly this directory. Resolution goes through
+`cargo metadata` for the same reason: metadata reads `CARGO_TARGET_DIR` from
+the environment, so preparation and the timed case describe the same tree.
+
+`trybuild_crate_root(manifest_path, target_subdir)` joins that root with
+`target_subdir`, which is the per-crate scratch directory holding the generated
+`Cargo.toml` and the staged `.feature` files. It is consumed by
 `stage_trybuild_support_files` in each harness crate's `macro_compile.rs` test.
+
+### Trybuild tree preparation
+
+`TrybuildTree::new(crate_root, target_subdir, family, variant)` describes one
+crate's trybuild tree for the shared preparation policy in
+`rstest_bdd_harness::nested_cargo`. `prepare_now` runs a caller-supplied
+closure and stamps the shared directory; `ensure_prepared` fails fast under
+nextest when the stamp is missing or stale and prepares lazily behind a
+process-wide lock under plain `cargo test`. `generated_crate_root` returns the
+per-crate scratch directory the caller stages support files into.
+
+The `family` argument must be distinct per crate, and `variant` must record the
+feature selection the test binary was built with: `trybuild` propagates that
+selection to the generated crate, so a different set of features is a different
+dependency graph. Both feed the stamp's fingerprint, which also covers the
+build-relevant environment, the toolchain identity and the workspace inputs.
+
+The inputs hashed are the workspace manifest and lockfile, the `crates/` tree,
+`vendor/`, and the workspace's Cargo configuration. Hashing `crates/` walks
+roughly 900 files, about 7 MB, once per preparation family; that is the
+deliberate trade for a stamp that cannot survive a change to a workspace crate
+the generated manifest depends on.
+
+### Stamps live inside the artefact directory
+
+A preparation stamp is only meaningful if it is evicted together with the
+artefacts it vouches for. That is why every family stamps the **resolved**
+target directory rather than a fixed workspace path: a nested build preserves
+an inherited `CARGO_TARGET_DIR`, so under `cargo llvm-cov` the artefacts land
+in the coverage driver's target, and a stamp left in the workspace `target/`
+would survive an eviction of that directory and keep matching.
+`Preparation::new` therefore takes the directory the artefacts actually occupy,
+and the harnesses resolve theirs from the same environment snapshot they hand
+the child (`process::child_target_directory` for the rebuild suite, the child
+env's `CARGO_TARGET_DIR` for the CLI suite).
+
+The rebuild suite keeps two stamps with two jobs, and they are not
+interchangeable: the preparation stamp records which *artefacts* exist, while
+the scratch `.stamp` in `fixtures` records which *fixture source* the scratch
+copy was made from. Evicting the target directory must invalidate the first
+without disturbing the second.
+
+### Cargo configuration as a preparation input
+
+Cargo discovers configuration by walking from a command's working directory up
+to the filesystem root, so a nested fixture build beneath the workspace applies
+the committed `.cargo/config.toml`. That file sets development-profile options
+and the Linux linker flags, and changing either rebuilds dependency artefacts
+without changing a fixture source. Every family therefore includes it through
+`nested_cargo::cargo_config_inputs`, which reports `.cargo/config.toml` and the
+legacy `.cargo/config` at the workspace root when they exist.
+
+Configuration deeper in the tree needs no separate entry — every caller already
+hashes `crates/` and its own fixture directory, and `input_hash` walks both.
+Configuration *above* the workspace (a user's `~/.cargo/config.toml`, or
+`CARGO_HOME`) is host state rather than part of the checkout and is
+deliberately excluded, so a stamp stays reproducible from the repository alone.
+
+### A bound must bound its own bookkeeping
+
+`run_bounded_with_timeout` pipes both streams and drains them on background
+threads, because a chatty cold build would otherwise fill a pipe buffer and
+deadlock. Draining to EOF is the natural terminator and is wrong on the timeout
+path: killing the direct child does not reap its grandchildren, they inherit
+the pipe write ends, and a join waits for *them* rather than for the bound.
+
+This was observed directly: a 540 s preparation bound expired on schedule, the
+nested `rustc` went on writing for another five minutes, and the test runner
+killed the whole test at its own limit with no timeout error in the log — so
+the diagnostic that motivated the bound was never produced.
+
+`nested_cargo::drain::Drain` therefore collects through a channel and stops at
+EOF **or** at a fixed post-kill grace period. Output is complete the moment the
+child exits, so the grace period costs nothing on the normal path and caps the
+path that used to hang. Any future bounded spawner over a process that forks
+needs the same treatment; the shared helper is the only implementation so the
+rule is applied once rather than rediscovered per suite.
 
 ## Rust documentation policy and gates
 
@@ -1033,10 +1117,52 @@ The file sets the timeout policy for the test suite:
   above the largest per-test budget below, or the run is killed before a test
   with that budget can finish;
   `trybuild_nextest_override_preserves_timeout_contract` enforces the ordering.
-- A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
+- The first `[[profile.default.overrides]]` entry gives the named
+  `nested_fixture_preparation` tests a 30 m `slow-timeout` and the highest
+  scheduling `priority`, `100`. Those tests compile the dependency graphs the
+  nested-Cargo suites would otherwise compile inside their own timed bodies: the
+  `cargo-bdd` fixture, the trybuild tree, the UI-lint tree, and the
+  rebuild-invalidation and feature-addition scratch fixtures. This is the one
+  place in the file where a cold dependency build is meant to spend a test's
+  budget, and it is sized for that job rather than for an assertion: with every
+  nested target empty, the most expensive family took 864.239 s on the
+  development host, and the trybuild binary's two graphs took 645.412 s. Both
+  figures sit behind a shared compile-admission pool that the CI runner does
+  not use, so they bound compiler time rather than a two-vCPU lane's queueing.
+
+  Two properties of nextest make its position load-bearing. Override precedence
+  is first match in file order, not `priority`, so the entry must come before
+  the per-binary overrides below — each preparation test lives in the same test
+  binary as the assertions it prepares, and would otherwise inherit their 180
+  s, 20 m or 600 s budget and fail while doing exactly the work that rescues
+  them. `priority` is scheduling instead: it gets the preparations started
+  early. The top-level `nextest-version = "0.9.91"` is what makes nextest read
+  `priority` at all, and
+  `preparation_nextest_override_preserves_timeout_contract` pins the position,
+  the period, the group, the priority and the version.
+
+  Inside that period, each nested preparation command the repository spawns
+  itself carries its own bound, `nested_cargo::PREPARATION_COMMAND_TIMEOUT`,
+  currently 9 minutes. The two are ordered deliberately: the worst preparation
+  test runs `nested_cargo::MAX_SEQUENTIAL_COMMANDS` (three) commands in
+  sequence — the rebuild-invalidation test compiles one fixture, then runs the
+  addition fixture's metadata preflight and its compile — so `3 × 9 m = 27 m`
+  must stay below the 30 m period, and
+  `preparation_command_bound_fires_before_the_runner_kills_the_test` recomputes
+  that inequality from the parsed configuration and both constants. The reason
+  the ordering matters is diagnostic: the per-command path is the only one that
+  reports a wedged command by name with the child's captured stdout and stderr,
+  and a bound at or above the period would let nextest kill the test first and
+  throw that output away.
+
+  One preparation path is not bounded this way. `trybuild` spawns its own nested
+  `cargo`, and its API offers no hook to bound or capture that child, so for
+  the trybuild families the 30 m period is the only bound and a wedged build is
+  reported as a runner slow-timeout without captured output.
+- The second override raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
-- A second override raises the `slow-timeout` further, to 20 minutes, for the
+- The third override raises the `slow-timeout` further, to 20 minutes, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, `rstest-bdd::trybuild_macros`, and
@@ -1049,10 +1175,10 @@ The file sets the timeout policy for the test suite:
   fixture set to rebuild on a cold cache without treating slow, healthy
   compiler work as a hung test. The strict 60 s default remains in force
   elsewhere.
-- A third override raises the `slow-timeout` to 600 s for
+- A fourth override raises the `slow-timeout` to 600 s for
   `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition.
-- All three overrides also place matching tests in a `cargo-spawning` test
+- All four overrides also place matching tests in a `cargo-spawning` test
   group (`max-threads = 1`), so nested Cargo builds do not contend with each
   other. The 90 m `global-timeout` is an operational ceiling sized for the
   nested-fixture lane. R-6 uses `180 + 600 × 4 + 600 × 3 = 4,380 s` as its
@@ -1096,12 +1222,18 @@ Four independent timers can end a test run, and they are set in four different
 places. A run that dies without an obvious cause is nearly always one of them,
 so it is worth knowing which is which and in what order they can fire.
 
-| Tier                     | What it bounds                     | Where it is set                                                 | Current value                                |
-| ------------------------ | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
-| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                                          | 60 s default, 20 m for the trybuild binaries |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 90 m                                         |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                              |
-| Job `timeout-minutes`    | the whole job                      | `ci.yml`, job level                                             | 190 m                                        |
+The preparation budget is not a fifth tier in that ladder: it bounds a
+different test, and it sits below the global timeout rather than above the
+assertion budget. It is listed so that a reader who meets the 30 m period in
+`.config/nextest.toml` can see that no assertion inherited it.
+
+| Tier                     | What it bounds                     | Where it is set                                                 | Current value                                          |
+| ------------------------ | ---------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------ |
+| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                          | 60 s default; 20 m, 600 s or 180 s under the overrides |
+| Preparation budget       | one preparation test               | `.config/nextest.toml`                                          | 30 m                                                   |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 90 m                                                   |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                                        |
+| Job `timeout-minutes`    | the whole job                      | `ci.yml`, job level                                             | 190 m                                                  |
 
 Each tier must sit above the one before it. If the watchdog sits below the
 nextest global timeout, as it did until this was written, the run is killed
@@ -1975,6 +2107,20 @@ Table: Test binaries for `rstest-bdd-harness-tokio` and
 | `rstest-bdd-harness-gpui`  | `stateful_window`            | durable GPUI handles + visual context reconstruction (feature-gated) |
 | `rstest-bdd-harness-gpui`  | `scenario_name_in_logs`      | GPUI step-panic diagnostics include scenario context (feature-gated) |
 | `rstest-bdd-harness-gpui`  | `macro_compile`              | trybuild compile-pass for GPUI fixtures (feature-gated)              |
+
+Both `macro_compile` binaries, `rstest-bdd::trybuild_macros` and
+`rstest-bdd-server::workspace_discovery_compile` compile a generated crate with
+`trybuild`, and all four share one `<target>/tests/trybuild` directory because
+`trybuild` derives it from the workspace target root rather than from the crate
+under test. Each binary therefore has a `nested_fixture_preparation` test that
+compiles a compile-pass fixture and stamps the shared directory under a family
+name of its own: whichever binary prepares first warms the dependency graph and
+the rest find their own stamp missing and add theirs after compiling only what
+their generated manifest adds. The timed case in each binary gates on its own
+stamp, so a cold target fails immediately naming `make prepare-nested-fixtures`
+instead of spending an assertion deadline on the dependency build. See
+`docs/testing-strategy.md`, "Cold fixture builds belong to preparation, not to
+an assertion".
 
 These tests were moved out of `rstest-bdd` in this release to decouple the core
 crate from Tokio and GPUI dev-dependencies, making it publishable to crates.io

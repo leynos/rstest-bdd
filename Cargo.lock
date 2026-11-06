@@ -1841,6 +1841,7 @@ dependencies = [
  "proptest",
  "regex",
  "rstest",
+ "rstest-bdd-harness",
  "rstest-bdd-patterns",
  "rstest-bdd-server",
  "rstest-bdd-test-macros",

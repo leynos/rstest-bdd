@@ -314,6 +314,34 @@ fn run_bounded_reports_timeout_with_captured_output() {
 
 #[cfg(unix)]
 #[test]
+fn run_bounded_returns_after_killing_a_child_whose_grandchild_holds_the_pipe() {
+    // Killing `sh` leaves the `sleep` it started running, and that grandchild
+    // inherits stdout and stderr. Waiting for those pipes to reach EOF waits
+    // for the grandchild, so an unbounded drain turns a 200 ms bound into a
+    // 30 s hang. Observed on a real preparation: the 540 s bound expired at
+    // the expected moment, the nested `rustc` kept writing for another five
+    // minutes, and the test runner killed the test at its own 30-minute
+    // limit with no timeout error in the log.
+    let mut cmd = Command::new("sh");
+    cmd.args(["-c", "echo partial; sleep 30 & wait"]);
+    let started = std::time::Instant::now();
+    let error = run_bounded_with_timeout(&mut cmd, Duration::from_millis(200))
+        .expect_err("the child outlives the bound");
+    let elapsed = started.elapsed();
+    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    assert!(
+        elapsed < Duration::from_secs(20),
+        "the bound must bound the whole call, not just the wait on the direct child: {elapsed:?}"
+    );
+    let message = error.to_string();
+    assert!(
+        message.contains("partial"),
+        "output written before the kill must still be attached: {message}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn run_bounded_surfaces_spawn_failures() {
     let mut cmd = Command::new("definitely-not-a-real-binary-3f8a");
     let error = run_bounded_with_timeout(&mut cmd, Duration::from_secs(1))
