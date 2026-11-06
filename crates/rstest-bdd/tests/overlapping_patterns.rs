@@ -5,7 +5,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step};
+use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step_with_metadata};
 use rstest_bdd_macros::given;
 use serial_test::serial;
 
@@ -57,13 +57,15 @@ fn reset_counters() {
     UNTYPED_PLACEHOLDER_CALLED.store(0, Ordering::Relaxed);
 }
 
-#[expect(clippy::expect_used, reason = "test helper ensures step exists")]
 fn assert_step_execution(
     step_text: &str,
     expected_counters: (usize, usize, usize),
     assertion_message: &str,
 ) {
-    let step_fn = find_step(StepKeyword::Given, step_text.into()).expect("step not found");
+    let Some(step) = find_step_with_metadata(StepKeyword::Given, step_text.into()) else {
+        panic!("step not found");
+    };
+    let step_fn = step.run;
 
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, step_text, None, None) {
@@ -83,13 +85,15 @@ fn assert_step_execution(
     );
 }
 
-#[expect(clippy::expect_used, reason = "test helper ensures step exists")]
 fn assert_typed_step_execution(
     step_text: &str,
     expected_counters: (usize, usize),
     assertion_message: &str,
 ) {
-    let step_fn = find_step(StepKeyword::Given, step_text.into()).expect("step not found");
+    let Some(step) = find_step_with_metadata(StepKeyword::Given, step_text.into()) else {
+        panic!("step not found");
+    };
+    let step_fn = step.run;
 
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, step_text, None, None) {

@@ -1268,9 +1268,10 @@ sequenceDiagram
     participant AsyncWrapper
     participant TokioRuntime
 
-    TestCode->>Registry: find_step_async(keyword, text)
+    TestCode->>Registry: find_step_with_metadata(keyword, text)
     Registry->>Registry: resolve_step(keyword, text)
-    Registry-->>TestCode: AsyncStepFn (Step.run_async)
+    Registry-->>TestCode: ResolvedStep (records the step as used)
+    TestCode->>TestCode: project run_async
 
     TestCode->>TokioRuntime: spawn(async move { call AsyncStepFn })
 
@@ -3130,11 +3131,12 @@ Note: `code` values are stable identifiers intended for programmatic use.
 
 Step wrapper functions parse the returned strings and convert them with
 `FromStr` before calling the original step. Scenario execution searches the
-step registry using `find_step`, which falls back to placeholder matching when
-no exact pattern is present. This approach keeps the macros lightweight while
-supporting type‑safe parameters in steps. The parser handles escaped braces,
-nested brace pairs, and treats other backslash escapes literally, preventing
-greedy captures while still requiring well‑formed placeholders.
+step registry using `find_step_with_metadata`, which falls back to placeholder
+matching when no exact pattern is present. This approach keeps the macros
+lightweight while supporting type‑safe parameters in steps. The parser handles
+escaped braces, nested brace pairs, and treats other backslash escapes
+literally, preventing greedy captures while still requiring well‑formed
+placeholders.
 
 When available, if a table parameter implements `TryFrom<Vec<Vec<String>>>`,
 the wrapper will run the conversion after materializing the nested vectors. The
@@ -3153,20 +3155,43 @@ sequenceDiagram
     participant StepWrapper
     participant StepFunction
 
-    ScenarioRunner->>StepRegistry: find_step(keyword, text)
+    ScenarioRunner->>StepRegistry: find_step_with_metadata(keyword, text)
     alt exact match
-        StepRegistry-->>ScenarioRunner: StepFn
+        StepRegistry-->>ScenarioRunner: ResolvedStep (records the step as used)
     else placeholder match
         StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
-        StepRegistry-->>ScenarioRunner: StepFn
+        StepRegistry-->>ScenarioRunner: ResolvedStep (records the step as used)
     end
-    ScenarioRunner->>StepWrapper: call StepFn(ctx, text, docstring: Option<&str>, table: Option<&[&[&str]]>)
+    ScenarioRunner->>StepWrapper: call resolved.run(ctx, text, docstring, table)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
     StepWrapper->>StepWrapper: parse captures with FromStr
     StepWrapper->>StepFunction: call with typed args (docstring: String, datatable: T)
     StepFunction-->>StepWrapper: returns
     StepWrapper-->>ScenarioRunner: returns
 ```
+
+#### 3.9.1 Registry lookup and usage tracking
+
+The registry exposes one canonical lookup pair. `lookup_step_with_metadata`
+matches a registered pattern exactly, and `find_step_with_metadata` matches
+step text, falling back to placeholder matching. Both return
+`Option<ResolvedStep>`.
+
+`ResolvedStep` is the usage-tracking boundary. Its constructor records the step
+in the process-local used set that `unused_steps()` reads, so a resolved step
+cannot be obtained without being recorded. The wrapper dereferences to `Step`
+and exposes `as_step()` for an explicit `&'static Step`.
+
+The seven projection helpers (`lookup_step`, `find_step`, `lookup_step_async`,
+`find_step_async`, `lookup_step_async_with_mode`, `find_step_async_with_mode`,
+and `find_step_with_mode`) are deprecated compatibility wrappers. Each
+delegates to the metadata pair and projects one field, so it inherits the
+usage-marking behaviour. `find_step_with_mode` keeps its
+`Option<&'static Step>` return type by projecting `as_step()`.
+
+The ownership boundary and permitted call sites are recorded in the developer's
+guide under "Registry lookup usage-marking invariant", and the decision is
+recorded in [ADR-024](adr-024-structural-usage-tracking-in-registry-lookups.md).
 
 ### 3.10 Implicit fixture injection implementation
 
@@ -3256,8 +3281,10 @@ Public APIs are re‑exported from `lib.rs`, so consumers continue to import fro
 - `registry.rs` — Registration and lookup:
   - `step!` macro
   - global registry map
-  - `lookup_step`
-  - `find_step`.
+  - `lookup_step_with_metadata`
+  - `find_step_with_metadata`
+  - `ResolvedStep`
+  - deprecated projection helpers.
 
 - `lib.rs` — Public API facade:
   - Re-exports public items

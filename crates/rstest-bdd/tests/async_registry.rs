@@ -6,21 +6,31 @@
 //! patterns or keywords do not match, and that async lookups properly mark
 //! steps as used.
 
+#![expect(
+    deprecated,
+    reason = "tests the deprecated registry lookup compatibility boundary"
+)]
+
 use rstest::rstest;
 use rstest_bdd::{
     AsyncStepFn,
+    PatternStr,
+    ResolvedStep,
     Step,
     StepContext,
     StepExecution,
     StepFuture,
     StepKeyword,
-    find_step_async,
+    StepText,
+    find_step_with_metadata,
     iter,
-    lookup_step_async,
+    lookup_step_with_metadata,
     step,
     unused_steps,
 };
 
+#[path = "async_registry/deprecated_lookup.rs"]
+mod deprecated_lookup;
 #[path = "common/noop_steps.rs"]
 mod noop_steps;
 #[path = "common/poll_step_future.rs"]
@@ -31,6 +41,31 @@ use poll_step_future_support::poll_step_future;
 // ----------------------------------------------------------------------------
 // Test helper functions
 // ----------------------------------------------------------------------------
+
+/// Which canonical metadata lookup a parameterized case exercises.
+///
+/// Naming the lookup as a value keeps the case tables readable and avoids
+/// threading a bare string through the helpers just to build a message.
+#[derive(Clone, Copy, Debug)]
+enum MetadataApi {
+    /// Exact-pattern lookup, `lookup_step_with_metadata`.
+    Exact,
+    /// Fuzzy-pattern lookup, `find_step_with_metadata`.
+    Fuzzy,
+}
+
+impl MetadataApi {
+    /// The public function name, for assertion messages.
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Exact => "lookup_step_with_metadata",
+            Self::Fuzzy => "find_step_with_metadata",
+        }
+    }
+
+    /// Whether this is the exact-pattern lookup.
+    const fn is_exact(self) -> bool { matches!(self, Self::Exact) }
+}
 
 /// Verify that an async step wrapper lookup succeeds and can be polled to completion.
 #[expect(clippy::expect_used, reason = "test helper validates lookup succeeds")]
@@ -47,14 +82,14 @@ fn assert_async_wrapper_works(lookup_fn: impl FnOnce() -> Option<AsyncStepFn>, t
 
 /// Verify that a step is marked as used after being looked up.
 fn assert_step_marked_as_used(
-    pattern: &str,
+    pattern: PatternStr<'_>,
     lookup_fn: impl FnOnce() -> Option<AsyncStepFn>,
-    api_name: &str,
+    api: MetadataApi,
 ) {
     // Verify the step is initially in the unused list.
     let unused_before: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
     assert!(
-        unused_before.contains(&pattern),
+        unused_before.contains(&pattern.as_str()),
         "Step should initially appear in unused_steps"
     );
 
@@ -65,9 +100,23 @@ fn assert_step_marked_as_used(
     // Verify the step is no longer in the unused list.
     let unused_after: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
     assert!(
-        !unused_after.contains(&pattern),
-        "Step should no longer appear in unused_steps after {api_name}"
+        !unused_after.contains(&pattern.as_str()),
+        "Step should no longer appear in unused_steps after {}",
+        api.name()
     );
+}
+
+/// Resolve a step through either canonical metadata lookup.
+fn resolve_metadata_step(
+    api: MetadataApi,
+    keyword: StepKeyword,
+    pattern: PatternStr<'_>,
+) -> Option<ResolvedStep> {
+    if api.is_exact() {
+        lookup_step_with_metadata(keyword, pattern)
+    } else {
+        find_step_with_metadata(keyword, StepText::from(pattern.as_str()))
+    }
 }
 
 // Register a test step for async registry tests.
@@ -119,18 +168,19 @@ fn step_struct_has_run_async_field() {
     );
 }
 
-#[test]
-fn find_step_async_returns_async_wrapper() {
+#[rstest]
+#[case::fuzzy(MetadataApi::Fuzzy)]
+#[case::exact(MetadataApi::Exact)]
+fn metadata_lookup_returns_async_wrapper(#[case] api: MetadataApi) {
     assert_async_wrapper_works(
-        || find_step_async(StepKeyword::Given, "an async registry test step".into()),
-        "an async registry test step",
-    );
-}
-
-#[test]
-fn lookup_step_async_returns_async_wrapper() {
-    assert_async_wrapper_works(
-        || lookup_step_async(StepKeyword::Given, "an async registry test step".into()),
+        || {
+            resolve_metadata_step(
+                api,
+                StepKeyword::Given,
+                PatternStr::from("an async registry test step"),
+            )
+            .map(|step| step.run_async)
+        },
         "an async registry test step",
     );
 }
@@ -141,59 +191,56 @@ fn lookup_step_async_returns_async_wrapper() {
 
 /// Test that async lookup APIs return None when the pattern or keyword does not match.
 ///
-/// This parameterized test consolidates all failure cases for both `find_step_async`
-/// and `lookup_step_async` into a single test with multiple cases.
+/// This parameterized test consolidates all failure cases for both canonical
+/// metadata lookups into a single test with multiple cases.
 #[rstest]
 #[case::find_unknown_pattern(
-    "find_step_async",
+    MetadataApi::Fuzzy,
     StepKeyword::Given,
-    "a completely unknown pattern xyz123",
+    PatternStr::from("a completely unknown pattern xyz123"),
     "for an unknown pattern"
 )]
 #[case::find_mismatched_when(
-    "find_step_async",
+    MetadataApi::Fuzzy,
     StepKeyword::When,
-    "an async registry test step",
+    PatternStr::from("an async registry test step"),
     "when keyword does not match (When)"
 )]
 #[case::find_mismatched_then(
-    "find_step_async",
+    MetadataApi::Fuzzy,
     StepKeyword::Then,
-    "an async registry test step",
+    PatternStr::from("an async registry test step"),
     "when keyword does not match (Then)"
 )]
 #[case::lookup_unknown_pattern(
-    "lookup_step_async",
+    MetadataApi::Exact,
     StepKeyword::Given,
-    "a completely unknown pattern xyz123",
+    PatternStr::from("a completely unknown pattern xyz123"),
     "for an unknown pattern"
 )]
 #[case::lookup_mismatched_when(
-    "lookup_step_async",
+    MetadataApi::Exact,
     StepKeyword::When,
-    "an async registry test step",
+    PatternStr::from("an async registry test step"),
     "when keyword does not match (When)"
 )]
 #[case::lookup_mismatched_then(
-    "lookup_step_async",
+    MetadataApi::Exact,
     StepKeyword::Then,
-    "an async registry test step",
+    PatternStr::from("an async registry test step"),
     "when keyword does not match (Then)"
 )]
 fn async_lookup_returns_none_for_invalid_input(
-    #[case] api_name: &str,
+    #[case] api: MetadataApi,
     #[case] keyword: StepKeyword,
-    #[case] pattern: &str,
+    #[case] pattern: PatternStr<'_>,
     #[case] failure_reason: &str,
 ) {
-    let result = match api_name {
-        "find_step_async" => find_step_async(keyword, pattern.into()),
-        "lookup_step_async" => lookup_step_async(keyword, pattern.into()),
-        _ => panic!("unknown API: {api_name}"),
-    };
+    let result = resolve_metadata_step(api, keyword, pattern).map(|step| step.run_async);
     assert!(
         result.is_none(),
-        "{api_name} should return None {failure_reason}"
+        "{} should return None {failure_reason}",
+        api.name()
     );
 }
 
@@ -211,16 +258,6 @@ step!(
     &[]
 );
 
-#[test]
-fn find_step_async_marks_step_as_used() {
-    assert_step_marked_as_used(
-        "async unused tracking test step",
-        || find_step_async(StepKeyword::Given, "async unused tracking test step".into()),
-        "find_step_async",
-    );
-}
-
-// Register another step for testing lookup_step_async unused tracking.
 step!(
     StepKeyword::When,
     "async lookup unused tracking test step",
@@ -229,16 +266,25 @@ step!(
     &[]
 );
 
-#[test]
-fn lookup_step_async_marks_step_as_used() {
+#[rstest]
+#[case::fuzzy(
+    MetadataApi::Fuzzy,
+    StepKeyword::Given,
+    PatternStr::from("async unused tracking test step")
+)]
+#[case::exact(
+    MetadataApi::Exact,
+    StepKeyword::When,
+    PatternStr::from("async lookup unused tracking test step")
+)]
+fn metadata_lookup_marks_step_as_used(
+    #[case] api: MetadataApi,
+    #[case] keyword: StepKeyword,
+    #[case] pattern: PatternStr<'_>,
+) {
     assert_step_marked_as_used(
-        "async lookup unused tracking test step",
-        || {
-            lookup_step_async(
-                StepKeyword::When,
-                "async lookup unused tracking test step".into(),
-            )
-        },
-        "lookup_step_async",
+        pattern,
+        || resolve_metadata_step(api, keyword, pattern).map(|step| step.run_async),
+        api,
     );
 }
