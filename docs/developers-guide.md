@@ -3248,6 +3248,15 @@ and shared helpers should still return `Result` rather than panic. Shared
 assertion shapes belong in macros so panic line numbers point at the calling
 test.
 
+The `whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures` test runs
+`make lint-whitaker` over a generated fixture crate. It removes the variables
+`cargo llvm-cov` exports (`LLVM_PROFILE_FILE`, `CARGO_ENCODED_RUSTFLAGS` and the
+`CARGO_LLVM_COV*` family) from that command, because Whitaker builds the
+fixture with its pinned nightly: an instrumented nightly build writes raw
+profiles in the nightly's format, which the stable toolchain's `llvm-profdata`
+rejects, and `Coverage (main)` then fails with `no profile can be merged`. The
+fixture needs no coverage, so it inherits none.
+
 ## Step-return overrides and `InsertOutcome` (ADR-015)
 
 [ADR-015](adr-015-insert-outcome-for-step-return-overrides.md) records why
