@@ -127,7 +127,11 @@ fn whitaker_lint_command(repo_root: &Utf8Path) -> Command {
 #[test]
 fn the_whitaker_fixture_command_inherits_no_coverage_instrumentation() {
     let command = whitaker_lint_command(Utf8Path::new("."));
-    for name in COVERAGE_ENV {
+    // The two variables that make a child build write profiles into the
+    // parent's merge directory, named here rather than read from the list the
+    // command is built from, so dropping one from that list fails this test.
+    let required = ["LLVM_PROFILE_FILE", "CARGO_ENCODED_RUSTFLAGS"];
+    for name in required.into_iter().chain(COVERAGE_ENV) {
         let removed = command
             .get_envs()
             .any(|(key, value)| key == name && value.is_none());
