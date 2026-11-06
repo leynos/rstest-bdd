@@ -236,7 +236,9 @@ let handler = find_step_with_metadata(StepKeyword::When, StepText::from("the bal
 ```
 
 Each replacement preserves the usage-tracking behaviour of the deprecated
-helper: the metadata lookup records the step as used when it resolves.
+helper: the metadata lookup records the step as used when it resolves. The
+[v0.7.0 migration guide][v0-7-0-migration-guide] covers this change and every
+deprecated helper in full.
 
 ### Fixtures and implicit injection
 
@@ -3456,6 +3458,7 @@ three amigos in the specification process.
 [adr-013]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
+[v0-7-0-migration-guide]: https://github.com/leynos/rstest-bdd/blob/main/docs/v0-7-0-migration-guide.md
 [rstest-bdd-design]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md
 [design-runner-parallelism]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#2767-test-runner-parallelism-and-scenario-state
 [developers-guide-adapter-fallback]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#adapter-fallback-diagnostics

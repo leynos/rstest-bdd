@@ -1,4 +1,18 @@
 //! Deprecated projections from resolved registry metadata.
+//!
+//! This module is the compatibility surface for callers that still expect a
+//! bare handler pointer. Each helper delegates to
+//! [`super::lookup_step_with_metadata`] or [`super::find_step_with_metadata`]
+//! and projects one field from the resolved step: `run` for the synchronous
+//! helpers, `run_async` for the asynchronous ones, and `(run_async,
+//! execution_mode)` for the mode-aware pair. Because every helper delegates to
+//! a metadata lookup, it inherits the usage-marking behaviour that
+//! [`super::ResolvedStep`] applies on construction.
+//!
+//! New code should call the metadata pair directly and project the field it
+//! needs. The helpers here remain available, with deprecation warnings, until
+//! the next breaking release; the v0.7.0 migration guide maps each one to its
+//! replacement.
 
 use crate::types::{AsyncStepFn, PatternStr, StepFn, StepKeyword, StepText};
 

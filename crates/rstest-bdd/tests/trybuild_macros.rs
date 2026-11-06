@@ -167,6 +167,7 @@ fn run_lint_ui_tests() -> io::Result<()> {
         ),
         ("step_return_dispatch_lint_clean", &["-D", "warnings"][..]),
         ("registry_lookup_api", &["-D", "warnings"][..]),
+        ("registry_lookup_deprecated", &["-D", "warnings"][..]),
     ];
 
     for (bin, lint_args) in cases {
