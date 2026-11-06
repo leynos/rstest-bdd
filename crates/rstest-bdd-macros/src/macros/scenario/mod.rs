@@ -46,7 +46,7 @@ use self::{
 };
 use crate::{
     parsing::tags::TagExpression,
-    utils::fixtures::extract_function_fixtures,
+    utils::fixtures::{FixtureBindingCode, extract_function_fixtures},
     validation::{
         parameters::process_scenario_outline_examples,
         placeholder::{ExampleHeaders, validate_step_placeholders},
@@ -78,85 +78,107 @@ struct ScenarioLookup<'a> {
 pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(attr as ScenarioArgs);
     let item_fn = syn::parse_macro_input!(item as syn::ItemFn);
-    match try_scenario(args, item_fn) {
+    match try_scenario(&args, item_fn) {
         Ok(tokens) => tokens,
         Err(err) => err,
     }
 }
 
-/// Provides the internal `try_scenario` operation.
-fn try_scenario(
-    ScenarioArgs {
-        path,
+/// The scenario selected from the feature file, plus the config pieces derived
+/// from the macro arguments rather than from the feature text.
+struct ResolvedScenario {
+    /// Reusable state that survives the selection phase.
+    feature_path: String,
+    /// The parsed scenario body.
+    data: ScenarioData,
+    /// How the generated test should execute.
+    runtime: RuntimeMode,
+    /// Closed step-library scope tokens, empty when the macro named none.
+    scope: proc_macro2::TokenStream,
+    /// Whether the scenario may be skipped without failing.
+    allow_skipped: bool,
+}
+
+/// Locate the scenario the macro arguments select, then validate its steps.
+///
+/// This is the read-only half of expansion: it parses the feature, resolves the
+/// selector and tag filter, and rejects a scenario whose placeholders or steps
+/// do not compile. It mutates only the signature-adjacent arguments that later
+/// expansion needs (`process_scenario_outline_examples`).
+fn resolve_scenario(
+    args: &ScenarioArgs,
+    item_fn: &mut syn::ItemFn,
+) -> std::result::Result<ResolvedScenario, TokenStream> {
+    let ScenarioArgs {
+        path: path_lit,
         selector,
         tag_filter,
-        harness,
-        attributes,
         libraries,
-    }: ScenarioArgs,
-    mut item_fn: syn::ItemFn,
-) -> std::result::Result<TokenStream, TokenStream> {
-    let path_lit = path;
+        ..
+    } = args;
     let scope = library_scope_tokens(libraries.as_deref());
     let path = PathBuf::from(path_lit.value());
-    let attrs = &item_fn.attrs;
-    let vis = &item_fn.vis;
     let sig = &mut item_fn.sig;
-    let block = &item_fn.block;
-    let return_kind = classify_scenario_return(sig)
-        .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
-
-    // Detect async function signature for runtime mode selection.
-    let runtime = if sig.asyncness.is_some() {
-        RuntimeMode::TokioCurrentThread
-    } else {
-        RuntimeMode::Sync
-    };
 
     // Retrieve cached feature to avoid repeated parsing.
     let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
-    let tag_filter = parse_tag_filter(tag_filter)?;
-    ensure_feature_not_empty(&path_lit, &feature)?;
-    let candidate_indices = resolve_candidate_indices(selector.as_ref(), &feature, &path_lit)?;
-    let scenario_data = select_scenario(
+    let tag_filter = parse_tag_filter(tag_filter.clone())?;
+    ensure_feature_not_empty(path_lit, &feature)?;
+    let candidate_indices = resolve_candidate_indices(selector.as_ref(), &feature, path_lit)?;
+    let data = select_scenario(
         ScenarioLookup {
             feature: &feature,
             candidate_indices: &candidate_indices,
             tag_filter: tag_filter.as_ref(),
         },
         selector.as_ref(),
-        &path_lit,
+        path_lit,
     )?;
 
     // Decision D3: the embedded feature path is manifest-relative within the
     // crate, absolute otherwise (see `manifest_relative_feature_path`).
-    let feature_path_str = manifest_relative_feature_path(&path);
-    let ScenarioData {
-        name: scenario_name,
-        steps,
-        examples,
-        tags,
-        line,
-    } = scenario_data;
-    let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&tags);
+    let feature_path = manifest_relative_feature_path(&path);
+    let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&data.tags);
 
     // Validate placeholder references in scenario outline steps
-    if let Some(ref ex) = examples {
-        validate_step_placeholders(&steps, ExampleHeaders::new(&ex.headers))
+    if let Some(ref ex) = data.examples {
+        validate_step_placeholders(&data.steps, ExampleHeaders::new(&ex.headers))
             .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
     }
 
-    if let Some(libraries) = libraries.as_deref() {
-        if let Some(err) = validate_steps_compile_time_in_scope(&steps, libraries) {
-            return Err(err);
-        }
-    } else if let Some(err) = validate_steps_compile_time(&steps) {
+    if let Some(err) = validate_steps_compile_time(&data.steps, libraries.as_deref()) {
         return Err(err);
     }
 
-    process_scenario_outline_examples(sig, examples.as_ref())
+    process_scenario_outline_examples(sig, data.examples.as_ref())
         .map_err(proc_macro::TokenStream::from)?;
 
+    let runtime = if sig.asyncness.is_some() {
+        RuntimeMode::TokioCurrentThread
+    } else {
+        RuntimeMode::Sync
+    };
+
+    Ok(ResolvedScenario {
+        feature_path,
+        data,
+        runtime,
+        scope,
+        allow_skipped,
+    })
+}
+
+/// Wire the scenario's fixture parameters into the generated step context.
+///
+/// A fixture whose type is `Result<T, E>` or `StepResult<T, E>` is propagated
+/// with `?`, so the scenario must return a fallible type for that generated
+/// code to compile. Rejecting the mismatch here produces the diagnostic
+/// against the user's signature instead of a `?`-operator error inside
+/// generated tokens.
+fn resolve_fixture_setup(
+    sig: &mut syn::Signature,
+    return_kind: crate::codegen::scenario::ScenarioReturnKind,
+) -> std::result::Result<FixtureBindingCode, TokenStream> {
     let (_args, fixture_setup) = extract_function_fixtures(sig)
         .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
 
@@ -172,21 +194,54 @@ fn try_scenario(
         return Err(proc_macro::TokenStream::from(err.into_compile_error()));
     }
 
-    let ctx_prelude = fixture_setup.prelude;
-    let ctx_inserts = fixture_setup.ctx_inserts;
-    let ctx_postlude = fixture_setup.postlude;
+    Ok(fixture_setup)
+}
+
+/// Provides the internal `try_scenario` operation.
+fn try_scenario(
+    args: &ScenarioArgs,
+    mut item_fn: syn::ItemFn,
+) -> std::result::Result<TokenStream, TokenStream> {
+    let path_lit = &args.path;
+    // Classify the return shape first so an unsupported signature is reported
+    // against the user's `fn` rather than against the feature file it also
+    // happens to name.
+    let return_kind = classify_scenario_return(&item_fn.sig)
+        .map_err(|err| proc_macro::TokenStream::from(err.into_compile_error()))?;
+
+    let ResolvedScenario {
+        feature_path,
+        data: scenario_data,
+        runtime,
+        scope,
+        allow_skipped,
+    } = resolve_scenario(args, &mut item_fn)?;
+
+    let sig = &mut item_fn.sig;
+    let fixture_setup = resolve_fixture_setup(sig, return_kind)?;
+
+    let path = PathBuf::from(path_lit.value());
     // `#[scenario]` owns this expansion boundary, so it emits each fallback
     // diagnostic once before its generated code consumes the shared decision.
-    let resolutions =
-        crate::codegen::SharedAdapterResolutions::resolve(harness.as_ref(), attributes.as_ref());
+    let resolutions = crate::codegen::SharedAdapterResolutions::resolve(
+        args.harness.as_ref(),
+        args.attributes.as_ref(),
+    );
     let fallback_diagnostics = resolutions.emit_diagnostics();
+    let ScenarioData {
+        name: scenario_name,
+        steps,
+        examples,
+        tags,
+        line,
+    } = scenario_data;
 
     let config = ScenarioConfig {
-        attrs,
-        vis,
+        attrs: &item_fn.attrs,
+        vis: &item_fn.vis,
         sig,
-        block,
-        feature_path: FeaturePath::new(feature_path_str),
+        block: &item_fn.block,
+        feature_path: FeaturePath::new(feature_path),
         scenario_name: ScenarioName::new(scenario_name),
         steps,
         examples,
@@ -196,8 +251,8 @@ fn try_scenario(
         runtime,
         attribute_runtime: runtime,
         return_kind,
-        harness: harness.as_ref(),
-        attributes: attributes.as_ref(),
+        harness: args.harness.as_ref(),
+        attributes: args.attributes.as_ref(),
         resolutions: Some(&resolutions),
         fallback_diagnostics: Some(&fallback_diagnostics),
         scope,
@@ -205,9 +260,9 @@ fn try_scenario(
 
     let generated = generate_scenario_code(
         &config,
-        ctx_prelude.into_iter(),
-        ctx_inserts.into_iter(),
-        ctx_postlude.into_iter(),
+        fixture_setup.prelude.into_iter(),
+        fixture_setup.ctx_inserts.into_iter(),
+        fixture_setup.postlude.into_iter(),
     );
 
     // Emit the Cargo rebuild-dependency tracking item as a sibling of the
@@ -246,38 +301,23 @@ fn parse_tag_filter(
         .transpose()
 }
 
-/// Provides the internal `validate_steps_compile_time` operation.
+/// Validate steps at compile time, optionally against a closed library list.
+///
+/// Scoped and unscoped validation differ only in which validator runs; the
+/// strictness flag is a build-time choice, and a build with neither validation
+/// feature skips the check rather than failing it. Keeping both paths in one
+/// function means the feature selection cannot drift between them.
 fn validate_steps_compile_time(
     steps: &[crate::parsing::feature::ParsedStep],
+    libraries: Option<&[syn::Path]>,
 ) -> Option<TokenStream> {
+    let libraries = libraries.map(library_validation_names);
     let res: Result<(), syn::Error> = {
         cfg_if::cfg_if! {
             if #[cfg(feature = "strict-compile-time-validation")] {
-                crate::validation::steps::validate_steps_exist(steps, true)
+                run_step_validator(steps, libraries.as_deref(), true)
             } else if #[cfg(feature = "compile-time-validation")] {
-                crate::validation::steps::validate_steps_exist(steps, false)
-            } else {
-                let _ = steps;
-                Ok(())
-            }
-        }
-    };
-    res.err()
-        .map(|e| proc_macro::TokenStream::from(e.into_compile_error()))
-}
-
-/// Validate steps against the explicit closed library list, when locally known.
-fn validate_steps_compile_time_in_scope(
-    steps: &[crate::parsing::feature::ParsedStep],
-    libraries: &[syn::Path],
-) -> Option<TokenStream> {
-    let libraries = library_validation_names(libraries);
-    let res: Result<(), syn::Error> = {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "strict-compile-time-validation")] {
-                crate::validation::steps::validate_steps_exist_in_scope(steps, &libraries, true)
-            } else if #[cfg(feature = "compile-time-validation")] {
-                crate::validation::steps::validate_steps_exist_in_scope(steps, &libraries, false)
+                run_step_validator(steps, libraries.as_deref(), false)
             } else {
                 let _ = (steps, libraries);
                 Ok(())
@@ -286,4 +326,26 @@ fn validate_steps_compile_time_in_scope(
     };
     res.err()
         .map(|error| proc_macro::TokenStream::from(error.into_compile_error()))
+}
+
+/// Dispatch to the scoped or unscoped validator for this build.
+///
+/// Only compiled when a validation feature is enabled: the `validation::steps`
+/// module is itself feature-gated, so referencing it unconditionally here would
+/// break builds that opt out of compile-time validation.
+#[cfg(any(
+    feature = "compile-time-validation",
+    feature = "strict-compile-time-validation"
+))]
+fn run_step_validator(
+    steps: &[crate::parsing::feature::ParsedStep],
+    libraries: Option<&[Box<str>]>,
+    strict: bool,
+) -> Result<(), syn::Error> {
+    libraries.map_or_else(
+        || crate::validation::steps::validate_steps_exist(steps, strict),
+        |libraries| {
+            crate::validation::steps::validate_steps_exist_in_scope(steps, libraries, strict)
+        },
+    )
 }

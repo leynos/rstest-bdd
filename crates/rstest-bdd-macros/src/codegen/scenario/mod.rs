@@ -21,19 +21,19 @@
 use std::borrow::Cow;
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
 
 mod adapters;
 mod boundary;
 mod domain;
+mod emit;
 mod helpers;
 mod metadata;
 mod runtime;
 mod test_attrs;
 
 use adapters::resolve_scenario_adapters;
-use boundary::finalize_scenario_signature;
 pub(crate) use domain::*;
+use emit::{ScenarioEmit, emit_scenario_test, scenario_metadata};
 pub(crate) use helpers::process_steps;
 use helpers::{
     generate_case_attrs,
@@ -46,7 +46,6 @@ use runtime::{
     ContextIterators,
     OutlineTestTokensConfig,
     ProcessedSteps,
-    ScenarioMetadata,
     TestTokensConfig,
     generate_test_tokens,
 };
@@ -206,19 +205,10 @@ where
     let adapters = resolve_scenario_adapters(config);
     let harness_resolution = adapters.resolutions.harness.as_ref();
     let attributes_resolution = adapters.resolutions.attributes.as_ref();
-    let metadata = ScenarioMetadata {
-        feature_path: &config.feature_path,
-        scenario_name: &config.scenario_name,
-        scenario_line: config.line,
-        tags: config.tags,
-        block: config.block,
-        allow_skipped: config.allow_skipped,
-        is_async: config.runtime.is_async(),
-        return_kind: config.return_kind,
-        harness: config.harness,
-        harness_api_path: harness_resolution.map(|resolution| resolution.api_path.clone()),
-        scope: config.scope.clone(),
-    };
+    let metadata = scenario_metadata(
+        config,
+        harness_resolution.map(|resolution| resolution.api_path.clone()),
+    );
     let test_config = TestTokensConfig {
         processed_steps,
         metadata,
@@ -231,26 +221,45 @@ where
         &test_config,
         ContextIterators::new(ctx.prelude, ctx.inserts, ctx.postlude),
     );
-    let attrs = config.attrs;
-    let vis = config.vis;
     let mut signature = Cow::Borrowed(config.sig);
-    let (trait_assertions, test_attrs, underscore_expect, body) = finalize_scenario_signature(
+    emit_scenario_test(
         config,
-        harness_resolution,
-        attributes_resolution,
         &mut signature,
-        body,
-    );
-    let fallback_diagnostics = config.fallback_diagnostics;
-    quote! {
-        #fallback_diagnostics
-        #trait_assertions
-        #test_attrs
-        #(#case_attrs)*
-        #(#attrs)*
-        #underscore_expect
-        #vis #signature { #body }
-    }
+        ScenarioEmit {
+            harness_resolution,
+            attributes_resolution,
+            case_attrs: &case_attrs,
+            body,
+        },
+    )
+}
+
+/// Substitute each Examples row's placeholders into the scenario's steps.
+///
+/// Rows without values are skipped rather than rejected: a blank Examples line
+/// is how a table stays readable between groups, and Gherkin itself does not
+/// give it meaning. The first failing row aborts the whole outline, because a
+/// partially generated `#[rstest]` case list would bind later cases to the
+/// wrong row.
+fn substituted_outline_steps<'a>(
+    config: &'a ScenarioConfig<'_>,
+) -> Option<(
+    &'a crate::parsing::examples::ExampleTable,
+    Result<Vec<helpers::ProcessedStepTokens>, TokenStream2>,
+)> {
+    let examples = config.examples.as_ref()?;
+    let headers = ExampleHeaders::new(examples.headers.clone());
+    let substituted = examples
+        .rows
+        .iter()
+        .filter(|row| row_has_values(row))
+        .map(|row| {
+            let row = ExampleRow::new(row.clone());
+            process_steps_substituted(&config.steps, &headers, &row)
+        })
+        .collect();
+
+    Some((examples, substituted))
 }
 
 /// Generate code for a scenario outline with placeholder substitution.
@@ -267,26 +276,14 @@ where
         return rejection;
     }
 
-    // Generate substituted steps for each Examples row
-    let Some(examples) = config.examples.as_ref() else {
+    let Some((examples, substituted)) = substituted_outline_steps(config) else {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
             "Scenario outline examples missing",
         );
         return err.into_compile_error();
     };
-    let headers = ExampleHeaders::new(examples.headers.clone());
-    let all_rows_steps: Result<Vec<_>, _> = examples
-        .rows
-        .iter()
-        .filter(|row| row_has_values(row))
-        .map(|row| {
-            let row = ExampleRow::new(row.clone());
-            process_steps_substituted(&config.steps, &headers, &row)
-        })
-        .collect();
-
-    let all_rows_steps = match all_rows_steps {
+    let all_rows_steps = match substituted {
         Ok(steps) => steps,
         Err(err) => return err,
     };
@@ -294,19 +291,10 @@ where
     let adapters = resolve_scenario_adapters(config);
     let harness_resolution = adapters.resolutions.harness.as_ref();
     let attributes_resolution = adapters.resolutions.attributes.as_ref();
-    let metadata = ScenarioMetadata {
-        feature_path: &config.feature_path,
-        scenario_name: &config.scenario_name,
-        scenario_line: config.line,
-        tags: config.tags,
-        block: config.block,
-        allow_skipped: config.allow_skipped,
-        is_async: config.runtime.is_async(),
-        return_kind: config.return_kind,
-        harness: config.harness,
-        harness_api_path: harness_resolution.map(|resolution| resolution.api_path.clone()),
-        scope: config.scope.clone(),
-    };
+    let metadata = scenario_metadata(
+        config,
+        harness_resolution.map(|resolution| resolution.api_path.clone()),
+    );
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,
         metadata,
@@ -325,25 +313,16 @@ where
     };
     signature.to_mut().inputs.insert(0, case_idx_param);
 
-    let attrs = config.attrs;
-    let vis = config.vis;
-    let (trait_assertions, test_attrs, underscore_expect, body) = finalize_scenario_signature(
+    emit_scenario_test(
         config,
-        harness_resolution,
-        attributes_resolution,
         &mut signature,
-        body,
-    );
-    let fallback_diagnostics = config.fallback_diagnostics;
-    quote! {
-        #fallback_diagnostics
-        #trait_assertions
-        #test_attrs
-        #(#case_attrs)*
-        #(#attrs)*
-        #underscore_expect
-        #vis #signature { #body }
-    }
+        ScenarioEmit {
+            harness_resolution,
+            attributes_resolution,
+            case_attrs: &case_attrs,
+            body,
+        },
+    )
 }
 
 #[cfg(test)]
