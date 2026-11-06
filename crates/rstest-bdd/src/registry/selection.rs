@@ -17,10 +17,11 @@
 //! Matching and selection are also the two halves of the usage-marking
 //! invariant. Resolution here is pure: it reads the registry and returns a
 //! definition without recording anything. Recording happens in
-//! [`super::mark_and_project`], which the public lookup wrappers call on the way
-//! out. Keeping resolution side-effect free is what lets the language server
-//! and preflight checks resolve steps without making them look executed, while
-//! `cargo bdd unused` still reflects the steps that actually ran.
+//! [`super::ResolvedStep::new`], which the metadata lookups call on the way out
+//! when a resolution succeeds. Keeping resolution side-effect free is what lets
+//! the language server and preflight checks resolve steps without making them
+//! look executed, while `cargo bdd unused` still reflects the steps that
+//! actually ran.
 
 use hashbrown::HashSet;
 use rstest_bdd_patterns::SpecificityScore;
