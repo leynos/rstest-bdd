@@ -164,32 +164,51 @@ fn deprecated_sync_lookup_projects_a_distinctive_handler(#[case] lookup: SyncLoo
     assert_distinctive_skip(result, SYNC_MARKER);
 }
 
-#[rstest]
-#[case::exact(true)]
-#[case::fuzzy(false)]
-fn deprecated_async_lookup_projects_a_distinctive_handler(#[case] should_match_exactly: bool) {
-    let handler = if should_match_exactly {
-        lookup_step_async(StepKeyword::Given, DISTINCTIVE_STEP.into())
-    } else {
-        find_step_async(StepKeyword::Given, DISTINCTIVE_STEP.into())
-    }
-    .expect("step should be found");
+/// Which deprecated asynchronous projection a case exercises.
+///
+/// Only the `*WithMode` variants report an execution mode, so the other
+/// variants carry no mode to assert.
+#[derive(Clone, Copy, Debug)]
+enum AsyncLookup {
+    /// Exact-pattern projection, `lookup_step_async`.
+    Exact,
+    /// Fuzzy-pattern projection, `find_step_async`.
+    Fuzzy,
+    /// Exact-pattern mode projection, `lookup_step_async_with_mode`.
+    ExactWithMode,
+    /// Fuzzy-pattern mode projection, `find_step_async_with_mode`.
+    FuzzyWithMode,
+}
 
-    assert_distinctive_skip(poll_projection(handler), ASYNC_MARKER);
+impl AsyncLookup {
+    /// Resolve the distinctive step through this projection.
+    fn resolve(self) -> Option<(AsyncStepFn, Option<StepExecutionMode>)> {
+        let keyword = StepKeyword::Given;
+        match self {
+            Self::Exact => {
+                lookup_step_async(keyword, DISTINCTIVE_STEP.into()).map(|handler| (handler, None))
+            }
+            Self::Fuzzy => {
+                find_step_async(keyword, DISTINCTIVE_STEP.into()).map(|handler| (handler, None))
+            }
+            Self::ExactWithMode => lookup_step_async_with_mode(keyword, DISTINCTIVE_STEP.into())
+                .map(|(handler, mode)| (handler, Some(mode))),
+            Self::FuzzyWithMode => find_step_async_with_mode(keyword, DISTINCTIVE_STEP.into())
+                .map(|(handler, mode)| (handler, Some(mode))),
+        }
+    }
 }
 
 #[rstest]
-#[case::exact(true)]
-#[case::fuzzy(false)]
-fn deprecated_mode_lookup_projects_a_distinctive_handler(#[case] should_match_exactly: bool) {
-    let (handler, mode) = if should_match_exactly {
-        lookup_step_async_with_mode(StepKeyword::Given, DISTINCTIVE_STEP.into())
-    } else {
-        find_step_async_with_mode(StepKeyword::Given, DISTINCTIVE_STEP.into())
+#[case::exact(AsyncLookup::Exact)]
+#[case::fuzzy(AsyncLookup::Fuzzy)]
+#[case::exact_with_mode(AsyncLookup::ExactWithMode)]
+#[case::fuzzy_with_mode(AsyncLookup::FuzzyWithMode)]
+fn deprecated_async_lookup_projects_a_distinctive_handler(#[case] lookup: AsyncLookup) {
+    let (handler, mode) = lookup.resolve().expect("step should be found");
+    if let Some(mode) = mode {
+        assert_eq!(mode, StepExecutionMode::Both);
     }
-    .expect("step should be found");
-
-    assert_eq!(mode, StepExecutionMode::Both);
     assert_distinctive_skip(poll_projection(handler), ASYNC_MARKER);
 }
 
