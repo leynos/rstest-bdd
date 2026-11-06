@@ -2961,11 +2961,14 @@ Examples
 
 - `cargo bdd steps`
 - `cargo bdd steps --skipped --json`
-- `cargo bdd unused --quiet`
-- `cargo bdd duplicates --json`
+- `cargo bdd unused`
+- `cargo bdd duplicates`
 - `cargo bdd skipped --reasons`
-- `cargo bdd steps --skipped --json` must be paired; using `--json` without
-  `--skipped` is rejected by the CLI, so invalid combinations fail fast.
+- `cargo bdd skipped --json`
+- `cargo-bdd bdd steps --skipped --json`
+- `cargo bdd steps --json` requires an effective `skipped = true` setting.
+  This may come from a configuration file or environment variable; otherwise
+  the CLI reports its existing missing-`--skipped` parse error.
 
 The tool inspects the runtime step registry and offers four commands:
 
@@ -2999,6 +3002,71 @@ include `feature`, `scenario`, `line`, `tags`, and `reason` fields. The former
 adds an embedded `step` object describing each bypassed definition (keyword,
 pattern, file, and line) to help trace which definitions were sidelined by a
 runtime skip.
+
+### Configuration files and environment
+
+The `steps` options `--skipped` and `--json`, and the `skipped` options
+`--reasons` and `--json`, can be set in TOML or with environment variables. The
+default for each option is `false`, so runs without configuration keep their
+existing flags, output, exit statuses and streams.
+
+Put settings under the matching subcommand table:
+
+```toml
+[cmds.steps]
+skipped = true
+json = true
+
+[cmds.skipped]
+reasons = true
+json = true
+```
+
+On Unix and Redox, `cargo-bdd` checks `~/.cargo_bdd.toml`, the first existing
+XDG `cargo_bdd/config.toml`, then `./.cargo_bdd.toml`, merging them in that
+order. It uses `$XDG_CONFIG_HOME/cargo_bdd` when `XDG_CONFIG_HOME` is an
+absolute path; otherwise it uses `$HOME/.config/cargo_bdd`. If neither
+`XDG_CONFIG_DIRS` nor an absolute directory in it is available, the system
+default is `/etc/xdg/cargo_bdd`.
+
+On other platforms, it checks the home `.cargo_bdd.toml`, the native
+`cargo_bdd/config.toml` directory, then the working-directory
+`.cargo_bdd.toml`. On Windows the native directory is under `%APPDATA%`.
+Missing optional files are ignored. A discovered file that is unreadable or
+malformed stops the command with an error. Unknown keys are ignored, so check
+table and field names carefully when a setting has no effect.
+
+The environment prefix is `CARGO_BDD_`:
+
+```sh
+export CARGO_BDD_CMDS_STEPS_SKIPPED=true
+export CARGO_BDD_CMDS_STEPS_JSON=true
+export CARGO_BDD_CMDS_SKIPPED_REASONS=true
+export CARGO_BDD_CMDS_SKIPPED_JSON=true
+```
+
+Values are resolved in this order: defaults, configuration files, environment,
+then explicitly supplied command-line flags. The CLI exposes these as
+positive-only flags, while environment values accept `true` or `false` and
+override file values. For one non-JSON run when TOML enables both `steps`
+settings, set both environment values to `false`:
+
+```sh
+CARGO_BDD_CMDS_STEPS_SKIPPED=false \
+  CARGO_BDD_CMDS_STEPS_JSON=false cargo bdd steps
+```
+
+Unset both variables to use the TOML values again. The `steps` JSON output
+still requires `skipped = true`, whether those values come from TOML, the
+environment or the CLI.
+
+Both `cargo bdd <subcommand>` and `cargo-bdd bdd <subcommand>` consume Cargo's
+injected `bdd` token. The original flat form, `cargo-bdd <subcommand>`,
+continues to work as well. There is no `--config-path` option or profile
+support. Help and command-line parse errors remain in English.
+
+Building `cargo-bdd` requires Rust 1.89 because of its configuration
+dependency. The reusable library crates retain their Rust 1.88 minimum.
 
 ### Scenario report writers
 

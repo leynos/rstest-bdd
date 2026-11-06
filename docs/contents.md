@@ -39,6 +39,14 @@
   the v0.5.0 release changes.
 - [v0.6.0 migration guide](v0-6-0-migration-guide.md) helps users move through
   the v0.6.0 release changes.
+- [OrthoConfig user's guide](../vendor/ortho-config-v0-10-0/docs/users-guide.md)
+  is the link-preserving mirror of the imported upstream guide to configuring a
+  command-line application with OrthoConfig v0.10.0.
+- [OrthoConfig v0.10.0 migration guide](../vendor/ortho-config-v0-10-0/docs/v0-10-0-migration-guide.md)
+  is the link-preserving mirror of the imported upstream guide to moving an
+  application from OrthoConfig v0.9.0 to v0.10.0.
+- [Provenance of the imported OrthoConfig guides](ortho-config-v0-10-0-provenance.md)
+  records the release, commit, paths, and checksums of those two imports.
 - [Releasing crates](releasing-crates.md) documents the release and publication
   process for workspace crates.
 - [Lading user guide](lading-users-guide.md) documents the `lading` release
@@ -119,6 +127,10 @@
   archive family, sharing the sccache directory with the instrumented one.
 - [ADR 023: adopt the shared CV-005 contract library][adr-023] records the move
   from a local copy of the CV-005 contract to the pinned shared check.
+- [ADR 024: adopt OrthoConfig for the `cargo-bdd` command-line
+  interface][adr-024] records the decision to layer the diagnostic tool's
+  settings through OrthoConfig while keeping every library crate free of the
+  dependency.
 
 ## Execution plans
 
@@ -143,6 +155,7 @@
 [adr-021]: adr-021-single-source-base-url-for-users-guide-links.md
 [adr-022]: adr-022-separate-compiler-cache-family-for-the-publish-dry-run.md
 [adr-023]: adr-023-adopt-the-shared-cv005-contract-library.md
+[adr-024]: adr-024-adopt-ortho-config-for-the-cargo-bdd-cli.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md

@@ -24,9 +24,9 @@ global-timeout = "90m"
 max-threads = 1
 
 [[profile.default.overrides]]
-# `cargo-bdd` CLI smoke tests spawn `cargo` to build fixture crates, which can
-# legitimately exceed the default 60s slow-timeout on cold caches.
-filter = "binary_id(cargo-bdd::cli)"
+# CLI smoke tests build fixture crates, and invocation tests exercise Cargo's
+# external-subcommand dispatch; keep both in the serialized cargo-spawning lane.
+filter = "binary_id(cargo-bdd::cli) | binary_id(cargo-bdd::invocation)"
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 

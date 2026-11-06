@@ -463,7 +463,7 @@ ______________________________________________________________________
 3. **Feature parity & ergonomics**: Background, tables, docstrings,
    `scenarios!` macro, richer diagnostics.
 
-4. **Developer tools**: `cargo bdd list-steps`, editor integrations.
+4. **Developer tools**: `cargo bdd steps`, editor integrations.
 
 We’re not here to replace `cucumber`; we’re here to offer a different trade‑off
 for teams already invested in `rstest` and `cargo test`.

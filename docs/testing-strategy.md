@@ -48,6 +48,26 @@ like these:
 - For cleanup assertions, use lightweight RAII probes with `Drop` side effects
   rather than internal implementation hooks.
 
+### `cargo-bdd` no-configuration baseline
+
+`crates/cargo-bdd/tests/baseline_output.rs` compares process status and both
+output streams against the captured no-configuration CLI contract. Its
+`IsolatedConfigDirectories` fixture and assertion helpers have a narrow scope:
+
+- **Ownership.** The fixture owns temporary HOME, XDG, Windows profile, and
+  working-directory paths for this integration test. It is not general test
+  infrastructure.
+- **Permitted call sites.** The helpers are private to
+  `baseline_output.rs`; use them only from its captured-output contract test.
+- **Composition.** The fixture retains its `TempDir` while each child process
+  runs, and the command helper clears the child's environment before setting
+  the isolated discovery paths. Tests do not mutate the parent process
+  environment.
+- **Repository sweep.** `tests/invocation.rs` has an `IsolatedWorkspace` that
+  also copies the binary and supports Cargo dispatch. It serves a different
+  workflow, so the baseline-output helpers remain local rather than expanding
+  that workspace fixture into a generic environment utility.
+
 ### LSP smoke-test synchronization
 
 The language-server smoke tests exercise an asynchronous JSON-RPC process, so a

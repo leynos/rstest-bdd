@@ -5,11 +5,20 @@ use std::{
     io::{self, Write},
 };
 
-use clap::{Args, Parser, Subcommand};
+use clap::{ArgMatches, Parser, Subcommand};
 use eyre::{Context, Result, bail};
 use serde::Serialize;
 
 use crate::{
+    config::{
+        SkippedConfig,
+        SkippedSettings,
+        StepsConfig,
+        StepsSettings,
+        merge_steps,
+        resolve_skipped,
+        validate_steps,
+    },
     output::{
         ScenarioDisplayOptions,
         write_bypassed_steps,
@@ -19,6 +28,10 @@ use crate::{
     },
     registry::{BypassedStep, Scenario, ScenarioOutcome, Step, collect_registry},
 };
+
+mod invocation;
+
+use invocation::{InvocationForm, missing_required_skipped_error, parse_command_line};
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
 #[derive(Parser)]
@@ -33,35 +46,13 @@ pub(crate) struct Cli {
 #[derive(Subcommand)]
 pub(crate) enum Commands {
     /// List all registered steps.
-    Steps(StepsArgs),
+    Steps(StepsConfig),
     /// List registered steps that were never executed.
     Unused,
     /// List step definitions that share the same keyword and pattern.
     Duplicates,
     /// List skipped scenarios and their reasons.
-    Skipped(SkippedArgs),
-}
-
-#[derive(Args)]
-/// Options for listing registered steps.
-pub(crate) struct StepsArgs {
-    /// Filter for step definitions bypassed when scenarios were skipped.
-    #[arg(long)]
-    pub skipped: bool,
-    /// Emit JSON instead of human-readable text.
-    #[arg(long, requires = "skipped")]
-    pub json: bool,
-}
-
-#[derive(Args)]
-/// Options for listing skipped scenarios.
-pub(crate) struct SkippedArgs {
-    /// Include file/line information and skip reasons.
-    #[arg(long)]
-    pub reasons: bool,
-    /// Emit JSON instead of human-readable text.
-    #[arg(long)]
-    pub json: bool,
+    Skipped(SkippedConfig),
 }
 
 #[derive(Serialize)]
@@ -129,17 +120,44 @@ impl<'a> From<&'a BypassedStep> for SkipReport<'a> {
 
 /// Parse the command line and dispatch the selected diagnostic.
 pub(crate) fn run() -> Result<()> {
-    match Cli::parse().command {
-        Commands::Steps(args) => handle_steps(&args)?,
+    let (cli, matches, invocation_form) = parse_command_line(std::env::args_os())?;
+    match cli.command {
+        Commands::Steps(config) => {
+            handle_steps(&resolve_steps_settings(&config, &matches, invocation_form)?)?;
+        }
         Commands::Unused => handle_unused()?,
         Commands::Duplicates => handle_duplicates()?,
-        Commands::Skipped(args) => handle_skipped(&args)?,
+        Commands::Skipped(config) => {
+            let command_matches = selected_matches(&matches, "skipped")?;
+            handle_skipped(&resolve_skipped(&config, command_matches)?)?;
+        }
     }
     Ok(())
 }
 
+/// Merge and validate `steps` settings before passing them to the handler.
+fn resolve_steps_settings(
+    config: &StepsConfig,
+    matches: &ArgMatches,
+    invocation_form: InvocationForm,
+) -> Result<StepsSettings> {
+    let command_matches = selected_matches(matches, "steps")?;
+    let merged = merge_steps(config, command_matches)?;
+    if command_matches.get_flag("json") && !merged.skipped {
+        missing_required_skipped_error(invocation_form);
+    }
+    validate_steps(&merged)
+}
+
+/// Return the clap matches for a selected subcommand.
+fn selected_matches<'a>(matches: &'a ArgMatches, name: &str) -> Result<&'a ArgMatches> {
+    matches
+        .subcommand_matches(name)
+        .ok_or_else(|| eyre::eyre!("the parsed command did not include `{name}` matches"))
+}
+
 /// Handle the `steps` diagnostic, including its optional JSON mode.
-fn handle_steps(args: &StepsArgs) -> Result<()> {
+fn handle_steps(args: &StepsSettings) -> Result<()> {
     if args.skipped {
         return handle_bypassed_steps(args.json);
     }
@@ -196,7 +214,7 @@ fn handle_bypassed_steps(json: bool) -> Result<()> {
 }
 
 /// Handle the `skipped` diagnostic.
-fn handle_skipped(args: &SkippedArgs) -> Result<()> {
+fn handle_skipped(args: &SkippedSettings) -> Result<()> {
     let registry = collect_registry()?;
     let skipped: Vec<_> = registry
         .scenarios
@@ -260,7 +278,24 @@ fn write_skip_reports_json(reports: &[SkipReport<'_>]) -> Result<()> {
 mod tests {
     //! Unit tests for command-line argument parsing.
 
+    use std::ffi::OsString;
+
     use super::*;
+
+    #[test]
+    fn flat_and_cargo_dispatched_forms_select_steps() {
+        for arguments in [
+            vec!["cargo-bdd", "steps"],
+            vec!["cargo-bdd", "bdd", "steps"],
+        ] {
+            let arguments = arguments.into_iter().map(OsString::from);
+            let (cli, matches, _) =
+                parse_command_line(arguments).expect("supported invocation should parse");
+
+            assert!(matches!(cli.command, Commands::Steps(_)));
+            assert!(selected_matches(&matches, "steps").is_ok());
+        }
+    }
 
     #[test]
     fn write_skip_reports_json_emits_fields() {

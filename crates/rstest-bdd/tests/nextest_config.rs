@@ -1,23 +1,19 @@
 //! Integration contract for the workspace's nextest override and timeout budget
 //! policy.
 //!
-//! The suite reads `.config/nextest.toml` as data rather than running
-//! cargo-nextest: `nextest_configuration` parses the file with `toml`, and the
-//! tests assert the budget policy a reviewer can see written down there. The
-//! run-level ceiling and the test group's thread limit come from the same
-//! parsed value, read through `default_profile_key` and
-//! `test_group_max_threads` respectively.
+//! The suite parses `.config/nextest.toml` with `toml` and asserts its timeout
+//! policy, including `global-timeout` and the `cargo-spawning` thread limit.
 //!
-//! Three contracts are pinned:
+//! Four contracts are pinned:
 //!
+//! * `nextest_override_preserves_timeout_contract` covers the `cargo-bdd` test binaries at 180 s
+//!   and the feature-rebuild binary at 600 s. Both overrides retain their termination settings and
+//!   `cargo-spawning` membership.
 //! * `trybuild_nextest_override_preserves_timeout_contract` requires exactly one override to name
 //!   any of the four compile-test binaries, and that override's filter to name all four and no
 //!   others. It then requires the override to keep a 20 m `slow-timeout` period, `terminate-after =
 //!   1`, a 5 s grace period and membership of the `cargo-spawning` group, and the default profile's
 //!   `global-timeout` to exceed the period in seconds.
-//! * `feature_rebuild_nextest_override_preserves_timeout_contract` requires exactly one override to
-//!   carry the exact filter `binary_id(rstest-bdd::feature_rebuild_invalidation)`, with the same
-//!   termination settings and group, at a 600 s period.
 //! * `nested_cargo_run_retains_cold_build_reserve` recomputes the R-6 sizing scenario (a reference
 //!   lane of `180 + 600 * 4 + 600 * 3` seconds, ten cold nested invocations at 19 s each and a 600
 //!   s reserve) and requires the default profile's `global-timeout` to cover it, and the
@@ -39,6 +35,7 @@ use std::{
 };
 
 use cap_std::{ambient_authority, fs::Dir};
+use rstest::rstest;
 use toml::Value;
 
 const EXPECTED_TRYBUILD_BINARIES: [&str; 4] = [
@@ -47,7 +44,58 @@ const EXPECTED_TRYBUILD_BINARIES: [&str; 4] = [
     "rstest-bdd::trybuild_macros",
     "rstest-bdd-server::workspace_discovery_compile",
 ];
-const FEATURE_REBUILD_BINARY: &str = "rstest-bdd::feature_rebuild_invalidation";
+const FEATURE_REBUILD_FILTER: &str = "binary_id(rstest-bdd::feature_rebuild_invalidation)";
+const CARGO_BDD_FILTER: &str = "binary_id(cargo-bdd::cli) | binary_id(cargo-bdd::invocation)";
+
+/// Expected timeout settings owned by this integration test.
+///
+/// Keep these expectations local to this module; they describe the workspace's
+/// nextest policy rather than application configuration.
+#[derive(Clone, Copy)]
+struct TimeoutExpectation {
+    test_name: &'static str,
+    period: &'static str,
+}
+
+/// An exact nextest filter paired with the timeout it must preserve.
+#[derive(Clone, Copy)]
+struct FilteredTimeoutExpectation {
+    filter: &'static str,
+    timeout: TimeoutExpectation,
+}
+
+const CARGO_BDD_TIMEOUT_EXPECTATION: FilteredTimeoutExpectation = FilteredTimeoutExpectation {
+    filter: CARGO_BDD_FILTER,
+    timeout: TimeoutExpectation {
+        test_name: "cargo-bdd",
+        period: "180s",
+    },
+};
+const FEATURE_REBUILD_TIMEOUT_EXPECTATION: FilteredTimeoutExpectation =
+    FilteredTimeoutExpectation {
+        filter: FEATURE_REBUILD_FILTER,
+        timeout: TimeoutExpectation {
+            test_name: "feature-rebuild",
+            period: "600s",
+        },
+    };
+const TRYBUILD_TIMEOUT_EXPECTATION: TimeoutExpectation = TimeoutExpectation {
+    test_name: "trybuild",
+    period: "20m",
+};
+
+#[rstest]
+#[case::cargo_bdd(CARGO_BDD_TIMEOUT_EXPECTATION)]
+#[case::feature_rebuild(FEATURE_REBUILD_TIMEOUT_EXPECTATION)]
+fn nextest_override_preserves_timeout_contract(
+    #[case] expectation: FilteredTimeoutExpectation,
+) -> Result<(), Box<dyn Error>> {
+    let configuration = nextest_configuration()?;
+    let overrides = default_overrides(&configuration)?;
+    let override_value = override_for_exact_filter(overrides, expectation)?;
+    assert_slow_timeout_contract(override_value, expectation.timeout)?;
+    Ok(())
+}
 
 #[test]
 fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
@@ -72,20 +120,7 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         "trybuild nextest override must identify exactly the expected binaries. {binary_id_report}",
     );
 
-    let slow_timeout = trybuild_override
-        .get("slow-timeout")
-        .and_then(Value::as_table)
-        .expect("trybuild nextest override must contain a slow-timeout table");
-
-    let period = slow_timeout
-        .get("period")
-        .and_then(Value::as_str)
-        .ok_or_else(|| io::Error::other("trybuild nextest override must name a period"))?;
-    assert_eq!(
-        period, "20m",
-        "trybuild nextest override must allow a 20-minute slow timeout, which is what a cold \
-         compiler cache costs this fixture tree",
-    );
+    let period = assert_slow_timeout_contract(trybuild_override, TRYBUILD_TIMEOUT_EXPECTATION)?;
 
     let global_timeout = default_global_timeout(&configuration)?;
     assert!(
@@ -94,69 +129,78 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
          timeout ({period}); otherwise nextest kills the run before the test the budget exists \
          for can finish, and raising the budget alone rescues nothing",
     );
+    Ok(())
+}
+
+fn override_for_exact_filter(
+    overrides: &[Value],
+    expectation: FilteredTimeoutExpectation,
+) -> Result<&Value, io::Error> {
+    let matching = overrides
+        .iter()
+        .filter(|override_value| {
+            override_value.get("filter").and_then(Value::as_str) == Some(expectation.filter)
+        })
+        .collect::<Vec<_>>();
+    let [override_value] = matching.as_slice() else {
+        return Err(io::Error::other(format!(
+            "{} nextest override for {:?} must match exactly once; found {}",
+            expectation.timeout.test_name,
+            expectation.filter,
+            matching.len()
+        )));
+    };
+    Ok(*override_value)
+}
+
+fn assert_slow_timeout_contract(
+    override_value: &Value,
+    expectation: TimeoutExpectation,
+) -> Result<&str, io::Error> {
+    let slow_timeout = override_value
+        .get("slow-timeout")
+        .and_then(Value::as_table)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "{} override must contain a slow-timeout table",
+                expectation.test_name
+            ))
+        })?;
+    let period = slow_timeout
+        .get("period")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "{} slow-timeout table must contain a period",
+                expectation.test_name
+            ))
+        })?;
+    assert_eq!(
+        period, expectation.period,
+        "{} override must use the expected slow-timeout period",
+        expectation.test_name
+    );
     assert_eq!(
         slow_timeout
             .get("terminate-after")
             .and_then(Value::as_integer),
         Some(1),
-        "trybuild nextest override must terminate after one slow-timeout period",
+        "{} override must terminate after one slow-timeout period",
+        expectation.test_name
     );
     assert_eq!(
         slow_timeout.get("grace-period").and_then(Value::as_str),
         Some("5s"),
-        "trybuild nextest override must retain its five-second grace period",
-    );
-    assert_eq!(
-        trybuild_override.get("test-group").and_then(Value::as_str),
-        Some("cargo-spawning"),
-        "trybuild nextest override must remain in the cargo-spawning group",
-    );
-
-    Ok(())
-}
-
-#[test]
-fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
-    let configuration = nextest_configuration()?;
-    let overrides = default_overrides(&configuration)?;
-    let filter = format!("binary_id({FEATURE_REBUILD_BINARY})");
-    let matching = overrides
-        .iter()
-        .filter(|override_value| {
-            override_value.get("filter").and_then(Value::as_str) == Some(filter.as_str())
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        matching.len(),
-        1,
-        "the feature-rebuild test must have exactly one exact nextest override",
-    );
-    let override_value = matching
-        .first()
-        .expect("the asserted single feature-rebuild override must be present");
-    let slow_timeout = override_value
-        .get("slow-timeout")
-        .and_then(Value::as_table)
-        .expect("feature-rebuild override must contain a slow-timeout table");
-    assert_eq!(
-        slow_timeout.get("period").and_then(Value::as_str),
-        Some("600s")
-    );
-    assert_eq!(
-        slow_timeout
-            .get("terminate-after")
-            .and_then(Value::as_integer),
-        Some(1)
-    );
-    assert_eq!(
-        slow_timeout.get("grace-period").and_then(Value::as_str),
-        Some("5s")
+        "{} override must retain its five-second grace period",
+        expectation.test_name
     );
     assert_eq!(
         override_value.get("test-group").and_then(Value::as_str),
-        Some("cargo-spawning")
+        Some("cargo-spawning"),
+        "{} override must remain in the cargo-spawning group",
+        expectation.test_name
     );
-    Ok(())
+    Ok(period)
 }
 
 /// Keep cold-build drift from consuming the run-level reserve again.
