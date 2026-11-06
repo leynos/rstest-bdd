@@ -41,8 +41,14 @@ const SYNC_MARKER: &str = "sync-projection-marker";
 /// Marker returned by the distinctive asynchronous projection handler.
 const ASYNC_MARKER: &str = "async-projection-marker";
 
-/// Step text registered for the distinctive projection handlers.
+/// Exact step text registered for the distinctive projection handlers.
 const DISTINCTIVE_STEP: &str = "a distinctive projection step";
+
+/// Step text used by the fuzzy projections.
+///
+/// It differs from the registered placeholder pattern, so a fuzzy projection
+/// that fell back to an exact comparison could not find the step.
+const DISTINCTIVE_FUZZY_TEXT: &str = "a distinctive fuzzy step with 42";
 
 /// Synchronous handler that finishes with a distinctive skipped outcome.
 #[expect(
@@ -73,6 +79,16 @@ fn distinctive_async_handler<'ctx>(
 step!(
     StepKeyword::Given,
     DISTINCTIVE_STEP,
+    distinctive_sync_handler,
+    distinctive_async_handler,
+    &[]
+);
+
+// Register the same distinctive handlers under a placeholder pattern so the
+// fuzzy projections are exercised on text that differs from the pattern.
+step!(
+    StepKeyword::Given,
+    "a distinctive fuzzy step with {value}",
     distinctive_sync_handler,
     distinctive_async_handler,
     &[]
@@ -125,9 +141,9 @@ impl SyncLookup {
         let keyword = StepKeyword::Given;
         match self {
             Self::Exact => lookup_step(keyword, DISTINCTIVE_STEP.into()),
-            Self::Fuzzy => find_step(keyword, DISTINCTIVE_STEP.into()),
+            Self::Fuzzy => find_step(keyword, DISTINCTIVE_FUZZY_TEXT.into()),
             Self::MetadataAlias => {
-                find_step_with_mode(keyword, DISTINCTIVE_STEP.into()).map(|step| step.run)
+                find_step_with_mode(keyword, DISTINCTIVE_FUZZY_TEXT.into()).map(|step| step.run)
             }
         }
     }
@@ -188,13 +204,14 @@ impl AsyncLookup {
             Self::Exact => {
                 lookup_step_async(keyword, DISTINCTIVE_STEP.into()).map(|handler| (handler, None))
             }
-            Self::Fuzzy => {
-                find_step_async(keyword, DISTINCTIVE_STEP.into()).map(|handler| (handler, None))
-            }
+            Self::Fuzzy => find_step_async(keyword, DISTINCTIVE_FUZZY_TEXT.into())
+                .map(|handler| (handler, None)),
             Self::ExactWithMode => lookup_step_async_with_mode(keyword, DISTINCTIVE_STEP.into())
                 .map(|(handler, mode)| (handler, Some(mode))),
-            Self::FuzzyWithMode => find_step_async_with_mode(keyword, DISTINCTIVE_STEP.into())
-                .map(|(handler, mode)| (handler, Some(mode))),
+            Self::FuzzyWithMode => {
+                find_step_async_with_mode(keyword, DISTINCTIVE_FUZZY_TEXT.into())
+                    .map(|(handler, mode)| (handler, Some(mode)))
+            }
         }
     }
 }
@@ -247,4 +264,11 @@ fn find_step_with_mode_returns_the_registered_step_for_fuzzy_text() {
         resolved.pattern.as_str()
     );
     assert_eq!(metadata.as_step().keyword, resolved.keyword);
+
+    // Field equality alone would also hold for a copy; the projection must
+    // hand back the registered step itself.
+    assert!(
+        std::ptr::eq(resolved, metadata.as_step()),
+        "the projection should return the registered step, not a copy"
+    );
 }
