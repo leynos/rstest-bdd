@@ -180,17 +180,63 @@ let execution_mode = step.execution_mode;
 let step_ref = step.as_step();
 ```
 
-`ResolvedStep` dereferences to `Step`, so its metadata and synchronous
-(`run`) or asynchronous (`run_async`) handler can be accessed directly. The
-`as_step()` method provides the underlying `&'static Step` when an explicit
-reference is required. Constructing a `ResolvedStep` records the step as used
-for the `cargo bdd unused` diagnostic; a lookup that finds no step records
-nothing.
+`ResolvedStep` dereferences to `Step`, so its metadata and synchronous (`run`)
+or asynchronous (`run_async`) handler can be accessed directly. The `as_step()`
+method provides the underlying `&'static Step` when an explicit reference is
+required. Constructing a `ResolvedStep` records the step as used for the
+`cargo bdd unused` diagnostic; a lookup that finds no step records nothing.
 
 The older projection functions remain available for compatibility and are
 deprecated. New code should use the metadata pair and project the required
 field, including `execution_mode` when selecting between synchronous and
 asynchronous execution.
+
+#### Migrating from deprecated lookups (v0.7.0)
+
+`find_step_with_metadata` now returns `Option<ResolvedStep>` rather than
+`Option<&'static Step>`. Call `.as_step()` when a `&'static Step` is required.
+In the mapping below, `keyword` is a `StepKeyword`, `pattern` is a
+`PatternStr`, and `text` is a `StepText`:
+
+```text
+lookup_step(keyword, pattern)
+    -> lookup_step_with_metadata(keyword, pattern).map(|step| step.run)
+lookup_step_async(keyword, pattern)
+    -> lookup_step_with_metadata(keyword, pattern).map(|step| step.run_async)
+lookup_step_async_with_mode(keyword, pattern)
+    -> lookup_step_with_metadata(keyword, pattern)
+        .map(|step| (step.run_async, step.execution_mode))
+find_step(keyword, text)
+    -> find_step_with_metadata(keyword, text).map(|step| step.run)
+find_step_async(keyword, text)
+    -> find_step_with_metadata(keyword, text).map(|step| step.run_async)
+find_step_async_with_mode(keyword, text)
+    -> find_step_with_metadata(keyword, text)
+        .map(|step| (step.run_async, step.execution_mode))
+find_step_with_mode(keyword, text)
+    -> find_step_with_metadata(keyword, text).map(|step| step.as_step())
+```
+
+For example, a synchronous lookup that previously used the projection helper
+began like this:
+
+```rust,no_run
+use rstest_bdd::{StepKeyword, StepText, find_step};
+
+let handler = find_step(StepKeyword::When, StepText::from("the balance is 10"));
+```
+
+The metadata lookup replaces it directly:
+
+```rust,no_run
+use rstest_bdd::{StepKeyword, StepText, find_step_with_metadata};
+
+let handler = find_step_with_metadata(StepKeyword::When, StepText::from("the balance is 10"))
+    .map(|step| step.run);
+```
+
+Each replacement preserves the usage-tracking behaviour of the deprecated
+helper: the metadata lookup records the step as used when it resolves.
 
 ### Fixtures and implicit injection
 

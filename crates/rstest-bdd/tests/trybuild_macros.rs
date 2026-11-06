@@ -166,6 +166,7 @@ fn run_lint_ui_tests() -> io::Result<()> {
             &["-D", "clippy::used_underscore_binding"][..],
         ),
         ("step_return_dispatch_lint_clean", &["-D", "warnings"][..]),
+        ("registry_lookup_api", &["-D", "warnings"][..]),
     ];
 
     for (bin, lint_args) in cases {
