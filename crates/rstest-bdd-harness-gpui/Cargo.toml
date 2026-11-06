@@ -1,6 +1,6 @@
 [package]
 name = "rstest-bdd-harness-gpui"
-version = "0.6.0"
+version = "0.6.1"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
@@ -26,6 +26,7 @@ native-gpui-tests = []
 gpui.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-harness.workspace = true
+rstest-bdd-patterns.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

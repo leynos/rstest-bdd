@@ -21,16 +21,12 @@ use rstest_bdd_harness::{
     StdScenarioRunner,
 };
 use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd_patterns::MutexExt;
 use serial_test::serial;
 
 static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
-fn get_events_guard() -> MutexGuard<'static, Vec<&'static str>> {
-    match EVENTS.lock() {
-        Ok(g) => g,
-        Err(p) => p.into_inner(),
-    }
-}
+fn get_events_guard() -> MutexGuard<'static, Vec<&'static str>> { EVENTS.lock_ignoring_poison() }
 
 fn clear_events() {
     let mut g = get_events_guard();
@@ -141,16 +137,10 @@ impl HarnessAdapter for MetadataCapturingHarness {
 
     fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
         let meta = request.metadata();
-        meta.feature_path().clone_into(
-            &mut CAPTURED_FEATURE
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-        );
-        meta.scenario_name().clone_into(
-            &mut CAPTURED_SCENARIO
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-        );
+        meta.feature_path()
+            .clone_into(&mut CAPTURED_FEATURE.lock_ignoring_poison());
+        meta.scenario_name()
+            .clone_into(&mut CAPTURED_SCENARIO.lock_ignoring_poison());
         Ok(request.run_without_context())
     }
 }
@@ -161,9 +151,7 @@ impl HarnessAdapter for MetadataCapturingHarness {
 )]
 #[serial]
 fn scenario_passes_correct_metadata_to_harness() {
-    let feature = CAPTURED_FEATURE
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let feature = CAPTURED_FEATURE.lock_ignoring_poison();
     assert_eq!(
         feature.as_str(),
         "tests/features/web_search.feature",
@@ -171,9 +159,7 @@ fn scenario_passes_correct_metadata_to_harness() {
     );
     drop(feature);
 
-    let scenario = CAPTURED_SCENARIO
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let scenario = CAPTURED_SCENARIO.lock_ignoring_poison();
     assert_eq!(
         scenario.as_str(),
         "Simple search",

@@ -4,6 +4,7 @@ use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use rstest::rstest;
 use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd_patterns::MutexExt;
 use serial_test::serial;
 
 static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(Vec::new()));
@@ -13,12 +14,7 @@ static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(
 /// If an earlier test panicked while holding the lock the mutex
 /// becomes poisoned. This helper extracts the inner guard so later
 /// tests can continue to inspect and modify the shared event list.
-fn get_events_guard() -> MutexGuard<'static, Vec<&'static str>> {
-    match EVENTS.lock() {
-        Ok(g) => g,
-        Err(p) => p.into_inner(),
-    }
-}
+fn get_events_guard() -> MutexGuard<'static, Vec<&'static str>> { EVENTS.lock_ignoring_poison() }
 
 fn clear_events() {
     let mut g = get_events_guard();

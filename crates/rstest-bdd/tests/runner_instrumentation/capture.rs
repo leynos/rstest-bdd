@@ -46,12 +46,12 @@ use std::{
     sync::{
         Arc,
         Mutex,
-        PoisonError,
         atomic::{AtomicU64, Ordering},
     },
     thread::ThreadId,
 };
 
+use rstest_bdd_patterns::MutexExt;
 use tracing::{
     Event,
     Level,
@@ -208,8 +208,7 @@ impl Subscriber for CapturingSubscriber {
         }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         self.span_names
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+            .lock_ignoring_poison()
             .insert(id, span.metadata().name());
         self.push(Captured {
             level: *span.metadata().level(),
@@ -271,12 +270,7 @@ impl CapturingSubscriber {
     /// panics while holding this lock, and the failing test's message is the
     /// useful report. A second panic about the lock would replace it with a
     /// worse one.
-    fn push(&self, captured: Captured) {
-        self.captured
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(captured);
-    }
+    fn push(&self, captured: Captured) { self.captured.lock_ignoring_poison().push(captured); }
 
     /// The name of the span this thread is currently inside, if any.
     ///
@@ -311,12 +305,7 @@ pub(super) fn capture(max_level: Level) -> (Captures, tracing::subscriber::Defau
 }
 
 /// The captures seen so far, cloned out from under the lock.
-pub(super) fn seen(captured: &Captures) -> Vec<Captured> {
-    captured
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone()
-}
+pub(super) fn seen(captured: &Captures) -> Vec<Captured> { captured.lock_ignoring_poison().clone() }
 
 /// The `scenario` span's fields, or a panic naming what was seen.
 ///

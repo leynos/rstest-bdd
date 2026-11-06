@@ -256,9 +256,7 @@ fn canonicalizes_equivalent_crate_paths_in_registry() {
     register_step_for_crate(StepKeyword::Given, "first pattern", &crate_id);
     register_step_for_crate(StepKeyword::Given, "second pattern", &alt_id);
 
-    let registry = REGISTERED
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let registry = REGISTERED.lock_ignoring_poison();
     assert_eq!(
         registry.len(),
         1,

@@ -3393,6 +3393,45 @@ material and harness-led attribute-policy defaults; see
 [Phase 9](roadmap.md#9-harness-adapters-and-attribute-plugins) for the
 remaining items and acceptance criteria.
 
+### 3.13 Canonical poison-recovery lock helpers
+
+Mutex and read-write lock poison recovery is centralized in
+`crates/rstest-bdd-patterns/src/sync.rs`, so no other module names
+`PoisonError::into_inner` and the recovery policy cannot drift between crates.
+The module exposes `MutexExt::lock_ignoring_poison`,
+`RwLockExt::read_ignoring_poison`, `RwLockExt::write_ignoring_poison`, and the
+free function `recover_poison`. Call sites that must observe poisoning keep
+using the standard-library lock API instead. The ownership, permitted
+call-sites, and composition rules are documented in the
+[developers' guide](developers-guide.md#canonical-poison-recovery-lock-helper).
+
+For screen readers: The following flowchart starts from a lock acquisition or
+an owned `into_inner` result and asks whether poisoning must propagate. When it
+must, the caller uses the standard-library lock API. Otherwise the flow splits
+by lock kind: a mutex goes to `lock_ignoring_poison`, an `RwLock` read to
+`read_ignoring_poison`, an `RwLock` write to `write_ignoring_poison`, and an
+owned value to `recover_poison`. Every recovery branch ends at the same point,
+continuing with the recovered state.
+
+```mermaid
+flowchart TD
+    LockResult[Lock acquisition or owned into_inner result] --> Decision{Must poisoning propagate?}
+    Decision -->|Yes| Standard[Use standard-library lock API]
+    Decision -->|No| Borrowed{Borrowed lock?}
+    Borrowed -->|Mutex| MutexHelper[lock_ignoring_poison]
+    Borrowed -->|RwLock read| ReadHelper[read_ignoring_poison]
+    Borrowed -->|RwLock write| WriteHelper[write_ignoring_poison]
+    Borrowed -->|Owned value| OwnedHelper[recover_poison]
+    MutexHelper --> Continue[Continue with recovered state]
+    ReadHelper --> Continue
+    WriteHelper --> Continue
+    OwnedHelper --> Continue
+```
+
+Figure: A lock result is routed either to the standard-library API when
+poisoning must propagate, or to the helper matching its lock kind, and every
+recovery branch continues with the recovered state.
+
 ### Scenario state management design (2025-03-16)
 
 - Added a dedicated `state` module exposing `Slot<T>` to encapsulate shared
