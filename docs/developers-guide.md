@@ -221,6 +221,14 @@ stampedes cannot occur. `ci.yml` triggers on `push` to `main` for this reason:
 while it ran only on pull requests and manual dispatch, nothing could ever
 populate a trusted generation, so every lane was legitimately cold.
 
+### The test target fetches first
+
+`make test` begins with `cargo fetch --locked`, before the build and either
+test runner. It validates the committed `Cargo.lock` and warms the package
+cache, so the tests that start a nested `cargo` resolve nothing while holding
+the shared package-cache lock. A failed fetch fails the target before any test
+starts.
+
 ### One test execution per platform
 
 The coverage job is the only test execution on Linux. It runs
