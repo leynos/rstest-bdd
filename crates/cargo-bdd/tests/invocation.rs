@@ -10,6 +10,9 @@ use cap_std::{ambient_authority, fs::Dir};
 use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
+#[path = "invocation/configuration.rs"]
+mod configuration;
+
 struct IsolatedWorkspace {
     temporary_directory: TempDir,
     root: Dir,
