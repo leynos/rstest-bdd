@@ -110,13 +110,18 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   `127.0.0.1`, and nested compilation would slow down or fail on CI. Severity:
   high. Likelihood: high without mitigation. Mitigation: export
   `SCCACHE_SERVER_UDS` on Linux CI lanes before the server starts, because a
-  filesystem socket path crosses network namespaces. `EP-M0` tests this on a
-  real runner.
-- Risk: unprivileged user namespaces are restricted on some Ubuntu 24.04 images.
-  Severity: medium. Likelihood: unknown for `ubicloud-standard-2`. Mitigation:
-  `EP-M0` probes both runner types. GitHub-hosted images appear to have relaxed
-  this (`actions/runner-images` PR 11489). Set
-  `kernel.apparmor_restrict_unprivileged_userns=0` with `sudo` if needed.
+  filesystem socket path crosses network namespaces. Measured on both runner
+  types in `EP-M0`: the socket is reachable and a wrapped `rustc` compiles
+  inside the namespace. Residual: the wrapper is only as good as that one
+  variable being exported before the server starts.
+- Risk: unprivileged user namespaces are restricted on the Ubuntu images.
+  Severity: medium. Likelihood: certain. Mitigation: `EP-M0` measured
+  `kernel.apparmor_restrict_unprivileged_userns = 1` on both
+  `ubicloud-standard-2` (24.04.5) and `ubuntu-latest` (26.04.1), with
+  `unshare` failing until `sudo sysctl -w
+  kernel.apparmor_restrict_unprivileged_userns=0` is applied. `EP-M4` makes
+  that prelude part of the lane, and a lane that cannot apply it must fail
+  rather than run the wrapper with a non-functional namespace.
 - Risk: experimental Nextest features change. Severity: medium. Likelihood: low.
   Mitigation: declare `nextest-version`, and pin behaviour with contract tests.
   CI installs Nextest 0.9.120 through the coverage action; wrapper `env` needs
@@ -146,18 +151,30 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   mechanisms locally.
 - [x] (2026-11-05) Drafted this ExecPlan.
 - [x] (2026-11-06) Obtained user approval and set the plan to `APPROVED`.
-- [ ] `EP-M0`: prove namespace feasibility on real CI runners. The first probe
+- [x] `EP-M0`: prove namespace feasibility on real CI runners. The first probe
   (`0ba2766a`, run 42258902324) aborted at the stock `unshare`. On `3b8662c7`
-  (run 42266303024) the Ubicloud lane establishes `D7`: stock denial, a
-  successful relaxation of the apparmor sysctl, a working namespace afterwards,
-  no egress inside it, and a filesystem socket reachable across it. The
-  `ubuntu-latest` lane is still queued; the evidence is under
-  `Artifacts and notes`.
+  (run 42266303024) both lanes completed and agree, which settles `D7` in its
+  kernel form: stock denial under
+  `kernel.apparmor_restrict_unprivileged_userns = 1`, a successful
+  `sudo sysctl -w` relaxation, a working namespace afterwards, no egress inside
+  it, a filesystem socket reachable across it, and `rustc` through
+  `RUSTC_WRAPPER=sccache` completing with exit 0 on the hosted lane. The
+  Ubicloud job's `failure` conclusion is a probe defect (`| head -5` closing the
+  pipe under `pipefail`), not a namespace result, and `continue-on-error` kept
+  it from gating. `D7`'s proxy fallback is not needed. Remaining for this
+  milestone: delete the temporary workflow as its own commit, which the
+  full-lane evidence now permits. Evidence is under `Artifacts and notes`.
 - [x] `EP-M1`: preflight and fail-fast verification. Red observed on
   2026-11-06 for all eight new assertions; green on the same day with
   `make test-workflow-contracts` at 377 passed. The Concordat rule now reports
   `verdict: indeterminate` with only the two `EP-M2` findings left, so the
-  Makefile and Nextest halves of NC-008 are satisfied.
+  Makefile and Nextest halves of NC-008 are satisfied. The first full gate run
+  found one deterministic defect in the new contract test, a ruff `DOC201`
+  missing-`Returns` on the `expected_manifests` fixture, which is repaired in
+  the milestone commit; the remaining gate result, a `cargo-bdd::cli
+  list_steps_runs` timeout at 180.006 s, is queue-induced rather than a
+  regression, and the re-run that establishes it is recorded under
+  `Surprises & discoveries`.
 - [ ] `EP-M2`: explicit offline mode at every repository-owned spawn.
 - [ ] `EP-M3`: test-process offline default for third-party and indirect spawns.
 - [ ] `EP-M4`: CI network denial.
@@ -244,6 +261,42 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   `pipefail`. Impact: a probe step must guard every command itself and must not
   pipe into `head`; the first probe's `set -e` assumption was wrong for the
   same reason, not merely a missing `|| true`.
+- Observation: `unshare --net --map-current-user` needs the apparmor sysctl
+  relaxed on both runner types, and both ship it enabled. Evidence: on
+  `ubicloud-standard-2` (Ubuntu 24.04.5) and `ubuntu-latest` (Ubuntu 26.04.1)
+  the probe reports `kernel.apparmor_restrict_unprivileged_userns = 1`,
+  `STOCK_RC=1` with `write failed /proc/self/uid_map: Operation not permitted`,
+  then `RELAX_RC=0` and `RELAXED_RC=0`. Impact: `EP-M4`'s wrapper cannot assume
+  a usable namespace. The workflow step that configures the runner must relax
+  the sysctl before Nextest starts, and the local recipe in `EP-M4` needs the
+  same prelude or it will report a false failure on a developer's machine.
+- Observation: the two lanes agree on every other probe, so the namespace
+  behaviour is not runner-specific. Evidence: `EGRESS_RC=2` (no name resolution
+  inside the namespace), `UDS_ACROSS_NAMESPACE_RC 0` with
+  `SERVER_RECEIVED b'ping'`, and on the hosted lane `SHOW_STATS_RC=0` and
+  `INSIDE_WRAPPED_RUSTC_RC=0` for `rustc` run under `RUSTC_WRAPPER=sccache`
+  inside the namespace. Impact: `D6` holds, and `sccache` over
+  `SCCACHE_SERVER_UDS` keeps working for nested compilation under denial, so
+  the lock contention that issue 910 addresses is not reintroduced.
+- Observation: `make lint` rejected the new contract test with ruff `DOC201`
+  (`docstring-missing-returns`) at `offline_test_contract_test.py:56`, not with
+  any Rust finding. Evidence: the gate log ends
+  `make[1]: *** [Makefile:170: lint-python] Error 1`, and the same invocation
+  over the full `PYTHON_TARGETS` set reports `Found 1 error`. The repository's
+  `pydocstyle` convention is numpy, so a fixture returning a value needs a
+  `Returns` section. Impact: every new Python fixture that returns a value
+  needs that section, and the documentation-convention gate runs before the
+  Rust lints in the same target.
+- Observation: the only test-side failure in the first full run was
+  `cargo-bdd::cli list_steps_runs` at `TIMEOUT [180.006s]`, with 2001 passed,
+  1 timed out and 7 skipped, and 81 of 2083 tests not run. Evidence: the
+  milestone touches no file under `crates/cargo-bdd`; `build-limits-status`
+  reported the pool healthy but saturated (`capacity 4, held 4`) with 77 to 89
+  crates queued ahead of the fixture's own dependencies; and the 13-1-1 plan
+  records the same test at 180.002 s in a full run against 94.079 s in
+  isolation. Impact: this is contention on the shared compiler admission, not a
+  regression, and the cancelled tests have no verdict from that run, so a green
+  result for them has to come from a completed one.
 
 ## Decision log
 
@@ -296,7 +349,11 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   measured failing a real download in 0.07 s. Rationale: the kernel route also
   catches non-Cargo network use and is not specific to one Cargo setting; the
   fallback needs no privileges but covers only Cargo's own HTTP client.
-  Date/Author: 2026-11-05, planning agent.
+  Date/Author: 2026-11-05, planning agent. Settled 2026-11-06 by `EP-M0`: the
+  kernel route is available on both runner types once
+  `kernel.apparmor_restrict_unprivileged_userns` is set to `0`, so the proxy
+  fallback is not used. The relaxation is a required part of the wrapper's
+  setup, not an optional extra.
 - Decision `D8`: do not adopt Concordat as a CI gate here. Rationale: the rule
   ships at warning severity, always exits 0 at that severity, and the estate
   owns its promotion. This plan records the `verdict` as evidence, read from
@@ -451,6 +508,15 @@ Acceptance: the run URL and output are recorded under `Artifacts and notes`.
 Conformance check: did this falsify `D6` or `D7`? Recovery: revert the commit.
 Remaining gaps: Windows, per `D9`.
 
+Outcome, 2026-11-06: neither `D6` nor `D7` was falsified. The stock image
+refuses the namespace, `sudo sysctl -w
+kernel.apparmor_restrict_unprivileged_userns=0` succeeds, and the same
+`unshare` then works on both runner types; inside it there is no egress, while
+a filesystem socket and `sccache` behind it still work. `EP-M4` therefore
+relaxes the sysctl on the lane and keeps `SCCACHE_SERVER_UDS`. The temporary
+workflow is deleted in its own commit, and its content stays in this plan's
+`Artifacts and notes` rather than in the tree.
+
 ### `EP-M1`: Preflight and fail-fast verification
 
 Assigned: AC-2. Write tests first, and watch them fail:
@@ -592,9 +658,13 @@ leaves this one alone. Confirm that `profile.default`'s overrides, timeouts and
 setup scripts still apply to the custom profile by running
 `cargo nextest show-config`, and confirm the group limits apply. Export
 `SCCACHE_SERVER_UDS` in the existing
-`Configure runner parallelism and compiler cache` step on Linux, and the sysctl
-if `EP-M0` required it. Extend the contract test so that it checks the wrapper,
-the filter, the profile and the workflow setting.
+`Configure runner parallelism and compiler cache` step on Linux, and run
+`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` there as well:
+`EP-M0` shows both runner images ship that restriction enabled, so the wrapper
+would fail every test without it. A step that cannot relax the sysctl must fail
+loudly rather than let the wrapper turn into a false pass. Extend the contract
+test so that it checks the wrapper, the filter, the profile, the workflow
+setting and the sysctl prelude.
 
 Add a seeded offender as the negative control, in `offline_contract.rs`: a test
 that does its work only on Linux when `NEXTEST_PROFILE` is `offline-proof`, so
@@ -873,7 +943,8 @@ exited 0, and `CARGO_NET_OFFLINE=true make check-published-gpui-e2e-lock`
 exited 0.
 
 `EP-M0`: run <https://github.com/leynos/rstest-bdd/actions/runs/42266303024>, on
-`3b8662c7`. The Ubicloud job (`ubicloud-standard-2`, Ubuntu 24.04.5, kernel
+`3b8662c7`, completed with `conclusion: success` and both matrix jobs finished.
+The Ubicloud job (`ubicloud-standard-2`, Ubuntu 24.04.5, kernel
 6.14.0-1017-azure) reports both halves of `D7`:
 
 ```plaintext
@@ -890,20 +961,38 @@ UDS_ACROSS_NAMESPACE_RC 0
 SERVER_RECEIVED b'ping'
 ```
 
+The hosted job (`ubuntu-latest`, Ubuntu 26.04.1 LTS) reports the same four
+values, so the result is not specific to one runner image:
+
+```plaintext
+kernel.apparmor_restrict_unprivileged_userns = 1
+STOCK_RC=1
+RELAX_RC=0
+RELAXED_RC=0
+EGRESS_RC=2
+SUMMARY stock=1 relax=0 relaxed=0 egress=2
+UDS_ACROSS_NAMESPACE_RC 0
+SERVER_RECEIVED b'ping'
+SHOW_STATS_RC=0
+INSIDE_WRAPPED_RUSTC_RC=0
+```
+
 So the stock image refuses an unprivileged user namespace,
 `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` succeeds, the
 same `unshare` then succeeds, and a namespace so created cannot resolve
 `static.crates.io`. A filesystem socket opened in the parent namespace is
 reachable from inside the child, which is the property `EP-M4` needs for
 `sccache`. `sccache --start-server` printed
-`Listening on address /tmp/issue-911-sccache.sock`, and `sccache --show-stats`
-run under `unshare --net --map-current-user` reached it. The probe step then
-ended on `failed printing to stdout: Broken pipe`, because GitHub's
-`shell: bash` template runs the script under `-e -o pipefail` and `| head -5`
-closes the pipe; that failure is in the probe, not in the namespace. The wrapped
-`rustc` line was therefore not reached, and `EP-M4`'s real CI run is the
-evidence for it. The `ubuntu-latest` job was still queued when this was
-recorded.
+`Listening on address /tmp/issue-911-sccache.sock`; `sccache --show-stats` run
+under `unshare --net --map-current-user` reached it on both lanes, and on the
+hosted lane `rustc` wrapped by `sccache` compiled inside the namespace with exit
+0. The Ubicloud job's `failure` conclusion comes from the probe itself: its
+`sccache --show-stats | head -5` step ended on
+`failed printing to stdout: Broken pipe` with exit 101, because GitHub's
+`shell: bash` template runs the script under `-e -o pipefail` and `head` closes
+the pipe. That is why the Ubicloud lane did not reach the wrapped-`rustc` line;
+the hosted lane did, and `EP-M4`'s real CI run is the evidence for the full
+suite. `continue-on-error` kept the probe from gating the run.
 
 ## Interfaces and dependencies
 
