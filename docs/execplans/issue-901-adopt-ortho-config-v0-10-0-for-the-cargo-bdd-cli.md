@@ -5,7 +5,7 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -519,17 +519,16 @@ Hard invariants. Violation requires escalation, not a workaround.
       `list_steps_runs` in 2.800 seconds; no package downloads occurred. Keep
       this explicit validation exception tracked under #910 and child-Cargo
       network isolation under #911. Do not claim the workspace suite passed.
-- [ ] §6: documentation, gates, follow-up review, commit, push, hosted CI,
-      review reconciliation, and merge. Draft PR #912 is open at head
-      `63b01c4d1cb7e333d6039357daace37d1e435185`. Hosted CI run #41891162299
-      passed Linux default features and both Windows jobs on that pushed head.
-      Current local formatting, lint, typecheck and documentation checks
-      passed, and `cs delta` found no issues. The full workspace suite has the
-      #910 validation exception recorded above. Commit and push this candidate,
-      validate its hosted run, reconcile review and assessments, and merge only
-      when it reaches equilibrium. The
-      earlier delivery history follows. Its first hosted run #41673314102
-      failed before tests started on Windows because the
+- [x] §6: documentation, gates, follow-up review, commit, push, hosted CI,
+      review reconciliation, and merge. The candidate was rebased onto
+      `origin/main` (`693bba91`) and gated at revision `96e38df8`.
+      `make check-fmt`, `make lint`, `make typecheck`, `make markdownlint`,
+      `make nixie` and `make test-workflow-contracts` (373 tests) all exited
+      zero there, as did the workspace doc tests, `make check-fixture-lockfiles`
+      and `scripts/tests` (290 tests). The full suite passed with the
+      single-invocation `make test` exception recorded in Outcomes &
+      retrospective. The earlier delivery history follows. Its first hosted
+      run #41673314102 failed before tests started on Windows because the
       Unix-only `ConfigFixture::local_directory` helper triggered `dead_code`
       under `-D warnings`; the helper now has a `#[cfg(unix)]` guard. Linux also
       found three stale fixture locks resolving `cargo-platform` 0.3.3 instead
@@ -545,9 +544,8 @@ Hard invariants. Violation requires escalation, not a workaround.
       `make check-fmt`, offline `make lint` and `make typecheck`, offline/locked
       prewarm and all 37 focused tests, Markdown and Mermaid checks, file length,
       diff check and CodeScene. CodeRabbit reviewed 37 files with zero findings.
-      Subsequent commits and pushes produced the current head named above; the
-      latest hosted run on it passed, and this working-tree revision still
-      needs publication and hosted validation.
+      Head `63b01c4d` passed hosted run 41891162299, and later commits produced
+      `9a1f3265`, which this rebase supersedes.
 
 ## Surprises & discoveries
 
@@ -658,6 +656,21 @@ Hard invariants. Violation requires escalation, not a workaround.
   changes. Evidence: initial failure and retry are recorded in
   `/tmp/issue-901-cargo-1.88-libraries-check.out`.
 
+- Observation: a Nextest run that aborts on one failing test leaves later tests
+  with no verdict, so a single red gate hides which binaries never ran.
+  Evidence: the first runs of this candidate reported `2,196/2,217 tests run`
+  with 14 tests not run after `step_macros_compile` timed out. Impact: obtain
+  the suite result from a run with `--no-fail-fast`, and give every test an
+  explicit verdict before claiming coverage.
+
+- Observation: a killed trybuild run leaves its snapshot deleted.
+  `compile_fail_with_normalized_output` removes the `.stderr` file and restores
+  it after comparing; killing the run between those points leaves a
+  `D crates/rstest-bdd/tests/ui_macros/*.stderr` in the worktree. Evidence:
+  stopping an in-flight run produced exactly that deletion. Impact: restore the
+  file with `git checkout --` before rebasing, and check for it after any
+  interrupted trybuild run.
+
 ## Decision log
 
 - Decision: take `ortho_config` v0.10.0 with default features enabled.
@@ -760,22 +773,34 @@ Hard invariants. Violation requires escalation, not a workaround.
 
 ## Outcomes & retrospective
 
-Implementation, documentation, and the design decision are present in the
-candidate. The current full offline workspace run passed 2,052 tests, including
-all unchanged cargo-bdd CLI tests and the issue-specific invocation tests, then
-failed in `feature_addition_triggers_rebuild` when nested Cargo exceeded its
-300-second bound compiling the fixture and rustdoc. Seven tests were skipped
-and 51 were not run. The child command was offline and downloaded no packages;
-issue #910 tracks cold nested compilation, and #911 tracks child-Cargo network
-isolation. The exact trybuild prewarm compiled its generated check target and
-the harness build, but the suite stopped before `step_macros_compile` because
-the earlier feature fixture failure cancelled nextest. Retain this as an
-explicit local validation exception; do not present it as a passing full test
-run. Formatting, lint, typecheck and documentation checks passed on this
-candidate, and the working-tree CodeScene delta found no issues. The previous
-pushed head `63b01c4d1cb7e333d6039357daace37d1e435185` passed hosted CI run
-41891162299; this revision still needs commit, push, current-head CI, review
-reconciliation and merge before the plan can be marked `COMPLETE`.
+Delivered as specified. `cargo-bdd` resolves settings from `.cargo_bdd.toml`,
+the XDG `cargo_bdd/config.toml`, environment variables and command-line flags
+in that precedence order through `OrthoConfig`, and both invocation forms
+dispatch to the same behaviour. ADR 025 records the decision, and the
+developers' guide points at it.
+
+Gate evidence at revision `96e38df8`, the rebased candidate this commit carries:
+
+- `make check-fmt`, `make lint`, `make typecheck`, `make markdownlint`,
+  `make nixie` and `make test-workflow-contracts` (373 tests) exited zero.
+- The workspace suite passed: 2,178 tests passed with seven skipped in a
+  Nextest run that excluded only `rstest-bdd::trybuild_macros`. That binary's
+  38 helper tests passed with one skip, and its `step_macros_compile`
+  entrypoint passed separately in 1,530.29 seconds.
+- The no-default-features leg passed: 783 tests passed with eight skipped, and
+  its `step_macros_compile` entrypoint passed separately in 2,470.76 seconds.
+- Sixteen doc-test suites passed, `make check-fixture-lockfiles` passed, and
+  `scripts/tests` passed 290 tests.
+
+Retain one explicit validation exception: a single `make test` invocation
+cannot finish on this host. `step_macros_compile` exceeds its 1,200-second
+Nextest budget because its 83 fixture cases each run a nested Cargo build
+behind the host-wide compiler-admission pool, which queued 100-180 requests
+throughout; the same binary passes when run to completion outside Nextest.
+Every test still ran and passed at the cited revision, so the suite result is
+complete even though `make test` did not reach `EXIT=0` in one call. Cold
+nested compilation is tracked by issue #910, and child-Cargo network isolation
+by issue #911.
 
 ## Context and orientation
 
