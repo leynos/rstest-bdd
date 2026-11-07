@@ -89,6 +89,14 @@ fn evicting_the_artefacts_invalidates_the_preparation() {
         fixtures::source_fixture_dir(),
     )
     .expect("preparation description");
+    // A real preparation leaves the profile directory its build populated.
+    // The no-op closure below compiles nothing, so create the artefacts the
+    // freshly written stamp is meant to vouch for; without them the gate
+    // would refuse for the wrong reason and the assertion at the end could
+    // never distinguish "the artefacts were evicted" from "they never
+    // existed".
+    let profile = process::child_target_directory(&env).join(nested_cargo::DEFAULT_PROFILE);
+    std::fs::create_dir_all(&profile).expect("artefact directory");
     // Guard before writing: a regression that stamped the shared scratch
     // root would otherwise leave a stamp in a directory this test does not
     // own.
