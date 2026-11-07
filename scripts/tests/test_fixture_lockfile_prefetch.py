@@ -4,19 +4,17 @@
 nested fixture builds resolve from a warm registry cache while ``--offline``;
 these tests pin that the mode fetches every discovered fixture and reports
 failures without validating anything itself. The Make target also fetches the
-workspace root first, because the root's own test binaries spawn Cargo too. A
-subprocess run against a recording Cargo stand-in covers the boundary the
-in-process tests mock out: the argv Cargo really receives, the process exit
-status, and the two output streams.
+workspace root first, because the root's own test binaries spawn Cargo too.
+
+The in-process tests below mock Cargo out. The boundary they cannot reach - the
+argv Cargo really receives, the process exit status, and the two output streams
+- is covered through a recording Cargo stand-in, which lives in
+:mod:`prefetch_stand_in` so that neither module outgrows the 400-line budget
+the lint gate enforces.
 """
 
-import json
-import os
-import shutil
-import stat
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests build stand-in CompletedProcess values and run the trusted gate script.
-import sys
-from pathlib import Path
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests build stand-in CompletedProcess values.
+import typing as typ
 from unittest import mock
 
 import pytest
@@ -27,9 +25,16 @@ from check_fixture_lockfiles import (
 )
 from fixture_lockfile_discovery import discover_fixture_manifests
 from fixture_lockfile_reporting import PREFETCH_METRICS_PREFIX
+from prefetch_stand_in import (
+    REPO_ROOT,
+    human_lines,
+    metrics_records,
+    run_fetch_with_fake_cargo,
+)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-GATE_SCRIPT = REPO_ROOT / "scripts" / "check_fixture_lockfiles.py"
+if typ.TYPE_CHECKING:
+    from pathlib import Path
+
 MAKEFILE = REPO_ROOT / "Makefile"
 
 #: A discovered standalone fixture. The prefetch tests stand in for Cargo's
@@ -176,106 +181,6 @@ def test_makefile_prefetch_target_runs_the_fetch_mode() -> None:
     assert "scripts/check_fixture_lockfiles.py --fetch" in recipe, (
         "the prefetch must run the fixture-lockfile gate in its fetch mode"
     )
-
-
-#: A Cargo stand-in that records each argument vector it receives and fails
-#: only for the manifest its caller names in FAKE_CARGO_FAIL_MATCH.
-FAKE_CARGO = """\
-#!/usr/bin/env sh
-status=0
-for argument in "$@"; do
-    printf "%s\\0" "$argument" >> "$FAKE_CARGO_LOG"
-    if [ "$argument" = "$FAKE_CARGO_FAIL_MATCH" ]; then
-        printf "error: failed to download fixture dependency\\n" >&2
-        status=101
-    fi
-done
-printf "\\n" >> "$FAKE_CARGO_LOG"
-exit "$status"
-"""
-
-
-def run_fetch_with_fake_cargo(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    failing: Path | None = None,
-    *,
-    via_make: bool = False,
-) -> tuple[subprocess.CompletedProcess[str], list[list[str]]]:
-    """Run the gate's ``--fetch`` mode against a recording Cargo stand-in.
-
-    The stand-in shadows ``cargo`` on ``PATH``, so the platform's real Cargo
-    never runs. ``via_make`` reaches the same mode the way the mutation lane
-    does: through the ``prefetch-fixture-deps`` target.
-
-    Returns
-    -------
-    tuple[subprocess.CompletedProcess[str], list[list[str]]]
-        The gate's completed run and the argument vector of every Cargo
-        invocation it made, in order.
-    """
-    if os.name == "nt":
-        pytest.skip("the recording Cargo stand-in is a POSIX shell script")
-    if via_make and shutil.which("make") is None:
-        pytest.skip("the make-driven prefetch needs make on PATH")
-    cargo_directory = tmp_path / "bin"
-    cargo_directory.mkdir()
-    fake_cargo = cargo_directory / "cargo"
-    fake_cargo.write_text(FAKE_CARGO, encoding="utf-8")
-    fake_cargo.chmod(fake_cargo.stat().st_mode | stat.S_IXUSR)
-    invocation_log = tmp_path / "cargo-invocations.log"
-    stand_in_path = f"{cargo_directory}{os.pathsep}{os.environ['PATH']}"
-    monkeypatch.setenv("PATH", stand_in_path)
-    monkeypatch.setenv("FAKE_CARGO_LOG", str(invocation_log))
-    monkeypatch.setenv("FAKE_CARGO_FAIL_MATCH", "" if failing is None else str(failing))
-
-    if via_make:
-        # The Makefile prepends the real Cargo directory to PATH, so the
-        # target's own PATH has to name the stand-in first. PROJECT_PYTHON
-        # stands in for the uv launcher: the recipe the target runs is
-        # otherwise untouched, and the test needs no toolchain of its own.
-        command = [
-            "make",
-            "prefetch-fixture-deps",
-            f"PATH={stand_in_path}",
-            f"PROJECT_PYTHON={sys.executable}",
-        ]
-    else:
-        command = [sys.executable, str(GATE_SCRIPT), "--fetch"]
-
-    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - the argv is this test's own command.
-        command,
-        cwd=REPO_ROOT,
-        env=os.environ.copy(),
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=120,
-    )
-    records = (
-        invocation_log.read_text(encoding="utf-8").splitlines()
-        if invocation_log.exists()
-        else []
-    )
-    return result, [record.rstrip("\0").split("\0") for record in records if record]
-
-
-def metrics_records(text: str) -> list[dict[str, object]]:
-    """Return every prefetch metrics record the *text* of one stream carries."""
-    return [
-        json.loads(line.removeprefix(PREFETCH_METRICS_PREFIX))
-        for line in text.splitlines()
-        if line.startswith(PREFETCH_METRICS_PREFIX)
-    ]
-
-
-def human_lines(text: str) -> list[str]:
-    """Return the wording of *text*: its non-blank, non-metrics lines."""
-    return [
-        line
-        for line in text.splitlines()
-        if line and not line.startswith(PREFETCH_METRICS_PREFIX)
-    ]
 
 
 @pytest.mark.parametrize("failing_index", [None, 0], ids=["clean", "failing"])
