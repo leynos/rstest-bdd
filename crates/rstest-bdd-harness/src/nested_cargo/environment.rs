@@ -73,63 +73,18 @@ pub struct NestedCargoEnv(BTreeMap<OsString, OsString>);
 
 impl NestedCargoEnv {
     /// Build the filtered environment from raw variable pairs.
+    ///
+    /// Each rule is applied by one named helper below, so the shared policy
+    /// reads as the list it documents rather than as nested conditionals.
     fn from_vars(
         mut vars: Vec<(OsString, OsString)>,
         fallback_target_dir: Option<&Path>,
         profile_destination: ProfileDestination,
     ) -> Self {
-        vars.retain(|(key, _)| {
-            let key = key.to_string_lossy();
-            key != "CARGO_MAKEFLAGS"
-                && !key.starts_with("CARGO_PKG_")
-                && !key.starts_with("CARGO_LLVM_COV")
-        });
-
-        // Propagate the shared build directory: whatever the parent already
-        // set (CI's coverage target dir) wins, so nested builds stay warm;
-        // otherwise the caller's fallback applies.
-        if !vars
-            .iter()
-            .any(|(key, _)| key.to_string_lossy() == "CARGO_TARGET_DIR")
-        {
-            let Some(fallback) = fallback_target_dir else {
-                panic!(
-                    "no CARGO_TARGET_DIR in the parent environment and no fallback target \
-                     directory provided"
-                );
-            };
-            vars.push((
-                OsString::from("CARGO_TARGET_DIR"),
-                fallback.as_os_str().to_os_string(),
-            ));
-        }
-
-        // Resolve a relative inherited value once, here, so the path the
-        // child receives and the path a stamp is derived from are the same
-        // place regardless of the working directory either runs in.
-        for (key, value) in &mut vars {
-            if key == OsStr::new("CARGO_TARGET_DIR") {
-                *value = absolute_target_directory(value).into_os_string();
-            }
-        }
-
-        // Redirect nested coverage output away from the parent's gated profile
-        // so the child's `.profraw` never merges into the parent's pattern. The
-        // process under test keeps the inherited pattern instead: its coverage
-        // is the measurement, and a scratch path outside the coverage
-        // directory loses it silently.
-        if profile_destination == ProfileDestination::ChildScratch
-            && vars
-                .iter()
-                .any(|(key, _)| key.to_string_lossy() == "LLVM_PROFILE_FILE")
-        {
-            vars.retain(|(key, _)| key.to_string_lossy() != "LLVM_PROFILE_FILE");
-            vars.push((
-                OsString::from("LLVM_PROFILE_FILE"),
-                profile::unique_profile_path().into_os_string(),
-            ));
-        }
-
+        strip_outer_build_vars(&mut vars);
+        ensure_target_directory(&mut vars, fallback_target_dir);
+        resolve_target_directory(&mut vars);
+        redirect_profile_file(&mut vars, profile_destination);
         Self(vars.into_iter().collect())
     }
 
@@ -173,6 +128,88 @@ impl NestedCargoEnv {
             cmd.env(key, value);
         }
     }
+}
+
+/// Remove the variables that describe the *outer* build or crate.
+///
+/// `CARGO_MAKEFLAGS` names a jobserver a nested process cannot open, which
+/// stalls on Windows; `CARGO_PKG_*` describes a different crate; and
+/// `CARGO_LLVM_COV*` is the coverage driver's own control surface.
+fn strip_outer_build_vars(vars: &mut Vec<(OsString, OsString)>) {
+    vars.retain(|(key, _)| {
+        let key = key.to_string_lossy();
+        key != "CARGO_MAKEFLAGS"
+            && !key.starts_with("CARGO_PKG_")
+            && !key.starts_with("CARGO_LLVM_COV")
+    });
+}
+
+/// Give the child a target directory when the parent named none.
+///
+/// An inherited value wins, so CI's coverage target directory keeps nested
+/// builds warm; otherwise the caller's fallback applies. A caller that
+/// supplies neither is a programming error: a nested Cargo invocation with no
+/// target directory would build into the caller's manifest directory.
+///
+/// # Panics
+///
+/// Panics when `vars` has no `CARGO_TARGET_DIR` and no fallback is supplied.
+fn ensure_target_directory(vars: &mut Vec<(OsString, OsString)>, fallback: Option<&Path>) {
+    if vars
+        .iter()
+        .any(|(key, _)| key.to_string_lossy() == "CARGO_TARGET_DIR")
+    {
+        return;
+    }
+    let Some(fallback) = fallback else {
+        panic!(
+            "no CARGO_TARGET_DIR in the parent environment and no fallback target directory \
+             provided"
+        );
+    };
+    vars.push((
+        OsString::from("CARGO_TARGET_DIR"),
+        fallback.as_os_str().to_os_string(),
+    ));
+}
+
+/// Rewrite an inherited relative target directory to an absolute one.
+///
+/// Cargo reads the value relative to the working directory of the command
+/// that consults it, and nested builds run in a fixture directory rather than
+/// here. Resolving once, before the value reaches any child, is what keeps the
+/// directory the child builds in and the directory a stamp is derived from the
+/// same place.
+fn resolve_target_directory(vars: &mut [(OsString, OsString)]) {
+    for (key, value) in vars {
+        if key == OsStr::new("CARGO_TARGET_DIR") {
+            *value = absolute_target_directory(value).into_os_string();
+        }
+    }
+}
+
+/// Move a child's coverage output off the parent's gated profile.
+///
+/// A child writing into the parent's `.profraw` pattern would merge build-time
+/// coverage into a measurement it does not belong to. Only
+/// [`ProfileDestination::ChildScratch`] asks for this: the process under test
+/// keeps the inherited pattern, because its coverage *is* the measurement and
+/// a scratch path outside the coverage directory loses it silently.
+fn redirect_profile_file(vars: &mut Vec<(OsString, OsString)>, destination: ProfileDestination) {
+    if destination != ProfileDestination::ChildScratch {
+        return;
+    }
+    if !vars
+        .iter()
+        .any(|(key, _)| key.to_string_lossy() == "LLVM_PROFILE_FILE")
+    {
+        return;
+    }
+    vars.retain(|(key, _)| key.to_string_lossy() != "LLVM_PROFILE_FILE");
+    vars.push((
+        OsString::from("LLVM_PROFILE_FILE"),
+        profile::unique_profile_path().into_os_string(),
+    ));
 }
 
 /// Resolve a `CARGO_TARGET_DIR` value to an absolute path.

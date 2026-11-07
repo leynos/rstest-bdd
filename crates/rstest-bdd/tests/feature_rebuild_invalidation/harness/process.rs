@@ -75,54 +75,79 @@ pub(crate) fn child_target_directory(env: &ChildEnv) -> &Path { &env.target_dire
 pub(crate) fn child_env_from_vars(
     mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)>,
 ) -> ChildEnv {
+    strip_outer_build_vars(&mut vars);
+    ensure_target_directory(&mut vars);
+    redirect_profile_file(&mut vars);
+    let target_directory = resolve_target_directory(&mut vars);
+    ChildEnv {
+        vars,
+        target_directory,
+    }
+}
+
+/// Remove the variables that describe the *outer* build or crate.
+fn strip_outer_build_vars(vars: &mut Vec<(std::ffi::OsString, std::ffi::OsString)>) {
     vars.retain(|(key, _)| {
         let key = key.to_string_lossy();
         key != "CARGO_MAKEFLAGS"
             && !key.starts_with("CARGO_PKG_")
             && !key.starts_with("CARGO_LLVM_COV")
     });
+}
 
-    // Propagate the shared build directory: whatever Cargo already set (CI's
-    // coverage target dir) wins, so the nested build is warm; otherwise fall
-    // back to the workspace target.
-    if !vars
+/// Give the child a target directory when the parent named none.
+///
+/// An inherited value wins, so CI's coverage target directory keeps the nested
+/// build warm; otherwise the workspace `target/` applies.
+fn ensure_target_directory(vars: &mut Vec<(std::ffi::OsString, std::ffi::OsString)>) {
+    if vars
         .iter()
         .any(|(key, _)| key.to_string_lossy() == "CARGO_TARGET_DIR")
     {
-        vars.push((
-            "CARGO_TARGET_DIR".into(),
-            super::fixtures::shared_target_dir().into_os_string(),
-        ));
+        return;
     }
+    vars.push((
+        "CARGO_TARGET_DIR".into(),
+        super::fixtures::shared_target_dir().into_os_string(),
+    ));
+}
 
-    // Redirect nested coverage output away from the parent's gated profile so
-    // the child's `.profraw` never merges into the parent's pattern.
-    if vars
+/// Move the child's coverage output off the parent's gated profile.
+///
+/// A child writing into the parent's `.profraw` pattern would merge build-time
+/// coverage into a measurement it does not belong to.
+fn redirect_profile_file(vars: &mut Vec<(std::ffi::OsString, std::ffi::OsString)>) {
+    if !vars
         .iter()
         .any(|(key, _)| key.to_string_lossy() == "LLVM_PROFILE_FILE")
     {
-        let coverage_dir = super::fixtures::scratch_root().join("coverage");
-        if let Err(err) = std::fs::create_dir_all(&coverage_dir) {
-            panic!(
-                "cannot create scratch coverage dir {}: {err}",
-                coverage_dir.display()
-            );
-        }
-        vars.retain(|(key, _)| key.to_string_lossy() != "LLVM_PROFILE_FILE");
-        vars.push((
-            "LLVM_PROFILE_FILE".into(),
-            coverage_dir.join("nested-%p.profraw").into_os_string(),
-        ));
+        return;
     }
+    let coverage_dir = super::fixtures::scratch_root().join("coverage");
+    if let Err(err) = std::fs::create_dir_all(&coverage_dir) {
+        panic!(
+            "cannot create scratch coverage dir {}: {err}",
+            coverage_dir.display()
+        );
+    }
+    vars.retain(|(key, _)| key.to_string_lossy() != "LLVM_PROFILE_FILE");
+    vars.push((
+        "LLVM_PROFILE_FILE".into(),
+        coverage_dir.join("nested-%p.profraw").into_os_string(),
+    ));
+}
 
-    // Resolve a relative inherited value once. Cargo reads
-    // `CARGO_TARGET_DIR` relative to the working directory of the command
-    // that consults it, and every nested build here runs in the scratch
-    // fixture directory rather than in the workspace, so the raw value would
-    // name one place for this process and another for the child. Resolving it
-    // to an absolute path before it is stored — and therefore before it is
-    // handed to the child — keeps the stamp and the artefacts in the same
-    // directory.
+/// Resolve the target directory the child will actually build in.
+///
+/// Cargo reads `CARGO_TARGET_DIR` relative to the working directory of the
+/// command that consults it, and every nested build here runs in the scratch
+/// fixture directory rather than in the workspace, so the raw value would name
+/// one place for this process and another for the child. Resolving it to an
+/// absolute path before it is stored — and therefore before it is handed to
+/// the child — keeps the stamp and the artefacts in the same directory.
+fn resolve_target_directory(
+    vars: &mut [(std::ffi::OsString, std::ffi::OsString)],
+) -> std::path::PathBuf {
     vars.sort_by(|a, b| a.0.cmp(&b.0));
     let target_directory = vars
         .iter()
@@ -130,15 +155,12 @@ pub(crate) fn child_env_from_vars(
         .map_or_else(super::fixtures::shared_target_dir, |(_, value)| {
             rstest_bdd_harness::nested_cargo::absolute_target_directory(value)
         });
-    for (key, value) in &mut vars {
+    for (key, value) in vars.iter_mut() {
         if key.to_string_lossy() == "CARGO_TARGET_DIR" {
             *value = target_directory.clone().into_os_string();
         }
     }
-    ChildEnv {
-        vars,
-        target_directory,
-    }
+    target_directory
 }
 
 /// The preparation policy's view of this harness's child environment.
