@@ -175,7 +175,14 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   `cargo-bdd::cli list_steps_runs` timeout, and two workflow-contract tests
   that fail under this session's `FORCE_COLOR` and `BASH_ENV`. The two
   branch-owned defects are repaired, and the gate evidence for each is recorded
-  under `Surprises & discoveries`.
+  under `Surprises & discoveries`. A second run against `7e31cda6` cleared
+  three of the four: `check-fmt` is green, `test-workflow-contracts` passes 374
+  tests once `BASH_ENV` and `FORCE_COLOR` are unset, and `markdownlint` reports
+  123 files with no errors. `make lint` reached one remaining defect, a ruff
+  `DOC201` on the helper added by the previous commit, repaired in `bb20bf6a`.
+  The `list_steps_runs` timeout is now measured rather than inferred: the same
+  test passes in 371.75 s under `cargo test`, which imposes no per-test
+  deadline.
 - [ ] `EP-M2`: explicit offline mode at every repository-owned spawn.
 - [ ] `EP-M3`: test-process offline default for third-party and indirect spawns.
 - [ ] `EP-M4`: CI network denial.
@@ -310,6 +317,17 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   the cache to itself. Raising the ceiling is deliberately left out of `EP-M1`:
   it is a Nextest policy change with its own four-tier budget, it would need the
   `global-timeout` rationale recomputed, and no evidence yet shows CI needs it.
+- Observation: `cargo-bdd::cli list_steps_runs` is slow under contention, not
+  hung. Evidence: an isolated nextest run whose own build finished in 0.54 s
+  still timed out at 180.013 s, which on its own reads as a runaway test; run
+  through `cargo test`, which imposes no per-test deadline, the same test
+  passed in 371.75 s. The nested `cargo metadata` alone blocked 35 s on the
+  package-cache lock, and `build-limits-status` reported all four compile slots
+  held with twenty crates from other repositories waiting. Impact: the ceiling
+  is right for CI and wrong for this host, which is what `D12` decided on
+  thinner evidence. The measurement is recorded so that a future implementer
+  does not chase a phantom hang, and so that the timeout is not re-read as a
+  branch regression.
 - Observation: pylint's `max-module-lines` applies to test modules, and
   `EP-M1` pushed `scripts/tests/test_fixture_lockfile_prefetch.py` from 400 to
   411 lines. Evidence: `make lint` failed with
@@ -418,7 +436,10 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   `crates/cargo-bdd`, and the ceiling is one term in a four-tier budget whose
   `global-timeout` rationale would have to be recomputed. A raised ceiling
   hides a real hang for every future run, so it needs CI evidence, not a
-  locally congested pool. Date/Author: 2026-11-07, implementation agent.
+  locally congested pool. A later measurement supports the reading: under
+  `cargo test`, which imposes no per-test deadline, the same test passed in
+  371.75 s at peak host contention. Date/Author: 2026-11-07, implementation
+  agent.
 - Decision `D13`: move the recording Cargo stand-in to
   `scripts/tests/prefetch_stand_in.py` rather than trimming assertions.
   Rationale: the module breached `max-module-lines` only because `EP-M1` grew
