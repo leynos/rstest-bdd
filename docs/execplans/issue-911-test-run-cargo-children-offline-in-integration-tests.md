@@ -117,11 +117,11 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
 - Risk: unprivileged user namespaces are restricted on the Ubuntu images.
   Severity: medium. Likelihood: certain. Mitigation: `EP-M0` measured
   `kernel.apparmor_restrict_unprivileged_userns = 1` on both
-  `ubicloud-standard-2` (24.04.5) and `ubuntu-latest` (26.04.1), with
-  `unshare` failing until `sudo sysctl -w
-  kernel.apparmor_restrict_unprivileged_userns=0` is applied. `EP-M4` makes
-  that prelude part of the lane, and a lane that cannot apply it must fail
-  rather than run the wrapper with a non-functional namespace.
+  `ubicloud-standard-2` (24.04.5) and `ubuntu-latest` (26.04.1), with `unshare`
+  failing until `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`
+  is applied. `EP-M4` makes that prelude part of the lane, and a lane that
+  cannot apply it must fail rather than run the wrapper with a non-functional
+  namespace.
 - Risk: experimental Nextest features change. Severity: medium. Likelihood: low.
   Mitigation: declare `nextest-version`, and pin behaviour with contract tests.
   CI installs Nextest 0.9.120 through the coverage action; wrapper `env` needs
@@ -159,22 +159,23 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   `sudo sysctl -w` relaxation, a working namespace afterwards, no egress inside
   it, a filesystem socket reachable across it, and `rustc` through
   `RUSTC_WRAPPER=sccache` completing with exit 0 on the hosted lane. The
-  Ubicloud job's `failure` conclusion is a probe defect (`| head -5` closing the
-  pipe under `pipefail`), not a namespace result, and `continue-on-error` kept
-  it from gating. `D7`'s proxy fallback is not needed. Remaining for this
+  Ubicloud job's `failure` conclusion is a probe defect (`| head -5` closing
+  the pipe under `pipefail`), not a namespace result, and `continue-on-error`
+  kept it from gating. `D7`'s proxy fallback is not needed. Remaining for this
   milestone: delete the temporary workflow as its own commit, which the
   full-lane evidence now permits. Evidence is under `Artifacts and notes`.
 - [x] `EP-M1`: preflight and fail-fast verification. Red observed on
   2026-11-06 for all eight new assertions; green on the same day with
   `make test-workflow-contracts` at 377 passed. The Concordat rule now reports
   `verdict: indeterminate` with only the two `EP-M2` findings left, so the
-  Makefile and Nextest halves of NC-008 are satisfied. The first full gate run
-  found one deterministic defect in the new contract test, a ruff `DOC201`
-  missing-`Returns` on the `expected_manifests` fixture, which is repaired in
-  the milestone commit; the remaining gate result, a `cargo-bdd::cli
-  list_steps_runs` timeout at 180.006 s, is queue-induced rather than a
-  regression, and the re-run that establishes it is recorded under
-  `Surprises & discoveries`.
+  Makefile and Nextest halves of NC-008 are satisfied. A full five-gate run
+  against `c0bf3b86` on 2026-11-07 returned `markdownlint` green and four reds:
+  two branch-owned defects (the plan's own Markdown, and a pylint `C0302` on
+  the grown prefetch test module), the recurring
+  `cargo-bdd::cli list_steps_runs` timeout, and two workflow-contract tests
+  that fail under this session's `FORCE_COLOR` and `BASH_ENV`. The two
+  branch-owned defects are repaired, and the gate evidence for each is recorded
+  under `Surprises & discoveries`.
 - [ ] `EP-M2`: explicit offline mode at every repository-owned spawn.
 - [ ] `EP-M3`: test-process offline default for third-party and indirect spawns.
 - [ ] `EP-M4`: CI network denial.
@@ -288,8 +289,8 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   needs that section, and the documentation-convention gate runs before the
   Rust lints in the same target.
 - Observation: the only test-side failure in the first full run was
-  `cargo-bdd::cli list_steps_runs` at `TIMEOUT [180.006s]`, with 2001 passed,
-  1 timed out and 7 skipped, and 81 of 2083 tests not run. Evidence: the
+  `cargo-bdd::cli list_steps_runs` at `TIMEOUT [180.006s]`, with 2001 passed, 1
+  timed out and 7 skipped, and 81 of 2083 tests not run. Evidence: the
   milestone touches no file under `crates/cargo-bdd`; `build-limits-status`
   reported the pool healthy but saturated (`capacity 4, held 4`) with 77 to 89
   crates queued ahead of the fixture's own dependencies; and the 13-1-1 plan
@@ -297,6 +298,41 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   isolation. Impact: this is contention on the shared compiler admission, not a
   regression, and the cancelled tests have no verdict from that run, so a green
   result for them has to come from a completed one.
+- Observation: the five-gate run against `c0bf3b86` reproduced that timeout at
+  `TIMEOUT [180.009s]`, so it is not a one-off. Evidence: the same test, the
+  same 180 s ceiling, `2001 passed, 1 timed out, 7 skipped`, and 81 tests
+  cancelled. The run did establish that all five setup scripts work: each
+  printed `SETUP PASS`, taking 0.497 s for the root workspace and 130 to 171 s
+  for the four fixtures, because each waited on the shared package-cache lock
+  held by other agents' builds. Impact: the prefetch is proven on a cold,
+  contended cache, and the 180 s ceiling for the one binary that spawns a
+  nested Cargo build is too tight for this host rather than for CI, which has
+  the cache to itself. Raising the ceiling is deliberately left out of `EP-M1`:
+  it is a Nextest policy change with its own four-tier budget, it would need the
+  `global-timeout` rationale recomputed, and no evidence yet shows CI needs it.
+- Observation: pylint's `max-module-lines` applies to test modules, and
+  `EP-M1` pushed `scripts/tests/test_fixture_lockfile_prefetch.py` from 400 to
+  411 lines. Evidence: `make lint` failed with
+  `C0302: Too many lines in module (411/400)`, after ruff and interrogate had
+  both passed. Impact: the stand-in harness moved to
+  `scripts/tests/prefetch_stand_in.py`, leaving 307 and 126 lines. There is no
+  allowlist to fall back on, and the repository's own precedent for this split
+  is `tests/workflow_contracts/*_support.py`.
+- Observation: two `test-workflow-contracts` tests fail under this session's
+  environment, on files the branch does not touch. Evidence:
+  `derived_fixture_lockfiles_test.py` raises `FileNotFoundError` for the git
+  stand-in's invocation log, which `BASH_ENV` shadows by prepending a session
+  `bin` ahead of the test's own `PATH` entry; and `pylint_gate_test.py` asserts
+  `E0001: Parsing failed` is in pylint's output, which `FORCE_COLOR=1` wraps in
+  ANSI escapes. Impact: both are environmental and both need the variable
+  unset, so `EP-M1`'s verdict for that gate is taken from a run started with
+  `env -u BASH_ENV -u FORCE_COLOR`.
+- Observation: the plan's own Markdown is a `check-fmt` input.
+  Evidence: `mdtablefix --check` reported the execplan `+22 -22` while all 123
+  other files passed, and `make check-fmt` fails the build on that. Impact:
+  every plan edit must be followed by `mdtablefix --in-place` on that one file
+  before the gates can pass, and `make fmt` is not the tool to reach for,
+  because it rewrites the whole tracked Markdown set.
 
 ## Decision log
 
@@ -376,6 +412,22 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   is below every coverage step's, which is the ordering guarantee `EP-M1` asks
   for without three identical fetches. Date/Author: 2026-11-06, implementation
   agent.
+- Decision `D12`: leave the `cargo-bdd::cli` 180 s ceiling alone in `EP-M1`.
+  Rationale: the timeout is reproducible on this host and absent from the
+  record of CI runs, the gate that found it touches no file under
+  `crates/cargo-bdd`, and the ceiling is one term in a four-tier budget whose
+  `global-timeout` rationale would have to be recomputed. A raised ceiling
+  hides a real hang for every future run, so it needs CI evidence, not a
+  locally congested pool. Date/Author: 2026-11-07, implementation agent.
+- Decision `D13`: move the recording Cargo stand-in to
+  `scripts/tests/prefetch_stand_in.py` rather than trimming assertions.
+  Rationale: the module breached `max-module-lines` only because `EP-M1` grew
+  it, and asserting less would trade a real contract for a line count. The
+  stand-in harness is the file's one self-contained half - a script, the
+  environment it reads, an invocation log and two stream parsers - and the
+  repository already keeps such helpers beside their tests
+  (`tests/workflow_contracts/*_support.py`). Date/Author: 2026-11-07,
+  implementation agent.
 
 ## Outcomes & retrospective
 
@@ -509,13 +561,13 @@ Conformance check: did this falsify `D6` or `D7`? Recovery: revert the commit.
 Remaining gaps: Windows, per `D9`.
 
 Outcome, 2026-11-06: neither `D6` nor `D7` was falsified. The stock image
-refuses the namespace, `sudo sysctl -w
-kernel.apparmor_restrict_unprivileged_userns=0` succeeds, and the same
-`unshare` then works on both runner types; inside it there is no egress, while
-a filesystem socket and `sccache` behind it still work. `EP-M4` therefore
-relaxes the sysctl on the lane and keeps `SCCACHE_SERVER_UDS`. The temporary
-workflow is deleted in its own commit, and its content stays in this plan's
-`Artifacts and notes` rather than in the tree.
+refuses the namespace,
+`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` succeeds, and
+the same `unshare` then works on both runner types; inside it there is no
+egress, while a filesystem socket and `sccache` behind it still work. `EP-M4`
+therefore relaxes the sysctl on the lane and keeps `SCCACHE_SERVER_UDS`. The
+temporary workflow is deleted in its own commit, and its content stays in this
+plan's `Artifacts and notes` rather than in the tree.
 
 ### `EP-M1`: Preflight and fail-fast verification
 
@@ -943,8 +995,8 @@ exited 0, and `CARGO_NET_OFFLINE=true make check-published-gpui-e2e-lock`
 exited 0.
 
 `EP-M0`: run <https://github.com/leynos/rstest-bdd/actions/runs/42266303024>, on
-`3b8662c7`, completed with `conclusion: success` and both matrix jobs finished.
-The Ubicloud job (`ubicloud-standard-2`, Ubuntu 24.04.5, kernel
+`3b8662c7`, completed with `conclusion: success` and both matrix jobs
+finished. The Ubicloud job (`ubicloud-standard-2`, Ubuntu 24.04.5, kernel
 6.14.0-1017-azure) reports both halves of `D7`:
 
 ```plaintext
