@@ -22,6 +22,21 @@ fn child_env(target_directory: &std::path::Path) -> process::ChildEnv {
     )])
 }
 
+/// Leave `env`'s target directory as a real build would: a profile holding
+/// Cargo's dependency artefacts.
+///
+/// The gate requires `deps` and `.fingerprint` inside the profile, not merely
+/// the profile directory, so a fixture that created only the latter would make
+/// the first gate refuse for a reason other than the eviction under test.
+fn populate_profile(env: &process::ChildEnv) {
+    let profile = process::child_target_directory(env).join(nested_cargo::DEFAULT_PROFILE);
+    for name in nested_cargo::DEPENDENCY_ARTEFACT_DIRS {
+        let directory = profile.join(name);
+        std::fs::create_dir_all(&directory).expect("dependency artefact dir");
+        std::fs::write(directory.join("unit"), b"artefact").expect("dependency artefact");
+    }
+}
+
 /// A scratch copy of the fixture, standing in for `fixtures::scratch_root`.
 fn scratch_fixture() -> tempfile::TempDir {
     let scratch = tempfile::tempdir().expect("scratch dir");
@@ -90,13 +105,12 @@ fn evicting_the_artefacts_invalidates_the_preparation() {
     )
     .expect("preparation description");
     // A real preparation leaves the profile directory its build populated.
-    // The no-op closure below compiles nothing, so create the artefacts the
+    // The no-op closure below compiles nothing, so populate the artefacts the
     // freshly written stamp is meant to vouch for; without them the gate
     // would refuse for the wrong reason and the assertion at the end could
     // never distinguish "the artefacts were evicted" from "they never
     // existed".
-    let profile = process::child_target_directory(&env).join(nested_cargo::DEFAULT_PROFILE);
-    std::fs::create_dir_all(&profile).expect("artefact directory");
+    populate_profile(&env);
     // Guard before writing: a regression that stamped the shared scratch
     // root would otherwise leave a stamp in a directory this test does not
     // own.
@@ -180,7 +194,7 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
     .expect("preparation description");
 
     let profile = process::child_target_directory(&env).join(nested_cargo::DEFAULT_PROFILE);
-    std::fs::create_dir_all(&profile).expect("profile dir");
+    populate_profile(&env);
 
     nested_cargo::prepare_now(&preparation, || {
         Ok(nested_cargo::PreparationSummary::default())
@@ -203,4 +217,54 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
     })
     .expect_err("an evicted profile must fail the gate");
     assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+}
+
+#[test]
+fn evicting_the_dependency_artefacts_invalidates_the_preparation() {
+    // The profile directory can survive while the work inside it does not.
+    // This is the partial eviction a gate that only checked `is_dir()` would
+    // accept: `<target>/debug` still exists, so does the family's stamp, and
+    // Cargo must still rebuild every dependency unit.
+    let external = tempfile::tempdir().expect("external target dir");
+    let env = child_env(external.path());
+    let preparation = fixture_preparation(
+        &env,
+        REBUILD_FAMILY,
+        "rebuild-invalidation",
+        fixtures::source_fixture_dir(),
+    )
+    .expect("preparation description");
+
+    let profile = process::child_target_directory(&env).join(nested_cargo::DEFAULT_PROFILE);
+    populate_profile(&env);
+
+    nested_cargo::prepare_now(&preparation, || {
+        Ok(nested_cargo::PreparationSummary::default())
+    })
+    .expect("preparation");
+    nested_cargo::ensure_prepared_with(&preparation, true, || {
+        panic!("a just-prepared family must satisfy the gate")
+    })
+    .expect("the freshly written stamp must be accepted");
+
+    // Remove exactly one of the two directories Cargo needs, then require the
+    // gate to refuse. Removing both would also exercise it, but only this
+    // shape proves that either one alone is enough to invalidate a stamp.
+    std::fs::remove_dir_all(profile.join("deps")).expect("evict the compiled units");
+    assert!(profile.is_dir(), "the profile directory must survive");
+    assert!(
+        preparation.directory.is_dir(),
+        "the family's stamp must survive"
+    );
+
+    let error = nested_cargo::ensure_prepared_with(&preparation, true, || {
+        panic!("a timed test must never prepare")
+    })
+    .expect_err("an evicted dependency graph must fail the gate");
+    assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+    let message = error.to_string();
+    assert!(
+        message.contains("artefacts it vouched for are gone"),
+        "the message must name the evicted artefacts: {message}"
+    );
 }

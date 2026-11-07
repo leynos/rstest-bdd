@@ -586,6 +586,29 @@ rather than by reading this branch's comments.
       The whole `feature_rebuild_invalidation` binary then passed, 31 of 31,
       including both eviction regressions.
 
+- [x] Close the fifth stamp-validity gap, found by review of `38d15524`:
+      `artefacts_are_present` accepted any existing directory, so
+      `rm -rf <target>/debug/deps` left the profile, the stamp root and the
+      stamp intact while removing the compiled units — a partial eviction the
+      gate admitted. The predicate now lives in
+      `nested_cargo/preparation/artefacts` and requires `deps` and
+      `.fingerprint` (`DEPENDENCY_ARTEFACT_DIRS`) to exist and hold at least
+      one entry each, which is what Cargo reads to skip recompiling. The gate
+      and its failure message share the one predicate, so a refusal and the
+      explanation of it cannot drift. Regression coverage:
+      `evicting_the_dependency_artefacts_invalidates_the_preparation` and
+      `an_empty_profile_directory_is_not_a_prepared_family` in the shared
+      policy, `evicting_the_dependency_artefacts_invalidates_the_preparation`
+      in the rebuild harness. The shared fixtures now populate a profile as a
+      real build does (`populate_profile`), so the previously passing cases
+      prove the strong gate rather than a `mkdir`. The whole rebuild binary
+      passed 32 of 32, including the real `nested_fixture_preparation`, which
+      confirms genuine Cargo output satisfies the stricter check. Two lessons
+      worth keeping: `is_dir()` is not evidence that work survived, because
+      Cargo's layout keeps the parent while its contents go; and a test that
+      pre-creates the directory the gate checks will happily pass against a
+      gate weaker than the one being described.
+
 ## Surprises & Discoveries
 
 - **A required check and a quality signal are different things.** CodeScene

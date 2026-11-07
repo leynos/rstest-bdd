@@ -11,7 +11,7 @@ mod stamping;
 use std::path::{Path, PathBuf};
 
 use super::Preparation;
-use crate::nested_cargo::{NestedCargoEnv, ProfileDestination};
+use crate::nested_cargo::{DEPENDENCY_ARTEFACT_DIRS, NestedCargoEnv, ProfileDestination};
 
 /// A fixed environment for tests that only exercise fingerprint composition.
 ///
@@ -19,11 +19,25 @@ use crate::nested_cargo::{NestedCargoEnv, ProfileDestination};
 /// it need not exist.
 fn environment() -> NestedCargoEnv { environment_in(Path::new("/tmp/target")) }
 
+/// Populate a profile directory the way a real Cargo build leaves it.
+///
+/// The gate requires more than an existing `<target>/debug`: it requires the
+/// `deps` and `.fingerprint` entries Cargo reads to decide its units are
+/// current. A fixture that created only the profile would be accepted by a
+/// weaker check and would prove nothing about the one under test.
+fn populate_profile(target: &Path) {
+    for name in DEPENDENCY_ARTEFACT_DIRS {
+        let directory = target.join(super::DEFAULT_PROFILE).join(name);
+        std::fs::create_dir_all(&directory).expect("dependency artefact dir");
+        std::fs::write(directory.join("unit"), b"artefact").expect("dependency artefact");
+    }
+}
+
 /// A filtered environment whose target directory is `target`.
 ///
 /// The target directory must exist for the gate to accept a matching stamp:
-/// the profile directory it derives must be present, so a scratch preparation
-/// creates both.
+/// the profile directory it derives must be present and hold the dependency
+/// artefacts, so a scratch preparation creates both.
 fn environment_in(target: &Path) -> NestedCargoEnv {
     crate::nested_cargo::env_from_vars(
         vec![
@@ -60,7 +74,7 @@ fn preparation(
 fn scratch_preparation() -> (tempfile::TempDir, Preparation, NestedCargoEnv) {
     let directory = tempfile::tempdir().expect("temp dir");
     let target = directory.path().join("target");
-    std::fs::create_dir_all(target.join(super::DEFAULT_PROFILE)).expect("profile dir");
+    populate_profile(&target);
     let environment = environment_in(&target);
     let preparation = preparation(directory.path(), &environment, "v", "hash");
     (directory, preparation, environment)

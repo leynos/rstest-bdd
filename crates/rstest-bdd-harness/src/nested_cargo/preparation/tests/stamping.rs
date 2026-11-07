@@ -6,11 +6,13 @@ use super::{
     super::stamp::stamp_path,
     environment_in,
     fixture_package,
+    populate_profile,
     preparation,
     scratch_preparation,
 };
 use crate::nested_cargo::{
     DEFAULT_PROFILE,
+    DEPENDENCY_ARTEFACT_DIRS,
     Preparation,
     PreparationSummary,
     ProfileDestination,
@@ -61,10 +63,11 @@ fn preparation_survives_the_build_output_it_creates() {
     let (directory, source) = fixture_package();
 
     // A real target directory: the gate now also requires the profile
-    // directory the compiled units land in, so a synthetic path would refuse
-    // the stamp for a reason this test is not about.
+    // directory the compiled units land in, and the dependency artefacts
+    // inside it, so a synthetic path would refuse the stamp for a reason this
+    // test is not about.
     let target = directory.path().join("target");
-    fs::create_dir_all(target.join(DEFAULT_PROFILE)).expect("profile dir");
+    populate_profile(&target);
     let environment = environment_in(&target);
     let prepare = || {
         // What `trybuild` and a nested Cargo leave behind: its WIP scratch
@@ -161,7 +164,6 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
         .first()
         .expect("the preparation describes the profile directory it reuses")
         .clone();
-    fs::create_dir_all(&profile).expect("profile dir");
 
     prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
     ensure_prepared_with(&preparation, true, || {
@@ -187,6 +189,74 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
         "the message must name the evicted artefacts: {message}"
     );
     assert!(message.contains("debug"), "{message}");
+}
+
+#[test]
+fn evicting_the_dependency_artefacts_invalidates_the_preparation() {
+    // The profile directory can survive while the work inside it does not.
+    // Removing `<profile>/deps` leaves `<profile>`, the family's stamp root and
+    // the stamp all in place, and Cargo must still rebuild every dependency
+    // unit the timed assertion would link against. A gate that required only
+    // the profile directory would admit that cold build.
+    let (_directory, preparation, _environment) = scratch_preparation();
+    let profile = preparation
+        .artefacts
+        .first()
+        .expect("the preparation describes the profile directory it reuses")
+        .clone();
+
+    prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
+    ensure_prepared_with(&preparation, true, || {
+        panic!("a just-prepared family must satisfy the gate")
+    })
+    .expect("the freshly written stamp must be accepted");
+
+    let deps = profile.join("deps");
+    fs::remove_dir_all(&deps).expect("evict the dependency artefacts");
+    assert!(profile.is_dir(), "the profile directory must survive");
+    assert!(stamp_path(&preparation).is_file(), "the stamp must survive");
+
+    let error = ensure_prepared_with(&preparation, true, || {
+        panic!("a timed test must never prepare")
+    })
+    .expect_err("an evicted dependency graph must fail the gate");
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    let message = error.to_string();
+    assert!(
+        message.contains("artefacts it vouched for are gone"),
+        "the message must name the evicted artefacts: {message}"
+    );
+    assert!(message.contains("debug"), "{message}");
+}
+
+#[test]
+fn an_empty_profile_directory_is_not_a_prepared_family() {
+    // `mkdir -p <target>/debug` is not a build. The gate must not read a bare
+    // directory as evidence that the dependency graph exists.
+    let (directory, preparation, _environment) = scratch_preparation();
+    let profile = preparation
+        .artefacts
+        .first()
+        .expect("the preparation describes the profile directory it reuses")
+        .clone();
+    fs::remove_dir_all(&profile).expect("evict the populated profile");
+    fs::create_dir_all(&profile).expect("recreate an empty profile");
+
+    prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
+    // `prepare_now` refuses too: its re-check uses the same predicate, so an
+    // empty profile forces the preparation rather than stamping over it.
+    let error = ensure_prepared_with(&preparation, true, || {
+        panic!("a timed test must never prepare")
+    })
+    .expect_err("an empty profile must fail the gate");
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert!(
+        DEPENDENCY_ARTEFACT_DIRS
+            .iter()
+            .all(|name| !profile.join(name).exists()),
+        "the fixture must leave the profile genuinely empty: {}",
+        directory.path().display()
+    );
 }
 
 #[test]

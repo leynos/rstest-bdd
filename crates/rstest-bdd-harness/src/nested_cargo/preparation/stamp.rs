@@ -120,10 +120,11 @@ fn is_fingerprint_variable(key: &str) -> bool {
 /// The fail-fast message for a timed test with no prepared artefacts.
 pub(super) fn missing_stamp_message(preparation: &Preparation, stamp: &Path) -> String {
     let mut reason = format!("{} is missing or stale", stamp.display());
-    let evicted: Vec<String> = preparation
-        .artefacts
-        .iter()
-        .filter(|directory| !directory.is_dir())
+    // The same predicate the gate uses, so the message names exactly the
+    // directories whose absence refused it — including a profile that still
+    // exists but has lost `deps` or `.fingerprint`.
+    let evicted: Vec<String> = super::artefacts::evicted(preparation)
+        .into_iter()
         .map(|directory| directory.display().to_string())
         .collect();
     if !evicted.is_empty() {

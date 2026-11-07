@@ -941,11 +941,23 @@ the dependency graph lands in `<target>/debug`, so a `cargo clean`, a plain
 work while leaving the stamp intact.
 
 `Preparation::artefacts` records the directories a stamp vouches for, and
-`ensure_prepared` requires every one of them to exist before it admits a timed
-assertion. `Preparation::new` derives the list as `<resolved target>/debug`
-(`DEFAULT_PROFILE`). The trybuild and UI-lint families stamp the directory that
-*is* their child's `CARGO_TARGET_DIR`, so there the profile is a descendant of
-the stamp root rather than a sibling — either way, the gate names it.
+`ensure_prepared` requires every one of them to hold a usable build before it
+admits a timed assertion. `Preparation::new` derives the list as
+`<resolved target>/debug` (`DEFAULT_PROFILE`). The trybuild and UI-lint families
+stamp the directory that *is* their child's `CARGO_TARGET_DIR`, so there the
+profile is a descendant of the stamp root rather than a sibling — either way,
+the gate names it.
+
+The check does not stop at `is_dir()`. A profile directory can exist and be
+empty, or keep existing after `rm -rf <target>/debug/deps`, and in both cases
+Cargo must rebuild the dependency graph the next time anything links against it.
+`DEPENDENCY_ARTEFACT_DIRS` names what Cargo itself needs to skip that rebuild —
+`deps`, which holds the compiled units, and `.fingerprint`, which holds the
+records Cargo reads to decide those units are current — and the gate requires
+both to exist and be non-empty. Evicting either one refuses the preparation,
+which is the behaviour `evicting_the_dependency_artefacts_invalidates_the_preparation`
+pins in the shared policy and in the rebuild harness, alongside
+`an_empty_profile_directory_is_not_a_prepared_family`.
 
 An empty `artefacts` list is treated as satisfied: a caller that described no
 artefact directories leaves the stamp as the whole gate.

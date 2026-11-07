@@ -31,8 +31,11 @@
 //! lives in the private `stamp` submodule and input hashing in `input_hash`;
 //! only [`input_hash`] is re-exported.
 
+mod artefacts;
 mod input_hash;
 mod stamp;
+
+pub use artefacts::DEPENDENCY_ARTEFACT_DIRS;
 
 #[cfg(test)]
 mod tests;
@@ -322,25 +325,14 @@ where
     prepare_locked(preparation, &stamp_path(preparation), &fingerprint, prepare)
 }
 
-/// Whether every directory the stamp vouches for is still present.
+/// Whether every directory the stamp vouches for still holds its artefacts.
 ///
 /// A matching stamp answers "the inputs and environment have not changed since
 /// this family was prepared". It cannot answer "the compiled units are still
-/// there": the profile directory holding them need not be inside the family's
-/// stamp root, so `cargo clean`, a `rm -rf <target>/debug`, or any tool that
-/// evicts only the profile can leave the stamp untouched. This check supplies
-/// the second half of the answer, so a timed assertion is never admitted
-/// against an empty profile.
-///
-/// An empty [`Preparation::artefacts`] is treated as satisfied: a caller that
-/// described no artefact directories has nothing for this check to refute, and
-/// its stamp remains the whole gate.
-fn artefacts_are_present(preparation: &Preparation) -> bool {
-    preparation
-        .artefacts
-        .iter()
-        .all(|directory| directory.is_dir())
-}
+/// there"; `artefacts` answers that, and looks one level deeper than the
+/// profile directory itself — see [`DEPENDENCY_ARTEFACT_DIRS`] for why an
+/// existing profile is not evidence that its dependency graph survived.
+fn artefacts_are_present(preparation: &Preparation) -> bool { artefacts::all_present(preparation) }
 
 /// Run `prepare` under the process-wide lock unless the family is already
 /// prepared, then stamp it.
