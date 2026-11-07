@@ -35,6 +35,7 @@ fn main() {
     assert_eq!(requirements[1].ty, "SecondFixture");
 
     let request = StepExecutionRequest {
+        scope: rstest_bdd::StepScope::global(),
         index: 0,
         keyword: StepKeyword::Given,
         text: "all immutable fixtures",

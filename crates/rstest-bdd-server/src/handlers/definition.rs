@@ -119,9 +119,18 @@ fn find_step_at_position(
 /// Returns a vector of locations for steps that match the given step definition
 /// by keyword and regex pattern.
 fn process_feature_index(
+    state: &ServerState,
     feature_index: &crate::indexing::FeatureFileIndex,
     step_def: &CompiledStepDefinition,
 ) -> Vec<Location> {
+    // A conflicting scope means no candidate is selected. The conflict is
+    // announced once, at the indexing boundary, so this read stays silent.
+    let Ok(selected) = state.feature_selects_library(&feature_index.path, &step_def.library) else {
+        return Vec::new();
+    };
+    if !selected {
+        return Vec::new();
+    }
     // Read feature file for span conversion
     let source = match std::fs::read_to_string(&feature_index.path) {
         Ok(s) => s,
@@ -166,7 +175,7 @@ fn find_matching_feature_locations(
 ) -> Vec<Location> {
     state
         .all_feature_indices()
-        .flat_map(|index| process_feature_index(index, step_def))
+        .flat_map(|index| process_feature_index(state, index, step_def))
         .collect()
 }
 

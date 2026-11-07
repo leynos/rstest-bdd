@@ -1,13 +1,6 @@
 //! Behavioural tests for step usage diagnostics.
 
-use rstest_bdd::{
-    StepContext,
-    StepExecution,
-    StepKeyword,
-    find_step_with_metadata,
-    step,
-    unused_steps,
-};
+use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step, step, unused_steps};
 
 #[path = "common/noop_steps.rs"]
 mod noop_steps;
@@ -30,11 +23,13 @@ step!(
 
 #[test]
 fn reports_unused_steps() {
-    let Some(step) = find_step_with_metadata(StepKeyword::Given, "a used step".into()) else {
+    let Some(runner) =
+        find_step(StepKeyword::Given, "a used step".into()).expect("lookup should be unambiguous")
+    else {
         panic!("step not found");
     };
     let mut ctx = StepContext::default();
-    match (step.run)(&mut ctx, "a used step", None, None) {
+    match runner(&mut ctx, "a used step", None, None) {
         Ok(StepExecution::Continue { .. }) => {}
         Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
         Err(e) => panic!("execution failed: {e}"),

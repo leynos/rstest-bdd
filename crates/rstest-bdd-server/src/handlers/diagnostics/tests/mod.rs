@@ -76,5 +76,6 @@ fn assert_diagnostic_message_contains(diag: &Diagnostic, fragments: &[&str]) {
 
 mod basic;
 mod outline;
+mod scope_conflict;
 mod signature;
 mod table_docstring;

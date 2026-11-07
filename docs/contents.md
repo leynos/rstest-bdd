@@ -31,6 +31,13 @@
   limitations that maintainers should keep visible.
 - [Changelog](CHANGELOG.md) records repository-level release history.
 
+## Requests for comments
+
+- [RFC 0001: Explicit step-library scopes][rfc-0001]
+  defines closed-world, lexical selection of a scenario's step vocabulary.
+- [RFC 0002: Named step-argument binding][rfc-0002]
+  defines name-based `StepArgs` capture binding and shared conversion policy.
+
 ## User and migration references
 
 - [Gherkin syntax](gherkin-syntax.md) summarizes the feature-file language
@@ -39,8 +46,8 @@
   the v0.5.0 release changes.
 - [v0.6.0 migration guide](v0-6-0-migration-guide.md) helps users move through
   the v0.6.0 release changes.
-- [v0.7.0 migration guide](v0-7-0-migration-guide.md) helps users move through
-  the v0.7.0 registry lookup changes.
+- [v0.7.0 migration guide](v0-7-0-migration-guide.md) helps users adopt the
+  v0.7.0 scoped-vocabulary and named-capture contracts.
 - [Releasing crates](releasing-crates.md) documents the release and publication
   process for workspace crates.
 - [Lading user guide](lading-users-guide.md) documents the `lading` release
@@ -121,9 +128,6 @@
   archive family, sharing the sccache directory with the instrumented one.
 - [ADR 023: adopt the shared CV-005 contract library][adr-023] records the move
   from a local copy of the CV-005 contract to the pinned shared check.
-- [ADR 024: structural usage tracking in registry lookups][adr-024] records
-  returning `ResolvedStep` from a metadata lookup pair so usage is recorded on
-  construction.
 
 ## Execution plans
 
@@ -148,8 +152,9 @@
 [adr-021]: adr-021-single-source-base-url-for-users-guide-links.md
 [adr-022]: adr-022-separate-compiler-cache-family-for-the-publish-dry-run.md
 [adr-023]: adr-023-adopt-the-shared-cv005-contract-library.md
-[adr-024]: adr-024-structural-usage-tracking-in-registry-lookups.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
 [fluent-guide]: localizable-rust-libraries-with-fluent.md
+[rfc-0001]: rfcs/0001-explicit-step-library-scopes.md
+[rfc-0002]: rfcs/0002-named-step-argument-binding.md

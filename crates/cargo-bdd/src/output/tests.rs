@@ -10,6 +10,7 @@ use crate::registry::ScenarioOutcome;
 #[fixture]
 fn sample_scenario() -> Scenario {
     Scenario {
+        libraries: vec![String::from("rstest_bdd::global")],
         feature_path: "features/checkout.feature".to_owned(),
         name: "declined card is rejected".to_owned(),
         status: ScenarioOutcome::Skipped,
@@ -106,6 +107,7 @@ fn snapshot_scenario_modes(
 #[test]
 fn snapshot_bypassed_steps() {
     let steps = [BypassedStep {
+        library: String::from("rstest_bdd::global"),
         keyword: "Given".to_owned(),
         pattern: "a declined card".to_owned(),
         file: "tests/steps.rs".to_owned(),
@@ -114,6 +116,7 @@ fn snapshot_bypassed_steps() {
         scenario_name: "declined card is rejected".to_owned(),
         scenario_line: 42,
         tags: vec!["payments".to_owned()],
+        libraries: vec![String::from("rstest_bdd::global")],
         reason: Some("sandbox unavailable".to_owned()),
     }];
     let mut buffer = Vec::new();
@@ -121,6 +124,51 @@ fn snapshot_bypassed_steps() {
     assert!(result.is_ok(), "rendering into Vec<u8> should not fail");
     let output = render_to_string(buffer);
     insta::assert_snapshot!("bypassed_steps", output);
+}
+
+#[test]
+fn renders_closed_non_global_scenario_libraries() {
+    let scenario = Scenario {
+        libraries: vec![String::from("accounts"), String::from("filesystem")],
+        ..sample_scenario()
+    };
+
+    assert_eq!(
+        render_scenarios(&[scenario], ScenarioDisplayOptions::compact()),
+        concat!(
+            "skipped features/checkout.feature :: declined card is rejected ",
+            "[libraries: accounts, filesystem]\n",
+        )
+    );
+}
+
+#[test]
+fn renders_non_global_bypassed_step_library() {
+    let steps = [BypassedStep {
+        library: String::from("accounts"),
+        keyword: "Given".to_owned(),
+        pattern: "a declined card".to_owned(),
+        file: "tests/steps.rs".to_owned(),
+        line: 7,
+        feature_path: "features/checkout.feature".to_owned(),
+        scenario_name: "declined card is rejected".to_owned(),
+        scenario_line: 42,
+        tags: vec!["payments".to_owned()],
+        libraries: vec![String::from("accounts"), String::from("filesystem")],
+        reason: Some("sandbox unavailable".to_owned()),
+    }];
+    let mut buffer = Vec::new();
+    let result = write_bypassed_steps(&mut buffer, &steps);
+    assert!(result.is_ok(), "rendering into Vec<u8> should not fail");
+
+    assert_eq!(
+        render_to_string(buffer),
+        concat!(
+            "Given 'a declined card' [accounts] (tests/steps.rs:7) - skipped in ",
+            "features/checkout.feature:42 :: declined card is rejected [tags: payments] ",
+            "- sandbox unavailable\n",
+        )
+    );
 }
 
 /// Strategy producing a scenario with arbitrary metadata.
@@ -136,6 +184,7 @@ fn scenario_strategy() -> impl Strategy<Value = Scenario> {
     )
         .prop_map(
             |(feature_path, name, message, allow_skipped, forced_failure, line, tags)| Scenario {
+                libraries: vec![String::from("rstest_bdd::global")],
                 feature_path,
                 name,
                 status: ScenarioOutcome::Skipped,

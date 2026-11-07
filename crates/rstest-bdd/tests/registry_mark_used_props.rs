@@ -1,14 +1,11 @@
 //! Property-based tests for the registry usage-marking invariant.
 //!
-//! The metadata pair returns `ResolvedStep`, whose construction records usage.
-//! This suite drives both canonical lookups and every deprecated projection
-//! against registered steps, asserting the invariant via `unused_steps`.
-
-#![expect(
-    deprecated,
-    reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/753 - testing deprecated \
-              registry lookup functions"
-)]
+//! Every public lookup delegates to the metadata pair, whose `ResolvedStep`
+//! records usage in its constructor. A lookup that resolves a step must
+//! therefore mark exactly that step as used, and a lookup that resolves
+//! nothing must mark nothing. This suite drives all six projection variants
+//! (plus `find_step_with_metadata`) against a pool of registered steps and
+//! asserts the invariant via `unused_steps`.
 
 use std::collections::BTreeSet;
 
@@ -22,11 +19,9 @@ use rstest_bdd::{
     find_step_async,
     find_step_async_with_mode,
     find_step_with_metadata,
-    find_step_with_mode,
     lookup_step,
     lookup_step_async,
     lookup_step_async_with_mode,
-    lookup_step_with_metadata,
     step,
     unused_steps,
 };
@@ -144,15 +139,13 @@ fn is_unused(pattern: &str) -> bool {
 /// Invoke one lookup variant, returning whether it resolved a step.
 fn run_variant(variant: usize, keyword: StepKeyword, text: &str) -> bool {
     match variant {
-        0 => lookup_step(keyword, text.into()).is_some(),
-        1 => find_step(keyword, text.into()).is_some(),
-        2 => lookup_step_async(keyword, text.into()).is_some(),
-        3 => find_step_async(keyword, text.into()).is_some(),
-        4 => lookup_step_async_with_mode(keyword, text.into()).is_some(),
-        5 => find_step_async_with_mode(keyword, text.into()).is_some(),
-        6 => find_step_with_mode(keyword, text.into()).is_some(),
-        7 => lookup_step_with_metadata(keyword, text.into()).is_some(),
-        _ => find_step_with_metadata(keyword, text.into()).is_some(),
+        0 => lookup_step(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        1 => find_step(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        2 => lookup_step_async(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        3 => find_step_async(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        4 => lookup_step_async_with_mode(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        5 => find_step_async_with_mode(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        _ => find_step_with_metadata(keyword, text.into()).is_ok_and(|step| step.is_some()),
     }
 }
 
@@ -161,7 +154,7 @@ proptest! {
     /// a failed lookup marks nothing (sentinels stay unused throughout).
     #[test]
     fn every_lookup_variant_upholds_usage_marking(
-        variant in 0usize..9,
+        variant in 0usize..7,
         target in 0usize..TARGET_PATTERNS.len(),
         hit in any::<bool>(),
         miss_suffix in "[a-z]{4,12}",
@@ -208,7 +201,7 @@ proptest! {
     /// not match must behave as a miss and leave the step unused.
     #[test]
     fn mismatched_keyword_lookups_do_not_resolve_or_mark_used(
-        variant in 0usize..9,
+        variant in 0usize..7,
         sentinel in 0usize..SENTINEL_PATTERNS.len(),
     ) {
         let pattern = SENTINEL_PATTERNS
