@@ -119,16 +119,29 @@ fn is_fingerprint_variable(key: &str) -> bool {
 
 /// The fail-fast message for a timed test with no prepared artefacts.
 pub(super) fn missing_stamp_message(preparation: &Preparation, stamp: &Path) -> String {
+    let mut reason = format!("{} is missing or stale", stamp.display());
+    let evicted: Vec<String> = preparation
+        .artefacts
+        .iter()
+        .filter(|directory| !directory.is_dir())
+        .map(|directory| directory.display().to_string())
+        .collect();
+    if !evicted.is_empty() {
+        let _ = write!(
+            reason,
+            ", and the artefacts it vouched for are gone ({})",
+            evicted.join(", ")
+        );
+    }
     format!(
-        "nested fixture artefacts for family `{}` are not prepared ({} is missing or \
-         stale).\nUnder nextest every test runs in its own process, so preparing here would make \
-         a timed test pay for the cold build it is meant to avoid.\nPrepare them first with `make \
+        "nested fixture artefacts for family `{}` are not prepared ({reason}).\nUnder nextest \
+         every test runs in its own process, so preparing here would make a timed test pay for \
+         the cold build it is meant to avoid.\nPrepare them first with `make \
          prepare-nested-fixtures` (or `cargo nextest run -E \
          'test(/nested_fixture_preparation$/)'`), under the same `RUSTFLAGS` and feature \
          selection as the run that reads this stamp: the fingerprint covers both, so preparing \
          under a different environment only warms a tree this run will not reuse.",
-        preparation.family,
-        stamp.display()
+        preparation.family
     )
 }
 

@@ -24,9 +24,12 @@ use super::{cli_child_environment, fixture_dir, locate_or_build_cargo_bdd_comman
 /// workspace builds live under that root, so one stamp covers them.
 fn cli_preparation() -> Result<(nested_cargo::NestedCargoEnv, PathBuf, String)> {
     let child_env = cli_child_environment(env::vars_os().collect());
+    // Resolved through the shared helper, not by parsing the variable here: a
+    // relative `CARGO_TARGET_DIR` names one directory for this process and a
+    // different one for the nested build, which runs in the fixture directory.
+    // The helper absolutises once, so the stamp and the artefacts agree.
     let target_root = child_env
-        .get("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
+        .target_directory()
         .ok_or_else(|| eyre::eyre!("CLI child environment must define CARGO_TARGET_DIR"))?;
     // The whole fixture tree is an input: its manifest and lockfile fix the
     // dependency resolution, and its sources and feature files decide what the

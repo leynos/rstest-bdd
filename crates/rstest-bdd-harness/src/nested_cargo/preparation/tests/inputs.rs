@@ -1,0 +1,133 @@
+//! What makes a prepared directory stale: the fingerprint and the input hash.
+
+use std::path::{Path, PathBuf};
+
+use super::{
+    super::stamp::{PREPARED_FILE_SUFFIX, fingerprint},
+    environment,
+    fixture_package,
+    preparation,
+};
+use crate::nested_cargo::{cargo_config_inputs, count_compiling, input_hash};
+
+#[test]
+fn fingerprint_excludes_runner_and_coverage_variables() {
+    let environment = environment();
+    let text = fingerprint(&preparation(
+        Path::new("/tmp/target"),
+        &environment,
+        "all-features",
+        "abc",
+    ));
+    assert!(text.contains("RUSTFLAGS=-Dwarnings"));
+    assert!(text.contains("CARGO_TARGET_DIR=/tmp/target"));
+    assert!(text.contains("variant: all-features"));
+    assert!(text.contains("inputs: abc"));
+    assert!(!text.contains("NEXTEST_RUN_ID"));
+    assert!(!text.contains("LLVM_PROFILE_FILE"));
+    assert!(!text.contains("PATH="));
+}
+
+#[test]
+fn fingerprint_changes_with_variant_and_inputs() {
+    let environment = environment();
+    let one = fingerprint(&preparation(
+        Path::new("/tmp/target"),
+        &environment,
+        "all-features",
+        "abc",
+    ));
+    let other = fingerprint(&preparation(
+        Path::new("/tmp/target"),
+        &environment,
+        "no-default-features",
+        "abc",
+    ));
+    let third = fingerprint(&preparation(
+        Path::new("/tmp/target"),
+        &environment,
+        "all-features",
+        "def",
+    ));
+    assert_ne!(one, other);
+    assert_ne!(one, third);
+}
+
+#[test]
+fn input_hash_ignores_stamps_and_build_output() {
+    let (_directory, source) = fixture_package();
+    std::fs::create_dir_all(source.join("features")).expect("features dir");
+    std::fs::write(source.join("features/a.feature"), "Feature: a\n").expect("feature");
+    let before = input_hash(std::slice::from_ref(&source)).expect("initial hash");
+
+    std::fs::create_dir_all(source.join("target/debug")).expect("target dir");
+    std::fs::write(source.join("target/debug/artifact"), "binary").expect("artefact");
+    std::fs::write(
+        source.join(format!(".unit{PREPARED_FILE_SUFFIX}")),
+        "different fingerprint",
+    )
+    .expect("stamp");
+    let after = input_hash(std::slice::from_ref(&source)).expect("hash after build");
+    assert_eq!(before, after, "build output must not change the inputs");
+
+    std::fs::write(source.join("features/a.feature"), "Feature: changed\n").expect("edit");
+    let changed = input_hash(&[source]).expect("hash after edit");
+    assert_ne!(before, changed, "fixture edits must change the inputs");
+}
+
+#[test]
+fn input_hash_ignores_trybuild_wip_scratch() {
+    // `trybuild` writes `wip/` beside the crate it tests, not inside the
+    // target directory, and it creates that directory during the very build a
+    // preparation stamps. Hashing it would invalidate every stamp the moment
+    // it was written, because the hash is taken before that build runs.
+    let (_directory, source) = fixture_package();
+    let before = input_hash(std::slice::from_ref(&source)).expect("initial hash");
+
+    std::fs::create_dir_all(source.join("wip")).expect("wip dir");
+    std::fs::write(source.join("wip/.gitignore"), "*\n").expect("wip scratch");
+    let after = input_hash(std::slice::from_ref(&source)).expect("hash after build");
+    assert_eq!(
+        before, after,
+        "trybuild's wip scratch must not change the inputs"
+    );
+}
+
+#[test]
+fn cargo_configuration_is_an_input() {
+    // Cargo discovers configuration by walking up from a nested build's working
+    // directory, so the workspace `.cargo/config.toml` applies to every fixture
+    // build here. Changing its profile options or linker flags invalidates
+    // dependency artefacts without changing a fixture source, so a stamp that
+    // ignored it would let a timed assertion pay for the rebuild.
+    let workspace = tempfile::tempdir().expect("workspace dir");
+    std::fs::create_dir(workspace.path().join(".cargo")).expect("cargo dir");
+    let config = workspace.path().join(".cargo/config.toml");
+    std::fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
+
+    assert_eq!(cargo_config_inputs(workspace.path()), vec![config.clone()]);
+
+    let before = input_hash(&cargo_config_inputs(workspace.path())).expect("hash before");
+    std::fs::write(&config, "[profile.dev]\nincremental = true\n").expect("config edit");
+    let after = input_hash(&cargo_config_inputs(workspace.path())).expect("hash after");
+    assert_ne!(
+        before, after,
+        "a configuration-only change must invalidate the prepared artefacts"
+    );
+}
+
+#[test]
+fn missing_cargo_configuration_is_not_an_input() {
+    // A checkout may commit neither accepted file name; naming a missing root
+    // would make every preparation fail on a read error instead of treating the
+    // configuration as absent.
+    let workspace = tempfile::tempdir().expect("workspace dir");
+    assert_eq!(cargo_config_inputs(workspace.path()), [] as [PathBuf; 0]);
+}
+
+#[test]
+fn compiling_lines_are_counted_from_stderr() {
+    let stderr = b"   Compiling foo v0.1.0\nwarning: unused\n    Finished `dev` profile\n   \
+                   Compiling bar v0.2.0\n";
+    assert_eq!(count_compiling(stderr), 2);
+}

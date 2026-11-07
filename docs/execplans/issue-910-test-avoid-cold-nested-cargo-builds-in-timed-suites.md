@@ -499,6 +499,50 @@ rather than by reading this branch's comments.
       tree passed in 773.844 s. Neither the bound nor the period needed
       widening; the host did.
 
+- [x] Close two further stamp-validity gaps raised by the CodeRabbit follow-up.
+      1. **A relative target path was resolved twice.** `process::ChildEnv` and
+         the CLI's `cli_preparation` both copied `CARGO_TARGET_DIR` into a
+         `PathBuf` without making it absolute, while Cargo resolves a relative
+         value against the working directory of the command that reads it —
+         and the nested build runs in the scratch fixture directory, not in the
+         test process's directory. Stamp and artefacts therefore named
+         different trees, and evicting the artefacts left a matching stamp.
+         `NestedCargoEnv::from_vars` now resolves the value once through
+         `absolute_target_directory`, so the child and every stamp derived from
+         the same environment agree; `process::child_env_from_vars` applies the
+         same helper to its own snapshot, which is kept separate so the two
+         runs of each experiment stay byte-identical. `NestedCargoEnv` gained
+         `target_directory()` so callers never re-parse the variable.
+      2. **A stamp survived an eviction of only the profile.** The stamp lives
+         under `<target>/tests/<family>` and the dependency graph in
+         `<target>/debug`, so `cargo clean`, or a plain `rm -rf <target>/debug`,
+         removed the work while leaving the stamp matching. `Preparation` now
+         carries `artefacts`, the directories the stamp vouches for, derived by
+         `Preparation::new` as `<resolved target>/debug` (`DEFAULT_PROFILE`),
+         and `ensure_prepared` admits a timed assertion only when every one of
+         them exists. The intentional fixture-package clean that the rebuild
+         assertion performs is untouched: `clean_fixture_units` removes the
+         fixture's own units, and the gate's new requirement is that the
+         *profile directory* exists, which it still does.
+- [x] Regression coverage for both:
+      `a_relative_target_directory_is_resolved_once_before_it_reaches_the_child`
+      and `evicting_only_the_profile_invalidates_the_preparation` in the shared
+      policy; `a_relative_target_directory_stamps_where_the_child_builds` and
+      `evicting_only_the_profile_invalidates_the_preparation` in the rebuild
+      harness; `for_fixture_vouches_for_the_profile_its_own_builds_populate`
+      pins the trybuild/UI-lint shape, where the stamped root *is* the child's
+      `CARGO_TARGET_DIR` and the profile is therefore a descendant of it rather
+      than a sibling. `cli_child_environment_reuses_target` now asserts the
+      resolved accessor agrees with the value the child receives.
+- [x] Keep every changed file inside the 400-line limit the length gate
+      enforces. Three had crossed it. `nested_cargo.rs` was split into
+      `environment` (the filtered environment and the absolute-path resolver)
+      and `bounded` (the bounded runner, which the existing `drain` submodule
+      already supported); the module root now only re-exports and holds the
+      command builders and `CapturedOutput`. The two test modules became
+      directories: `preparation/tests/` with `stamping` and `inputs`, and
+      `harness/preparation/` with its regression cases in `tests.rs`.
+
 ## Surprises & Discoveries
 
 - **A required check and a quality signal are different things.** CodeScene

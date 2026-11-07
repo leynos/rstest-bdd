@@ -912,14 +912,43 @@ in the coverage driver's target, and a stamp left in the workspace `target/`
 would survive an eviction of that directory and keep matching.
 `Preparation::new` therefore takes the directory the artefacts actually occupy,
 and the harnesses resolve theirs from the same environment snapshot they hand
-the child (`process::child_target_directory` for the rebuild suite, the child
-env's `CARGO_TARGET_DIR` for the CLI suite).
+the child (`process::child_target_directory` for the rebuild suite,
+`NestedCargoEnv::target_directory` for the CLI suite).
+
+`CARGO_TARGET_DIR` is resolved to an absolute path exactly once, inside
+`NestedCargoEnv::from_vars`, so the value the child receives and the path a
+stamp is derived from are the same place. A relative inherited value would
+otherwise be read twice against two different working directories — the test
+process's and the fixture directory the nested build runs in — and the stamp
+would guard a tree the build never writes. `absolute_target_directory` is the
+shared resolver; `process::child_env_from_vars` applies it to its own snapshot
+for the same reason, because that harness keeps a separate byte-identical
+environment rather than using `NestedCargoEnv` directly.
 
 The rebuild suite keeps two stamps with two jobs, and they are not
 interchangeable: the preparation stamp records which *artefacts* exist, while
 the scratch `.stamp` in `fixtures` records which *fixture source* the scratch
 copy was made from. Evicting the target directory must invalidate the first
 without disturbing the second.
+
+### A stamp only vouches for inputs and environment
+
+A matching stamp answers "the inputs and the environment have not changed", not
+"the compiled units are still there". For the scratch families those are
+different directories: the stamp lives under `<target>/tests/<family>`, while
+the dependency graph lands in `<target>/debug`, so a `cargo clean`, a plain
+`rm -rf <target>/debug`, or any tool that evicts only the profile removes the
+work while leaving the stamp intact.
+
+`Preparation::artefacts` records the directories a stamp vouches for, and
+`ensure_prepared` requires every one of them to exist before it admits a timed
+assertion. `Preparation::new` derives the list as `<resolved target>/debug`
+(`DEFAULT_PROFILE`). The trybuild and UI-lint families stamp the directory that
+*is* their child's `CARGO_TARGET_DIR`, so there the profile is a descendant of
+the stamp root rather than a sibling — either way, the gate names it.
+
+An empty `artefacts` list is treated as satisfied: a caller that described no
+artefact directories leaves the stamp as the whole gate.
 
 ### Cargo configuration as a preparation input
 

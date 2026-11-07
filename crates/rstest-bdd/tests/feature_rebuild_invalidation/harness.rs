@@ -35,7 +35,7 @@ mod addition;
 mod fixtures;
 #[path = "harness/outcome.rs"]
 mod outcome;
-#[path = "harness/preparation.rs"]
+#[path = "harness/preparation/mod.rs"]
 pub(crate) mod preparation;
 #[path = "harness/process.rs"]
 mod process;

@@ -140,8 +140,21 @@ fn cli_child_environment_reuses_target(#[case] target: Option<&str>) {
         .map(|value| vec![(OsString::from("CARGO_TARGET_DIR"), OsString::from(value))])
         .unwrap_or_default();
     let child = cli_child_environment(vars);
-    let expected = target.map_or_else(|| workspace_root().join("target"), PathBuf::from);
+    // A caller's value is preserved as a *directory*, not necessarily as the
+    // exact string: a relative value names a different place to a child that
+    // runs in the fixture directory, so the helper resolves it against this
+    // process's working directory before handing it over. The workspace
+    // fallback is already absolute.
+    let expected = target.map_or_else(
+        || workspace_root().join("target"),
+        |value| std::env::current_dir().expect("current dir").join(value),
+    );
     assert_eq!(child.get("CARGO_TARGET_DIR"), Some(expected.as_os_str()));
+    assert_eq!(
+        child.target_directory().as_deref(),
+        Some(expected.as_path()),
+        "the resolved target directory must be the absolute one the child receives"
+    );
 }
 
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {

@@ -92,6 +92,17 @@ pub const MAX_SEQUENTIAL_COMMANDS: u64 = 3;
 /// Process-wide lock serializing lazy preparation under plain `cargo test`.
 static PREPARE_LOCK: Mutex<()> = Mutex::new(());
 
+/// Cargo's development profile directory, relative to a target directory.
+///
+/// Every nested build here runs without `--release` or `--profile`, so its
+/// compiled units land in `<target>/debug`. This is the directory a timed
+/// assertion reuses, and it is not always inside the directory the stamp is
+/// written to: for the scratch families it is a sibling of the stamp root, and
+/// for a family whose stamped directory *is* its child's `CARGO_TARGET_DIR` it
+/// is a descendant. Either way it is the directory
+/// [`Preparation::artefacts`] names.
+pub const DEFAULT_PROFILE: &str = "debug";
+
 /// What a preparation builds, as the caller describes it.
 ///
 /// These three travel together: a family is named, it builds a variant, and
@@ -140,18 +151,44 @@ pub struct Preparation {
     pub variant: String,
     /// Caller-supplied hash of the fixture sources and lockfiles.
     pub inputs: String,
+    /// Directories whose contents the stamp vouches for.
+    ///
+    /// A stamp lives at [`Preparation::directory`], which for the scratch
+    /// families is their own root — `<target>/tests/<family>`. The compiled
+    /// units a timed assertion actually reuses are written to Cargo's profile
+    /// directory, `<target>/debug`, and for those families that is a *sibling*
+    /// of the stamp's directory rather than a descendant of it. Evicting only
+    /// `<target>/debug` therefore leaves the stamp intact while removing the
+    /// dependency graph, so a stamp alone cannot answer "are the artefacts
+    /// still there".
+    ///
+    /// The gate requires every directory listed here to exist. A missing one
+    /// refuses the preparation exactly as a missing stamp does, which is what
+    /// keeps a timed assertion from rebuilding the graph inside its deadline.
+    pub artefacts: Vec<PathBuf>,
 }
 
 impl Preparation {
     /// Build a preparation description.
+    ///
+    /// The artefact directory is derived from `environment`, not from
+    /// `directory`: [`Preparation::directory`] is where the stamp is written,
+    /// while the compiled units land in the profile directory of the target
+    /// directory the *child* resolves. Deriving both from one value is what
+    /// keeps them in step when the target directory moves.
     #[must_use]
     pub fn new(sources: Sources, directory: PathBuf, environment: NestedCargoEnv) -> Self {
+        let artefacts = environment
+            .target_directory()
+            .map(|target| vec![target.join(DEFAULT_PROFILE)])
+            .unwrap_or_default();
         Self {
             family: sources.family,
             directory,
             environment,
             variant: sources.variant,
             inputs: sources.inputs,
+            artefacts,
         }
     }
 
@@ -249,7 +286,7 @@ where
 {
     let fingerprint = fingerprint(preparation);
     let stamp = stamp_path(preparation);
-    if stamp_matches(&stamp, &fingerprint) {
+    if stamp_matches(&stamp, &fingerprint) && artefacts_are_present(preparation) {
         note(&format!(
             "family={} is prepared ({})",
             preparation.family,
@@ -285,6 +322,26 @@ where
     prepare_locked(preparation, &stamp_path(preparation), &fingerprint, prepare)
 }
 
+/// Whether every directory the stamp vouches for is still present.
+///
+/// A matching stamp answers "the inputs and environment have not changed since
+/// this family was prepared". It cannot answer "the compiled units are still
+/// there": the profile directory holding them need not be inside the family's
+/// stamp root, so `cargo clean`, a `rm -rf <target>/debug`, or any tool that
+/// evicts only the profile can leave the stamp untouched. This check supplies
+/// the second half of the answer, so a timed assertion is never admitted
+/// against an empty profile.
+///
+/// An empty [`Preparation::artefacts`] is treated as satisfied: a caller that
+/// described no artefact directories has nothing for this check to refute, and
+/// its stamp remains the whole gate.
+fn artefacts_are_present(preparation: &Preparation) -> bool {
+    preparation
+        .artefacts
+        .iter()
+        .all(|directory| directory.is_dir())
+}
+
 /// Run `prepare` under the process-wide lock unless the family is already
 /// prepared, then stamp it.
 fn prepare_locked<F>(
@@ -298,8 +355,10 @@ where
 {
     let _guard = lock();
     // Another process or thread may have prepared the family while this one
-    // waited for the lock.
-    if stamp_matches(stamp, fingerprint) {
+    // waited for the lock. The artefacts are re-checked on the same terms as
+    // the gate: a stamp whose tree was evicted while this process waited is
+    // not a prepared family.
+    if stamp_matches(stamp, fingerprint) && artefacts_are_present(preparation) {
         return Ok(());
     }
 
