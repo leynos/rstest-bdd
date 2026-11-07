@@ -170,6 +170,19 @@ def makefile_recipe(target: str) -> str:
     return "\n".join(recipe)
 
 
+def expected_prefetch_invocations(manifests: list[Path]) -> list[list[str]]:
+    """Return the argv of every fetch the prefetch target makes, root first.
+
+    Derived from the gate's own :func:`cargo_fetch_command` rather than
+    restated, so a change to the fetch argv surfaces here as a difference
+    instead of leaving a stale literal that still passes.
+    """
+    return [
+        ["fetch", "--locked"],
+        *(cargo_fetch_command(manifest)[1:] for manifest in manifests),
+    ]
+
+
 def test_makefile_prefetch_target_runs_the_fetch_mode() -> None:
     """`make prefetch-fixture-deps` warms the root, then the fixtures."""
     recipe = makefile_recipe("prefetch-fixture-deps")
@@ -247,10 +260,9 @@ def test_fetch_mode_warms_every_fixture_through_the_locked_fetch_argv(
     result, invocations = run_fetch_with_fake_cargo(tmp_path, monkeypatch)
 
     assert result.returncode == 0, result.stderr
-    assert invocations == [
-        ["fetch", "--locked", "--manifest-path", str(manifest)]
-        for manifest in manifests
-    ], "the gate must run one locked fetch per discovered fixture, in order"
+    assert invocations == expected_prefetch_invocations(manifests)[1:], (
+        "the gate itself warms only the fixtures; the target adds the root"
+    )
     assert human_lines(result.stdout) == [
         f"prefetched dependencies for {len(manifests)} fixture(s)"
     ], "a clean prefetch keeps its exact success summary; the record joins it"
@@ -298,13 +310,7 @@ def test_make_target_runs_the_fetch_mode_and_propagates_a_failure(
     assert result.returncode != 0, (
         "the prefetch target must fail the lane when a fixture does not download"
     )
-    assert invocations == [
-        ["fetch", "--locked"],
-        *(
-            ["fetch", "--locked", "--manifest-path", str(manifest)]
-            for manifest in manifests
-        ),
-    ], (
+    assert invocations == expected_prefetch_invocations(manifests), (
         "the target must warm the workspace root, then run one locked fetch "
         "per discovered fixture, in order"
     )
