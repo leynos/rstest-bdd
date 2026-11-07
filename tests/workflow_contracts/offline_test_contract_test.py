@@ -16,6 +16,7 @@ cannot be added without a matching prefetch.
 Run via ``make test-workflow-contracts``.
 """
 
+import re
 import sys
 import tomllib
 import typing as typ
@@ -89,7 +90,22 @@ def _setup_scripts(
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:
-    """Return *version* as comparable integers."""
+    r"""Return *version* as comparable integers.
+
+    A pre-release such as ``0.9.115-rc1`` is rejected by name rather than by a
+    bare ``ValueError`` from :func:`int`, so a pinned-but-unparseable version
+    says which value broke the comparison. The digit class is ASCII-only
+    because ``\d`` would accept digits :func:`int` cannot parse.
+
+    Returns
+    -------
+    tuple[int, ...]
+        One integer per dot-separated part, most significant first.
+    """
+    assert re.fullmatch(r"[0-9]+(?:\.[0-9]+)*", version), (
+        f"nextest-version {version!r} must be dot-separated integers; "
+        "a pre-release or range cannot be compared against the floor"
+    )
     return tuple(int(part) for part in version.split("."))
 
 
