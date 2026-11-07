@@ -27,7 +27,8 @@ fn cli_preparation() -> Result<(nested_cargo::NestedCargoEnv, PathBuf, String)> 
     // Resolved through the shared helper, not by parsing the variable here: a
     // relative `CARGO_TARGET_DIR` names one directory for this process and a
     // different one for the nested build, which runs in the fixture directory.
-    // The helper absolutises once, so the stamp and the artefacts agree.
+    // The helper turns it into an absolute path once, so the stamp and the
+    // artefacts agree.
     let target_root = child_env
         .target_directory()
         .ok_or_else(|| eyre::eyre!("CLI child environment must define CARGO_TARGET_DIR"))?;

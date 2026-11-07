@@ -119,9 +119,10 @@ pub(crate) fn child_env_from_vars(
     // `CARGO_TARGET_DIR` relative to the working directory of the command
     // that consults it, and every nested build here runs in the scratch
     // fixture directory rather than in the workspace, so the raw value would
-    // name one place for this process and another for the child. Absolutising
-    // it before it is stored — and therefore before it is handed to the child
-    // — keeps the stamp and the artefacts in the same directory.
+    // name one place for this process and another for the child. Resolving it
+    // to an absolute path before it is stored — and therefore before it is
+    // handed to the child — keeps the stamp and the artefacts in the same
+    // directory.
     vars.sort_by(|a, b| a.0.cmp(&b.0));
     let target_directory = vars
         .iter()

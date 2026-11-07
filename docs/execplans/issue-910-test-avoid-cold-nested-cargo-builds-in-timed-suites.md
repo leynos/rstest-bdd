@@ -542,6 +542,27 @@ rather than by reading this branch's comments.
       command builders and `CapturedOutput`. The two test modules became
       directories: `preparation/tests/` with `stamping` and `inputs`, and
       `harness/preparation/` with its regression cases in `tests.rs`.
+- [x] Fix the two further stamp-validity gaps CodeRabbit reported, committed as
+      `821f249a`. First, a relative inherited `CARGO_TARGET_DIR` was resolved
+      twice — once by the child, against the fixture directory it runs in, and
+      once by whoever derived the stamp — so the two named different trees.
+      `env_from_vars` now resolves it once, and `NestedCargoEnv::target_directory`
+      exposes that same resolution. Second, the stamp at
+      `<target>/tests/<family>` outlived an eviction of `<target>/debug`, the
+      directory the dependency graph actually occupies, so the gate admitted a
+      timed assertion against an empty profile. `Preparation` now carries
+      `artefacts` and both gates require every one of them to exist.
+- [x] Gate the change: `make fmt`, `make check-fmt`, the clippy stages of
+      `make lint`, and `make lint-whitaker` all pass. Two real findings were
+      fixed on the way: a `clippy::option_if_let_else` violation in the new
+      `absolute_target_directory`, and a rustdoc private-intra-doc link to
+      `NestedCargoEnv::from_vars` (now `env_from_vars`, the public re-export).
+- [x] Note the `#[path = "harness/preparation.rs"]` attribute on
+      `mod preparation`: converting that file to a directory module also
+      required updating the attribute to `harness/preparation/mod.rs`, without
+      which rustfmt cannot resolve the module at all. Ordinary `mod x;`
+      declarations resolve to `x/mod.rs` on their own; an explicit `#[path]`
+      does not.
 
 ## Surprises & Discoveries
 
