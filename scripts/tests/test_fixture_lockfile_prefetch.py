@@ -176,6 +176,12 @@ def expected_prefetch_invocations(manifests: list[Path]) -> list[list[str]]:
     Derived from the gate's own :func:`cargo_fetch_command` rather than
     restated, so a change to the fetch argv surfaces here as a difference
     instead of leaving a stale literal that still passes.
+
+    Returns
+    -------
+    list[list[str]]
+        One argument vector per fetch, beginning with the Make target's own
+        root-workspace fetch and continuing in *manifests* order.
     """
     return [
         ["fetch", "--locked"],
