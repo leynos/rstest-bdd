@@ -425,8 +425,24 @@ documented fallback if the backend ever stops reaching Ubicloud. The
 compiler-cache step is guarded so that exactly one mechanism owns the directory
 on any given lane.
 
+Linux trunk coverage is split three ways, because Ubicloud keeps its own cache
+store and nothing a GitHub-hosted job saves reaches an Ubicloud lane. The
+upload is not something agent work waits for, so `coverage-upload` runs on a
+GitHub-hosted runner: it measures, uploads to CodeScene, saves nothing, and
+compiles without a compiler cache. It hands its ratchet figures on as an
+artefact (`publish-baseline: never` with `baseline-artefact-name`). A ratchet
+there could never fail, since GitHub's store never holds the baseline the
+Ubicloud lane reads, so the comparison lives in `coverage-baseline`, on the
+smallest Ubicloud runner: it restores the current baseline, ratchets the figure
+and saves under the key the pull-request lane restores, and it runs only if
+`coverage-upload` passed. `coverage-warmup`, also on Ubicloud and independent
+of test results, compiles the instrumented build without running it
+(`build-only`) and so keeps the compiler cache the pull-request lane reads
+warm. Windows is unchanged: it already runs on a GitHub-hosted runner, whose
+store its pull-request lanes read.
+
 That directory archive is written by `coverage-main.yml`, not by `ci.yml`:
-`coverage-baseline-windows` for Windows, and `coverage-upload` for Linux in the
+`coverage-baseline-windows` for Windows, and `coverage-warmup` for Linux in the
 fallback mode. Once the merge gate stopped running coverage on a push, its
 trunk run built only the publish dry run, and an archive written there would
 have left every pull-request coverage build to start cold. The publisher jobs

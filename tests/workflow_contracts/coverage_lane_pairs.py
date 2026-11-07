@@ -50,17 +50,35 @@ _EXPRESSION = re.compile(r"\$\{\{\s*(?P<scope>matrix|env)\.(?P<key>[\w-]+)\s*\}\
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class LanePair:
-    """One gate lane and the publisher job that writes the baseline it reads."""
+    """One gate lane and the publisher job that writes the baseline it reads.
+
+    ``cache_writer_job`` names the job that writes the compiler cache the lane
+    reads, when that is not the publisher job: Linux trunk coverage is split so
+    that the measuring job runs on a GitHub-hosted runner, whose cache store
+    no Ubicloud lane reads, and a build-only warm-up job on the lane's own
+    provider writes the compiler cache. It is empty when the publisher job
+    writes it.
+    """
 
     gate_step: str
     publisher_job: str
+    cache_writer_job: str = ""
+
+    @property
+    def writer(self) -> str:
+        """Name the job that writes this lane's compiler cache."""
+        return self.cache_writer_job or self.publisher_job
 
 
 #: Every pairing the ratchet relies on. The strict Windows lane has no pair of
 #: its own: the baseline cache is keyed by `runner.os` alone, so it reads the
 #: default-features baseline, and the developer guide records that residual.
 PAIRS: typ.Final = (
-    LanePair("Test and Measure Coverage (Linux)", "coverage-upload"),
+    LanePair(
+        "Test and Measure Coverage (Linux)",
+        "coverage-upload",
+        cache_writer_job="coverage-warmup",
+    ),
     LanePair(
         "Test and Measure Coverage (Windows, default features)",
         "coverage-baseline-windows",
