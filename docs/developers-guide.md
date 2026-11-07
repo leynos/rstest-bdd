@@ -441,6 +441,13 @@ of test results, compiles the instrumented build without running it
 warm. Windows is unchanged: it already runs on a GitHub-hosted runner, whose
 store its pull-request lanes read.
 
+The first run after the split measured the shape. On Ubicloud,
+`coverage-warmup` took 4 minutes and `coverage-baseline` 14 seconds, against
+13.6 to 16 minutes for the single job before; the warm-up's compiler cache read
+375 hits and no misses. The hosted `coverage-upload` took 21 minutes. The
+baseline cache key now carries the interpreter (`py3.14-`), so the first
+publication started from zero and seeded itself from the measured figures.
+
 That directory archive is written by `coverage-main.yml`, not by `ci.yml`:
 `coverage-baseline-windows` for Windows, and `coverage-warmup` for Linux in the
 fallback mode. Once the merge gate stopped running coverage on a push, its
