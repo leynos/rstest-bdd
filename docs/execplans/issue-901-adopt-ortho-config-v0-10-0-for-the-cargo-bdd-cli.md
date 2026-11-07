@@ -5,7 +5,7 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: COMPLETE
+Status: COMPLETE (merge pending)
 
 ## Purpose / big picture
 
@@ -692,9 +692,14 @@ Hard invariants. Violation requires escalation, not a workaround.
   `cargo_metadata`'s declared caret requirement unchanged. Rationale: the base
   lockfile's 0.3.3 entry requires Rust 1.91 and breaks the user-requested Rust
   1.88 library check; 0.3.2 supports 1.88 and is allowed by upstream's `^0.3.0`
-  requirement. This lock resolution keeps reusable libraries at their own MSRV
-  and adds no OrthoConfig dependency to them. Date/Author: 2026-11-02,
-  implementing agent.
+  requirement. The claim holds for builds that resolve through this
+  repository's lockfile. A downstream resolver-2 consumer is not constrained by
+  it and can still select `cargo-platform` 0.3.3, which requires Rust 1.91, so
+  any downstream build relying on the 1.88 floor must make the same resolution
+  choice in its own lockfile. This lock resolution keeps reusable libraries at
+  their own MSRV in locked builds and adds no OrthoConfig dependency to them.
+  Date/Author: 2026-11-02, implementing agent; qualified 2026-11-08 after
+  review.
 
 - Decision: use `ortho_config::cargo::external_subcommand` only for argv that
   begins with Cargo's injected `bdd` token; keep the original parser for the
@@ -801,6 +806,10 @@ Every test still ran and passed at the cited revision, so the suite result is
 complete even though `make test` did not reach `EXIT=0` in one call. Cold
 nested compilation is tracked by issue #910, and child-Cargo network isolation
 by issue #911.
+
+Merging pull request #912 is the remaining step. This plan cites the gated
+revision rather than its own commit, and the review follow-ups it records are
+documentation-only.
 
 ## Context and orientation
 
