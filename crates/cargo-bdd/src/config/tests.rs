@@ -18,6 +18,9 @@ use tempfile::TempDir;
 
 use super::{SkippedConfig, StepsConfig, StepsSettings, validate_steps};
 
+#[path = "tests/property.rs"]
+mod property;
+
 struct ConfigFixture {
     _temporary_directory: TempDir,
     root: Dir,

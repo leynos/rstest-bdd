@@ -71,8 +71,14 @@ fn fixture_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal")
 }
 
-/// Execute cargo-bdd with the given arguments and return the raw output.
-fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
+/// Execute cargo-bdd with extra environment variables and return the output.
+///
+/// Configuration tests use this to exercise the `CARGO_BDD_` environment
+/// tier without changing the ambient environment of the test process.
+fn run_cargo_bdd_raw_with_env(
+    args: &[&str],
+    extra_environment: &[(&str, &str)],
+) -> Result<std::process::Output> {
     let fixture_dir = fixture_dir();
     // Preserve the caller's target directory (cargo llvm-cov's
     // `target/llvm-cov-target` when coverage is running) so the fixture build
@@ -92,6 +98,9 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
         &fixture_dir,
     );
     cmd.args(args);
+    for (key, value) in extra_environment {
+        cmd.env(key, value);
+    }
     Ok(cmd.output()?)
 }
 
@@ -173,7 +182,15 @@ fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io:
 }
 
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {
-    let output = run_cargo_bdd_raw(args)?;
+    run_cargo_bdd_captured_with_env(args, &[])
+}
+
+/// Execute cargo-bdd with extra environment variables and capture its streams.
+fn run_cargo_bdd_captured_with_env(
+    args: &[&str],
+    extra_environment: &[(&str, &str)],
+) -> Result<(ExitStatus, String, String)> {
+    let output = run_cargo_bdd_raw_with_env(args, extra_environment)?;
     let args_debug = args.join(" ");
     let status = output.status;
     let stdout = str::from_utf8(&output.stdout).wrap_err_with(|| {
@@ -189,9 +206,12 @@ fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)>
     Ok((status, stdout.to_owned(), stderr.to_owned()))
 }
 
-fn run_cargo_bdd(args: &[&str]) -> Result<String> {
+fn run_cargo_bdd(args: &[&str]) -> Result<String> { run_cargo_bdd_with_env(args, &[]) }
+
+/// Execute cargo-bdd with extra environment variables and return stdout.
+fn run_cargo_bdd_with_env(args: &[&str], extra_environment: &[(&str, &str)]) -> Result<String> {
     let args_debug = args.join(" ");
-    let (status, stdout, _stderr) = run_cargo_bdd_captured(args)?;
+    let (status, stdout, _stderr) = run_cargo_bdd_captured_with_env(args, extra_environment)?;
     assert!(
         status.success(),
         "`cargo bdd` should succeed (args: [{args_debug}], status: {status})"
@@ -314,6 +334,22 @@ fn skipped_subcommand_emits_json() {
         fixture_entry.libraries,
         vec!["rstest_bdd::global".to_owned()],
         "unscoped scenarios should report the global library"
+    );
+}
+
+#[test]
+#[serial]
+fn configured_skipped_reasons_reach_the_handler() {
+    let stdout =
+        run_cargo_bdd_with_env(&["skipped"], &[("CARGO_BDD_CMDS_SKIPPED_REASONS", "true")])
+            .expect("test setup should succeed");
+    assert!(
+        stdout.contains("tests/features/diagnostics.fixture:7"),
+        "configured reasons should add feature locations: {stdout}"
+    );
+    assert!(
+        stdout.contains("fixture skip message"),
+        "configured reasons should add skip reasons: {stdout}"
     );
 }
 

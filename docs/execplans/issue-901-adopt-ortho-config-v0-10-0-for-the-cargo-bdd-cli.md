@@ -671,6 +671,23 @@ Hard invariants. Violation requires escalation, not a workaround.
   file with `git checkout --` before rebasing, and check for it after any
   interrupted trybuild run.
 
+- Observation: the pre-merge review asked for product-level coverage of
+  configured `skipped` settings and for a property test over the merge. Both
+  were genuine gaps: the subprocess cases configured `steps.skipped` only, and
+  the example-based precedence cases pinned one conflict sequence per field.
+  Evidence: `crates/cargo-bdd/tests/invocation/configuration.rs` and
+  `crates/cargo-bdd/src/config/tests/property.rs`. Impact: the `skipped`
+  handler is now driven through file and environment configuration in a child
+  process, and both subcommands' fields are compared against an independent
+  precedence model with the other namespace carrying conflicting values.
+
+- Observation: `cargo fmt -p cargo-bdd` on the stable toolchain reformats
+  files the change does not own, because `.rustfmt.toml` uses unstable options
+  only the pinned nightly honours. Evidence: an unrelated five-file drift after
+  one stable format run, reverted with `git checkout --`. Impact: format with
+  `cargo +$(FMT_TOOLCHAIN) fmt`, and stage by path so unrelated drift cannot
+  reach the commit.
+
 ## Decision log
 
 - Decision: take `ortho_config` v0.10.0 with default features enabled.
@@ -808,8 +825,8 @@ nested compilation is tracked by issue #910, and child-Cargo network isolation
 by issue #911.
 
 Merging pull request #912 is the remaining step. This plan cites the gated
-revision rather than its own commit, and the review follow-ups it records are
-documentation-only.
+revision rather than its own commit. Review follow-ups after that revision are
+recorded in the surprises below; two of them added tests rather than prose.
 
 ## Context and orientation
 

@@ -205,6 +205,27 @@ If a nested build hands its diagnostics to a helper that outlives it, expect
 less captured text than the tree produced. Wrap the invocation in a supervisor
 that waits for the whole tree when the complete output is required.
 
+## `cargo bdd` configuration and Cargo invocation
+
+`cargo bdd <subcommand>` now works from inside a Cargo workspace. The existing
+flat `cargo-bdd <subcommand>` spelling is unchanged: it keeps its original
+parser, so help, usage and parse failures print exactly as they did in v0.6.0.
+
+The `steps` and `skipped` options can also come from a TOML configuration file
+or from `CARGO_BDD_` environment variables. Values merge in the order defaults,
+configuration files, environment, then explicitly supplied command-line flags,
+so a flag the user typed always wins. For example,
+`CARGO_BDD_CMDS_STEPS_SKIPPED=true` supplies `steps --skipped`, and
+`[cmds.skipped] json = true` supplies `skipped --json`. Discovery reads
+`~/.cargo_bdd.toml`, the XDG `cargo_bdd/config.toml`, and `./.cargo_bdd.toml`;
+the [users' guide](users-guide.md#configuration-files-and-environment) names
+every location, variable and precedence rule.
+
+Building `cargo-bdd` now requires Rust 1.89 because its configuration
+dependency raises the floor. The reusable library crates keep the 1.88 minimum,
+so a workspace build needs 1.89 only when it builds the binary. See
+[ADR 025](adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md).
+
 ## Migration checklist
 
 - [ ] Add ambiguity handling wherever a lookup result is consumed:
@@ -233,6 +254,11 @@ that waits for the whole tree when the complete output is required.
 - [ ] Re-check any code that parses a bounded run's captured output: it holds
       what the direct child wrote, not what its descendants wrote after it
       exited.
+- [ ] Install Rust 1.89 or newer to build `cargo-bdd`; the library crates still
+  build with Rust 1.88.
+- [ ] Review the `cargo_bdd` configuration files and `CARGO_BDD_` variables on
+  any machine that runs `cargo bdd`, then remove local wrappers that emulated
+  the Cargo-dispatched form.
 
 ## Common errors
 
@@ -254,6 +280,7 @@ that waits for the whole tree when the complete output is required.
 ## Further reading
 
 - [Users' guide: registry lookups][users-guide-lookups]
+- [Users' guide: configuration files and environment][users-guide-configuration]
 - [RFC 0001: explicit step library scopes](rfcs/0001-explicit-step-library-scopes.md)
 - [RFC 0002: named step argument binding](rfcs/0002-named-step-argument-binding.md)
 - [Developer's guide](developers-guide.md)
@@ -261,4 +288,5 @@ that waits for the whole tree when the complete output is required.
 - [ADR 024: structural usage tracking in registry lookups][adr-024]
 
 [users-guide-lookups]: users-guide.md#registry-lookups
+[users-guide-configuration]: users-guide.md#configuration-files-and-environment
 [adr-024]: adr-024-structural-usage-tracking-in-registry-lookups.md
