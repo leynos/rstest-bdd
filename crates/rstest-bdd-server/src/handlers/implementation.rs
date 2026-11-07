@@ -109,12 +109,11 @@ fn find_matching_rust_locations(
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
 ) -> Vec<Location> {
-    let candidates = match state.steps_for_feature_keyword(&feature_index.path, step.step_type) {
-        Ok(candidates) => candidates,
-        Err(error) => {
-            error.emit_warning();
-            return Vec::new();
-        }
+    // A conflicting scope yields no candidates. Announcement belongs to the
+    // indexing boundary, so answering this request emits nothing.
+    let Ok(candidates) = state.steps_for_feature_keyword(&feature_index.path, step.step_type)
+    else {
+        return Vec::new();
     };
     candidates
         .into_iter()

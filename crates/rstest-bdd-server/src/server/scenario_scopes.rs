@@ -7,7 +7,6 @@ use std::{
 };
 
 use gherkin::StepType;
-use tracing::warn;
 
 use super::ServerState;
 use crate::indexing::{CompiledStepDefinition, IndexedScenarioBinding, ScenarioBindingTarget};
@@ -30,17 +29,15 @@ pub(crate) struct ScenarioScopeConflict {
 }
 
 impl ScenarioScopeConflict {
-    /// Emit the conservative no-candidate fallback as a structured warning.
-    pub(crate) fn emit_warning(&self) {
-        warn!(
-            operation = "resolve-feature-step-scope",
-            feature_path = %self.feature_path.display(),
-            selected_scopes = ?self.scopes,
-            failure_category = "conflicting-closed-scopes",
-            fallback_state = "no-step-candidates",
-            "scenario bindings select conflicting closed step-library scopes"
-        );
-    }
+    /// Return the feature file whose bindings disagree.
+    ///
+    /// The conflict is pure data. Announcing it belongs to the indexing
+    /// boundary in [`super::scope_alerts`], so that a read-only query such as
+    /// `textDocument/definition` cannot emit a warning while answering.
+    pub(crate) fn feature_path(&self) -> &Path { &self.feature_path }
+
+    /// Return the distinct normalized closed scopes selected for the feature.
+    pub(crate) fn scopes(&self) -> &[Vec<String>] { &self.scopes }
 }
 
 impl ScenarioScopeRegistry {
@@ -58,7 +55,10 @@ impl ScenarioScopeRegistry {
     }
 
     /// Return the single closed scope selected for one feature file.
-    fn libraries_for_feature(
+    ///
+    /// A conflict is returned as data for the caller to announce at its own
+    /// boundary; see [`super::scope_alerts`].
+    pub(super) fn libraries_for_feature(
         &self,
         feature_path: &Path,
     ) -> Result<Option<Vec<String>>, ScenarioScopeConflict> {

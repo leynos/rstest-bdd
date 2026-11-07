@@ -40,12 +40,11 @@ fn has_matching_implementation(
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
 ) -> bool {
-    let candidates = match state.steps_for_feature_keyword(&feature_index.path, step.step_type) {
-        Ok(candidates) => candidates,
-        Err(error) => {
-            error.emit_warning();
-            return false;
-        }
+    // A conflict means nothing can be shown as implemented. The conflict is
+    // announced at the indexing boundary, not while computing diagnostics.
+    let Ok(candidates) = state.steps_for_feature_keyword(&feature_index.path, step.step_type)
+    else {
+        return false;
     };
     candidates
         .into_iter()
@@ -157,12 +156,11 @@ pub fn compute_unused_step_diagnostics(state: &ServerState, rust_path: &Path) ->
 /// Check if a Rust step definition is matched by at least one feature step.
 fn has_matching_feature_step(state: &ServerState, step_def: &Arc<CompiledStepDefinition>) -> bool {
     state.all_feature_indices().any(|feature_index| {
-        let selected = match state.feature_selects_library(&feature_index.path, &step_def.library) {
-            Ok(selected) => selected,
-            Err(error) => {
-                error.emit_warning();
-                return false;
-            }
+        // See the sibling query above: the warning is published when the
+        // feature or binding index changes, never during a read.
+        let Ok(selected) = state.feature_selects_library(&feature_index.path, &step_def.library)
+        else {
+            return false;
         };
         if !selected {
             return false;

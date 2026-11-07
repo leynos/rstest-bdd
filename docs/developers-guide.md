@@ -3086,9 +3086,10 @@ returns `Result<Option<ResolvedStep>, StepLookupError>`.
   `mark_used` calls from a lookup remain a bug. Adding a lookup variant means
   delegating, not re-marking.
 - **Composition:** `resolve_exact_step` and `resolve_step` return
-  `Result<Option<&'static Step>, StepLookupError>`, then the metadata pair wraps
-  an `Ok(Some(_))` in `ResolvedStep`. Callers project `run`, `run_async`,
-  `execution_mode`, or other fields through `Deref` or `ResolvedStep::as_step()`.
+  `Result<Option<&'static Step>, StepLookupError>`, then the metadata pair
+  wraps an `Ok(Some(_))` in `ResolvedStep`. Callers project `run`, `run_async`,
+  `execution_mode`, or other fields through `Deref` or
+  `ResolvedStep::as_step()`.
 - The invariant is pinned across all variants by the property suite in
   `crates/rstest-bdd/tests/registry_mark_used_props.rs`. A `kani` harness was
   considered and omitted: the registry is backed by link-time `inventory`
@@ -3659,12 +3660,25 @@ identify the operation, source location, failure category, and fallback state.
 `ScenarioScopeRegistry` resolves valid targets against the Rust source path,
 normalizes order-equivalent library lists, and returns `ScenarioScopeConflict`
 when distinct closed scopes target one feature. Handlers then use no candidates
-and emit the structured warning rather than merging scopes. Feature handlers
-obtain candidates through `ServerState::steps_for_feature_keyword`, and
-Rust-to-feature checks use `ServerState::feature_selects_library`. This keeps
-language-server completion, navigation, and diagnostics aligned with runtime
-vocabulary: omitted libraries select only `rstest_bdd::global`, while an
-explicit list does not add global definitions or precedence by list order.
+rather than merging scopes. Feature handlers obtain candidates through
+`ServerState::steps_for_feature_keyword`, and Rust-to-feature checks use
+`ServerState::feature_selects_library`. This keeps language-server completion,
+navigation, and diagnostics aligned with runtime vocabulary: omitted libraries
+select only `rstest_bdd::global`, while an explicit list does not add global
+definitions or precedence by list order.
+
+Scope resolution is a pure query, so `ScenarioScopeConflict` is data and no
+read path logs it: `textDocument/definition`, `textDocument/implementation`,
+and every diagnostic computation must be able to answer without an external
+side-effect. `ScopeAlerts` in `server/scope_alerts.rs` is the single
+publication boundary. Both index mutations — the feature-index result and the
+Rust scenario-binding replacement — call `ServerState::report_scope_conflict`
+(or `report_indexed_scope_conflicts` for the indexed feature set), which warns
+only on the first observation of a `(feature file, conflicting scope set)`
+pair. A feature that stops conflicting forgets its pair, so resolving and then
+reintroducing the same disagreement is reported again instead of being
+suppressed by stale state. New read paths must follow the same rule: return the
+conflict or a default, and leave announcement to indexing.
 
 ### Workspace-root capability and feature-source boundary
 

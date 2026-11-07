@@ -25,11 +25,13 @@ use crate::{
 
 mod deferred_saves;
 mod scenario_scopes;
+mod scope_alerts;
 mod server_capabilities;
 mod workspace_task;
 
 use deferred_saves::{DeferredDocumentSaves, DeferredSaveDropReason};
 use scenario_scopes::ScenarioScopeRegistry;
+use scope_alerts::ScopeAlerts;
 pub use server_capabilities::build_server_capabilities;
 use workspace_task::WorkspaceTask;
 
@@ -70,6 +72,8 @@ pub struct ServerState {
     step_registry: StepDefinitionRegistry,
     /// Closed step-library scopes selected by Rust scenario bindings.
     scenario_scopes: ScenarioScopeRegistry,
+    /// Conflicting scopes already announced at the indexing boundary.
+    scope_alerts: ScopeAlerts,
     /// Client socket for sending notifications (e.g., diagnostics).
     client: Option<ClientSocket>,
 }
@@ -103,6 +107,7 @@ impl std::fmt::Debug for ServerState {
             .field("rust_step_indices", &self.rust_step_indices)
             .field("step_registry", &self.step_registry)
             .field("scenario_scopes", &self.scenario_scopes)
+            .field("scope_alerts", &self.scope_alerts)
             .field("client", &self.client.as_ref().map(|_| "<ClientSocket>"))
             .finish()
     }
@@ -137,6 +142,7 @@ impl ServerState {
             rust_step_indices: HashMap::new(),
             step_registry: StepDefinitionRegistry::default(),
             scenario_scopes: ScenarioScopeRegistry::default(),
+            scope_alerts: ScopeAlerts::default(),
             client: None,
         }
     }

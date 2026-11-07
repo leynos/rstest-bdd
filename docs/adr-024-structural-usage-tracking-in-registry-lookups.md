@@ -68,26 +68,26 @@ developer's guide under "Registry lookup and usage-marking invariants".
 
 ### Amendment: fallibility, the scoped query, and the deprecation window
 
-Three changes were made when the scoped step-library work (RFC 0001) merged
-in. They keep Option C's structural guarantee while widening the result type
-and adding one deliberately pure read.
+Three changes were made when the scoped step-library work (RFC 0001) merged in.
+They keep Option C's structural guarantee while widening the result type and
+adding one deliberately pure read.
 
 1. **Fallibility.** A lookup now returns `Result<Option<_>, StepLookupError>`
    rather than `Option<_>`. Under scoped libraries, two definitions can be
-   equally specific, and the scoped-vocabulary model treats that as an error.
-   A bare `Option` would force the registry to pick a candidate, which is the
-   behaviour RFC 0001 exists to prevent. The Option C guarantee is unchanged:
-   a step is obtainable only through `ResolvedStep`, and `ResolvedStep` records
+   equally specific, and the scoped-vocabulary model treats that as an error. A
+   bare `Option` would force the registry to pick a candidate, which is the
+   behaviour RFC 0001 exists to prevent. The Option C guarantee is unchanged: a
+   step is obtainable only through `ResolvedStep`, and `ResolvedStep` records
    usage on construction. Only the error channel is new.
 
 2. **A pure scoped query.** `find_step_with_metadata_in_scope` takes an
-   explicit `StepScope` and returns `Result<Option<&'static Step>,
-   StepLookupError>` without constructing a `ResolvedStep`.
-   This narrows Option B's rejection rather than reversing it. Option B was
-   rejected because making *the public metadata pair* read-only would let a
-   caller hold a resolved step that the diagnostic still reports as unused.
-   The scoped query is not that pair: scenario execution owns it, it is the
-   only caller, and execution marks the step immediately after resolution in
+   explicit `StepScope` and returns
+   `Result<Option<&'static Step>, StepLookupError>` without constructing a
+   `ResolvedStep`. This narrows Option B's rejection rather than reversing it.
+   Option B was rejected because making *the public metadata pair* read-only
+   would let a caller hold a resolved step that the diagnostic still reports as
+   unused. The scoped query is not that pair: scenario execution owns it, it is
+   the only caller, and execution marks the step immediately after resolution in
    `resolve_step_for_request`. The reason a `ResolvedStep` is not constructed
    there is ordering: execution must distinguish "resolved" from "not found"
    from "ambiguous" before it can decide that a step was used, and an

@@ -123,12 +123,10 @@ fn process_feature_index(
     feature_index: &crate::indexing::FeatureFileIndex,
     step_def: &CompiledStepDefinition,
 ) -> Vec<Location> {
-    let selected = match state.feature_selects_library(&feature_index.path, &step_def.library) {
-        Ok(selected) => selected,
-        Err(error) => {
-            error.emit_warning();
-            return Vec::new();
-        }
+    // A conflicting scope means no candidate is selected. The conflict is
+    // announced once, at the indexing boundary, so this read stays silent.
+    let Ok(selected) = state.feature_selects_library(&feature_index.path, &step_def.library) else {
+        return Vec::new();
     };
     if !selected {
         return Vec::new();

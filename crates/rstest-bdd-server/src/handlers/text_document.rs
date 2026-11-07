@@ -120,6 +120,10 @@ pub(super) fn apply_feature_index_result(
                 "indexed feature file"
             );
             state.upsert_feature_index(index);
+            // The feature index is the input whose path decides which scenario
+            // bindings select a scope, so this mutation is the first point at
+            // which a conflict can be announced without a read emitting it.
+            state.report_scope_conflict(path);
             if matches!(
                 diagnostic_publication,
                 FeatureDiagnosticPublication::Immediate
@@ -166,6 +170,10 @@ pub(super) fn apply_rust_source_index_result(
                 scenario_binding_diagnostics,
             } = result;
             state.upsert_rust_scenario_bindings(path, scenario_bindings);
+            // Bindings decide which closed scope a feature selects, so a Rust
+            // save can both create and resolve a conflict. Publishing here
+            // keeps the warning off the read paths.
+            state.report_indexed_scope_conflicts();
             for diagnostic in scenario_binding_diagnostics {
                 record_indexing_outcome("scenario-binding", diagnostic.failure_category());
                 diagnostic.emit_warning();
@@ -174,6 +182,7 @@ pub(super) fn apply_rust_source_index_result(
         }
         Err(error) => {
             state.upsert_rust_scenario_bindings(path, Vec::new());
+            state.report_indexed_scope_conflicts();
             Err(error)
         }
     };

@@ -349,11 +349,14 @@ include the operation, source location, failure category, and fallback state.
 relative targets against ancestors of the Rust source file. It normalizes
 library-list order only to recognize equivalent scopes; if bindings for one
 feature select distinct closed scopes, it returns `ScenarioScopeConflict`
-instead of merging them. Handlers then use no candidates and emit the
-structured conflict warning. Feature navigation and diagnostics must obtain
-candidate definitions through `ServerState::steps_for_feature_keyword`; they
-must not call the unscoped keyword registry directly. Rust-to-feature lookups
-use `ServerState::feature_selects_library` for the inverse check. This boundary
+instead of merging them. Handlers then use no candidates. Scope resolution is a
+pure query, so the conflict is data and is announced only at an index mutation:
+`ScopeAlerts` in `server/scope_alerts.rs` warns once per
+`(feature file, conflicting scope set)` pair, and a feature that resolves again
+forgets its pair. Feature navigation and diagnostics must obtain candidate
+definitions through `ServerState::steps_for_feature_keyword`; they must not
+call the unscoped keyword registry directly. Rust-to-feature lookups use
+`ServerState::feature_selects_library` for the inverse check. This boundary
 keeps syntax parsing in the Rust indexer, path resolution in server state, and
 pattern matching in handlers without exposing a second public registry API.
 
@@ -484,8 +487,9 @@ independently of diagnostics, so one invalid function never removes valid
 neighbouring definitions. `IndexedScenarioBinding` retains the exact closed
 library list and its `ScenarioBindingTarget`. `ScenarioScopeRegistry`
 normalizes order-equivalent lists, but returns `ScenarioScopeConflict` for
-distinct scopes targeting one feature. Handlers use no candidates and emit a
-structured warning rather than merging the scopes or applying precedence.
+distinct scopes targeting one feature. Handlers use no candidates rather than
+merging the scopes or applying precedence, and the conflict is announced once
+at the index mutation by `ScopeAlerts` in `server/scope_alerts.rs`.
 
 **Workspace filesystem boundary:** After selecting the workspace root,
 including the fallback used when Cargo discovery fails, `ServerState` owns the

@@ -218,7 +218,8 @@ fn step_by_key(key: StepKey) -> Option<&'static Step> { STEP_MAP.get(&key).copie
 /// );
 /// assert!(step.expect("unambiguous").is_some());
 /// ```
-#[must_use]
+// `Result` is already `#[must_use]`; repeating the attribute is a clippy
+// `double_must_use` violation, so the fallibility channel carries the signal.
 pub fn lookup_step_with_metadata(
     keyword: StepKeyword,
     pattern: PatternStr<'_>,
@@ -245,7 +246,7 @@ pub fn lookup_step_with_metadata(
 /// }
 /// # Ok::<(), rstest_bdd::StepLookupError>(())
 /// ```
-#[must_use]
+// `Result` is already `#[must_use]`; see `lookup_step_with_metadata`.
 pub fn find_step_with_metadata(
     keyword: StepKeyword,
     text: StepText<'_>,

@@ -201,13 +201,11 @@ fn find_best_matching_implementation(
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
 ) -> Option<BestMatchingImplementation> {
-    let candidates = match state.steps_for_feature_keyword(&feature_index.path, step.step_type) {
-        Ok(candidates) => candidates,
-        Err(error) => {
-            error.emit_warning();
-            return None;
-        }
-    };
+    // A conflict leaves no candidate to compare against. The warning belongs
+    // to the indexing boundary, so this diagnostic read emits nothing.
+    let candidates = state
+        .steps_for_feature_keyword(&feature_index.path, step.step_type)
+        .ok()?;
     let matches: Vec<_> = candidates
         .into_iter()
         .filter(|compiled| compiled.regex.is_match(&step.text))

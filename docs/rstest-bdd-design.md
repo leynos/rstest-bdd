@@ -3218,14 +3218,13 @@ inherits both the usage-marking behaviour and the ambiguity reporting.
 by projecting `as_step()`.
 
 `find_step_with_metadata_in_scope` is the third lookup: the pure, scoped query
-used by scenario execution. It returns `Result<Option<&'static Step>,
-StepLookupError>` and deliberately does not construct a `ResolvedStep`, so
-execution can inspect the match before deciding to record it. Execution marks
-the step itself at its command boundary.
+used by scenario execution. It returns
+`Result<Option<&'static Step>, StepLookupError>` and deliberately does not
+construct a `ResolvedStep`, so execution can inspect the match before deciding
+to record it. Execution marks the step itself at its command boundary.
 
 The ownership boundary and permitted call sites are recorded in the developer's
-guide under "Registry lookup and usage-marking invariants", and the decision
-is
+guide under "Registry lookup and usage-marking invariants", and the decision is
 recorded in [ADR-024](adr-024-structural-usage-tracking-in-registry-lookups.md).
 
 ### 3.10 Implicit fixture injection implementation

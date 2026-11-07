@@ -221,10 +221,10 @@ with two matches is an error rather than an arbitrary pick, and pattern
 precedence still resolves a genuinely more specific match.
 
 `find_step_with_metadata_in_scope` is the pure query beneath both of them. It
-takes an explicit `StepScope`, returns only `Result<Option<&'static Step>,
-StepLookupError>`, and does not mark a step as used. Scenario execution calls
-it, then marks the step itself, so inspecting a step cannot make it look
-executed.
+takes an explicit `StepScope`, returns only
+`Result<Option<&'static Step>, StepLookupError>`, and does not mark a step as
+used. Scenario execution calls it, then marks the step itself, so inspecting a
+step cannot make it look executed.
 
 The projection functions (`find_step`, `find_step_async`,
 `find_step_async_with_mode`, `find_step_with_mode`, `lookup_step`,
@@ -237,11 +237,12 @@ directly.
 
 #### Migrating registry lookups (v0.7.0)
 
-`find_step_with_metadata` now returns `Result<Option<ResolvedStep>,
-StepLookupError>` rather than `Option<&'static Step>`. Handle the ambiguity
-before the optional result, and call `.as_step()` when a `&'static Step` is
-required. In the mapping below, `keyword` is a `StepKeyword`, `pattern` is a
-`PatternStr`, and `text` is a `StepText`:
+`find_step_with_metadata` now returns
+`Result<Option<ResolvedStep>, StepLookupError>` rather than
+`Option<&'static Step>`. Handle the ambiguity before the optional result, and
+call `.as_step()` when a `&'static Step` is required. In the mapping below,
+`keyword` is a `StepKeyword`, `pattern` is a `PatternStr`, and `text` is a
+`StepText`:
 
 ```text
 lookup_step(keyword, pattern)
