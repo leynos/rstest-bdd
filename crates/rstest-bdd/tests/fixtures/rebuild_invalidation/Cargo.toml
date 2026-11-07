@@ -17,6 +17,8 @@ edition = "2024"
 # and a second `dashmap`/`hashbrown` pair into the build alongside the
 # workspace's 4.0.1. `scripts/fixture_lockfile_alignment.py` fails if a package
 # here resolves to a version or source the workspace did not pick.
+# Keep the default `rstest-bdd` features aligned with the workspace: its normal
+# `rstest-bdd-macros` dependency now participates in this nested build too.
 [dependencies]
 rstest-bdd = { path = "../../../../../crates/rstest-bdd", features = ["diagnostics", "test-support"] }
 

@@ -103,6 +103,33 @@ pub const fn diagnostics_enabled() -> bool { cfg!(feature = "diagnostics") }
 pub use execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 #[doc(hidden)]
 pub use panic_support::catch_unwind_future as __rstest_bdd_catch_unwind_future;
+/// Re-export of the `DataTable` derive macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::DataTable;
+/// Re-export of the `DataTableRow` derive macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::DataTableRow;
+/// Re-export of the `ScenarioState` derive macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::ScenarioState;
+/// Re-export of the `StepArgs` derive macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::StepArgs;
+/// Re-export of the `given` attribute macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::given;
+/// Re-export of the `scenario` attribute macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::scenario;
+/// Re-export of the `scenarios` attribute macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::scenarios;
+/// Re-export of the `then` attribute macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::then;
+/// Re-export of the `when` attribute macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::when;
 #[doc(hidden)]
 pub use skip::{
     ScopeKind as __rstest_bdd_scope_kind,
