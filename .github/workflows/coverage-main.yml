@@ -280,7 +280,7 @@ jobs:
       # with the same feature selection after the instrumented run, because
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage
-        uses: leynos/shared-actions/.github/actions/generate-coverage@3847d65b2384e65144919b26ad6252d07a0753ae
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
         env:
           # The cargo watchdog, one of four tiers that can end a run. It
           # must cover the 90 m nextest global-timeout in
@@ -353,7 +353,7 @@ jobs:
         # f68e8e2e the action rejects a non-empty value and pins `cs-coverage`
         # through its own manifest, which is what fixed the parse break.
         if: steps.codescene_token.outputs.available == 'true' && github.ref == 'refs/heads/main'
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@3847d65b2384e65144919b26ad6252d07a0753ae
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
         with:
           path: coverage.xml
           format: cobertura
@@ -401,7 +401,7 @@ jobs:
       contents: read
     steps:
       - name: Publish the ratchet baseline
-        uses: leynos/shared-actions/.github/actions/publish-coverage-baseline@3847d65b2384e65144919b26ad6252d07a0753ae
+        uses: leynos/shared-actions/.github/actions/publish-coverage-baseline@f84a7def5646a6fc7ba77c1f486906f66a0fed96
         with:
           artefact-name: coverage-baseline-handover
 
@@ -611,7 +611,7 @@ jobs:
       # environment, so the compiler-cache entries it writes are the ones that
       # lane reads. Nothing runs, so no test result can keep the cache cold.
       - name: Compile the instrumented tests
-        uses: leynos/shared-actions/.github/actions/generate-coverage@3847d65b2384e65144919b26ad6252d07a0753ae
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
         with:
           cache-provider: external
           output-path: coverage.xml
@@ -865,7 +865,7 @@ jobs:
       # lane this baseline is written for.
       - name: Test and Measure Coverage
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@3847d65b2384e65144919b26ad6252d07a0753ae
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
