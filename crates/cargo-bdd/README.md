@@ -33,8 +33,9 @@ mouldy leftovers.
 `cargo bdd skipped --reasons` includes source locations and skip reasons;
 `cargo bdd skipped --json` emits structured output. The `steps` command also
 supports `--skipped --json`. See the
-[users' guide](../../docs/users-guide.md#diagnostic-tooling) for supported
-flags, configuration files, environment variables and their precedence.
+[users' guide](https://github.com/leynos/rstest-bdd/blob/main/docs/users-guide.md#diagnostic-tooling)
+for supported flags, configuration files, environment variables and their
+precedence.
 
 ## How it raids your step stash
 
