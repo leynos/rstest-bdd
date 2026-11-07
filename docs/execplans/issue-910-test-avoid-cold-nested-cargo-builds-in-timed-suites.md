@@ -563,6 +563,28 @@ rather than by reading this branch's comments.
       which rustfmt cannot resolve the module at all. Ordinary `mod x;`
       declarations resolve to `x/mod.rs` on their own; an explicit `#[path]`
       does not.
+- [x] Reconcile the review of `1ab5c4a0` against the branch head. The two P2
+      findings it reports are the two gaps already closed three commits later
+      by `45e1fa12` and `821f249a`; `1ab5c4a0` is an ancestor of both
+      (`git merge-base --is-ancestor 1ab5c4a0 45e1fa12` succeeds), and the
+      review was written before either commit existed. The cited lines confirm
+      it: at the reviewed commit `fixture_preparation` stamped
+      `fixtures::scratch_root()` and no input root included
+      `.cargo/config.toml`, which is exactly what `45e1fa12`'s
+      `artefact_directory(process::child_target_directory(env), subdir)` and
+      `nested_cargo::cargo_config_inputs` replaced. No further code change was
+      required for either finding; the reply on the PR states the commit
+      relationship and asks for confirmation on the current head.
+- [x] Fix one real defect found by this round's gate, committed as `6ee6035f`:
+      `evicting_the_artefacts_invalidates_the_preparation` prepared through a
+      no-op closure, so the family it stamped had no `<target>/debug` for the
+      stamp to vouch for and the first gate refused for the wrong reason. The
+      test now creates the profile directory before preparing, matching its
+      sibling `evicting_only_the_profile_invalidates_the_preparation`, so the
+      first gate passes because a real preparation leaves the profile
+      populated and the last gate fails only because the eviction removed it.
+      The whole `feature_rebuild_invalidation` binary then passed, 31 of 31,
+      including both eviction regressions.
 
 ## Surprises & Discoveries
 
