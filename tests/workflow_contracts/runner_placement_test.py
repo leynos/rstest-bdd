@@ -135,7 +135,10 @@ def test_one_job_executes_the_workspace_suite() -> None:
     baseline by `runner.os`: one Linux writer and one Windows writer, since
     no platform may go unratcheted. They deliberately run the same sets the
     gate does, which is what makes the baselines comparable with what the
-    ratchet checks. The shared CV-005 pairings hold the inputs equal and
+    ratchet checks. A third, `coverage-warmup`, compiles the Linux
+    instrumented build without running it, to keep the compiler cache the
+    gate reads warm: the Linux measuring job runs on a GitHub-hosted runner,
+    whose cache no Ubicloud lane reads, so it cannot do that itself. The shared CV-005 pairings hold the inputs equal and
     the events apart; the set is named here so a further caller, which
     would be a genuine duplicate, fails.
     """
@@ -144,11 +147,13 @@ def test_one_job_executes_the_workspace_suite() -> None:
     assert coverage_callers == [
         "ci.yml:build-test",
         "coverage-main.yml:coverage-upload",
+        "coverage-main.yml:coverage-warmup",
         "coverage-main.yml:coverage-baseline-windows",
     ], (
-        "only the merge gate and the trunk's two baseline writers may run the "
-        "coverage driver; a further job with the same platform and features "
-        f"would execute nothing new, got {coverage_callers}"
+        "only the merge gate, the trunk's two baseline writers and the Linux "
+        "cache warm-up may run the coverage driver; a further job with the "
+        "same platform and features would execute nothing new, got "
+        f"{coverage_callers}"
     )
     assert not direct_runners, (
         "the coverage action is the only workspace test execution, doc tests "
