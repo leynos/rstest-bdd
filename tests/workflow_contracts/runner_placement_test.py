@@ -138,9 +138,10 @@ def test_one_job_executes_the_workspace_suite() -> None:
     ratchet checks. A third, `coverage-warmup`, compiles the Linux
     instrumented build without running it, to keep the compiler cache the
     gate reads warm: the Linux measuring job runs on a GitHub-hosted runner,
-    whose cache no Ubicloud lane reads, so it cannot do that itself. The shared CV-005 pairings hold the inputs equal and
-    the events apart; the set is named here so a further caller, which
-    would be a genuine duplicate, fails.
+    whose cache no Ubicloud lane reads, so it cannot do that itself. The
+    shared CV-005 pairings hold the inputs equal and the events apart; the
+    set is named here so a further caller, which would be a genuine
+    duplicate, fails.
     """
     coverage_callers = _coverage_calling_jobs()
     direct_runners = _direct_workspace_test_steps()

@@ -114,6 +114,11 @@ def _publisher_jobs() -> list[tuple[str, dict[str, str]]]:
 
     A lane's compiler-cache writer is listed beside its publisher job when the
     two differ, because the writer repeats the gate's setup too.
+
+    Returns
+    -------
+    list[tuple[str, dict[str, str]]]
+        Each job name with the gate matrix row it mirrors.
     """
     return [
         (name, gate_row(pair.gate_step))
@@ -173,7 +178,7 @@ def test_each_publisher_job_repeats_the_required_setup(
     declared = {str(step.get("name")) for step in steps(job(PUBLISHER, job_name))}
     required = REQUIRED_SETUP
     if job_name in {pair.writer for pair in PAIRS}:
-        required = required | CACHE_WRITER_SETUP
+        required |= CACHE_WRITER_SETUP
 
     assert declared >= required, (
         f"{PUBLISHER}:{job_name} must repeat {sorted(required - declared)}"

@@ -618,6 +618,7 @@ jobs:
           cache-provider: external
           output-path: coverage.xml
           format: cobertura
+          python-version: '3.14'
           all-features: 'true'
           all-targets: 'true'
           doctests: 'true'
@@ -661,6 +662,7 @@ jobs:
           cache-provider: external
           output-path: coverage.xml
           format: cobertura
+          python-version: '3.14'
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
@@ -694,6 +696,7 @@ jobs:
           cache-provider: external
           output-path: coverage.xml
           format: cobertura
+          python-version: '3.14'
           features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}

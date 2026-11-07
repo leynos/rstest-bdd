@@ -66,7 +66,7 @@ class LanePair:
 
     @property
     def writer(self) -> str:
-        """Return the job that writes this lane's compiler cache."""
+        """Name the job that writes this lane's compiler cache."""
         return self.cache_writer_job or self.publisher_job
 
 
