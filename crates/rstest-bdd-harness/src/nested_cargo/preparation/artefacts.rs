@@ -9,10 +9,14 @@
 //!
 //! The check looks past the profile directory itself. A profile that exists
 //! and is empty is not a prepared tree, and neither is one that has lost the
-//! subdirectories Cargo reads to decide its units are current.
+//! subdirectories Cargo reads to decide its units are current, nor one whose
+//! `deps` still holds records for outputs that have gone.
 
 use std::{
+    collections::HashSet,
+    fmt::Write as _,
     fs,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -41,24 +45,141 @@ fn has_entries(directory: &Path) -> bool {
     fs::read_dir(directory).is_ok_and(|mut entries| entries.next().is_some())
 }
 
-/// Whether one prepared profile still holds the dependency artefacts.
-fn profile_is_populated(profile: &Path) -> bool {
-    profile.is_dir()
+/// The outputs rustc may leave for a unit, keyed by the unit's stem.
+///
+/// Every name rustc writes for a unit whose dep-info record is
+/// `<stem>.d`, so a record is "paired" when any of them exists. The set must
+/// hold all of them: a unit compiled for `cargo check` or as a dependency
+/// leaves only `lib<stem>.rmeta`, and proc-macro and `cdylib` units leave a
+/// shared object. Accepting a narrower set refuses real trees — measured
+/// against this workspace's own `target/debug/deps`, which holds 1,295
+/// dep-info records against 739 `rlib`, 1,061 `rmeta` and 83 `so` outputs.
+///
+/// The binary forms are `<stem>` and, on Windows, `<stem>.exe`. They are
+/// checked last because they are the only ones that can collide with an
+/// unrelated file name.
+fn candidate_outputs(stem: &str) -> [String; 6] {
+    [
+        format!("lib{stem}.rmeta"),
+        format!("lib{stem}.rlib"),
+        format!("lib{stem}.so"),
+        format!("lib{stem}.dylib"),
+        stem.to_owned(),
+        format!("{stem}.exe"),
+    ]
+}
+
+/// Split a dep-info file name into its unit stem.
+///
+/// Returns `None` for anything that is not a `.d` record, so an unrelated
+/// entry in `deps` — a `.rlib`, a `.rmeta`, a build script's output — is never
+/// mistaken for one.
+fn dep_info_stem(name: &str) -> Option<String> { name.strip_suffix(".d").map(str::to_owned) }
+
+/// Collect the dep-info records in `deps` that no longer describe an output.
+///
+/// One directory listing is reused for every record rather than probing the
+/// filesystem per candidate name: `deps` holds thousands of entries and this
+/// runs on every gate check.
+///
+/// A name that is not valid Unicode is skipped rather than judged: it is not a
+/// Rust unit's output, and refusing on it would fail the gate for a reason it
+/// cannot name. Every real `deps` entry is ASCII.
+fn orphaned_dep_info(deps: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(deps) else {
+        return Vec::new();
+    };
+    let present: HashSet<std::ffi::OsString> = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name())
+        .collect();
+    let mut orphaned: Vec<String> = present
+        .iter()
+        .filter_map(|name| name.to_str())
+        .filter_map(dep_info_stem)
+        .filter(|stem| {
+            !candidate_outputs(stem)
+                .iter()
+                .any(|candidate| present.contains(std::ffi::OsStr::new(candidate)))
+        })
+        .collect();
+    // `read_dir` order is the filesystem's, not a stable sequence, and the
+    // message names these stems: sorting keeps it reproducible.
+    orphaned.sort();
+    orphaned
+}
+
+/// Why one prepared profile is no longer usable.
+#[derive(Debug, Clone)]
+pub(super) struct Eviction {
+    /// The profile directory whose artefacts are missing.
+    pub(super) profile: PathBuf,
+    /// Unit stems whose dep-info record outlived its output.
+    pub(super) orphaned_outputs: Vec<String>,
+}
+
+/// How many orphaned stems a failure message names before summarizing.
+///
+/// A `cargo clean` can orphan hundreds of records at once. Naming every one
+/// turns a one-line diagnosis into a log flood — the first run of this check
+/// against this workspace printed 108 KB — without telling the reader anything
+/// past the first few. The count is never dropped, only the tail.
+const NAMED_OUTPUTS: usize = 5;
+
+impl Eviction {
+    /// Describe this eviction for a failure message.
+    pub(super) fn describe(&self) -> String {
+        let profile = self.profile.display();
+        if self.orphaned_outputs.is_empty() {
+            return profile.to_string();
+        }
+        let named: Vec<&str> = self
+            .orphaned_outputs
+            .iter()
+            .take(NAMED_OUTPUTS)
+            .map(String::as_str)
+            .collect();
+        let mut listed = named.join(", ");
+        let remaining = self.orphaned_outputs.len().saturating_sub(named.len());
+        if remaining > 0 {
+            // Writing into the existing buffer avoids a second allocation for
+            // a suffix that is at most a few characters, and is what clippy's
+            // `format_push_string` asks for.
+            let _ = write!(listed, " and {remaining} more");
+        }
+        format!("{profile} (missing outputs for {listed})")
+    }
+}
+
+/// Why `directory` is not a usable prepared profile, if it is not.
+fn eviction_of(directory: &Path) -> Option<Eviction> {
+    let populated = directory.is_dir()
         && DEPENDENCY_ARTEFACT_DIRS
             .iter()
-            .all(|name| has_entries(&profile.join(name)))
+            .all(|name| has_entries(&directory.join(name)));
+    let orphaned_outputs = if populated {
+        orphaned_dep_info(&directory.join("deps"))
+    } else {
+        Vec::new()
+    };
+    if populated && orphaned_outputs.is_empty() {
+        return None;
+    }
+    Some(Eviction {
+        profile: directory.to_path_buf(),
+        orphaned_outputs,
+    })
 }
 
 /// The artefact directories the stamp vouches for that are no longer usable.
 ///
 /// Shared by the gate and its failure message, so "the gate refused" and "the
 /// message names why" can never disagree.
-pub(super) fn evicted(preparation: &Preparation) -> Vec<&Path> {
+pub(super) fn evicted(preparation: &Preparation) -> Vec<Eviction> {
     preparation
         .artefacts
         .iter()
-        .filter(|directory| !profile_is_populated(directory))
-        .map(PathBuf::as_path)
+        .filter_map(|directory| eviction_of(directory))
         .collect()
 }
 
@@ -68,3 +189,26 @@ pub(super) fn evicted(preparation: &Preparation) -> Vec<&Path> {
 /// described no artefact directories has nothing for this check to refute, and
 /// its stamp remains the whole gate.
 pub(super) fn all_present(preparation: &Preparation) -> bool { evicted(preparation).is_empty() }
+
+/// Refuse a preparation that left the profile it claims to have built unusable.
+///
+/// A preparation command can succeed — Cargo exits zero — while the artefacts
+/// it was meant to produce are not there, for example when a concurrent `cargo
+/// clean` ran between the build and this check. Writing a stamp over that
+/// state would advertise a prepared family whose next timed assertion pays for
+/// the rebuild, so the caller is told which paths are missing instead.
+pub(super) fn verify_prepared(preparation: &Preparation) -> io::Result<()> {
+    let evicted = evicted(preparation);
+    if evicted.is_empty() {
+        return Ok(());
+    }
+    let described: Vec<String> = evicted.iter().map(Eviction::describe).collect();
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        format!(
+            "preparation of family `{}` finished but left no usable artefacts in {}",
+            preparation.family,
+            described.join(", ")
+        ),
+    ))
+}

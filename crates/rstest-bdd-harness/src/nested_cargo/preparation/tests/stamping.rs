@@ -230,6 +230,104 @@ fn evicting_the_dependency_artefacts_invalidates_the_preparation() {
 }
 
 #[test]
+fn a_dep_info_record_without_its_output_invalidates_the_preparation() {
+    // The one eviction the directory checks cannot see: `deps` is still full
+    // and `.fingerprint` is untouched, but a unit's output has gone. Cargo
+    // recompiles that unit, and a gate that only counted directory entries
+    // would admit the rebuild into a timed assertion.
+    let (directory, preparation, _environment) = scratch_preparation();
+    let profile = preparation
+        .artefacts
+        .first()
+        .expect("the preparation describes the profile directory it reuses")
+        .clone();
+    let deps = profile.join("deps");
+
+    // The fixture's `populate_profile` already left a paired unit, so this
+    // preparation stamps a tree that satisfies the gate as it ships.
+    prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
+    ensure_prepared_with(&preparation, true, || panic!("already prepared"))
+        .expect("the freshly written stamp must be accepted");
+
+    // Remove ONLY the compiled unit; its dep-info record and every directory
+    // the gate names stay exactly where they were. Both stay the same because
+    // this removes one file, not a directory.
+    fs::remove_file(deps.join("libunit.rlib")).expect("evict the compiled unit");
+    assert!(deps.join("unit.d").is_file(), "the dep-info must survive");
+    assert!(stamp_path(&preparation).is_file(), "the stamp must survive");
+    assert!(
+        DEPENDENCY_ARTEFACT_DIRS
+            .iter()
+            .all(|name| profile.join(name).is_dir()),
+        "both artefact directories must survive"
+    );
+
+    let error = ensure_prepared_with(&preparation, true, || {
+        panic!("a timed test must never prepare")
+    })
+    .expect_err("a missing unit output must fail the gate");
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    let message = error.to_string();
+    assert!(
+        message.contains("artefacts it vouched for are gone"),
+        "the message must name the eviction: {message}"
+    );
+    assert!(
+        message.contains("missing outputs for unit"),
+        "the message must name the unit whose output went: {message}"
+    );
+    assert!(
+        directory.path().exists(),
+        "the fixture must stay alive for the message"
+    );
+}
+
+#[test]
+fn a_metadata_only_unit_is_paired_with_its_dep_info_record() {
+    // The opposite failure to the case above, and the one that matters more:
+    // a real `cargo` tree is full of units that left only `lib<stem>.rmeta`,
+    // because they were built for `cargo check` or only ever asked for
+    // metadata. Measured on this workspace's own `target/debug/deps`: 1,295
+    // dep-info records against 1,061 `rmeta` outputs and 739 `rlib` ones. A
+    // predicate that accepted only `rlib` refused that genuine tree and named
+    // over a hundred units as missing.
+    //
+    // So: a stamped tree with a metadata-only unit must be accepted, and
+    // removing that unit must then be refused. Both halves are needed — the
+    // first alone would pass if the record were merely ignored, and the second
+    // alone would pass if it were merely counted.
+    let (_directory, preparation, _environment) = scratch_preparation();
+    let deps = preparation
+        .artefacts
+        .first()
+        .expect("the preparation describes the profile directory it reuses")
+        .join("deps");
+    assert!(
+        deps.join("libchecked.rmeta").is_file(),
+        "the fixture must model a metadata-only unit"
+    );
+
+    prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
+    ensure_prepared_with(&preparation, true, || panic!("already prepared"))
+        .expect("a metadata-only unit must count as a paired output");
+
+    fs::remove_file(deps.join("libchecked.rmeta")).expect("evict the metadata-only unit");
+    assert!(
+        deps.join("checked.d").is_file(),
+        "the dep-info must survive"
+    );
+
+    let error = ensure_prepared_with(&preparation, true, || panic!("never prepares"))
+        .expect_err("a metadata-only unit that went missing must fail the gate");
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    let message = error.to_string();
+    assert!(
+        message.contains("missing outputs for checked"),
+        "the message must name the metadata-only unit: {message}"
+    );
+}
+
+#[test]
 fn an_empty_profile_directory_is_not_a_prepared_family() {
     // `mkdir -p <target>/debug` is not a build. The gate must not read a bare
     // directory as evidence that the dependency graph exists.
@@ -242,9 +340,18 @@ fn an_empty_profile_directory_is_not_a_prepared_family() {
     fs::remove_dir_all(&profile).expect("evict the populated profile");
     fs::create_dir_all(&profile).expect("recreate an empty profile");
 
-    prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
-    // `prepare_now` refuses too: its re-check uses the same predicate, so an
-    // empty profile forces the preparation rather than stamping over it.
+    // The preparation itself now refuses: a command that exits zero while
+    // leaving no usable artefacts must not be stamped, because the stamp would
+    // advertise a prepared family whose next timed assertion pays for the
+    // rebuild.
+    let error = prepare_now(&preparation, || Ok(PreparationSummary::default()))
+        .expect_err("a preparation that leaves no artefacts must fail");
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert!(
+        error.to_string().contains("left no usable artefacts"),
+        "{error}"
+    );
+    // And the gate still refuses the same state, so no stamp was written.
     let error = ensure_prepared_with(&preparation, true, || {
         panic!("a timed test must never prepare")
     })

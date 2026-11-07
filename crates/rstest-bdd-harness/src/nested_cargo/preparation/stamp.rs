@@ -124,8 +124,8 @@ pub(super) fn missing_stamp_message(preparation: &Preparation, stamp: &Path) -> 
     // directories whose absence refused it — including a profile that still
     // exists but has lost `deps` or `.fingerprint`.
     let evicted: Vec<String> = super::artefacts::evicted(preparation)
-        .into_iter()
-        .map(|directory| directory.display().to_string())
+        .iter()
+        .map(super::artefacts::Eviction::describe)
         .collect();
     if !evicted.is_empty() {
         let _ = write!(

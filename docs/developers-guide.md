@@ -960,8 +960,44 @@ which is the behaviour
 shared policy and in the rebuild harness, alongside
 `an_empty_profile_directory_is_not_a_prepared_family`.
 
+A non-empty `deps` is still not evidence that the work survived. Rustc writes a
+`.d` dep-info record beside every unit it compiles, and the gate pairs each
+record with its output, reporting the stems whose output has gone. The output
+set must cover every form rustc leaves: `lib<stem>.rmeta`, `lib<stem>.rlib`,
+`lib<stem>.so`, `lib<stem>.dylib`, and the linked binaries `<stem>` and
+`<stem>.exe`. Missing `rmeta` is not a theoretical gap — it is the commonest
+form in this workspace's own `target/debug/deps`, which holds 1,295 dep-info
+records against 1,061 `rmeta` outputs, 739 `rlib` and 83 `so`. A predicate that
+accepted only `rlib` refused that genuine tree and named over a hundred units
+as missing, which is why
+`a_metadata_only_unit_is_paired_with_its_dep_info_record` pins both halves: the
+metadata-only unit is accepted while present, and refused once removed.
+
+Removing one output leaves every directory the gate names in place while Cargo
+recompiles that unit, which is the partial eviction
+`a_dep_info_record_without_its_output_invalidates_the_preparation` pins.
+`cargo clean -p` removes the record and its output together, so the rebuild
+harness's intentional per-package clean does not trip it. The failure message
+names at most five stems before summarizing the rest: one `cargo clean` can
+orphan hundreds of records at once, and the first run of this check against
+this workspace printed 108 KB of names in a single line.
+
+`prepare_now` and the lazy path both re-check after the preparation command and
+before writing the stamp. A command that exits zero while leaving no usable
+artefacts is an error naming the missing paths, not a stamp advertising a
+prepared family: Cargo can succeed while a concurrent `cargo clean` takes the
+tree away again.
+
 An empty `artefacts` list is treated as satisfied: a caller that described no
 artefact directories leaves the stamp as the whole gate.
+
+`prepare_now` is idempotent, and that is the point of the separate
+`make prepare-nested-fixtures` target: a warm tree costs one stamp read and one
+directory scan per named profile, however many times it runs. A preparation
+test therefore does not need to know whether CI gave it a cold or a warm cache;
+it prepares only when the fingerprint, the dependency artefacts or the paired
+outputs say the tree is not usable. The scan is bounded by the profile's `deps`
+entry count, which is a few thousand files for this workspace.
 
 ### Cargo configuration as a preparation input
 

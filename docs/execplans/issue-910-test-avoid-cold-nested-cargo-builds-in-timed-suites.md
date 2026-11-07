@@ -404,8 +404,9 @@ rather than by reading this branch's comments.
       `ProfileDestination`. The same pass flagged first-person pronouns in
       this plan, which the repository's Markdown path instructions forbid;
       those are now impersonal.
-- [ ] Close two stamp-validity gaps that still allowed cold compilation inside
-      a timed assertion.
+- [x] Close two stamp-validity gaps that still allowed cold compilation inside
+      a timed assertion. (Both are closed; see the later entries for the third,
+      fourth and fifth gaps review found in the same area.)
       1. **The stamp did not always share the artefacts' directory.**
          `fixture_preparation` stamped the scratch root under the workspace
          `target/`, but `process::child_env_from_vars` preserves an inherited
@@ -633,6 +634,54 @@ rather than by reading this branch's comments.
       multi-paragraph list item changes markdownlint's inferred MD046 block
       style for the whole document, so a long bullet must stay one paragraph
       rather than being split for readability.
+
+- [x] Close the sixth stamp-validity gap, found by CodeRabbit's review of
+      `b9cb1d3b`: the gate accepted a `deps` directory that held dep-info
+      records whose compiled units had gone. `deps` was non-empty and
+      `.fingerprint` untouched, so both directory checks passed while rustc
+      had to recompile the missing unit. `artefacts.rs` now pairs every `.d`
+      record with its output (`lib<stem>.rlib` for a library, `<stem>` or
+      `<stem>.exe` for a linked binary) and reports the orphaned stems. The
+      pairing was measured against the two real prepared trees on this host —
+      739 and 104 rlibs, every one with its `.d`, and every `.d` stem with an
+      output — so the rule describes genuine Cargo output rather than a guess,
+      and `cargo clean -p`, which removes both halves together, keeps the
+      rebuild harness's intentional per-package clean safe. `prepare_locked`
+      also now verifies the artefacts *after* the preparation command and
+      before writing the stamp, so a successful command that left nothing is
+      an error naming the missing paths instead of a stamp advertising a
+      prepared family. Regressions:
+      `a_dep_info_record_without_its_output_invalidates_the_preparation` removes
+      one `.rlib` while `deps`, `.fingerprint` and the stamp all survive and
+      requires the gate to answer `NotFound`; `an_empty_profile_directory_is_not_a_prepared_family`
+      now expects the preparation itself to fail. The shared fixture had to be
+      corrected for this: it wrote a placeholder named `deps/unit`, which the
+      bare-binary half of the rule reads as unit `unit`'s linked output, so the
+      fixture made the predicate look satisfied for the wrong reason.
+
+- [x] Correct the sixth gap's pairing rule against a real tree, which the
+      first version refused. It accepted `lib<stem>.rlib`, `<stem>` and
+      `<stem>.exe` only, and the rebuild harness — the one suite that runs a
+      genuine nested Cargo — failed all 32 cases with `preparation of family
+      feature-rebuild-invalidation finished but left no usable artefacts in
+      …/target/debug (missing outputs for rstest_bdd-…, tracing-…, …)`:
+      over a hundred stems. The measurement that should have preceded the rule
+      showed why. That `target/debug/deps` holds 1,295 `.d` records against
+      1,061 `lib<stem>.rmeta`, 739 `rlib` and 83 `so` outputs, and **zero**
+      unpaired records once `rmeta` and `so` are accepted. Metadata-only units
+      are the commonest form there, because `cargo check` and metadata-only
+      dependency requests leave no `rlib` at all. The rule now accepts the
+      full output set. Two further corrections came out of the same failure:
+      the shared fixture gained a metadata-only unit so the widened set is
+      specified rather than merely tolerated
+      (`a_metadata_only_unit_is_paired_with_its_dep_info_record` pins both the
+      accept-while-present and refuse-once-removed halves), and the failure
+      message now names at most five stems before summarizing, because naming
+      every one printed 108 KB on a single line. Lesson worth keeping: a
+      predicate over another tool's on-disk output must be measured against
+      that output before it gates anything, and a synthetic fixture that only
+      ever writes the shape the predicate already accepts cannot catch the
+      mistake.
 
 ## Surprises & Discoveries
 

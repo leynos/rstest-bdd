@@ -27,14 +27,41 @@ fn environment() -> NestedCargoEnv { environment_in(&std::env::temp_dir().join("
 ///
 /// The gate requires more than an existing `<target>/debug`: it requires the
 /// `deps` and `.fingerprint` entries Cargo reads to decide its units are
-/// current. A fixture that created only the profile would be accepted by a
-/// weaker check and would prove nothing about the one under test.
+/// current, and that every dep-info record in `deps` still has the output it
+/// describes. A fixture that created only the profile, or only a bare `deps`
+/// directory, would be accepted by a weaker check and would prove nothing
+/// about the one under test.
+///
+/// `deps` is filled by [`write_unit`], not by a placeholder: any file whose
+/// name equals a dep-info stem would be indistinguishable from that unit's
+/// linked binary, so a fixture that wrote one would make the pairing predicate
+/// look satisfied for the wrong reason.
 fn populate_profile(target: &Path) {
-    for name in DEPENDENCY_ARTEFACT_DIRS {
-        let directory = target.join(super::DEFAULT_PROFILE).join(name);
-        std::fs::create_dir_all(&directory).expect("dependency artefact dir");
-        std::fs::write(directory.join("unit"), b"artefact").expect("dependency artefact");
-    }
+    let profile = target.join(super::DEFAULT_PROFILE);
+    let [deps, fingerprints] = DEPENDENCY_ARTEFACT_DIRS.map(|name| profile.join(name));
+    std::fs::create_dir_all(&deps).expect("deps dir");
+    std::fs::create_dir_all(&fingerprints).expect("fingerprint dir");
+    std::fs::write(fingerprints.join("unit"), b"fingerprint record").expect("fingerprint record");
+    write_unit(target, "unit", "rlib");
+    // A unit built for `cargo check`, or one only ever asked for metadata,
+    // leaves no `rlib` at all — only this. It is the commonest shape in a real
+    // `deps` directory, so the fixture must carry it or the gate would pass
+    // here and refuse a genuine tree.
+    write_unit(target, "checked", "rmeta");
+}
+
+/// Write one compiled unit the way rustc does: a `.d` record and its output.
+///
+/// `stem` is the unit's identity and `extension` is the form rustc left —
+/// `rlib` for a linked library, `rmeta` for a metadata-only unit. Writing both
+/// halves is what a real build leaves behind, and the gate pairs them, so a
+/// fixture that wrote only the record would describe a tree Cargo cannot
+/// reuse.
+fn write_unit(target: &Path, stem: &str, extension: &str) {
+    let deps = target.join(super::DEFAULT_PROFILE).join("deps");
+    std::fs::create_dir_all(&deps).expect("deps dir");
+    std::fs::write(deps.join(format!("{stem}.d")), b"dep-info").expect("dep-info");
+    std::fs::write(deps.join(format!("lib{stem}.{extension}")), b"unit").expect("unit output");
 }
 
 /// A filtered environment whose target directory is `target`.

@@ -329,9 +329,11 @@ where
 ///
 /// A matching stamp answers "the inputs and environment have not changed since
 /// this family was prepared". It cannot answer "the compiled units are still
-/// there"; `artefacts` answers that, and looks one level deeper than the
+/// there"; `artefacts` answers that, and looks two levels deeper than the
 /// profile directory itself — see [`DEPENDENCY_ARTEFACT_DIRS`] for why an
-/// existing profile is not evidence that its dependency graph survived.
+/// existing profile is not evidence that its dependency graph survived, and
+/// [`artefacts::verify_prepared`]'s predicate for why a non-empty `deps` is
+/// not evidence that each unit it records still has an output.
 fn artefacts_are_present(preparation: &Preparation) -> bool { artefacts::all_present(preparation) }
 
 /// Run `prepare` under the process-wide lock unless the family is already
@@ -356,6 +358,11 @@ where
 
     let started = Instant::now();
     let summary = prepare()?;
+    // The command can succeed while the artefacts it was meant to leave are
+    // gone again — a concurrent `cargo clean`, an interrupted build. Stamping
+    // that state would advertise a prepared family whose next timed assertion
+    // pays for the rebuild, so the missing paths are reported instead.
+    artefacts::verify_prepared(preparation)?;
     write_stamp(stamp, fingerprint)?;
     note(&format!(
         "family={} prepared in {:.1}s ({} Compiling lines); stamp {}",
