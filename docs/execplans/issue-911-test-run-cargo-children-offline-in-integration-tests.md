@@ -1097,3 +1097,11 @@ External documentation consulted:
 
 2026-11-05: initial draft, from the audit and prototypes recorded above. No
 implementation has started; the next action is user approval, then `EP-M0`.
+
+2026-11-06: approval granted. `EP-M0` prototyped the namespace denial on both
+CI runners and deleted its probe workflow.
+
+2026-11-07: `EP-M1` complete. The prefetch runs as a Nextest setup script on
+every test route, the contract test pins it, and the local gates are green
+apart from the `cargo-bdd::cli list_steps_runs` timeout that `D12` leaves to CI.
+`EP-M2` is next.
