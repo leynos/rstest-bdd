@@ -16,8 +16,12 @@ use crate::nested_cargo::{DEPENDENCY_ARTEFACT_DIRS, NestedCargoEnv, ProfileDesti
 /// A fixed environment for tests that only exercise fingerprint composition.
 ///
 /// The target directory is synthetic: these cases never consult the stamp, so
-/// it need not exist.
-fn environment() -> NestedCargoEnv { environment_in(Path::new("/tmp/target")) }
+/// it need not exist. It is expressed through [`std::env::temp_dir`] rather than
+/// as a Unix literal so that it is absolute on every platform: a literal such
+/// as `/tmp/target` has no drive letter on Windows, making it a *relative*
+/// path, and a fixture whose meaning changes with the host cannot describe one
+/// rule.
+fn environment() -> NestedCargoEnv { environment_in(&std::env::temp_dir().join("target")) }
 
 /// Populate a profile directory the way a real Cargo build leaves it.
 ///
@@ -43,7 +47,10 @@ fn environment_in(target: &Path) -> NestedCargoEnv {
         vec![
             ("RUSTFLAGS".into(), "-Dwarnings".into()),
             ("NEXTEST_RUN_ID".into(), "run-1".into()),
-            ("LLVM_PROFILE_FILE".into(), "/tmp/parent.profraw".into()),
+            (
+                "LLVM_PROFILE_FILE".into(),
+                std::env::temp_dir().join("parent.profraw").into_os_string(),
+            ),
             ("PATH".into(), "/usr/bin".into()),
         ],
         Some(target),

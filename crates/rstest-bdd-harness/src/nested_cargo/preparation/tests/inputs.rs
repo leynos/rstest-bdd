@@ -19,8 +19,25 @@ fn fingerprint_excludes_runner_and_coverage_variables() {
         "all-features",
         "abc",
     ));
+    // The fingerprint records whatever the child receives, and the environment
+    // resolves `CARGO_TARGET_DIR` once before that. Asserting on the resolved
+    // value rather than on the literal above keeps the check honest on every
+    // platform: on Windows `/tmp/target` has no drive letter, so it is a
+    // relative path and resolving it is exactly the behaviour under test.
+    let target = environment
+        .get("CARGO_TARGET_DIR")
+        .expect("the filtered environment records a target directory")
+        .to_string_lossy()
+        .into_owned();
+    assert!(
+        Path::new(&target).is_absolute(),
+        "the child must receive an absolute target directory, got: {target}"
+    );
     assert!(text.contains("RUSTFLAGS=-Dwarnings"));
-    assert!(text.contains("CARGO_TARGET_DIR=/tmp/target"));
+    assert!(
+        text.contains(&format!("CARGO_TARGET_DIR={target}")),
+        "the fingerprint must record the resolved target directory, got:\n{text}"
+    );
     assert!(text.contains("variant: all-features"));
     assert!(text.contains("inputs: abc"));
     assert!(!text.contains("NEXTEST_RUN_ID"));

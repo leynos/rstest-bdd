@@ -609,6 +609,31 @@ rather than by reading this branch's comments.
       pre-creates the directory the gate checks will happily pass against a
       gate weaker than the one being described.
 
+- [x] Fix the two defects CI found on `b92a929d`. Both were in the branch's own
+      test and documentation, not in the preparation design. The Windows
+      failure, present on both lanes, was
+      `fingerprint_excludes_runner_and_coverage_variables` asserting
+      `CARGO_TARGET_DIR=/tmp/target`: `absolute_target_directory` resolves a
+      path with no drive letter against the working directory, so on Windows
+      the fixture was a *relative* path and the resolved value legitimately
+      differed from the literal. The assertion was platform-specific and the
+      product was right. The fixture now derives its target from
+      `std::env::temp_dir()`, so it is absolute everywhere, and the test
+      asserts the invariant that matters — `Path::new(&target).is_absolute()`
+      and that the fingerprint records it — rather than a Unix spelling. The
+      Linux failure was `make check-fmt` on `docs/developers-guide.md`, which
+      `mdtablefix` wanted to rewrap by four lines because the Markdown had been
+      edited by hand and never passed through it; `mdtablefix --in-place`
+      restored a clean check. Both were reproduced locally first: `make
+      check-fmt` exited 2 with the exact file listing, and the Windows failure
+      was read from the completed run's `--log-failed` output rather than
+      guessed at from the check annotation. Two lessons: a test fixture built
+      from an absolute-looking Unix literal silently becomes a relative path on
+      Windows, so it cannot describe the rule it claims to test; and a
+      multi-paragraph list item changes markdownlint's inferred MD046 block
+      style for the whole document, so a long bullet must stay one paragraph
+      rather than being split for readability.
+
 ## Surprises & Discoveries
 
 - **A required check and a quality signal are different things.** CodeScene
