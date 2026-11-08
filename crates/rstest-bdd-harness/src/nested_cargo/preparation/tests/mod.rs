@@ -1,10 +1,13 @@
 //! Behavioural coverage for the stamp protocol and runner policy.
 //!
 //! The cases are split by what they exercise: `stamping` covers the
-//! preparation lifecycle and the gate that admits a timed test against it, and
-//! `inputs` covers the environment and input hashing that decide when a
-//! prepared directory is stale. The fixtures both share live here.
+//! preparation lifecycle and the gate that admits a timed test against it,
+//! `eviction` covers the states a stamp cannot see because only the profile
+//! beneath it was removed or gutted, and `inputs` covers the environment and
+//! input hashing that decide when a prepared directory is stale. The fixtures
+//! all three share live here.
 
+mod eviction;
 mod inputs;
 mod stamping;
 

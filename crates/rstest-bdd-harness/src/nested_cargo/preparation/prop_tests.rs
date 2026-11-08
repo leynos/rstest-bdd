@@ -64,22 +64,19 @@ fn excluded_path() -> impl Strategy<Value = String> {
 /// A tree: some input files plus some excluded entries.
 ///
 /// The two sets are generated separately so a case can never be all inputs (no
-/// exclusion tested) or all excluded entries (nothing to hash). Members of
-/// either set that cannot coexist with the other are dropped afterwards: a
-/// path cannot be both a file and a directory, so `.git` and `.git/a` describe
-/// no tree any filesystem can hold.
+/// exclusion tested) or all excluded entries (nothing to hash). They are then
+/// combined in that order and filtered by one rule, because precedence matters:
+/// an input keeps its place when both sets name a path that the other cannot
+/// coexist with. Additional members that conflict with an accepted path are
+/// dropped: a path cannot be both a file and a directory, so `.git` and
+/// `.git/a` describe no tree any filesystem can hold.
 fn tree() -> impl Strategy<Value = Tree> {
     let contents = prop::collection::vec(any::<u8>(), 0..=8);
     let inputs = proptest::collection::btree_map(input_path(), contents.clone(), 1..=6);
     let excluded = proptest::collection::btree_map(excluded_path(), contents, 0..=3);
     (inputs, excluded).prop_map(|(inputs, excluded)| {
         let mut tree = Tree::new();
-        for (path, contents) in &inputs {
-            if !tree.keys().any(|kept| conflicts(kept, path)) {
-                tree.insert(path.clone(), contents.clone());
-            }
-        }
-        for (path, contents) in excluded {
+        for (path, contents) in inputs.into_iter().chain(excluded) {
             if !tree.keys().any(|kept| conflicts(kept, &path)) {
                 tree.insert(path, contents);
             }
