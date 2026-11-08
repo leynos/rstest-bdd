@@ -4,6 +4,7 @@ use std::ffi::OsString;
 
 use super::*;
 
+/// Both invocation forms select the same `steps` subcommand.
 #[test]
 fn flat_and_cargo_dispatched_forms_select_steps() {
     for arguments in [
@@ -19,6 +20,37 @@ fn flat_and_cargo_dispatched_forms_select_steps() {
     }
 }
 
+/// The missing `--skipped` failure is a Clap error, not a process exit.
+#[test]
+fn missing_skipped_is_returned_as_a_clap_failure() {
+    let error = missing_required_skipped_error(InvocationForm::Direct);
+    let CliError::Clap(error) = error else {
+        panic!("the missing `--skipped` failure should be a Clap error");
+    };
+
+    assert_eq!(
+        error.kind(),
+        clap::error::ErrorKind::MissingRequiredArgument
+    );
+    assert_eq!(error.exit_code(), 2);
+    assert!(
+        error.render().to_string().contains("--skipped"),
+        "the rendered failure should name the missing argument"
+    );
+}
+
+/// An unknown subcommand is returned so the caller can render it.
+#[test]
+fn unknown_subcommands_are_returned_instead_of_exiting() {
+    let result = parse_command_line(["cargo-bdd", "unknown-command"].map(OsString::from));
+    let Err(CliError::Clap(error)) = result else {
+        panic!("an unknown subcommand should be a Clap error");
+    };
+
+    assert_eq!(error.kind(), clap::error::ErrorKind::InvalidSubcommand);
+}
+
+/// Serialized skip reports carry every documented JSON field.
 #[test]
 fn write_skip_reports_json_emits_fields() {
     let report = SkipReport {
@@ -81,6 +113,7 @@ fn write_skip_reports_json_emits_fields() {
     );
 }
 
+/// Identical patterns in different libraries are not duplicates.
 #[test]
 fn duplicate_groups_do_not_cross_library_boundaries() {
     let steps = [
@@ -105,6 +138,7 @@ fn duplicate_groups_do_not_cross_library_boundaries() {
     assert!(group_duplicate_steps(steps).is_empty());
 }
 
+/// Duplicate groups are returned in deterministic key order.
 #[test]
 fn duplicate_groups_are_ordered_by_library_keyword_and_pattern() {
     let step = |library: &str, keyword: &str, pattern: &str| Step {

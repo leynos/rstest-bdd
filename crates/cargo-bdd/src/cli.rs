@@ -31,6 +31,7 @@ use crate::{
 
 mod invocation;
 
+pub(crate) use invocation::CliError;
 use invocation::{InvocationForm, missing_required_skipped_error, parse_command_line};
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
@@ -92,6 +93,7 @@ struct SkippedDefinition<'a> {
 }
 
 impl<'a> From<&'a Scenario> for SkipReport<'a> {
+    /// Project a skipped scenario into its report representation.
     fn from(scenario: &'a Scenario) -> Self {
         Self {
             feature: &scenario.feature_path,
@@ -106,6 +108,7 @@ impl<'a> From<&'a Scenario> for SkipReport<'a> {
 }
 
 impl<'a> From<&'a BypassedStep> for SkipReport<'a> {
+    /// Project a bypassed step into its report representation.
     fn from(step: &'a BypassedStep) -> Self {
         Self {
             feature: &step.feature_path,
@@ -126,7 +129,11 @@ impl<'a> From<&'a BypassedStep> for SkipReport<'a> {
 }
 
 /// Parse the command line and dispatch the selected diagnostic.
-pub(crate) fn run() -> Result<()> {
+///
+/// A Clap parse failure is returned rather than printed here, so the
+/// application boundary owns the process exit while the rendered message and
+/// exit status stay exactly as Clap produced them.
+pub(crate) fn run() -> std::result::Result<(), CliError> {
     let (cli, matches, invocation_form) = parse_command_line(std::env::args_os())?;
     match cli.command {
         Commands::Steps(config) => {
@@ -147,13 +154,13 @@ fn resolve_steps_settings(
     config: &StepsConfig,
     matches: &ArgMatches,
     invocation_form: InvocationForm,
-) -> Result<StepsSettings> {
+) -> std::result::Result<StepsSettings, CliError> {
     let command_matches = selected_matches(matches, "steps")?;
     let merged = merge_steps(config, command_matches)?;
     if command_matches.get_flag("json") && !merged.skipped {
-        missing_required_skipped_error(invocation_form);
+        return Err(missing_required_skipped_error(invocation_form));
     }
-    validate_steps(&merged)
+    Ok(validate_steps(&merged)?)
 }
 
 /// Return the clap matches for a selected subcommand.
