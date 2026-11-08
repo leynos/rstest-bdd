@@ -389,6 +389,33 @@ the ratchet write and CodeScene upload live in `ci.yml` are historical.
 `docs/developers-guide.md`, "CodeScene publication belongs to main", is the
 operational guide.
 
+## Addendum (2026-11-08): the lint gate names the aggregated suite
+
+The 2026-07-20 record describes the gate as `whitaker --all`. The invocation
+now names the library it installs:
+
+```bash
+RUSTFLAGS="-D warnings" whitaker --lib whitaker_suite -- --workspace --all-targets --all-features
+```
+
+The adopted lint set is unchanged: the aggregated suite registers every
+constituent lint, and the installer's default request is the suite alone. What
+changed is what the selection depends on. `--all` loads every library the
+installed tree happens to hold, and that tree is written by a versioned
+installer against a rolling release. An installer older than a lint cannot
+prune that lint's standalone library, so the library stays beside the suite and
+both register the same lint name; rustc then panics with
+`duplicate specification of lint` before any repository source is checked. This
+occurred with installer `0.2.11` once the rolling suite gained
+`string_continuation_style`, and it breaks every consumer of the shared
+installer action rather than this repository alone
+([leynos/whitaker#565](https://github.com/leynos/whitaker/issues/565)).
+
+Naming the suite keeps the lint set fixed by this repository's intent rather
+than by the installed tree's bookkeeping, and leaves the installer free to
+repair its pruning. `docs/developers-guide.md`, "Whitaker Dylint suite lint
+gate (ADR-013)", is the operational guide.
+
 ## Known limitations
 
 The adopted lint does not replace Clippy. `clippy::shadow_reuse`,
