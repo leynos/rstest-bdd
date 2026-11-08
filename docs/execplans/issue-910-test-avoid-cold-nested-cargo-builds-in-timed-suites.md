@@ -857,20 +857,54 @@ rather than by reading this branch's comments.
   What makes this host state rather than this PR: the failure is identical at
   the same rustc commit (`57d06900`) on `8d45fae5`, a branch unrelated to this
   one, and it begins at a clean time boundary — the last success is `0c13d4a7`
-  at 01:38Z and the first failure is `8d45fae5` at 05:02Z. The Whitaker cache
-  key is byte-identical on a passing and a failing run
-  (`whitaker-v1-Linux-X64-self-hosted-0.2.11-75f5f665…`), `dylint.toml` is
-  untouched by this branch, and the runner label is `ubicloud-standard-2` on
-  both. `WHITAKER_INSTALLER_VERSION` is the string `0.2.11`, a version range
-  rather than a content digest, so a republished installer changes the lint set
-  without changing the key.
+  at 01:38Z and the first failure is `8d45fae5` at 05:02Z. `dylint.toml` is
+  untouched by this branch and the runner label is `ubicloud-standard-2` on
+  both.
 
-  The local install carries only `libwhitaker_suite@nightly-2026-05-28.so`, a
-  single library, which is why `make lint` passes on this machine and why the
-  defect is invisible locally. An installer-level fix is out of scope here; a
-  focused investigation request with the full comparison is posted on the PR.
-  This is an impasse of the "unhealthy external service" kind until the install
-  path is corrected or the affected runners' Whitaker state is rebuilt.
+- **The first explanation of that failure was wrong, and the corrected cause
+  turned it from an impasse into an in-repo fix.** The entry above originally
+  blamed the Whitaker cache key, arguing that `WHITAKER_INSTALLER_VERSION` is a
+  version string rather than a content digest, so a republished installer could
+  change contents under a stable key, and concluded this was an "unhealthy
+  external service" impasse. Three observations refuted that:
+
+  1. The **passing** run `42065583194` restored the *same* cache key
+     (`whitaker-v1-Linux-X64-self-hosted-0.2.11-75f5f665…`) that the failing
+     runs restore. The cache is not the variable.
+  2. `install-whitaker` downloads the lint archive from the **rolling release at
+     run time**; the cache only holds the installer binary and driver. The
+     manifest `manifest-x86_64-unknown-linux-gnu.json` published at
+     `generated_at: 2026-11-08T07:35:30Z` lists eleven files, including both
+     `libstring_continuation_style.so` and `libwhitaker_suite.so`. Purging or
+     re-keying the cache would change nothing.
+  3. Whitaker merged `string_continuation_style` into **both** its `LINT_CRATES`
+     and its suite in `67c5afaa` on 2026-11-07 23:53Z, thirteen hours before the
+     first consumer failure. The cause is server-side content, not consumer
+     state.
+
+  The actual mechanism is in the installer: `prune_prebuilt_libraries` is meant
+  to delete every staged library that was not requested, but it iterates the
+  installer's **compiled-in** `LINT_CRATES`. The pinned `v0.2.11` predates the
+  lint, so its nine-entry list never names `string_continuation_style`, the
+  pruning loop skips the file, and `cargo dylint --all` loads it beside the
+  suite. Upstream tracks this as **leynos/whitaker#565**, which specifies a
+  filename-based prune; that fix is not in `main`, and `v0.2.12` (PR #559) is a
+  pure version bump whose `LINT_CRATES` is still nine entries, so a version
+  bump would not help either.
+
+- **The consumer side owns the last step, and the fix is one recipe line.**
+  Because the installed tree cannot be trusted to hold exactly the suite,
+  `make lint-whitaker` now names the aggregated suite directly:
+  `whitaker --lib whitaker_suite`. The suite already registers every
+  constituent lint, and the installer's own default (`requested_crates` empty)
+  resolves to suite-only, so this loads exactly the set `--all` was meant to
+  load while being independent of the pruning bug. Verified two ways: a
+  negative control proved `--lib whitaker_suite` still rejects
+  `unwrap_or_else(|| panic!(..))` with `no_unwrap_or_else_panic`, so the gate
+  is not weakened; and `test_lint_whitaker_selects_the_suite_by_name` fails on
+  the old `--all` recipe and passes on the new one. The local install carries
+  only `libwhitaker_suite@…`, which is why `make lint` never reproduced this
+  here.
 
 - **A required check and a quality signal are different things.** CodeScene
   failed on every push to this branch, which looks like a blocker and is not

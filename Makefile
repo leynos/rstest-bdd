@@ -163,8 +163,16 @@ lint: ## Run Clippy and the Whitaker Dylint suite with warnings denied
 	$(PROJECT_PYTHON) scripts/check_gpui_mapping_table.py
 	$(PROJECT_PYTHON) scripts/check_serial_nextest_matrix.py
 
+# Select the aggregated suite by name rather than with `--all`. The suite
+# already registers every constituent lint, so naming it loads the same lint
+# set. `--all` instead loads every library the installed tree happens to hold,
+# and that tree is written by a pinned installer against a rolling release: an
+# installer older than a lint cannot prune that lint's standalone library, so
+# `--all` loads it beside the suite and rustc panics with "duplicate
+# specification of lint" before any of this repository's code is checked.
+# Naming the suite keeps the gate independent of that pruning bug.
 lint-whitaker: ## Run the Whitaker Dylint suite with warnings denied
-	RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
+	RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --lib whitaker_suite -- $(CARGO_FLAGS)
 
 lint-python: build-python interrogate ## Run Python linters
 	$(RUFF) check $(PYTHON_TARGETS)

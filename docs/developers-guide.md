@@ -3450,8 +3450,17 @@ whitaker-installer
 `make lint` then runs `make lint-whitaker` after Clippy, which invokes:
 
 ```bash
-RUSTFLAGS="-D warnings" whitaker --all -- --workspace --all-targets --all-features
+RUSTFLAGS="-D warnings" whitaker --lib whitaker_suite -- --workspace --all-targets --all-features
 ```
+
+The aggregated suite is named rather than reached with `--all`. `--all` loads
+every library the installed tree happens to hold, and that tree is written by a
+pinned installer against a rolling release: an installer older than a lint
+cannot prune that lint's standalone library, so both it and the suite register
+the same lint name and rustc panics with `duplicate specification of lint`
+before any of this repository's code is checked. Naming the suite fixes the
+lint set to this repository's intent instead of to installer bookkeeping. See
+leynos/whitaker#565 for the upstream pruning defect.
 
 The repository's ordinary build, test, and Clippy commands remain on the stable
 toolchain. The pinned nightly used by the Dylint driver is managed by
