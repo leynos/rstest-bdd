@@ -3,8 +3,9 @@
 //! Both loaders carry a `cargo_bdd.configuration` span so a tracing
 //! subscriber can time configuration loading per command. The spans record
 //! only the command name: configuration values, file paths and environment
-//! lookups stay out of the trace, and the binary installs no subscriber, so
-//! the default command output is unchanged.
+//! lookups stay out of the trace. The binary installs a stderr subscriber only
+//! when `CARGO_BDD_LOG` is set, so the default command output and exit
+//! statuses are unchanged.
 
 use clap::{ArgMatches, Parser};
 use eyre::{Context, Result, bail};

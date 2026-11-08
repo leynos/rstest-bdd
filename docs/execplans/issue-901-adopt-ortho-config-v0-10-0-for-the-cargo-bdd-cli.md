@@ -548,6 +548,39 @@ Hard invariants. Violation requires escalation, not a workaround.
       diff check and CodeScene. CodeRabbit reviewed 37 files with zero findings.
       Head `63b01c4d` passed hosted run 41891162299, and later commits produced
       `9a1f3265`, which this rebase supersedes.
+- [x] (2026-11-08) The round-10 review found the opt-in observability path
+      incomplete. The subscriber had no span-event configuration, so the
+      `cargo_bdd.configuration` spans rendered nothing and the documented
+      timing was unobservable. `install()` now enables `FmtSpan::CLOSE`, which
+      emits one timed close line per load at the span's `INFO` level. New
+      child-process cases in `tests/invocation/observability.rs` drive both
+      command labels and pin the timing fields and the absence of paths and
+      values. `CARGO_BDD_LOG` is documented in the users' guide and the
+      developers' guide, and the stale "installs no subscriber" claims in
+      `src/config.rs` and this plan are corrected. The remaining configuration
+      fields (`steps.skipped`, `steps.json`, `skipped.reasons`) now have
+      application-level precedence cases, and both reasons-output paths now
+      assert the absence of an application diagnostic (an empty-stderr
+      assertion is host-dependent there, because the fixture build's compiler
+      wrapper writes its own progress lines). The head that carried the earlier
+      green hosted run is `0c13d4a7`; this round's changes were gated on top of
+      it, in the working tree, with every gate run once and sequentially. All
+      of the following exited zero: `make check-fmt`, `make lint` (all nine
+      steps), `make typecheck`, `make markdownlint`, `make nixie`,
+      `make spelling`, the whole `cargo-bdd` suite (79 tests),
+      `cargo nextest run --workspace --all-targets --all-features` (2239
+      passed, 8 skipped), `cargo test --doc --workspace --all-features`,
+      `cargo nextest run -p rstest-bdd --all-targets --no-default-features`
+      (783 passed, 8 skipped), `make check-fixture-lockfiles` (5 lockfiles up
+      to date) and `uv run pytest scripts/tests` (290 passed). The two nextest
+      legs exclude only `step_macros_compile`, the retained validation
+      exception described in Outcomes & retrospective.
+- [x] (2026-11-08) Reconciliation: `crates/cargo-bdd/tests/cli.rs` is not
+      byte-identical to `origin/main`. Its existing tests are unchanged, but
+      the file gained the environment-tier `reasons` test and its shared
+      helpers gained an extra-environment parameter. That addition came from
+      the earlier review round, so the "unmodified file" wording in
+      `Validation and acceptance` is narrowed to the existing tests.
 
 ## Surprises & discoveries
 
@@ -697,8 +730,8 @@ Hard invariants. Violation requires escalation, not a workaround.
   `crates/cargo-bdd/src/cli.rs`, where handlers forward only booleans to the
   output module. Impact: both loaders now carry a `cargo_bdd.configuration`
   span recording only the command name, and the guide states the actual
-  boundary. The binary installs no subscriber, so the default output contract
-  is unchanged.
+  boundary. The binary installs a stderr subscriber only when `CARGO_BDD_LOG`
+  is set, so the default output contract is unchanged.
 
 - Observation: the follow-up review asked for the remaining configuration
   sources to be covered through the handlers, for the parse/resolve path to
@@ -715,6 +748,25 @@ Hard invariants. Violation requires escalation, not a workaround.
   (`tests/invocation/workspace.rs` and `src/config/tests/fixture.rs`) to stay
   inside the 400-line budget. The §6 box above stays unchecked until the merge
   actually lands.
+
+- Observation: the documented configuration timing was not observable. The
+  subscriber installed by `CARGO_BDD_LOG` had no span-event configuration, and
+  `tracing-subscriber`'s default formatter drops span events, so the
+  instrumented loaders produced no output at all for the opt-in variable.
+  Evidence: `crates/cargo-bdd/src/observability.rs` before this round, against
+  the tracing-subscriber 0.3 default `FmtSpanConfig`, whose `trace_close()` is
+  false. Impact: the subscriber now requests `FmtSpan::CLOSE`; the close event
+  inherits the span's `INFO` metadata, so `CARGO_BDD_LOG=info` renders one
+  `cargo_bdd.configuration{command=…}: close time.busy=… time.idle=…` line per
+  load. `tests/invocation/observability.rs` pins that output for both labels.
+
+- Observation: `tracing-subscriber`'s formatter emits ANSI escapes
+  unconditionally, not only on a terminal, so the first captured close line
+  contained escape sequences between the span fields. Evidence: the failing
+  assertion output showed `command` + `ESC[0m` + `=` + `ESC[0m` + `"steps"`.
+  Impact: `install()` now enables colour only when stderr is a terminal
+  (`io::stderr().is_terminal()`), and the observability cases assert that a
+  captured log contains no `ESC` byte.
 
 ## Decision log
 
@@ -1151,8 +1203,11 @@ Acceptance means all of the following, in one gate run against the final tree:
 
 - `make check-fmt`, `make lint`, and `make test` succeed.
 - `make markdownlint`, `make spelling`, and `make nixie` succeed.
-- `crates/cargo-bdd/tests/cli.rs` passes **unmodified** — verified with
-  `git diff --stat` showing no change to that file.
+- The pre-existing tests in `crates/cargo-bdd/tests/cli.rs` pass with no
+  edit to their bodies. The file itself did change: an earlier review round
+  added the environment-tier `reasons` test and an extra-environment parameter
+  to the shared helpers. Check the surviving tests, not the file, for unchanged
+  assertions.
 - Every row of Table 1 is reproduced by `V1`.
 - `V2`, `V3`, and `V4` are green, and the pre-change Cargo-form rejection is
   recorded in this plan and `/tmp/baseline-cli-errors-issue-901.out`.

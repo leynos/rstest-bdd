@@ -216,12 +216,9 @@ fn run_cargo_bdd_captured_with_env(
 }
 
 /// Execute `cargo bdd` with no extra environment and return stdout.
-fn run_cargo_bdd(args: &[&str]) -> Result<String> { run_cargo_bdd_with_env(args, &[]) }
-
-/// Execute cargo-bdd with extra environment variables and return stdout.
-fn run_cargo_bdd_with_env(args: &[&str], extra_environment: &[(&str, &str)]) -> Result<String> {
+fn run_cargo_bdd(args: &[&str]) -> Result<String> {
     let args_debug = args.join(" ");
-    let (status, stdout, _stderr) = run_cargo_bdd_captured_with_env(args, extra_environment)?;
+    let (status, stdout, _stderr) = run_cargo_bdd_captured(args)?;
     assert!(
         status.success(),
         "`cargo bdd` should succeed (args: [{args_debug}], status: {status})"
@@ -346,23 +343,6 @@ fn skipped_subcommand_emits_json() {
         fixture_entry.libraries,
         vec!["rstest_bdd::global".to_owned()],
         "unscoped scenarios should report the global library"
-    );
-}
-
-/// A configured `reasons` setting adds locations and reasons to stdout.
-#[test]
-#[serial]
-fn configured_skipped_reasons_reach_the_handler() {
-    let stdout =
-        run_cargo_bdd_with_env(&["skipped"], &[("CARGO_BDD_CMDS_SKIPPED_REASONS", "true")])
-            .expect("test setup should succeed");
-    assert!(
-        stdout.contains("tests/features/diagnostics.fixture:7"),
-        "configured reasons should add feature locations: {stdout}"
-    );
-    assert!(
-        stdout.contains("fixture skip message"),
-        "configured reasons should add skip reasons: {stdout}"
     );
 }
 

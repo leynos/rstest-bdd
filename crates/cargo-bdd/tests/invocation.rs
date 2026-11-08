@@ -10,6 +10,8 @@ use rstest::rstest;
 
 #[path = "invocation/configuration.rs"]
 mod configuration;
+#[path = "invocation/observability.rs"]
+mod observability;
 #[path = "invocation/workspace.rs"]
 mod workspace;
 

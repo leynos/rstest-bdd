@@ -3420,6 +3420,26 @@ Unset both variables to use the TOML values again. The `steps` JSON output
 still requires `skipped = true`, whether those values come from TOML, the
 environment or the CLI.
 
+#### Tracing configuration loading
+
+`CARGO_BDD_LOG` opts in to tracing output on stderr. It is unset by default, so
+runs without it keep their existing output, exit statuses and streams.
+`RUST_LOG` is ignored, so a host toolchain or wrapper script cannot change this
+binary's output. The value is an `EnvFilter` directive set, such as `info`, or
+a target-scoped directive such as `cargo_bdd=trace`.
+
+Each command emits one close line per configuration load, naming the command
+and the time spent resolving its sources:
+
+```text
+INFO cargo_bdd.configuration{command="steps"}: cargo_bdd::config: close time.busy=… time.idle=…
+```
+
+The span records only the command name. Configuration values, discovered file
+paths and environment lookups are not logged, so the trace is safe to share
+when reporting a slow or surprising configuration load. Colour is used only
+when stderr is a terminal, so redirected logs and CI captures stay plain text.
+
 Both `cargo bdd <subcommand>` and `cargo-bdd bdd <subcommand>` consume Cargo's
 injected `bdd` token. The original flat form, `cargo-bdd <subcommand>`,
 continues to work as well. There is no `--config-path` option or profile
