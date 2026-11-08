@@ -20,6 +20,7 @@ fn fingerprint_excludes_runner_and_coverage_variables() {
         "abc",
     ))
     .expect("the fingerprint must name the toolchain");
+    let text = text.as_str();
     // The fingerprint records whatever the child receives, and the environment
     // resolves `CARGO_TARGET_DIR` once before that. Asserting on the resolved
     // value rather than on the literal above keeps the check honest on every

@@ -68,6 +68,35 @@ const FINGERPRINT_PREFIXES: [&str; 5] = [
     "CARGO_TARGET_",
 ];
 
+/// The text a stamp was written from.
+///
+/// A newtype rather than a bare `String` because this text is compared for
+/// equality, is written into a file, and decides whether a timed assertion may
+/// run at all. A bare string at every one of those points invites passing the
+/// stamp's own contents where the freshly computed text belongs, and the two
+/// are different strings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Fingerprint(String);
+
+impl Fingerprint {
+    /// The text recorded in a stamp file.
+    pub(super) fn as_str(&self) -> &str { &self.0 }
+}
+
+/// A complete stamp file: fingerprint, separator, and recorded names.
+///
+/// Distinct from [`Fingerprint`] because the two are never interchangeable:
+/// a fingerprint is what a stamp is compared *against*, and this is what is
+/// written *into* it. Passing the same `String` for both would compile and be
+/// wrong.
+#[derive(Debug, Clone)]
+pub(super) struct StampText(String);
+
+impl StampText {
+    /// The bytes to write to the stamp file.
+    pub(super) fn as_str(&self) -> &str { &self.0 }
+}
+
 /// What a matching stamp vouches for.
 ///
 /// Only the recorded names are kept: a `Stamp` exists at all because its
@@ -92,7 +121,7 @@ pub(super) fn stamp_path(preparation: &Preparation) -> PathBuf {
 /// whose fingerprint differs. Each of those is "not prepared", which is the
 /// safe answer: the caller prepares again or fails fast rather than admitting
 /// a timed assertion against a tree the stamp does not describe.
-pub(super) fn matching_stamp(stamp: &Path, fingerprint: &str) -> Option<Stamp> {
+pub(super) fn matching_stamp(stamp: &Path, fingerprint: &Fingerprint) -> Option<Stamp> {
     let text = match fs::read_to_string(stamp) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
@@ -112,9 +141,9 @@ pub(super) fn matching_stamp(stamp: &Path, fingerprint: &str) -> Option<Stamp> {
 /// A file with no separator line is a version-1 stamp. Its fingerprint also
 /// differs, because [`STAMP_VERSION`] changed, so returning `None` here is a
 /// second, independent guard rather than the only one.
-fn parse(text: &str, fingerprint: &str) -> Option<Stamp> {
+fn parse(text: &str, fingerprint: &Fingerprint) -> Option<Stamp> {
     let (head, tail) = text.split_once(OUTPUTS_SEPARATOR)?;
-    if head.trim_end() != fingerprint.trim_end() {
+    if head.trim_end() != fingerprint.as_str().trim_end() {
         return None;
     }
     Some(Stamp {
@@ -143,8 +172,8 @@ fn recorded_sections(tail: &str) -> Vec<Vec<String>> {
 }
 
 /// Render a stamp file from its fingerprint and recorded artefact names.
-pub(super) fn render(fingerprint: &str, recorded: &[Vec<String>]) -> String {
-    let mut text = String::from(fingerprint.trim_end());
+pub(super) fn render(fingerprint: &Fingerprint, recorded: &[Vec<String>]) -> StampText {
+    let mut text = String::from(fingerprint.as_str().trim_end());
     text.push('\n');
     text.push_str(OUTPUTS_SEPARATOR);
     text.push('\n');
@@ -154,11 +183,11 @@ pub(super) fn render(fingerprint: &str, recorded: &[Vec<String>]) -> String {
             let _ = writeln!(text, "out\t{name}");
         }
     }
-    text
+    StampText(text)
 }
 
 /// Write the stamp atomically, so a killed preparation never looks complete.
-pub(super) fn write_stamp(stamp: &Path, contents: &str) -> io::Result<()> {
+pub(super) fn write_stamp(stamp: &Path, stamp_text: &StampText) -> io::Result<()> {
     let Some(parent) = stamp.parent() else {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -171,7 +200,7 @@ pub(super) fn write_stamp(stamp: &Path, contents: &str) -> io::Result<()> {
         |name| name.to_string_lossy().into_owned(),
     );
     let temporary = parent.join(format!(".{stamp_name}.{}.tmp", std::process::id()));
-    fs::write(&temporary, contents)?;
+    fs::write(&temporary, stamp_text.as_str())?;
     fs::rename(&temporary, stamp)
 }
 
@@ -185,7 +214,7 @@ pub(super) fn write_stamp(stamp: &Path, contents: &str) -> io::Result<()> {
 /// toolchain change — exactly the invalidation the field exists to force.
 /// Reporting the failure is the only answer that fails closed without
 /// re-preparing on every single run.
-pub(super) fn fingerprint(preparation: &Preparation) -> io::Result<String> {
+pub(super) fn fingerprint(preparation: &Preparation) -> io::Result<Fingerprint> {
     let mut text = String::new();
     let _ = writeln!(text, "version: {STAMP_VERSION}");
     let _ = writeln!(text, "toolchain: {}", toolchain_identity()?);
@@ -197,7 +226,7 @@ pub(super) fn fingerprint(preparation: &Preparation) -> io::Result<String> {
     }
     let _ = writeln!(text, "variant: {}", preparation.variant);
     let _ = writeln!(text, "inputs: {}", preparation.inputs);
-    Ok(text)
+    Ok(Fingerprint(text))
 }
 
 /// Whether `key` influences the compiled artefacts.
@@ -297,79 +326,4 @@ pub(super) fn note(message: &str) {
 }
 
 #[cfg(test)]
-mod tests {
-    //! Unit tests for the stamp's two-section encoding.
-
-    use std::path::PathBuf;
-
-    use super::{Stamp, matching_stamp, parse, render, write_stamp};
-
-    /// A render/parse round trip preserves the fingerprint and every section.
-    #[test]
-    fn a_rendered_stamp_parses_back_to_what_was_written() {
-        let fingerprint = "version: 2\ntoolchain: release: 1.88.0\n";
-        let recorded = vec![
-            vec!["liba.rlib".to_owned(), "a.d".to_owned()],
-            Vec::new(),
-            vec!["probe".to_owned()],
-        ];
-
-        let text = render(fingerprint, &recorded);
-        let stamp = parse(&text, fingerprint).expect("a stamp just rendered must parse");
-
-        assert_eq!(
-            stamp.recorded, recorded,
-            "each section must keep its own names, including an empty one: the section index is \
-             how a name is matched to the directory it belongs to"
-        );
-    }
-
-    /// A different fingerprint does not match, even with the same names.
-    #[test]
-    fn a_changed_fingerprint_is_not_a_match() {
-        let text = render("inputs: old\n", &[vec!["liba.rlib".to_owned()]]);
-        assert!(
-            parse(&text, "inputs: new\n").is_none(),
-            "a stamp must only describe the inputs it was written from"
-        );
-    }
-
-    /// A version-1 stamp, which has no separator, is not a match.
-    #[test]
-    fn a_stamp_without_recorded_names_is_not_a_match() {
-        let text = "version: 1\ntoolchain: release: 1.88.0\n";
-        assert!(
-            parse(text, text).is_none(),
-            "a stamp that records no artefacts cannot answer whether they survive"
-        );
-    }
-
-    /// The on-disk round trip, including the `None` for a missing file.
-    #[test]
-    fn a_written_stamp_is_found_and_a_missing_one_is_not() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let stamp = directory.path().join(".unit.rstest-bdd-prepared");
-        assert!(
-            matching_stamp(&stamp, "version: 2\n").is_none(),
-            "an absent stamp is not a match"
-        );
-
-        let fingerprint = "version: 2\ntoolchain: release: 1.88.0\n";
-        write_stamp(
-            &stamp,
-            &render(fingerprint, &[vec!["liba.rlib".to_owned()]]),
-        )
-        .expect("write the stamp");
-
-        let found: Stamp = matching_stamp(&stamp, fingerprint).expect("the stamp must match");
-        assert_eq!(found.recorded, vec![vec!["liba.rlib".to_owned()]]);
-        assert!(
-            matching_stamp(&stamp, "version: 2\ntoolchain: release: 1.89.0\n").is_none(),
-            "a stamp from another toolchain must not match"
-        );
-        assert!(
-            !PathBuf::from(".unit.rstest-bdd-prepared").exists(),
-            "the stamp must live where it was asked to"
-        );
-    }
-}
+mod tests;

@@ -52,6 +52,7 @@ use std::{
 
 pub use input_hash::{cargo_config_inputs, input_hash};
 use stamp::{
+    Fingerprint,
     Stamp,
     fingerprint,
     matching_stamp,
@@ -337,12 +338,11 @@ where
     prepare_locked(preparation, &stamp_path(preparation), &fingerprint, prepare)
 }
 
-/// Run `prepare` under the process-wide lock unless the family is already
-/// prepared, then stamp it.
+/// Run `prepare` under the process-wide lock unless already prepared, then stamp.
 fn prepare_locked<F>(
     preparation: &Preparation,
     stamp: &Path,
-    fingerprint: &str,
+    fingerprint: &Fingerprint,
     prepare: F,
 ) -> io::Result<()>
 where
