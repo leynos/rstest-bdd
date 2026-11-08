@@ -268,8 +268,8 @@ fn assert_preparation_scheduling(
     Ok(())
 }
 
-#[test]
 /// The trybuild override keeps its 20 m period, termination and group.
+#[test]
 fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;
     let overrides = default_overrides(&configuration)?;

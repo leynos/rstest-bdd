@@ -3359,9 +3359,9 @@ configuration-file and environment settings. Its `src/config.rs` module owns
 the OrthoConfig-derived parsing types and the validated `StepsSettings` and
 `SkippedSettings` passed to command handlers. Those handlers in `src/cli.rs`
 are the only holders of the settings; they forward individual booleans, such as
-the JSON mode and the scenario display options, to the output module, and the
-registry module receives no settings at all. Neither reads process sources or
-handles configuration errors.
+the JSON mode and the scenario display options, to `src/output.rs`, and
+`src/registry/` receives no settings at all. Neither module reads process
+sources nor handles configuration errors.
 
 Both configuration loaders are instrumented with a `cargo_bdd.configuration`
 span named for the command they serve. The span records only that command name;

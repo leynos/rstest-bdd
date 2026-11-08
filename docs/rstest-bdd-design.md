@@ -3039,10 +3039,17 @@ cover the need instead.
 
 #### Settings handed to the domain
 
-The configuration layer stops at the argument structs. Dispatch reads plain
-bools out of the resolved struct and hands them to the existing handlers, which
-are unchanged. The registry and output modules never see a configuration type,
-never read the environment, and never handle a configuration error.
+The configuration layer stops at the argument structs. Dispatch merges and
+validates them into `StepsSettings` and `SkippedSettings`, and hands those
+validated settings to the handlers. The handlers are the only callers that see
+a settings type: `handle_steps` reads `skipped` to choose between the filtered
+listing and the bypassed listing, and `handle_skipped` reads `reasons` and
+`json`. Both then forward only individual booleans to `src/output.rs` — the
+JSON mode, the reason mode and the scenario display options — so the output
+module receives no settings struct. The registry module receives no settings at
+all. Neither module reads process sources nor handles a configuration error;
+every such failure stops at dispatch and is rendered by the application
+boundary.
 
 ### 3.7 Initial scenario macro implementation
 

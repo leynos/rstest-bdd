@@ -159,10 +159,10 @@ fn cli_child_environment(
     )
 }
 
+/// The child keeps a caller target directory and otherwise uses the workspace.
 #[rstest::rstest]
 #[case::workspace_cache(None)]
 #[case::caller_cache(Some("custom-coverage-target"))]
-/// The child keeps a caller target directory and otherwise uses the workspace.
 fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io::Result<()> {
     let vars = target
         .map(|value| vec![(OsString::from("CARGO_TARGET_DIR"), OsString::from(value))])
@@ -298,9 +298,9 @@ fn steps_output_marks_forced_failure_skips() {
     );
 }
 
+/// Text output includes the feature location, reason and annotations.
 #[test]
 #[serial]
-/// Text output includes the feature location, reason and annotations.
 fn skipped_subcommand_includes_reasons_and_lines() {
     ensure_cli_prepared().expect("test setup should succeed");
     let stdout = run_cargo_bdd(&["skipped", "--reasons"]).expect("test setup should succeed");
