@@ -11,6 +11,7 @@ use std::{
 };
 
 use clap::CommandFactory;
+use ortho_config::MapEnv;
 use tracing::{
     Subscriber,
     field::{Field, Visit},
@@ -21,7 +22,10 @@ use tracing_subscriber::{
     registry,
 };
 
-use super::super::{SkippedConfig, StepsConfig, merge_steps, resolve_skipped};
+use super::{
+    super::{SkippedConfig, StepsConfig, merge_steps, resolve_skipped},
+    support::ConfigFixture,
+};
 use crate::cli::Cli;
 
 /// One span as the capturing layer saw it.
@@ -93,12 +97,14 @@ fn both_loaders_emit_one_bounded_configuration_span() {
     let subscriber = registry().with(capture.clone());
     let steps_matches = subcommand_matches("steps");
     let skipped_matches = subcommand_matches("skipped");
+    let fixture = ConfigFixture::new();
+    let sources = fixture.sources(MapEnv::new());
 
     tracing::subscriber::with_default(subscriber, || {
         // The merge result is irrelevant here: a failed load still opens and
         // closes its span, and the assertions below cover the span contract.
-        let _ = merge_steps(&StepsConfig::default(), &steps_matches);
-        let _ = resolve_skipped(&SkippedConfig::default(), &skipped_matches);
+        let _ = merge_steps(&StepsConfig::default(), &steps_matches, &sources);
+        let _ = resolve_skipped(&SkippedConfig::default(), &skipped_matches, &sources);
     });
 
     let spans = capture.recorded();

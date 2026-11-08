@@ -5,24 +5,28 @@
 //! developer's real configuration cannot influence a merge. The option table
 //! names each configurable boolean once, so the precedence test can drive all
 //! four settings through the same code path.
+//!
+//! The merges below call the production resolvers with these isolated sources
+//! rather than repeating the `ortho_config` call, so a regression in the
+//! resolvers fails these tests.
 
 use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 use clap::{CommandFactory, FromArgMatches};
-use ortho_config::{
-    MapEnv,
-    OrthoResult,
-    SharedScanEnvSource,
-    SubcommandCliMatches,
-    SubcommandFileContext,
-    load_and_merge_subcommand_for_with_matches_with_sources_at,
-};
+use ortho_config::MapEnv;
 use rstest::fixture;
 use tempfile::TempDir;
 
-use super::super::{SkippedConfig, StepsConfig};
+use super::super::{
+    ConfigSources,
+    SkippedConfig,
+    SkippedSettings,
+    StepsConfig,
+    merge_steps,
+    resolve_skipped,
+};
 
 /// Isolated discovery roots plus the injected environment for one merge.
 pub(super) struct ConfigFixture {
@@ -99,7 +103,7 @@ impl BooleanOptions {
         fixture: &ConfigFixture,
         args: &[&str],
         environment: MapEnv,
-    ) -> OrthoResult<(bool, bool)> {
+    ) -> eyre::Result<(bool, bool)> {
         match self {
             Self::Steps => fixture
                 .merge_steps(args, environment)
@@ -175,47 +179,32 @@ impl ConfigFixture {
         local
     }
 
-    /// Merge `steps` settings from the fixture's sources.
+    /// Merge `steps` settings through the production resolver.
     pub(super) fn merge_steps(
         &self,
         args: &[&str],
         environment: MapEnv,
-    ) -> OrthoResult<StepsConfig> {
+    ) -> eyre::Result<StepsConfig> {
         let (config, matches) = parse_steps(args);
-        self.merge(&config, &matches, environment)
+        merge_steps(&config, &matches, &self.sources(environment))
     }
 
-    /// Merge `skipped` settings from the fixture's sources.
+    /// Merge `skipped` settings through the production resolver.
     pub(super) fn merge_skipped(
         &self,
         args: &[&str],
         environment: MapEnv,
-    ) -> OrthoResult<SkippedConfig> {
+    ) -> eyre::Result<SkippedSettings> {
         let (config, matches) = parse_skipped(args);
-        self.merge(&config, &matches, environment)
+        resolve_skipped(&config, &matches, &self.sources(environment))
     }
 
-    /// Merge one subcommand's settings through the real loader.
-    fn merge<T>(
-        &self,
-        config: &T,
-        matches: &clap::ArgMatches,
-        environment: MapEnv,
-    ) -> OrthoResult<T>
-    where
-        T: ortho_config::OrthoConfig
-            + serde::Serialize
-            + serde::de::DeserializeOwned
-            + Default
-            + CommandFactory
-            + ortho_config::CliValueExtractor,
-    {
-        let files = SubcommandFileContext::new(self.local_base.as_std_path(), &self.discovery);
-        let merge_source: SharedScanEnvSource = Arc::new(environment);
-        load_and_merge_subcommand_for_with_matches_with_sources_at(
-            &SubcommandCliMatches::new(config, matches),
-            files,
-            merge_source,
+    /// Build the isolated sources one merge reads.
+    pub(super) fn sources(&self, environment: MapEnv) -> ConfigSources {
+        ConfigSources::isolated(
+            self.local_base.as_std_path().to_path_buf(),
+            self.discovery.clone(),
+            Arc::new(environment),
         )
     }
 }

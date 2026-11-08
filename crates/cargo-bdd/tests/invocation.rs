@@ -184,6 +184,26 @@ fn assert_configuration_error(output: &Output) {
     assert!(stderr.contains("failed to load configuration for `steps`"));
 }
 
+/// Assert the diagnostic for a configured JSON mode with no merged `skipped`.
+///
+/// The message names both keys, so a rejection that fired for a different
+/// reason — an unreadable file, or the CLI-only guard — would not match.
+fn assert_invalid_configuration_error(output: &Output) {
+    assert_eq!(
+        (output.status.code(), output.stdout.as_slice()),
+        (Some(1), b"" as &[u8])
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("invalid configuration `cmds.steps.json = true`"),
+        "expected the invalid-configuration diagnostic, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("`cmds.steps.skipped = true` or pass `--skipped`"),
+        "expected the diagnostic to name both remedies, got: {stderr}"
+    );
+}
+
 /// Assert a successful help invocation that printed `usage` and no stderr.
 fn assert_successful_help(output: &Output, usage: &str) {
     assert!(output.status.success(), "help invocation should succeed");

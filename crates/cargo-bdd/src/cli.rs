@@ -11,6 +11,7 @@ use serde::Serialize;
 
 use crate::{
     config::{
+        ConfigSources,
         SkippedConfig,
         SkippedSettings,
         StepsConfig,
@@ -135,15 +136,23 @@ impl<'a> From<&'a BypassedStep> for SkipReport<'a> {
 /// exit status stay exactly as Clap produced them.
 pub(crate) fn run() -> std::result::Result<(), CliError> {
     let (cli, matches, invocation_form) = parse_command_line(std::env::args_os())?;
+    // The application edge owns the process-backed sources; the resolvers
+    // below receive them, so tests can drive the same code with isolated ones.
+    let sources = ConfigSources::process();
     match cli.command {
         Commands::Steps(config) => {
-            handle_steps(&resolve_steps_settings(&config, &matches, invocation_form)?)?;
+            handle_steps(&resolve_steps_settings(
+                &config,
+                &matches,
+                invocation_form,
+                &sources,
+            )?)?;
         }
         Commands::Unused => handle_unused()?,
         Commands::Duplicates => handle_duplicates()?,
         Commands::Skipped(config) => {
             let command_matches = selected_matches(&matches, "skipped")?;
-            handle_skipped(&resolve_skipped(&config, command_matches)?)?;
+            handle_skipped(&resolve_skipped(&config, command_matches, &sources)?)?;
         }
     }
     Ok(())
@@ -154,9 +163,10 @@ fn resolve_steps_settings(
     config: &StepsConfig,
     matches: &ArgMatches,
     invocation_form: InvocationForm,
+    sources: &ConfigSources,
 ) -> std::result::Result<StepsSettings, CliError> {
     let command_matches = selected_matches(matches, "steps")?;
-    let merged = merge_steps(config, command_matches)?;
+    let merged = merge_steps(config, command_matches, sources)?;
     if command_matches.get_flag("json") && !merged.skipped {
         return Err(missing_required_skipped_error(invocation_form));
     }

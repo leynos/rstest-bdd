@@ -1,5 +1,10 @@
 //! CLI configuration types, source merging and validated handler settings.
 //!
+//! The resolvers take their file-discovery roots and environment from a
+//! [`ConfigSources`] value. The application edge supplies process-backed
+//! sources; the unit tests supply isolated ones, so both exercise the same
+//! merge and error paths instead of a copy of them.
+//!
 //! Both loaders carry a `cargo_bdd.configuration` span so a tracing
 //! subscriber can time configuration loading per command. The spans record
 //! only the command name: configuration values, file paths and environment
@@ -7,9 +12,22 @@
 //! when `CARGO_BDD_LOG` is set, so the default command output and exit
 //! statuses are unchanged.
 
-use clap::{ArgMatches, Parser};
+use std::{path::PathBuf, sync::Arc};
+
+use clap::{ArgMatches, CommandFactory, Parser};
 use eyre::{Context, Result, bail};
-use ortho_config::{OrthoConfig, SubcmdConfigMerge};
+use ortho_config::{
+    CliValueExtractor,
+    EnvSource,
+    OrthoConfig,
+    OrthoResult,
+    ProcessEnv,
+    SharedScanEnvSource,
+    SubcommandCliMatches,
+    SubcommandFileContext,
+    load_and_merge_subcommand_for_with_matches_with_sources_at,
+    process_scan_env_source,
+};
 use serde::{Deserialize, Serialize};
 
 /// `steps` options that can also be loaded from configuration.
@@ -60,15 +78,66 @@ pub(crate) struct SkippedSettings {
     pub(crate) json: bool,
 }
 
-/// Merge `steps` settings from process sources.
+/// Discovery roots and environment values one configuration load reads.
+///
+/// The application edge builds these from the live process with
+/// [`ConfigSources::process`]. Tests build them from isolated directories and a
+/// fixed environment, so both drive the same resolvers rather than a
+/// re-implementation of the merge call.
+pub(crate) struct ConfigSources {
+    /// Directory the loader treats as the local configuration base.
+    base: PathBuf,
+    /// Named lookups used to locate the discovery directories.
+    discovery: Box<dyn EnvSource>,
+    /// Environment values merged over the file layers.
+    environment: SharedScanEnvSource,
+}
+
+impl ConfigSources {
+    /// Read the live process environment, rooted at the working directory.
+    pub(crate) fn process() -> Self {
+        Self {
+            base: PathBuf::from("."),
+            discovery: Box::new(ProcessEnv),
+            environment: process_scan_env_source(),
+        }
+    }
+
+    /// Read `base` and `discovery` instead of the process environment.
+    ///
+    /// Used by the unit tests, which must not depend on a developer's real
+    /// configuration files or environment.
+    #[cfg(test)]
+    pub(crate) fn isolated(
+        base: PathBuf,
+        discovery: impl EnvSource + 'static,
+        environment: SharedScanEnvSource,
+    ) -> Self {
+        Self {
+            base,
+            discovery: Box::new(discovery),
+            environment,
+        }
+    }
+
+    /// Borrow the file-search context for one merge.
+    fn files(&self) -> SubcommandFileContext<'_> {
+        SubcommandFileContext::new(&self.base, self.discovery.as_ref())
+    }
+}
+
+/// Merge `steps` settings from the supplied sources.
 #[tracing::instrument(name = "cargo_bdd.configuration", skip_all, fields(command = "steps"))]
-pub(crate) fn merge_steps(config: &StepsConfig, matches: &ArgMatches) -> Result<StepsConfig> {
-    config
-        .load_and_merge_with_matches(matches)
+pub(crate) fn merge_steps(
+    config: &StepsConfig,
+    matches: &ArgMatches,
+    sources: &ConfigSources,
+) -> Result<StepsConfig> {
+    merge_from_sources(config, matches, sources)
         .wrap_err("failed to load configuration for `steps`")
 }
 
-/// Load `skipped` settings from process sources.
+/// Load `skipped` settings from the supplied sources.
 #[tracing::instrument(
     name = "cargo_bdd.configuration",
     skip_all,
@@ -77,14 +146,35 @@ pub(crate) fn merge_steps(config: &StepsConfig, matches: &ArgMatches) -> Result<
 pub(crate) fn resolve_skipped(
     config: &SkippedConfig,
     matches: &ArgMatches,
+    sources: &ConfigSources,
 ) -> Result<SkippedSettings> {
-    let merged = config
-        .load_and_merge_with_matches(matches)
+    let merged = merge_from_sources(config, matches, sources)
         .wrap_err("failed to load configuration for `skipped`")?;
     Ok(SkippedSettings {
         reasons: merged.reasons,
         json: merged.json,
     })
+}
+
+/// Merge one subcommand's configuration through `ortho_config`.
+fn merge_from_sources<T>(
+    config: &T,
+    matches: &ArgMatches,
+    sources: &ConfigSources,
+) -> OrthoResult<T>
+where
+    T: OrthoConfig
+        + Serialize
+        + serde::de::DeserializeOwned
+        + Default
+        + CommandFactory
+        + CliValueExtractor,
+{
+    load_and_merge_subcommand_for_with_matches_with_sources_at(
+        &SubcommandCliMatches::new(config, matches),
+        sources.files(),
+        Arc::clone(&sources.environment),
+    )
 }
 
 /// Reject a file or environment combination that the CLI alone cannot express.
