@@ -3004,9 +3004,10 @@ tool with four booleans.
 #### Cargo external-subcommand entry shape
 
 Cargo runs `cargo bdd steps` by executing `cargo-bdd` with the subcommand name
-injected, so the process sees `cargo-bdd bdd steps`. Today that is rejected with
-`error: unrecognized subcommand 'bdd'`, exit 2, nothing on stdout and the
-message on stderr.
+injected, so the process sees `cargo-bdd bdd steps`. Before this change, that
+invocation is rejected with `error: unrecognized subcommand 'bdd'`, exit 2,
+nothing on stdout and the message on stderr, which is why the flat
+`cargo-bdd steps` contract could not be reached through `cargo bdd` at all.
 
 Two parser shapes are needed, not one. The flat form `cargo-bdd steps` is the
 existing contract: `crates/cargo-bdd/tests/cli.rs` exercises successful listing
