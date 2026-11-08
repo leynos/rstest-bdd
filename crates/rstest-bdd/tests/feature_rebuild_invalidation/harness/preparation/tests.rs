@@ -11,7 +11,7 @@ use std::ffi::OsString;
 
 use rstest_bdd_harness::nested_cargo;
 
-use super::{REBUILD_FAMILY, fixture_preparation};
+use super::{REBUILD_FAMILY, fixture_preparation, workspace_inputs};
 use crate::harness::{fixtures, process};
 
 /// A child environment whose artefacts go to `target_directory`.
@@ -82,6 +82,42 @@ fn without_an_inherited_target_the_workspace_target_is_used() {
     assert_eq!(
         process::child_target_directory(&env),
         fixtures::shared_target_dir()
+    );
+}
+
+#[test]
+fn a_configuration_only_change_invalidates_the_preparation() {
+    // Cargo discovers configuration by walking up from the nested build's
+    // working directory, so the committed workspace `.cargo/config.toml`
+    // applies to both fixtures here. It sets the development-profile options
+    // and the Linux linker flags: editing either rebuilds dependency artefacts
+    // without touching a fixture source, so a stamp that ignored it would
+    // survive the edit and the timed assertion would compile the graph.
+    let workspace = super::workspace_root();
+    let workspace_config = workspace.join(".cargo/config.toml");
+    assert!(
+        workspace_config.is_file(),
+        "this regression is about the configuration this repository actually commits; {} is \
+         missing",
+        workspace_config.display()
+    );
+
+    let roots = workspace_inputs();
+    assert!(
+        roots.contains(&workspace_config),
+        "the configuration must be among the family's own inputs: {roots:?}"
+    );
+
+    let with = nested_cargo::input_hash(&roots).expect("hash with the configuration");
+    let without: Vec<std::path::PathBuf> = roots
+        .iter()
+        .filter(|root| *root != &workspace_config)
+        .cloned()
+        .collect();
+    let without = nested_cargo::input_hash(&without).expect("hash without the configuration");
+    assert_ne!(
+        with, without,
+        "a configuration-only change must invalidate the prepared artefacts"
     );
 }
 

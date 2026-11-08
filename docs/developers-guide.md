@@ -885,7 +885,8 @@ the environment, so preparation and the timed case describe the same tree.
 `TrybuildTree::new(crate_root, target_subdir, family, variant)` describes one
 crate's trybuild tree for the shared preparation policy in
 `rstest_bdd_harness::nested_cargo`. `prepare_now` runs a caller-supplied
-closure and stamps the shared directory; `ensure_prepared` fails fast under
+closure only when the stamp and the artefacts it vouches for do not already
+match, then stamps the shared directory; `ensure_prepared` fails fast under
 nextest when the stamp is missing or stale and prepares lazily behind a
 process-wide lock under plain `cargo test`. `generated_crate_root` returns the
 per-crate scratch directory the caller stages support files into.
@@ -895,6 +896,13 @@ feature selection the test binary was built with: `trybuild` propagates that
 selection to the generated crate, so a different set of features is a different
 dependency graph. Both feed the stamp's fingerprint, which also covers the
 build-relevant environment, the toolchain identity and the workspace inputs.
+
+The toolchain identity is resolved by running `cargo -vV` once per process and
+keeping its `release:`, `commit-hash:` and `host:` lines. A toolchain that
+cannot be identified is a preparation error rather than an `"unknown"`
+fingerprint field: that placeholder is identical on every host where
+identification fails, so a stamp written under it would survive a toolchain
+change, which is exactly the invalidation the field exists to force.
 
 The inputs hashed are the workspace manifest and lockfile, the `crates/` tree,
 `vendor/`, and the workspace's Cargo configuration. Hashing `crates/` walks
@@ -941,9 +949,9 @@ the dependency graph lands in `<target>/debug`, so a `cargo clean`, a plain
 work while leaving the stamp intact.
 
 `Preparation::artefacts` records the directories a stamp vouches for, and
-`ensure_prepared` requires every one of them to hold a usable build before it
-admits a timed assertion. `Preparation::new` derives the list as
-`<resolved target>/debug` (`DEFAULT_PROFILE`). The trybuild and UI-lint
+`ensure_prepared` requires every one of them to hold the artefacts the stamp
+records before it admits a timed assertion. `Preparation::new` derives the list
+as `<resolved target>/debug` (`DEFAULT_PROFILE`). The trybuild and UI-lint
 families stamp the directory that *is* their child's `CARGO_TARGET_DIR`, so
 there the profile is a descendant of the stamp root rather than a sibling —
 either way, the gate names it.
@@ -960,35 +968,47 @@ which is the behaviour
 shared policy and in the rebuild harness, alongside
 `an_empty_profile_directory_is_not_a_prepared_family`.
 
-A non-empty `deps` is still not evidence that the work survived. Rustc writes a
-`.d` dep-info record beside every unit it compiles, and the gate pairs each
-record with its output, reporting the stems whose output has gone.
+A non-empty `deps` is still not evidence that the work survived, and neither is
+a rule about the form of its file names. The gate therefore records what the
+preparation actually produced. After the preparation command succeeds, the
+module lists the outputs described by the dep-info records in `deps` and writes
+those names into the stamp; the gate then requires every one of them to still
+be present, and reports the ones that have gone.
 
-The pairing is a rule about rustc's naming, not a list of file extensions.
-`is_output_of` matches `lib<stem>.<extension>` for a library and `<stem>` or
-`<stem>.<extension>` for a linked binary, so every target's forms pair without
-the gate naming them. Two earlier versions enumerated extensions instead, and
-each refused a genuine tree in CI: the first accepted only `rlib` and rejected
-metadata-only units (the commonest form in this workspace's own
-`target/debug/deps` — 1,061 `rmeta` against 739 `rlib`), and the second listed
-`so` and `dylib` and rejected Windows proc-macro units, which are `.dll`.
-Extensions differ per target and per crate type, so any list is a guess about a
-toolchain this code does not control. Measured after the change: 1,752 dep-info
-records in that directory, none orphaned.
-`observed_output_forms_pair_with_their_record` records every form CI has
-produced, `a_longer_stem_is_not_an_output` pins the separator rule that keeps
-`unit_extra.rlib` from pairing with `unit.d`, and
-`a_metadata_only_unit_is_paired_with_its_dep_info_record` pins both halves of
-the accept-while-present, refuse-once-removed contract.
+The record exists because no naming rule can decide the question. Removing only
+`lib<stem>.rlib` while `lib<stem>.rmeta` survives makes Cargo recompile that
+unit — measured against a real crate — and the tree that leaves behind is the
+same shape a `cargo check` leaves for a genuine metadata-only unit, which Cargo
+does reuse. Two states with identical file names, one reusable and one not, so
+any predicate over names is either wrong or a guess about a toolchain this code
+does not control. Earlier versions tried both shapes and each refused a genuine
+tree in CI: the first accepted only `rlib` and rejected metadata-only units
+(the commonest form in this workspace's own `target/debug/deps` — 1,061 `rmeta`
+against 739 `rlib`), and the second listed `so` and `dylib` and rejected
+Windows proc-macro units, which are `.dll`.
 
-Removing one output leaves every directory the gate names in place while Cargo
-recompiles that unit, which is the partial eviction
-`a_dep_info_record_without_its_output_invalidates_the_preparation` pins.
-`cargo clean -p` removes the record and its output together, so the rebuild
-harness's intentional per-package clean does not trip it. The failure message
-names at most five stems before summarizing the rest: one `cargo clean` can
-orphan hundreds of records at once, and the first run of this check against
-this workspace printed 108 KB of names in a single line.
+`is_output_of` survives only to *discover* which entries belong to which
+record, never to decide that a tree is usable: it matches
+`lib<stem>.<extension>` for a library and `<stem>` or `<stem>.<extension>` for
+a linked binary, and refuses to let a record witness itself.
+`pairing_is_by_stem_with_a_separator` pins the rule,
+`a_metadata_only_unit_is_accepted` pins that a crate type emitting only
+metadata is not refused, and
+`a_recorded_output_that_was_removed_is_an_eviction` pins the state no naming
+rule can decide — an `.rlib` gone while its `.rmeta` stayed, recorded as gone
+rather than accepted because a sibling output happens to pair.
+
+The stamp records the names because the profile need not be inside the stamp
+root, so it is one file rather than two: a single rename publishes the
+fingerprint and the names it vouches for together, and no reader can see a new
+fingerprint beside a stale name list. The record is taken from what the command
+left, not from what it was expected to leave.
+
+`cargo clean -p` removes a unit's record and its output together, so the
+rebuild harness's intentional per-package clean does not trip the pairing. The
+failure message names at most five artefacts before summarizing the rest: one
+`cargo clean` can take hundreds at once, and an earlier version of this check
+printed 108 KB of names in a single line.
 
 `prepare_now` and the lazy path both re-check after the preparation command and
 before writing the stamp. A command that exits zero while leaving no usable

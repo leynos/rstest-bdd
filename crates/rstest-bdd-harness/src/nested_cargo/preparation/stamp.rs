@@ -8,6 +8,15 @@
 //! preparation again. Because the stamp lives inside the directory it
 //! describes, evicting that directory also evicts the stamp.
 //!
+//! A fingerprint answers "the inputs have not changed". It cannot answer "the
+//! compiled units are still there": the profile directory holding them need
+//! not be inside the family's stamp root. So the stamp also records the
+//! artefact names the preparation left behind, and the gate requires every one
+//! of them to still exist. Recording what was actually produced is the only
+//! exact answer available: no rule about rustc's file naming can tell a
+//! metadata-only unit, which Cargo reuses, from a linked unit whose `.rlib`
+//! was removed, which Cargo rebuilds.
+//!
 //! The stamp is written last, after every preparation command succeeded, and
 //! replaced atomically through a temporary sibling, so a killed preparation
 //! never looks complete.
@@ -19,17 +28,23 @@ use std::{
     io,
     path::{Path, PathBuf},
     process::Command,
-    sync::OnceLock,
 };
 
 use super::Preparation;
 
 /// Fingerprint format version; bump to invalidate every existing stamp.
-pub(super) const STAMP_VERSION: &str = "1";
+pub(super) const STAMP_VERSION: &str = "2";
 
 /// Suffix of the hidden stamp file written inside a prepared artefact
 /// directory.
 pub(super) const PREPARED_FILE_SUFFIX: &str = ".rstest-bdd-prepared";
+
+/// Line separating the fingerprint from the recorded artefact names.
+///
+/// One file rather than two keeps the stamp atomic: a single rename publishes
+/// the fingerprint and the names it vouches for together, so a reader can
+/// never see a new fingerprint beside a stale name list.
+const OUTPUTS_SEPARATOR: &str = "@@ recorded-artefacts";
 
 /// Environment variables that change what a nested preparation builds.
 ///
@@ -53,6 +68,17 @@ const FINGERPRINT_PREFIXES: [&str; 5] = [
     "CARGO_TARGET_",
 ];
 
+/// What a matching stamp vouches for.
+///
+/// Only the recorded names are kept: a `Stamp` exists at all because its
+/// fingerprint already matched, so re-storing the text would let a caller
+/// compare it again and reach a different answer.
+pub(super) struct Stamp {
+    /// Artefact names recorded per artefact directory, in
+    /// [`Preparation::artefacts`] order.
+    pub(super) recorded: Vec<Vec<String>>,
+}
+
 /// The stamp file protecting `preparation.directory`.
 pub(super) fn stamp_path(preparation: &Preparation) -> PathBuf {
     preparation
@@ -60,23 +86,79 @@ pub(super) fn stamp_path(preparation: &Preparation) -> PathBuf {
         .join(format!(".{}{}", preparation.family, PREPARED_FILE_SUFFIX))
 }
 
-/// Whether the stamp exists and records exactly `fingerprint`.
-pub(super) fn stamp_matches(stamp: &Path, fingerprint: &str) -> bool {
-    match fs::read_to_string(stamp) {
-        Ok(recorded) => recorded.trim_end() == fingerprint.trim_end(),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+/// The stamp at `stamp`, if it was written for exactly `fingerprint`.
+///
+/// Returns `None` for a missing stamp, a stamp that cannot be read, and one
+/// whose fingerprint differs. Each of those is "not prepared", which is the
+/// safe answer: the caller prepares again or fails fast rather than admitting
+/// a timed assertion against a tree the stamp does not describe.
+pub(super) fn matching_stamp(stamp: &Path, fingerprint: &str) -> Option<Stamp> {
+    let text = match fs::read_to_string(stamp) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
         Err(error) => {
             note(&format!(
                 "could not read stamp {}: {error}; preparing again",
                 stamp.display()
             ));
-            false
+            return None;
+        }
+    };
+    parse(&text, fingerprint)
+}
+
+/// Split a stamp file into its fingerprint and recorded names.
+///
+/// A file with no separator line is a version-1 stamp. Its fingerprint also
+/// differs, because [`STAMP_VERSION`] changed, so returning `None` here is a
+/// second, independent guard rather than the only one.
+fn parse(text: &str, fingerprint: &str) -> Option<Stamp> {
+    let (head, tail) = text.split_once(OUTPUTS_SEPARATOR)?;
+    if head.trim_end() != fingerprint.trim_end() {
+        return None;
+    }
+    Some(Stamp {
+        recorded: recorded_sections(tail),
+    })
+}
+
+/// Read the artefact sections that follow the separator.
+///
+/// One `dir` line opens a section and each `out` line names an entry in it.
+/// Sections arrive in [`Preparation::artefacts`] order, which is why no path
+/// is stored: the position is the identity, and a stamp whose section count
+/// disagrees with the current description is refused by the caller.
+fn recorded_sections(tail: &str) -> Vec<Vec<String>> {
+    let mut sections: Vec<Vec<String>> = Vec::new();
+    for line in tail.lines() {
+        if line == "dir" {
+            sections.push(Vec::new());
+        } else if let Some(name) = line.strip_prefix("out\t")
+            && let Some(section) = sections.last_mut()
+        {
+            section.push(name.to_owned());
         }
     }
+    sections
+}
+
+/// Render a stamp file from its fingerprint and recorded artefact names.
+pub(super) fn render(fingerprint: &str, recorded: &[Vec<String>]) -> String {
+    let mut text = String::from(fingerprint.trim_end());
+    text.push('\n');
+    text.push_str(OUTPUTS_SEPARATOR);
+    text.push('\n');
+    for section in recorded {
+        text.push_str("dir\n");
+        for name in section {
+            let _ = writeln!(text, "out\t{name}");
+        }
+    }
+    text
 }
 
 /// Write the stamp atomically, so a killed preparation never looks complete.
-pub(super) fn write_stamp(stamp: &Path, fingerprint: &str) -> io::Result<()> {
+pub(super) fn write_stamp(stamp: &Path, contents: &str) -> io::Result<()> {
     let Some(parent) = stamp.parent() else {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -89,15 +171,24 @@ pub(super) fn write_stamp(stamp: &Path, fingerprint: &str) -> io::Result<()> {
         |name| name.to_string_lossy().into_owned(),
     );
     let temporary = parent.join(format!(".{stamp_name}.{}.tmp", std::process::id()));
-    fs::write(&temporary, fingerprint)?;
+    fs::write(&temporary, contents)?;
     fs::rename(&temporary, stamp)
 }
 
 /// The fingerprint text recorded in the stamp.
-pub(super) fn fingerprint(preparation: &Preparation) -> String {
+///
+/// # Errors
+///
+/// Returns an error when the toolchain cannot be identified. A fingerprint
+/// that could not name the toolchain would be the *same* text on a host where
+/// identification fails as on the run before, so a stamp would survive a
+/// toolchain change — exactly the invalidation the field exists to force.
+/// Reporting the failure is the only answer that fails closed without
+/// re-preparing on every single run.
+pub(super) fn fingerprint(preparation: &Preparation) -> io::Result<String> {
     let mut text = String::new();
     let _ = writeln!(text, "version: {STAMP_VERSION}");
-    let _ = writeln!(text, "toolchain: {}", toolchain_identity());
+    let _ = writeln!(text, "toolchain: {}", toolchain_identity()?);
     for (key, value) in preparation.environment.iter() {
         let key_text = key.to_string_lossy();
         if is_fingerprint_variable(&key_text) {
@@ -106,7 +197,7 @@ pub(super) fn fingerprint(preparation: &Preparation) -> String {
     }
     let _ = writeln!(text, "variant: {}", preparation.variant);
     let _ = writeln!(text, "inputs: {}", preparation.inputs);
-    text
+    Ok(text)
 }
 
 /// Whether `key` influences the compiled artefacts.
@@ -118,12 +209,23 @@ fn is_fingerprint_variable(key: &str) -> bool {
 }
 
 /// The fail-fast message for a timed test with no prepared artefacts.
-pub(super) fn missing_stamp_message(preparation: &Preparation, stamp: &Path) -> String {
+///
+/// # Errors
+///
+/// Returns the read error when an artefact directory cannot be inspected, so
+/// the caller reports the real cause rather than a message assembled from a
+/// partial inspection.
+pub(super) fn missing_stamp_message(
+    preparation: &Preparation,
+    stamp: &Path,
+    recorded: Option<&Stamp>,
+) -> io::Result<String> {
     let mut reason = format!("{} is missing or stale", stamp.display());
     // The same predicate the gate uses, so the message names exactly the
-    // directories whose absence refused it — including a profile that still
-    // exists but has lost `deps` or `.fingerprint`.
-    let evicted: Vec<String> = super::artefacts::evicted(preparation)
+    // directories and artefacts whose absence refused it — including a profile
+    // that still exists but has lost `deps`, `.fingerprint` or a recorded unit.
+    let evictions = super::artefacts::evicted(preparation, recorded)?;
+    let evicted: Vec<String> = evictions
         .iter()
         .map(super::artefacts::Eviction::describe)
         .collect();
@@ -134,16 +236,16 @@ pub(super) fn missing_stamp_message(preparation: &Preparation, stamp: &Path) -> 
             evicted.join(", ")
         );
     }
-    format!(
+    Ok(format!(
         "nested fixture artefacts for family `{}` are not prepared ({reason}).\nUnder nextest \
          every test runs in its own process, so preparing here would make a timed test pay for \
          the cold build it is meant to avoid.\nPrepare them first with `make \
          prepare-nested-fixtures` (or `cargo nextest run -E \
-         'test(/nested_fixture_preparation$/)'`), under the same `RUSTFLAGS` and feature \
-         selection as the run that reads this stamp: the fingerprint covers both, so preparing \
-         under a different environment only warms a tree this run will not reuse.",
+         'test(/nested_fixture_preparation$/)`), under the same `RUSTFLAGS` and feature selection \
+         as the run that reads this stamp: the fingerprint covers both, so preparing under a \
+         different environment only warms a tree this run will not reuse.",
         preparation.family
-    )
+    ))
 }
 
 /// Identify the toolchain that produced the prepared artefacts.
@@ -151,33 +253,37 @@ pub(super) fn missing_stamp_message(preparation: &Preparation, stamp: &Path) -> 
 /// `cargo -vV` reports the release, commit and host of the Cargo in use, which
 /// changes whenever the toolchain does. Resolved from the `CARGO`
 /// compile-time variable, never a `PATH` lookup.
-fn toolchain_identity() -> &'static str {
-    static IDENTITY: OnceLock<String> = OnceLock::new();
-    IDENTITY.get_or_init(|| {
-        let output = Command::new(env!("CARGO")).arg("-vV").output();
-        let Ok(output) = output else {
-            note("could not run `cargo -vV`; toolchain unknown");
-            return "unknown".to_owned();
-        };
-        if !output.status.success() {
-            note("`cargo -vV` failed; toolchain unknown");
-            return "unknown".to_owned();
-        }
-        let text = String::from_utf8_lossy(&output.stdout);
-        let kept: Vec<&str> = text
-            .lines()
-            .filter(|line| {
-                line.starts_with("release:")
-                    || line.starts_with("commit-hash:")
-                    || line.starts_with("host:")
-            })
-            .collect();
-        if kept.is_empty() {
-            "unknown".to_owned()
-        } else {
-            kept.join(" ")
-        }
-    })
+///
+/// # Errors
+///
+/// Returns an error when `cargo -vV` cannot be run, exits non-zero, or prints
+/// none of the three fields. See [`fingerprint`] for why this is an error
+/// rather than an `"unknown"` placeholder.
+fn toolchain_identity() -> io::Result<String> {
+    let output = Command::new(env!("CARGO")).arg("-vV").output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(format!(
+            "`cargo -vV` failed with {}; the toolchain cannot be identified, so no preparation \
+             stamp can be trusted against it",
+            output.status
+        )));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let kept: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            line.starts_with("release:")
+                || line.starts_with("commit-hash:")
+                || line.starts_with("host:")
+        })
+        .collect();
+    if kept.is_empty() {
+        return Err(io::Error::other(
+            "`cargo -vV` printed no release, commit-hash or host line; the toolchain cannot be \
+             identified, so no preparation stamp can be trusted against it",
+        ));
+    }
+    Ok(kept.join(" "))
 }
 
 /// Report preparation progress on standard error.
@@ -188,4 +294,82 @@ fn toolchain_identity() -> &'static str {
 pub(super) fn note(message: &str) {
     use std::io::Write as _;
     let _ = writeln!(io::stderr(), "nested preparation: {message}");
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for the stamp's two-section encoding.
+
+    use std::path::PathBuf;
+
+    use super::{Stamp, matching_stamp, parse, render, write_stamp};
+
+    /// A render/parse round trip preserves the fingerprint and every section.
+    #[test]
+    fn a_rendered_stamp_parses_back_to_what_was_written() {
+        let fingerprint = "version: 2\ntoolchain: release: 1.88.0\n";
+        let recorded = vec![
+            vec!["liba.rlib".to_owned(), "a.d".to_owned()],
+            Vec::new(),
+            vec!["probe".to_owned()],
+        ];
+
+        let text = render(fingerprint, &recorded);
+        let stamp = parse(&text, fingerprint).expect("a stamp just rendered must parse");
+
+        assert_eq!(
+            stamp.recorded, recorded,
+            "each section must keep its own names, including an empty one: the section index is \
+             how a name is matched to the directory it belongs to"
+        );
+    }
+
+    /// A different fingerprint does not match, even with the same names.
+    #[test]
+    fn a_changed_fingerprint_is_not_a_match() {
+        let text = render("inputs: old\n", &[vec!["liba.rlib".to_owned()]]);
+        assert!(
+            parse(&text, "inputs: new\n").is_none(),
+            "a stamp must only describe the inputs it was written from"
+        );
+    }
+
+    /// A version-1 stamp, which has no separator, is not a match.
+    #[test]
+    fn a_stamp_without_recorded_names_is_not_a_match() {
+        let text = "version: 1\ntoolchain: release: 1.88.0\n";
+        assert!(
+            parse(text, text).is_none(),
+            "a stamp that records no artefacts cannot answer whether they survive"
+        );
+    }
+
+    /// The on-disk round trip, including the `None` for a missing file.
+    #[test]
+    fn a_written_stamp_is_found_and_a_missing_one_is_not() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let stamp = directory.path().join(".unit.rstest-bdd-prepared");
+        assert!(
+            matching_stamp(&stamp, "version: 2\n").is_none(),
+            "an absent stamp is not a match"
+        );
+
+        let fingerprint = "version: 2\ntoolchain: release: 1.88.0\n";
+        write_stamp(
+            &stamp,
+            &render(fingerprint, &[vec!["liba.rlib".to_owned()]]),
+        )
+        .expect("write the stamp");
+
+        let found: Stamp = matching_stamp(&stamp, fingerprint).expect("the stamp must match");
+        assert_eq!(found.recorded, vec![vec!["liba.rlib".to_owned()]]);
+        assert!(
+            matching_stamp(&stamp, "version: 2\ntoolchain: release: 1.89.0\n").is_none(),
+            "a stamp from another toolchain must not match"
+        );
+        assert!(
+            !PathBuf::from(".unit.rstest-bdd-prepared").exists(),
+            "the stamp must live where it was asked to"
+        );
+    }
 }

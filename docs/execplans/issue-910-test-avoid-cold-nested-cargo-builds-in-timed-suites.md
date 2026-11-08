@@ -776,6 +776,72 @@ rather than by reading this branch's comments.
       and `emptying_a_dependency_directory_invalidates_the_preparation`, and
       `cs review` on the strategy file reads 10.00 with no findings.
 
+- [x] Close the two stamp-validity gaps the merge directive named, and correct
+      the seventh gap's remedy rather than patching it. Both requirements were
+      kept: the overall design stands, no assertion deadline was widened, and
+      the trybuild exception remains documented as relying on the runner's
+      preparation-test period rather than the harness's per-command bound.
+      1. **The stamp now records artefact *names* instead of deciding by
+         naming rule.** The review that raised this was right, and the proof is
+         not a reading of the code: measured against a real crate, removing
+         only `lib<stem>.rlib` while its `.rmeta` and `.d` stayed made
+         `cargo build` print `Compiling <crate>` — a genuine cold rebuild the
+         naming gate accepted. Re-measuring the same `deps` directory also
+         showed why no repair to the rule can work: the stripped tree
+         (`<stem>.d` plus `lib<stem>.rmeta`) is structurally identical to a
+         `cargo check` unit, which Cargo *does* reuse, so any predicate over
+         names is either wrong or a guess. `prepare_locked` therefore lists the
+         outputs the dep-info records in `deps` describe, writes them into the
+         stamp after the command succeeds, and the gate requires every one of
+         them to still be present. `is_output_of` survives only to discover
+         which entries belong to which record; it never decides whether a tree
+         is usable. `STAMP_VERSION` moved to `2`, because a version-1 stamp
+         records no names and cannot answer the question. The stamp stays one
+         file with one rename, so a reader never sees a new fingerprint beside
+         a stale name list.
+      2. **`toolchain_identity` is fallible.** A fingerprint that could not
+         identify the toolchain used to record `"unknown"`, which is the same
+         text on a host where identification fails as on the run before, so a
+         stamp would survive an actual toolchain change. `fingerprint` now
+         returns `io::Result` and the failure is reported instead. The
+         `OnceLock` went with it: one `cargo -vV` per gate call is cheap
+         against a build.
+      3. **The fail-open paths in the artefact queries are closed.**
+         `has_entries` mapped `read_dir` failure to "empty", which is the
+         unsafe direction — an unreadable profile would have passed. It now
+         returns `io::Result<bool>` and maps only `NotFound` to `Ok(false)`,
+         because an absent directory is the ordinary eviction worth naming
+         while an I/O fault is not. `entries_of` propagates.
+      4. **Regression coverage, both of the gaps the directive named.** In the
+         shared policy, `a_recorded_output_that_was_removed_is_an_eviction`
+         removes a linked unit's `.rlib` while its record and a genuine
+         metadata-only sibling survive, and requires the gate to name exactly
+         the artefact that went; `a_metadata_only_unit_is_accepted` pins the
+         opposite direction. In the rebuild harness,
+         `evicting_the_artefacts_invalidates_the_preparation` removes the
+         resolved artefact directory while preserving the scratch fixture, and
+         `a_configuration_only_change_invalidates_the_preparation` (added in
+         this round) hashes the family's own `workspace_inputs` with and
+         without the committed `.cargo/config.toml` and requires the two to
+         differ. The shared-policy and CLI/trybuild/macrotest configuration
+         cases cover the same rule at their own boundaries.
+      5. **Two property-test helpers were wrong, and the deeper generator
+         exposed them.** `excluded_path` only ever produced a root-level
+         excluded name, which left the recursive half of `hash_sorted`'s rule
+         untested; adding a prefix of up to two ordinary segments broke two
+         cases and revealed both bugs: `is_excluded` judged only the first
+         segment, so `a/target` counted as an input, and writing `p/target`
+         under a tree with no `p` creates `p`, which is itself a new input
+         name. Fixed by checking every segment, filtering generated inputs, and
+         requiring the parents of an added excluded path to exist.
+      6. **The length gate, again.** `artefacts.rs` reached 524 lines with the
+         new unit tests, over the 400-line limit the lint gate enforces, so the
+         tests moved to `artefacts/tests.rs` beside the module. This is the
+         same split `stamping`/`eviction` already used, and the reason the
+         limit is worth honouring rather than working around: the implementation
+         file now reads as the rule and its two layers, with no fixture code
+         interleaved.
+
 ## Surprises & Discoveries
 
 - **A required check and a quality signal are different things.** CodeScene

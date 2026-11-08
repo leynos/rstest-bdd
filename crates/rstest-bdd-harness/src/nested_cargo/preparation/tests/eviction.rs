@@ -190,8 +190,8 @@ fn a_dep_info_record_without_its_output_invalidates_the_preparation() {
         "the message must name the eviction: {message}"
     );
     assert!(
-        message.contains("missing outputs for unit"),
-        "the message must name the unit whose output went: {message}"
+        message.contains("missing libunit.rlib"),
+        "the message must name the artefact that went: {message}"
     );
     assert!(
         directory.path().exists(),
@@ -231,8 +231,8 @@ fn a_metadata_only_unit_is_paired_with_its_dep_info_record() {
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
     let message = error.to_string();
     assert!(
-        message.contains("missing outputs for checked"),
-        "the message must name the metadata-only unit: {message}"
+        message.contains("missing libchecked.rmeta"),
+        "the message must name the metadata-only artefact that went: {message}"
     );
 }
 

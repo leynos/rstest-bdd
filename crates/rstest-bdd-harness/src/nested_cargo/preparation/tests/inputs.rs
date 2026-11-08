@@ -18,7 +18,8 @@ fn fingerprint_excludes_runner_and_coverage_variables() {
         &environment,
         "all-features",
         "abc",
-    ));
+    ))
+    .expect("the fingerprint must name the toolchain");
     // The fingerprint records whatever the child receives, and the environment
     // resolves `CARGO_TARGET_DIR` once before that. Asserting on the resolved
     // value rather than on the literal above keeps the check honest on every
@@ -53,19 +54,22 @@ fn fingerprint_changes_with_variant_and_inputs() {
         &environment,
         "all-features",
         "abc",
-    ));
+    ))
+    .expect("fingerprint");
     let other = fingerprint(&preparation(
         Path::new("/tmp/target"),
         &environment,
         "no-default-features",
         "abc",
-    ));
+    ))
+    .expect("fingerprint");
     let third = fingerprint(&preparation(
         Path::new("/tmp/target"),
         &environment,
         "all-features",
         "def",
-    ));
+    ))
+    .expect("fingerprint");
     assert_ne!(one, other);
     assert_ne!(one, third);
 }

@@ -39,25 +39,42 @@ type Tree = BTreeMap<String, Vec<u8>>;
 const EXCLUDED: [&str; 3] = ["target", "wip", ".git"];
 
 /// A relative path of one to three segments, none of them excluded.
+///
+/// The segment alphabet can spell `target` and `wip`, so a filter is required
+/// rather than merely tidy: an "input" carrying a build-output name is not an
+/// input at all, and a property that picked it would compare two hashes that
+/// are equal because both were skipped.
 fn input_path() -> impl Strategy<Value = String> {
     let segment = "[a-z][a-z0-9_]{0,6}";
-    proptest::collection::vec(segment, 1..=3).prop_map(|segments| segments.join("/"))
+    proptest::collection::vec(segment, 1..=3)
+        .prop_map(|segments| segments.join("/"))
+        .prop_filter(
+            "an input path must not carry a build-output segment",
+            |path| !is_excluded(path),
+        )
 }
 
-/// A relative path whose first segment is build output.
+/// A relative path containing a build-output segment.
+///
+/// The excluded segment is not always the first: `hash_sorted` skips by entry
+/// name at every level it walks, so `target/` and `crates/a/target/` must be
+/// excluded alike. A generator that only ever produced a root-level name would
+/// leave the recursive half of that rule untested, which is why a prefix of up
+/// to two ordinary segments is generated too.
 fn excluded_path() -> impl Strategy<Value = String> {
     let leaf = "[a-z][a-z0-9_]{0,6}";
-    let (root, tail) = (
+    let (prefix, root, tail) = (
+        proptest::collection::vec(leaf, 0..=2),
         proptest::sample::select(EXCLUDED.as_slice()),
         proptest::collection::vec(leaf, 0..=2),
     );
-    (root, tail).prop_map(|(root, tail)| {
-        let mut path = root.to_owned();
-        for segment in tail {
-            path.push('/');
-            path.push_str(&segment);
-        }
-        path
+    (prefix, root, tail).prop_map(|(prefix, root, tail)| {
+        prefix
+            .into_iter()
+            .chain(std::iter::once(root.to_owned()))
+            .chain(tail)
+            .collect::<Vec<String>>()
+            .join("/")
     })
 }
 
@@ -94,6 +111,27 @@ fn conflicts(left: &str, right: &str) -> bool {
 fn is_prefix(prefix: &str, path: &str) -> bool {
     path.strip_prefix(prefix)
         .is_some_and(|rest| rest.starts_with('/'))
+}
+
+/// Whether every parent directory `path` needs is already implied by `tree`.
+///
+/// Writing `path` creates the directories above it, and each of those is an
+/// ordinary entry name the hash records. A tree that lacked one would gain it
+/// when `path` was written, so the two hashes would differ for a reason
+/// unrelated to whether `path` itself was excluded.
+fn parents_exist(tree: &Tree, path: &str) -> bool {
+    let segments: Vec<&str> = path.split('/').collect();
+    let Some((_, ancestors)) = segments.split_last() else {
+        return true;
+    };
+    let mut parent = String::new();
+    ancestors.iter().all(|segment| {
+        if !parent.is_empty() {
+            parent.push('/');
+        }
+        parent.push_str(segment);
+        tree.keys().any(|kept| is_prefix(&parent, kept))
+    })
 }
 
 /// Create `tree` under `root`, creating each parent directory as needed.
@@ -182,11 +220,16 @@ proptest! {
     /// The excluded subtree is varied independently of the inputs, so a case
     /// that excluded only root-level entries would be caught: the added member
     /// can be nested.
+    ///
+    /// Two preconditions, and both are about not testing the wrong thing.
+    /// The path must not collide with an existing one, or the two trees hold
+    /// different entries. And every parent directory it needs must already
+    /// exist in the tree: creating `p/target` under a tree with no `p` adds
+    /// `p` itself, which is an ordinary input name, so the hashes would differ
+    /// for a reason that has nothing to do with the exclusion.
     #[test]
     fn excluded_entries_do_not_reach_the_hash(tree in tree(), extra in excluded_path()) {
-        // `tree()` keeps its own sets consistent, but `extra` is added here,
-        // so it needs the same check: `wip` cannot be a file beside `wip/a`.
-        if !tree.keys().any(|kept| conflicts(kept, &extra)) {
+        if !tree.keys().any(|kept| conflicts(kept, &extra)) && parents_exist(&tree, &extra) {
             let mut with_extra = tree.clone();
             with_extra.insert(extra, b"build output".to_vec());
             prop_assert_eq!(
@@ -198,12 +241,13 @@ proptest! {
     }
 }
 
-/// Whether a tree path is build output, judged by its first segment.
-fn is_excluded(path: &str) -> bool {
-    path.split('/')
-        .next()
-        .is_some_and(|root| EXCLUDED.contains(&root))
-}
+/// Whether any segment of `path` names build output.
+///
+/// `hash_sorted` skips by entry name at every level it walks, so a nested
+/// `a/target` is excluded exactly as a root-level `target` is. Judging only
+/// the first segment would make every property here agree with a rule the
+/// implementation does not have.
+fn is_excluded(path: &str) -> bool { path.split('/').any(|segment| EXCLUDED.contains(&segment)) }
 
 /// The stamp's own file is not an input, so a family that stamps a root does
 /// not thereby invalidate its own fingerprint.

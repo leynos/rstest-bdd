@@ -51,7 +51,16 @@ use std::{
 };
 
 pub use input_hash::{cargo_config_inputs, input_hash};
-use stamp::{fingerprint, missing_stamp_message, note, stamp_matches, stamp_path, write_stamp};
+use stamp::{
+    Stamp,
+    fingerprint,
+    matching_stamp,
+    missing_stamp_message,
+    note,
+    render,
+    stamp_path,
+    write_stamp,
+};
 
 use super::{NestedCargoEnv, ProfileDestination, env_from_vars};
 
@@ -289,9 +298,10 @@ pub fn ensure_prepared_with<F>(
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    let fingerprint = fingerprint(preparation);
+    let fingerprint = fingerprint(preparation)?;
     let stamp = stamp_path(preparation);
-    if stamp_matches(&stamp, &fingerprint) && artefacts_are_present(preparation) {
+    let matching = matching_stamp(&stamp, &fingerprint);
+    if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
         note(&format!(
             "family={} is prepared ({})",
             preparation.family,
@@ -303,7 +313,7 @@ where
     if under_nextest {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            missing_stamp_message(preparation, &stamp),
+            missing_stamp_message(preparation, &stamp, matching.as_ref())?,
         ));
     }
 
@@ -323,20 +333,9 @@ pub fn prepare_now<F>(preparation: &Preparation, prepare: F) -> io::Result<()>
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    let fingerprint = fingerprint(preparation);
+    let fingerprint = fingerprint(preparation)?;
     prepare_locked(preparation, &stamp_path(preparation), &fingerprint, prepare)
 }
-
-/// Whether every directory the stamp vouches for still holds its artefacts.
-///
-/// A matching stamp answers "the inputs and environment have not changed since
-/// this family was prepared". It cannot answer "the compiled units are still
-/// there"; `artefacts` answers that, and looks two levels deeper than the
-/// profile directory itself — see [`DEPENDENCY_ARTEFACT_DIRS`] for why an
-/// existing profile is not evidence that its dependency graph survived, and
-/// [`artefacts::verify_prepared`]'s predicate for why a non-empty `deps` is
-/// not evidence that each unit it records still has an output.
-fn artefacts_are_present(preparation: &Preparation) -> bool { artefacts::all_present(preparation) }
 
 /// Run `prepare` under the process-wide lock unless the family is already
 /// prepared, then stamp it.
@@ -354,18 +353,25 @@ where
     // waited for the lock. The artefacts are re-checked on the same terms as
     // the gate: a stamp whose tree was evicted while this process waited is
     // not a prepared family.
-    if stamp_matches(stamp, fingerprint) && artefacts_are_present(preparation) {
+    let matching: Option<Stamp> = matching_stamp(stamp, fingerprint);
+    if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
         return Ok(());
     }
 
     let started = Instant::now();
     let summary = prepare()?;
-    // The command can succeed while the artefacts it was meant to leave are
-    // gone again — a concurrent `cargo clean`, an interrupted build. Stamping
-    // that state would advertise a prepared family whose next timed assertion
-    // pays for the rebuild, so the missing paths are reported instead.
-    artefacts::verify_prepared(preparation)?;
-    write_stamp(stamp, fingerprint)?;
+    // Structural check first: a command can exit zero while leaving no profile
+    // at all, and asking for a record before that is known would report a bare
+    // filesystem error instead of the missing-directory diagnosis.
+    artefacts::verify_structural(preparation)?;
+    // Then record what the command left, and hold it to the same record. The
+    // artefacts can be gone again — a concurrent `cargo clean`, an interrupted
+    // build. Stamping that state would advertise a prepared family whose next
+    // timed assertion pays for the rebuild, so the missing names are reported
+    // instead.
+    let recorded = artefacts::record(preparation)?;
+    artefacts::verify_recorded(preparation, &recorded)?;
+    write_stamp(stamp, &render(fingerprint, &recorded))?;
     note(&format!(
         "family={} prepared in {:.1}s ({} Compiling lines); stamp {}",
         preparation.family,

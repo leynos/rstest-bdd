@@ -2694,13 +2694,19 @@ a timed test running in its own process cannot prepare without paying the cost
 it is meant to avoid. Under plain `cargo test` it prepares lazily behind a
 process-wide lock.
 
-The artefact check does not try to prove that the whole tree is warm. It
-requires each vouched-for profile to contain non-empty `deps` and
-`.fingerprint` directories (`DEPENDENCY_ARTEFACT_DIRS`), and every `.d` record
-in `deps` to still have an output. It tracks no individual units beyond that. A
-relative `CARGO_TARGET_DIR` is resolved to an absolute path once, before it
-reaches a child or a stamp, so the stamp continues to describe the directory
-the child actually builds in.
+The artefact check requires each vouched-for profile to contain non-empty
+`deps` and `.fingerprint` directories (`DEPENDENCY_ARTEFACT_DIRS`), and then
+requires every output the preparation recorded to still be present. It proves
+that what the preparation produced is still there, not that the whole tree is
+warm for a different feature set or profile.
+
+A toolchain that cannot be identified is reported as a preparation error rather
+than recorded as an `"unknown"` fingerprint field. An `"unknown"` field would
+be identical on every host where identification fails, so a stamp written under
+it would survive a toolchain change — the one invalidation the field exists to
+force. A relative `CARGO_TARGET_DIR` is resolved to an absolute path once,
+before it reaches a child or a stamp, so the stamp continues to describe the
+directory the child actually builds in.
 
 This API exists for test-support code and is not intended for production paths.
 
