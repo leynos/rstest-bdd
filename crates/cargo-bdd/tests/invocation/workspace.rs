@@ -12,6 +12,19 @@ use cap_std::{ambient_authority, fs::Dir};
 use rstest::fixture;
 use tempfile::TempDir;
 
+/// One child invocation: its arguments and any extra environment variables.
+///
+/// Grouping the two keeps call sites from drifting into a long list of bare
+/// string parameters, and lets a case describe a whole configuration source in
+/// one value.
+#[derive(Clone, Copy)]
+pub(super) struct Invocation<'a> {
+    /// Arguments passed after the program name.
+    pub(super) arguments: &'a [&'a str],
+    /// Environment variables set in addition to the isolated defaults.
+    pub(super) variables: &'a [(&'a str, &'a str)],
+}
+
 /// A temporary directory tree and binary copy for one child-process test.
 pub(super) struct IsolatedWorkspace {
     /// Owns the temporary directory for as long as the workspace lives.
@@ -134,15 +147,16 @@ impl IsolatedWorkspace {
         command.output()
     }
 
-    /// Run the binary with one extra environment variable set.
-    pub(super) fn direct_with_env(
+    /// Run the binary with the invocation's arguments and environment.
+    pub(super) fn direct_with_environment(
         &self,
-        args: &[&str],
-        key: &str,
-        value: &str,
+        invocation: Invocation<'_>,
     ) -> io::Result<std::process::Output> {
         let mut command = self.command(env!("CARGO_BIN_EXE_cargo-bdd"))?;
-        command.args(args).env(key, value);
+        command.args(invocation.arguments);
+        for (key, value) in invocation.variables {
+            command.env(key, value);
+        }
         command.output()
     }
 
