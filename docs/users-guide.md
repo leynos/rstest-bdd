@@ -2580,6 +2580,130 @@ its manifest — as the GPUI adapter does — an in-module `#[cfg(test)]` block 
 never compiled, so the check would silently never run. Put the call in an
 integration test under `tests/` in that case.
 
+### Preparing nested Cargo builds
+
+The `nested_cargo` module of `rstest-bdd-harness` supports tests that spawn a
+nested `cargo` from inside a test run. It addresses two failure modes:
+
+- **Environment isolation.** A coverage run exports `CARGO_MAKEFLAGS`, which
+  names a jobserver the child cannot open, and `cargo-llvm-cov` control
+  variables that redirect the child's build and profile output into the
+  coverage driver. Either can hang a child while appearing to be a normal
+  compile, so the helpers start every child from a filtered environment and
+  resolve `cargo` through the `CARGO` compile-time variable rather than a
+  `PATH` lookup.
+- **Cold builds inside timed assertions.** A nested build that pays for a cold
+  dependency compile can exhaust the test's own deadline even when the
+  assertion is sound. The preparation helpers build those artefacts up front
+  and gate the timed test on a stamp.
+
+The module is available from every build of `rstest-bdd-harness`; it is not
+feature-gated.
+
+Construct the child environment with `build_child_env`, which captures the
+current environment, removes the outer build and coverage variables, and
+resolves the child's target directory to an absolute path, using the fallback
+you supply when the parent names none. `env_from_vars` builds the same
+environment from an explicit variable snapshot, which is intended for tests
+that check the filtering rules without mutating the process environment. Then
+run the command through `run_bounded`, which applies a 300 s default bound, or
+`run_bounded_with_timeout` to size the bound yourself:
+
+```rust,no_run
+use std::path::Path;
+
+use rstest_bdd_harness::nested_cargo::{
+    ProfileDestination, build_child_env, cargo_command, run_bounded,
+};
+
+let env = build_child_env(
+    Path::new("target"),
+    ProfileDestination::ChildScratch,
+);
+let mut cmd = cargo_command(&env, Path::new("fixtures"));
+cmd.args(["check", "--locked"]);
+
+let output = run_bounded(&mut cmd).expect("nested cargo check");
+assert!(output.status.success());
+```
+
+Both output pipes are drained concurrently, so a chatty build cannot fill a
+pipe buffer and deadlock. On timeout the child is killed, both pipes are
+drained with a bounded grace period so the call returns even when a grandchild
+inherited the pipe write ends, and the returned `io::ErrorKind::TimedOut` error
+carries the output captured so far. Pass `ProfileDestination::ChildScratch` for
+a nested build, whose incidental coverage must not merge into the caller's
+gated profile, and `ProfileDestination::Caller` for the process under test,
+whose coverage is the measurement. `filtered_command` applies the same
+environment to a program other than `cargo`, such as a binary under test that
+itself spawns nested builds.
+
+Preparation moves a cold fixture build out of the timed test body. Name the
+family, a variant label and a caller-supplied hash of the fixture inputs with
+`Sources`, then describe the preparation with `Preparation::new`, which derives
+the artefact directories from the environment's target directory.
+`Preparation::for_fixture` describes a family whose nested builds all run
+against the stamped directory. Build the artefacts in a named preparation test
+with `prepare_now`, and gate the timed test on `ensure_prepared`:
+
+```rust,no_run
+use std::{io, path::PathBuf};
+
+use rstest_bdd_harness::nested_cargo::{
+    NestedCargoEnv, Preparation, PreparationSummary, Sources, ensure_prepared,
+    prepare_now,
+};
+
+fn fixture(env: NestedCargoEnv, inputs: String) -> Preparation {
+    Preparation::new(
+        Sources::new("my-fixture", "all-features", inputs),
+        PathBuf::from("target/tests/my-fixture"),
+        env,
+    )
+}
+
+fn prepare(preparation: &Preparation) -> io::Result<()> {
+    prepare_now(preparation, || {
+        // Run the cold nested build; report what it compiled.
+        Ok(PreparationSummary::default())
+    })
+}
+
+fn timed_test(preparation: &Preparation) -> io::Result<()> {
+    ensure_prepared(preparation, || {
+        // Reached only under plain `cargo test` with no stamp.
+        Ok(PreparationSummary::default())
+    })
+}
+```
+
+A preparation writes a stamp inside `Preparation::directory`, recording a
+fingerprint of the build-relevant environment, the toolchain identity, the
+variant label and the caller's input hash. `input_hash` and
+`cargo_config_inputs` derive that hash from fixture sources and the workspace
+Cargo configuration. A later run trusts the stamp only when the fingerprint
+matches and every directory in `Preparation::artefacts` still holds its
+outputs. Each preparation command is bounded by `PREPARATION_COMMAND_TIMEOUT`,
+which is deliberately separate from every assertion deadline.
+
+`prepare_now` is idempotent: when the stamp and artefact checks both pass it
+does not run the build closure, so a warm target directory costs one stamp
+read. Under `cargo nextest`, `ensure_prepared` fails fast with the command that
+prepares the family, `make prepare-nested-fixtures` in this repository, because
+a timed test running in its own process cannot prepare without paying the cost
+it is meant to avoid. Under plain `cargo test` it prepares lazily behind a
+process-wide lock.
+
+The artefact check does not try to prove that the whole tree is warm. It
+requires each vouched-for profile to contain non-empty `deps` and
+`.fingerprint` directories (`DEPENDENCY_ARTEFACT_DIRS`), and every `.d` record
+in `deps` to still have an output. It tracks no individual units beyond that. A
+relative `CARGO_TARGET_DIR` is resolved to an absolute path once, before it
+reaches a child or a stamp, so the stamp continues to describe the directory
+the child actually builds in.
+
+This API exists for test-support code and is not intended for production paths.
+
 ## Running and maintaining tests
 
 Once feature files and step definitions are in place, scenarios run via the
