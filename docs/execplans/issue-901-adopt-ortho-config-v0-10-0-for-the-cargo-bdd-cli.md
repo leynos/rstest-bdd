@@ -582,6 +582,23 @@ Hard invariants. Violation requires escalation, not a workaround.
       the earlier review round, so the "unmodified file" wording in
       `Validation and acceptance` is narrowed to the existing tests.
 
+- [x] (2026-11-08) Hosted CI on `8d45fae5` is green on both Windows lanes, on
+      CodeScene and on Gecko Security, and red on the Linux lane for a reason
+      outside this diff. The `Lint` step dies in the Dylint driver probe with
+      `duplicate specification of lint string_continuation_style`: installer
+      `0.2.11` prunes only the library names compiled into it, the rolling
+      suite has since gained `string_continuation_style`, and `whitaker --all`
+      therefore loads that standalone library beside the aggregated suite.
+      The same failure hit an unrelated branch in this repository on the same
+      day, so no commit under review is involved. `make lint-whitaker` now
+      names the suite it installs — `whitaker --lib whitaker_suite` — which
+      loads the same lint set without depending on installer bookkeeping.
+      `scripts/tests/test_whitaker_lint_gate.py` reads the recipe and asserts
+      the named suite and the absence of `--all`; with the old recipe restored
+      that test fails, so it discriminates rather than restating the Makefile.
+      The change is recorded in an ADR-013 addendum and in the developers'
+      guide. Upstream tracks the pruning defect as `leynos/whitaker#565`.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
