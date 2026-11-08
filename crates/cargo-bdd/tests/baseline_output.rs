@@ -31,6 +31,7 @@ struct IsolatedConfigDirectories {
 }
 
 impl IsolatedConfigDirectories {
+    /// Create the isolated configuration roots for one baseline run.
     fn new() -> io::Result<Self> {
         let temporary_directory = tempfile::tempdir()?;
         let root = Utf8Path::from_path(temporary_directory.path())
@@ -55,6 +56,7 @@ impl IsolatedConfigDirectories {
     }
 }
 
+/// Create the directories the child treats as configuration roots.
 fn create_config_directories(root: &Utf8Path) -> io::Result<()> {
     let directory = Dir::open_ambient_dir(root.as_std_path(), ambient_authority())?;
     for path in [
@@ -70,6 +72,7 @@ fn create_config_directories(root: &Utf8Path) -> io::Result<()> {
     Ok(())
 }
 
+/// Every captured case reproduces its recorded status and streams.
 #[test]
 fn cli_without_configuration_matches_the_captured_baseline() -> Result<(), Box<dyn Error>> {
     let cases = baseline_cases()?;
@@ -81,10 +84,12 @@ fn cli_without_configuration_matches_the_captured_baseline() -> Result<(), Box<d
     Ok(())
 }
 
+/// Load the recorded invocations from the baseline fixture.
 fn baseline_cases() -> Result<Vec<BaselineCase>, serde_json::Error> {
     serde_json::from_str(include_str!("fixtures/baseline-cli.json"))
 }
 
+/// Assert one case's exit status, stdout and stderr.
 fn assert_case_matches_baseline(
     case: &BaselineCase,
     directories: &IsolatedConfigDirectories,
@@ -111,6 +116,7 @@ fn assert_case_matches_baseline(
     Ok(())
 }
 
+/// Run one recorded case in the isolated environment.
 fn run_cli_case(
     case: &BaselineCase,
     directories: &IsolatedConfigDirectories,
@@ -129,6 +135,7 @@ fn run_cli_case(
         .output()
 }
 
+/// Expand the fixture's placeholders into the expected bytes.
 fn expected_output(template: &str) -> Vec<u8> {
     // `help <command>` retains the root name; subcommand parse errors do not.
     template
@@ -138,6 +145,7 @@ fn expected_output(template: &str) -> Vec<u8> {
         .into_bytes()
 }
 
+/// The root binary name this host reports in help output.
 fn expected_root_binary_name() -> &'static str {
     if cfg!(windows) {
         "cargo-bdd.exe"

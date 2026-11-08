@@ -519,8 +519,10 @@ Hard invariants. Violation requires escalation, not a workaround.
       `list_steps_runs` in 2.800 seconds; no package downloads occurred. Keep
       this explicit validation exception tracked under #910 and child-Cargo
       network isolation under #911. Do not claim the workspace suite passed.
-- [x] §6: documentation, gates, follow-up review, commit, push, hosted CI,
-      review reconciliation, and merge. The candidate was rebased onto
+- [ ] §6: documentation, gates, follow-up review, commit, push, hosted CI,
+      review reconciliation, and merge. Merge is still pending: this box stays
+      unchecked until the pull request lands on `main`. Everything before the
+      merge in this section is done. The candidate was rebased onto
       `origin/main` (`693bba91`) and gated at revision `96e38df8`.
       `make check-fmt`, `make lint`, `make typecheck`, `make markdownlint`,
       `make nixie` and `make test-workflow-contracts` (373 tests) all exited
@@ -697,6 +699,22 @@ Hard invariants. Violation requires escalation, not a workaround.
   span recording only the command name, and the guide states the actual
   boundary. The binary installs no subscriber, so the default output contract
   is unchanged.
+
+- Observation: the follow-up review asked for the remaining configuration
+  sources to be covered through the handlers, for the parse/resolve path to
+  return typed Clap failures instead of exiting, and for the Docstring Coverage
+  check to be re-measured on its own touched-function scope. All three were
+  valid. Evidence: `crates/cargo-bdd/tests/invocation/configuration.rs` now
+  drives `steps.json` and `skipped.reasons` from files and the environment and
+  proves file < environment < explicit flag through the application path;
+  `crates/cargo-bdd/tests/cli/configuration.rs` covers a file-configured
+  `reasons` setting against the scenario-bearing fixture; `CliError` carries
+  either a Clap error or an `eyre` report, and `main` renders the Clap variant
+  with Clap's own exit path. Impact: the touched-function docstring population
+  is now documented, which required splitting the two largest test modules
+  (`tests/invocation/workspace.rs` and `src/config/tests/fixture.rs`) to stay
+  inside the 400-line budget. The §6 box above stays unchecked until the merge
+  actually lands.
 
 ## Decision log
 

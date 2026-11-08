@@ -117,6 +117,7 @@ const TRYBUILD_TIMEOUT_EXPECTATION: TimeoutExpectation = TimeoutExpectation {
     period: "20m",
 };
 
+/// Each filtered override keeps its termination policy and group.
 #[rstest]
 #[case::cargo_bdd(CARGO_BDD_TIMEOUT_EXPECTATION)]
 #[case::feature_rebuild(FEATURE_REBUILD_TIMEOUT_EXPECTATION)]
@@ -275,6 +276,7 @@ fn assert_preparation_scheduling(
 }
 
 #[test]
+/// The trybuild override keeps its 20 m period, termination and group.
 fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;
     let overrides = default_overrides(&configuration)?;
@@ -309,6 +311,7 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// Find the single override whose filter matches exactly.
 fn override_for_exact_filter(
     overrides: &[Value],
     expectation: FilteredTimeoutExpectation,
@@ -330,6 +333,7 @@ fn override_for_exact_filter(
     Ok(*override_value)
 }
 
+/// Assert the slow-timeout period and termination settings of an override.
 fn assert_slow_timeout_contract(
     override_value: &Value,
     expectation: TimeoutExpectation,

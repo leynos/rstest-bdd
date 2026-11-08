@@ -104,6 +104,7 @@ fn run_cargo_bdd_raw_with_env(
     Ok(cmd.output()?)
 }
 
+/// Locate the workspace-built binary, building it when absent.
 fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     let root = workspace_root();
     locate_or_build_binary(
@@ -128,6 +129,11 @@ mod nested_target;
 mod preparation;
 
 use preparation::ensure_cli_prepared;
+
+// The file-tier configuration case lives beside this target for the same
+// reason: Cargo must not discover it as a second test target.
+#[path = "cli/configuration.rs"]
+mod configuration;
 
 /// Apply the shared isolation policy with this CLI fixture's workspace target.
 ///
@@ -155,6 +161,7 @@ fn cli_child_environment(
 #[rstest::rstest]
 #[case::workspace_cache(None)]
 #[case::caller_cache(Some("custom-coverage-target"))]
+/// The child keeps a caller target directory and otherwise uses the workspace.
 fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io::Result<()> {
     let vars = target
         .map(|value| vec![(OsString::from("CARGO_TARGET_DIR"), OsString::from(value))])
@@ -181,6 +188,7 @@ fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io:
     Ok(())
 }
 
+/// Execute `cargo bdd` and capture its status and streams as text.
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {
     run_cargo_bdd_captured_with_env(args, &[])
 }
@@ -206,6 +214,7 @@ fn run_cargo_bdd_captured_with_env(
     Ok((status, stdout.to_owned(), stderr.to_owned()))
 }
 
+/// Execute `cargo bdd` with no extra environment and return stdout.
 fn run_cargo_bdd(args: &[&str]) -> Result<String> { run_cargo_bdd_with_env(args, &[]) }
 
 /// Execute cargo-bdd with extra environment variables and return stdout.
@@ -315,6 +324,7 @@ fn steps_output_marks_forced_failure_skips() {
 
 #[test]
 #[serial]
+/// Text output includes the feature location, reason and annotations.
 fn skipped_subcommand_includes_reasons_and_lines() {
     ensure_cli_prepared().expect("test setup should succeed");
     let stdout = run_cargo_bdd(&["skipped", "--reasons"]).expect("test setup should succeed");
@@ -329,6 +339,7 @@ fn skipped_subcommand_includes_reasons_and_lines() {
     assert!(stdout.contains("[forced failure]"));
 }
 
+/// The JSON listing describes the fixture's skipped scenario.
 #[test]
 #[serial]
 fn skipped_subcommand_emits_json() {
@@ -359,6 +370,7 @@ fn skipped_subcommand_emits_json() {
     );
 }
 
+/// A configured `reasons` setting adds locations and reasons to stdout.
 #[test]
 #[serial]
 fn configured_skipped_reasons_reach_the_handler() {

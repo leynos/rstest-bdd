@@ -1,196 +1,21 @@
 //! Binary-level contract for direct and Cargo-dispatched CLI entry points.
+//!
+//! The isolated workspace fixture lives in the `workspace` submodule so this
+//! file stays focused on the observable contract: which invocation forms reach
+//! a handler, and which bytes and exit statuses each failure produces.
 
-use std::{
-    io,
-    process::{Command, Output},
-};
+use std::{io, process::Output};
 
-use camino::{Utf8Path, Utf8PathBuf};
-use cap_std::{ambient_authority, fs::Dir};
-use rstest::{fixture, rstest};
-use tempfile::TempDir;
+use rstest::rstest;
 
 #[path = "invocation/configuration.rs"]
 mod configuration;
+#[path = "invocation/workspace.rs"]
+mod workspace;
 
-struct IsolatedWorkspace {
-    temporary_directory: TempDir,
-    root: Dir,
-    home: Utf8PathBuf,
-    working_directory: Utf8PathBuf,
-    binary_directory: Utf8PathBuf,
-}
+use workspace::{IsolatedWorkspace, isolated_workspace};
 
-impl IsolatedWorkspace {
-    fn new() -> io::Result<Self> {
-        let temporary_directory = tempfile::tempdir()?;
-        let temporary_root = Utf8Path::from_path(temporary_directory.path()).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "test directory path is not UTF-8",
-            )
-        })?;
-        let root = Dir::open_ambient_dir(temporary_root.as_std_path(), ambient_authority())?;
-        for directory in ["home", "work", "bin"] {
-            root.create_dir(directory)?;
-        }
-        let home = temporary_root.join("home");
-        let working_directory = temporary_root.join("work");
-        let binary_directory = temporary_root.join("bin");
-        let binary_path = Utf8Path::new(env!("CARGO_BIN_EXE_cargo-bdd"));
-        let binary_parent = binary_path.parent().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Cargo binary has no parent directory",
-            )
-        })?;
-        let source_directory = Dir::open_ambient_dir(binary_parent, ambient_authority())?;
-        let destination_directory = root.open_dir("bin")?;
-        let binary_name = binary_path.file_name().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Cargo binary path has no file name",
-            )
-        })?;
-        source_directory.copy(binary_name, &destination_directory, binary_name)?;
-
-        Ok(Self {
-            temporary_directory,
-            root,
-            home,
-            working_directory,
-            binary_directory,
-        })
-    }
-
-    fn command(&self, program: impl AsRef<std::ffi::OsStr>) -> io::Result<Command> {
-        let temporary_root =
-            Utf8Path::from_path(self.temporary_directory.path()).ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "test directory path is not UTF-8",
-                )
-            })?;
-        let config_home = temporary_root.join("xdg-config-home");
-        let config_dirs = temporary_root.join("xdg-config-dirs");
-        self.root.create_dir_all("xdg-config-home")?;
-        self.root.create_dir_all("xdg-config-dirs")?;
-        let inherited_path = std::env::var_os("PATH").unwrap_or_default();
-        let mut path_parts = vec![self.binary_directory.as_os_str().to_owned()];
-        path_parts.extend(
-            std::env::split_paths(&inherited_path)
-                .filter(|path| !path.as_os_str().is_empty())
-                .map(std::path::PathBuf::into_os_string),
-        );
-        let path = std::env::join_paths(path_parts)
-            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-        let mut command = Command::new(program);
-        command
-            .env_clear()
-            .env("HOME", self.home.as_os_str())
-            .env("USERPROFILE", self.home.as_os_str())
-            .env("XDG_CONFIG_HOME", config_home.as_os_str())
-            .env("XDG_CONFIG_DIRS", config_dirs.as_os_str())
-            .env("APPDATA", self.home.as_os_str())
-            .env("PATH", path)
-            .env("CARGO", env!("CARGO"))
-            .env("CARGO_NET_OFFLINE", "true")
-            .current_dir(&self.working_directory);
-        if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
-            let home = Utf8PathBuf::try_from(home)
-                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-            command
-                .env(
-                    "CARGO_HOME",
-                    std::env::var_os("CARGO_HOME")
-                        .unwrap_or_else(|| home.join(".cargo").into_os_string()),
-                )
-                .env(
-                    "RUSTUP_HOME",
-                    std::env::var_os("RUSTUP_HOME")
-                        .unwrap_or_else(|| home.join(".rustup").into_os_string()),
-                );
-        }
-        if let Some(system_root) = std::env::var_os("SystemRoot") {
-            command.env("SystemRoot", system_root);
-        }
-        Ok(command)
-    }
-
-    fn direct(&self, args: &[&str]) -> io::Result<Output> {
-        let mut command = self.command(env!("CARGO_BIN_EXE_cargo-bdd"))?;
-        command.args(args);
-        command.output()
-    }
-
-    fn direct_with_env(&self, args: &[&str], key: &str, value: &str) -> io::Result<Output> {
-        let mut command = self.command(env!("CARGO_BIN_EXE_cargo-bdd"))?;
-        command.args(args).env(key, value);
-        command.output()
-    }
-
-    #[cfg(target_os = "linux")]
-    fn direct_as_unprivileged(&self, args: &[&str]) -> io::Result<Output> {
-        use std::os::unix::process::CommandExt;
-
-        use cap_std::fs::{Permissions, PermissionsExt};
-
-        let binary = self.binary_directory.join("cargo-bdd");
-        let mut command = self.command(binary.as_str())?;
-        for directory in [
-            ".",
-            "home",
-            "work",
-            "bin",
-            "xdg-config-home",
-            "xdg-config-dirs",
-        ] {
-            self.root
-                .set_permissions(directory, Permissions::from_mode(0o755))?;
-        }
-        let binaries = self.root.open_dir("bin")?;
-        binaries.set_permissions("cargo-bdd", Permissions::from_mode(0o755))?;
-        command.args(args);
-        command.uid(65_534);
-        command.output()
-    }
-
-    fn cargo_dispatch(&self, args: &[&str]) -> io::Result<Output> {
-        let mut command = self.command(env!("CARGO"))?;
-        command.args(["bdd"]);
-        command.args(args);
-        command.output()
-    }
-
-    fn write_local_config(&self, contents: &str) -> io::Result<()> {
-        let working_directory = self.root.open_dir("work")?;
-        working_directory.write(".cargo_bdd.toml", contents)
-    }
-
-    fn write_empty_package(&self) -> io::Result<()> {
-        let working_directory = self.root.open_dir("work")?;
-        working_directory.create_dir("src")?;
-        working_directory.write(
-            "Cargo.toml",
-            concat!(
-                "[package]\n",
-                "name = \"empty-cli-fixture\"\n",
-                "version = \"0.1.0\"\n",
-                "edition = \"2021\"\n\n",
-                "[[bin]]\n",
-                "name = \"empty-cli-fixture\"\n",
-                "path = \"src/main.rs\"\n"
-            ),
-        )?;
-        let source_directory = working_directory.open_dir("src")?;
-        source_directory.write("main.rs", "fn main() {}\n")
-    }
-}
-
-#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
-#[fixture]
-fn isolated_workspace() -> io::Result<IsolatedWorkspace> { IsolatedWorkspace::new() }
-
+/// Every invocation form renders the same `steps --help` usage text.
 #[rstest]
 fn flat_injected_and_real_cargo_forms_share_the_same_command_help(
     isolated_workspace: io::Result<IsolatedWorkspace>,
@@ -211,6 +36,7 @@ fn flat_injected_and_real_cargo_forms_share_the_same_command_help(
     Ok(())
 }
 
+/// File configuration reaches the handler through every invocation form.
 #[rstest]
 fn all_invocation_forms_reach_the_steps_handler_with_file_configuration(
     isolated_workspace: io::Result<IsolatedWorkspace>,
@@ -229,6 +55,7 @@ fn all_invocation_forms_reach_the_steps_handler_with_file_configuration(
     Ok(())
 }
 
+/// An explicit flag combines with an environment-provided `skipped` setting.
 #[rstest]
 fn explicit_json_uses_environment_configuration_in_a_child_process(
     isolated_workspace: io::Result<IsolatedWorkspace>,
@@ -242,6 +69,7 @@ fn explicit_json_uses_environment_configuration_in_a_child_process(
     Ok(())
 }
 
+/// Without configuration, `steps --json` keeps Clap's original failure bytes.
 #[rstest]
 fn flat_steps_json_without_configuration_keeps_the_original_parse_failure(
     isolated_workspace: io::Result<IsolatedWorkspace>,
@@ -262,6 +90,7 @@ fn flat_steps_json_without_configuration_keeps_the_original_parse_failure(
     Ok(())
 }
 
+/// An unknown command inside the injected wrapper stays a parse error.
 #[rstest]
 fn injected_wrapper_keeps_unknown_inner_commands_as_parse_errors(
     isolated_workspace: io::Result<IsolatedWorkspace>,
@@ -274,6 +103,7 @@ fn injected_wrapper_keeps_unknown_inner_commands_as_parse_errors(
     Ok(())
 }
 
+/// Malformed or mistyped configuration exits one with a diagnostic on stderr.
 #[rstest]
 #[case::malformed_toml("[cmds.steps\nskipped = true\n")]
 #[case::invalid_value_type("[cmds.steps]\nskipped = \"perhaps\"\n")]
@@ -290,6 +120,7 @@ fn configuration_file_errors_exit_one_on_stderr(
     Ok(())
 }
 
+/// An unreadable configuration file is reported rather than ignored.
 #[rstest]
 fn unreadable_local_configuration_exits_one_on_stderr(
     isolated_workspace: io::Result<IsolatedWorkspace>,
@@ -341,6 +172,7 @@ fn unreadable_local_configuration_exits_one_on_stderr(
     Ok(())
 }
 
+/// Assert the exit status, empty stdout and stderr prefix of a load failure.
 fn assert_configuration_error(output: &Output) {
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(output.stdout, [] as [u8; 0]);
@@ -348,12 +180,14 @@ fn assert_configuration_error(output: &Output) {
     assert!(stderr.contains("failed to load configuration for `steps`"));
 }
 
+/// Assert a successful help invocation that printed `usage` and no stderr.
 fn assert_successful_help(output: &Output, usage: &str) {
     assert!(output.status.success(), "help invocation should succeed");
     assert!(String::from_utf8_lossy(&output.stdout).contains(usage));
     assert_eq!(output.stderr, [] as [u8; 0]);
 }
 
+/// Assert a successful listing that emitted exactly an empty JSON array.
 fn assert_successful_json_listing(output: &Output) {
     assert!(output.status.success(), "JSON listing should succeed");
     assert_eq!(
@@ -362,6 +196,7 @@ fn assert_successful_json_listing(output: &Output) {
     );
 }
 
+/// Assert two invocations produced identical stdout and stderr.
 fn assert_matching_streams(actual: &Output, expected: &Output) {
     assert_eq!(
         (actual.stdout.as_slice(), actual.stderr.as_slice()),
@@ -369,6 +204,7 @@ fn assert_matching_streams(actual: &Output, expected: &Output) {
     );
 }
 
+/// Assert the exact exit status, empty stdout and stderr of a parse failure.
 fn assert_missing_skipped_error(output: &Output, expected_stderr: &str) {
     assert_eq!(
         (
@@ -380,6 +216,7 @@ fn assert_missing_skipped_error(output: &Output, expected_stderr: &str) {
     );
 }
 
+/// Assert the injected and Cargo-dispatched forms fail identically.
 fn assert_matching_parse_failures(injected: &Output, cargo: &Output) {
     assert_eq!(
         (injected.status.code(), cargo.status.code()),
