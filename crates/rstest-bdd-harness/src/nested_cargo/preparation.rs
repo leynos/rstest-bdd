@@ -38,6 +38,8 @@ mod stamp;
 pub use artefacts::DEPENDENCY_ARTEFACT_DIRS;
 
 #[cfg(test)]
+mod prop_tests;
+#[cfg(test)]
 mod tests;
 
 use std::{

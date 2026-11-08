@@ -683,6 +683,48 @@ rather than by reading this branch's comments.
       ever writes the shape the predicate already accepts cannot catch the
       mistake.
 
+- [x] Replace the enumerated output set with a naming rule, after the
+      enumeration was wrong a second time. The widened set listed `so` and
+      `dylib` but not `dll`, so the Windows CI lane failed on `18430347` with
+      `nested CLI fixture should be prepared … (missing outputs for
+      derive_more_impl-…, displaydoc-…, linktime_proc_macro-… and 13 more)`:
+      eighteen proc-macro units, every one of them a `lib<stem>.dll` on that
+      target, and nine `cargo-bdd` CLI tests failed behind the one fixture.
+      The insight is that the extension list was the wrong shape of solution,
+      not merely incomplete: extensions differ per target and per crate type,
+      so any list is a guess about a toolchain this code does not control.
+      `is_output_of` now matches `lib<stem>.<ext>` and `<stem>` / `<stem>.<ext>`,
+      requiring the dot so `unit_extra.rlib` cannot pair with `unit.d`. It also
+      excludes a record from being its own witness — `unit.d` matches the rule
+      for `unit`, so an unguarded search over the whole listing would make
+      every record pair with itself and the check would never fire; the
+      `a_record_is_not_its_own_output` case pins that. Re-measured against the
+      real `target/debug/deps`: 1,752 records, zero orphans, and the rebuild
+      suite back to 32/32 with `cargo-bdd` at 17/16.
+
+- [x] Correct a property test whose central claim was false, caught by trying
+      to falsify it rather than by watching it pass. The first version of
+      `equivalent_trees_hash_identically` wrote one tree in two creation
+      orders and asserted equal hashes, on the stated theory that `read_dir`
+      order follows creation order. Replacing `entries.sort()` with
+      `entries.reverse()` left the test **passing**, so the test proved
+      nothing. Measurement showed why: on this host's ext4, `read_dir`
+      returns entries in a hash of their names — independent of creation order
+      and of how many times the directory grew, both verified directly. No
+      sequence of file creations can produce two listings for the same tree,
+      so that property was unfalsifiable as written. It was replaced by
+      `entries_hash_in_sorted_order_not_listing_order`, which hands
+      `hash_sorted` a known-unsorted sequence — the only instrument that can
+      see the sort — after separating the sort from the traversal. All three
+      remaining properties were then mutation-tested: removing the sort, the
+      path hash, and the build-output exclusion each fail a named test. The
+      surviving properties (`moving_an_input_changes_the_hash`,
+      `changing_an_input_changes_the_hash`,
+      `excluded_entries_do_not_reach_the_hash`) still test real invariants, and
+      the module documents what it cannot show rather than implying coverage
+      it does not have. Lesson: a property test must be falsified before it is
+      believed, exactly like the predicate it guards.
+
 ## Surprises & Discoveries
 
 - **A required check and a quality signal are different things.** CodeScene

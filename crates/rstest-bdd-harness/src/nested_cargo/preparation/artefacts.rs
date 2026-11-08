@@ -13,7 +13,6 @@
 //! `deps` still holds records for outputs that have gone.
 
 use std::{
-    collections::HashSet,
     fmt::Write as _,
     fs,
     io,
@@ -45,28 +44,33 @@ fn has_entries(directory: &Path) -> bool {
     fs::read_dir(directory).is_ok_and(|mut entries| entries.next().is_some())
 }
 
-/// The outputs rustc may leave for a unit, keyed by the unit's stem.
+/// Whether `name` is an output that belongs to the unit with `stem`.
 ///
-/// Every name rustc writes for a unit whose dep-info record is
-/// `<stem>.d`, so a record is "paired" when any of them exists. The set must
-/// hold all of them: a unit compiled for `cargo check` or as a dependency
-/// leaves only `lib<stem>.rmeta`, and proc-macro and `cdylib` units leave a
-/// shared object. Accepting a narrower set refuses real trees — measured
-/// against this workspace's own `target/debug/deps`, which holds 1,295
-/// dep-info records against 739 `rlib`, 1,061 `rmeta` and 83 `so` outputs.
+/// This is deliberately a *rule about rustc's naming*, not a list of
+/// extensions. An earlier version enumerated the forms it expected and was
+/// wrong twice in a row, each time refusing a genuine tree in CI: first it
+/// accepted only `lib<stem>.rlib` and refused metadata-only units, then it
+/// listed `so` and `dylib` and refused Windows proc-macro units, which are
+/// `lib<stem>.dll`. The extensions differ per target and per crate type —
+/// `rlib`, `rmeta`, `so`, `dylib`, `dll`, `a`, `exe`, none — so any list is a
+/// guess about a toolchain this code does not control.
 ///
-/// The binary forms are `<stem>` and, on Windows, `<stem>.exe`. They are
-/// checked last because they are the only ones that can collide with an
-/// unrelated file name.
-fn candidate_outputs(stem: &str) -> [String; 6] {
-    [
-        format!("lib{stem}.rmeta"),
-        format!("lib{stem}.rlib"),
-        format!("lib{stem}.so"),
-        format!("lib{stem}.dylib"),
-        stem.to_owned(),
-        format!("{stem}.exe"),
-    ]
+/// The rule instead uses what *is* stable: rustc names a library output
+/// `lib<stem>.<something>` and a linked binary `<stem>` or `<stem>.<something>`
+/// (`.exe` on Windows). Anchoring on the stem and requiring a separator keeps
+/// the pairing from matching a different unit whose name merely starts with
+/// the same characters.
+fn is_output_of(name: &str, stem: &str) -> bool {
+    // A library: `lib<stem>` followed by an extension.
+    let library = name
+        .strip_prefix("lib")
+        .and_then(|rest| rest.strip_prefix(stem))
+        .is_some_and(|extension| extension.starts_with('.'));
+    // A linked binary: exactly `<stem>`, or `<stem>.<extension>`.
+    let binary = name
+        .strip_prefix(stem)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'));
+    library || binary
 }
 
 /// Split a dep-info file name into its unit stem.
@@ -89,19 +93,23 @@ fn orphaned_dep_info(deps: &Path) -> Vec<String> {
     let Ok(entries) = fs::read_dir(deps) else {
         return Vec::new();
     };
-    let present: HashSet<std::ffi::OsString> = entries
+    let present: Vec<String> = entries
         .filter_map(Result::ok)
-        .map(|entry| entry.file_name())
+        .filter_map(|entry| entry.file_name().to_str().map(str::to_owned))
         .collect();
+    // A record's own name must not count as its output: `unit.d` matches
+    // `is_output_of(_, "unit")` because `.d` is a dot-extension, so pairing a
+    // record against the whole listing would make every record its own
+    // witness and the check would always pass.
     let mut orphaned: Vec<String> = present
         .iter()
-        .filter_map(|name| name.to_str())
-        .filter_map(dep_info_stem)
-        .filter(|stem| {
-            !candidate_outputs(stem)
+        .filter_map(|name| dep_info_stem(name).map(|stem| (name, stem)))
+        .filter(|(record, stem)| {
+            !present
                 .iter()
-                .any(|candidate| present.contains(std::ffi::OsStr::new(candidate)))
+                .any(|name| name != *record && is_output_of(name, stem))
         })
+        .map(|(_, stem)| stem)
         .collect();
     // `read_dir` order is the filesystem's, not a stable sequence, and the
     // message names these stems: sorting keeps it reproducible.
@@ -211,4 +219,80 @@ pub(super) fn verify_prepared(preparation: &Preparation) -> io::Result<()> {
             described.join(", ")
         ),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for the dep-info pairing rule and its listing scan.
+
+    use super::{is_output_of, orphaned_dep_info};
+
+    /// Every output form rustc has been observed to leave pairs with its
+    /// record.
+    ///
+    /// The list is a record of what CI and this host actually produced, not a
+    /// claim about every target: the predicate is a rule, so it does not need
+    /// to enumerate them. Both entries that broke earlier versions are here —
+    /// the metadata-only unit and the Windows proc-macro `.dll` — because
+    /// those are the failures a list-based predicate produced.
+    #[test]
+    fn observed_output_forms_pair_with_their_record() {
+        for output in [
+            "libunit.rlib",
+            "libunit.rmeta",
+            "libunit.so",
+            "libunit.dylib",
+            "libunit.dll",
+            "libunit.a",
+            "unit",
+            "unit.exe",
+        ] {
+            assert!(
+                is_output_of(output, "unit"),
+                "{output} is an output of unit and must pair with unit.d"
+            );
+        }
+    }
+
+    /// A different unit whose name merely begins with the stem does not pair.
+    ///
+    /// Without the separator check, `unit_extra.rlib` would be read as
+    /// `unit`'s output, so removing the real `unit` output would go unnoticed
+    /// whenever a similarly named unit happened to be present.
+    #[test]
+    fn a_longer_stem_is_not_an_output() {
+        for unrelated in [
+            "libunit_extra.rlib",
+            "libunit_extra.rmeta",
+            "unit-2",
+            "unit_extra",
+            "unit_extra.exe",
+            "libunits.rlib",
+        ] {
+            assert!(
+                !is_output_of(unrelated, "unit"),
+                "{unrelated} belongs to another unit and must not pair with unit.d"
+            );
+        }
+    }
+
+    /// Only records are considered, and each record must be backed by a name
+    /// other than itself.
+    #[test]
+    fn a_record_is_not_its_own_output() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        std::fs::write(directory.path().join("unit.d"), b"dep-info").expect("record");
+
+        assert_eq!(
+            orphaned_dep_info(directory.path()),
+            vec!["unit".to_owned()],
+            "a lone record describes nothing"
+        );
+
+        std::fs::write(directory.path().join("libunit.rmeta"), b"meta").expect("output");
+        assert!(
+            orphaned_dep_info(directory.path()).is_empty(),
+            "a metadata-only unit must pair"
+        );
+    }
 }

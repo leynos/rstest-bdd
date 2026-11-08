@@ -962,16 +962,24 @@ shared policy and in the rebuild harness, alongside
 
 A non-empty `deps` is still not evidence that the work survived. Rustc writes a
 `.d` dep-info record beside every unit it compiles, and the gate pairs each
-record with its output, reporting the stems whose output has gone. The output
-set must cover every form rustc leaves: `lib<stem>.rmeta`, `lib<stem>.rlib`,
-`lib<stem>.so`, `lib<stem>.dylib`, and the linked binaries `<stem>` and
-`<stem>.exe`. Missing `rmeta` is not a theoretical gap — it is the commonest
-form in this workspace's own `target/debug/deps`, which holds 1,295 dep-info
-records against 1,061 `rmeta` outputs, 739 `rlib` and 83 `so`. A predicate that
-accepted only `rlib` refused that genuine tree and named over a hundred units
-as missing, which is why
-`a_metadata_only_unit_is_paired_with_its_dep_info_record` pins both halves: the
-metadata-only unit is accepted while present, and refused once removed.
+record with its output, reporting the stems whose output has gone.
+
+The pairing is a rule about rustc's naming, not a list of file extensions.
+`is_output_of` matches `lib<stem>.<extension>` for a library and `<stem>` or
+`<stem>.<extension>` for a linked binary, so every target's forms pair without
+the gate naming them. Two earlier versions enumerated extensions instead, and
+each refused a genuine tree in CI: the first accepted only `rlib` and rejected
+metadata-only units (the commonest form in this workspace's own
+`target/debug/deps` — 1,061 `rmeta` against 739 `rlib`), and the second listed
+`so` and `dylib` and rejected Windows proc-macro units, which are `.dll`.
+Extensions differ per target and per crate type, so any list is a guess about a
+toolchain this code does not control. Measured after the change: 1,752 dep-info
+records in that directory, none orphaned.
+`observed_output_forms_pair_with_their_record` records every form CI has
+produced, `a_longer_stem_is_not_an_output` pins the separator rule that keeps
+`unit_extra.rlib` from pairing with `unit.d`, and
+`a_metadata_only_unit_is_paired_with_its_dep_info_record` pins both halves of
+the accept-while-present, refuse-once-removed contract.
 
 Removing one output leaves every directory the gate names in place while Cargo
 recompiles that unit, which is the partial eviction

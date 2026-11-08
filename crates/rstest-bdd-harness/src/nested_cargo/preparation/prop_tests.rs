@@ -1,0 +1,240 @@
+//! Property tests for [`super::input_hash`].
+//!
+//! The hash decides when a prepared family is stale, so its contract is a
+//! relation between a tree and what the family compiles from it, not a fixed
+//! digest: equivalent trees must agree, any change to an input must not, and
+//! build output at any depth must not reach it.
+//!
+//! Build output is excluded at every depth, so a generation strategy that only
+//! nested inputs would never exercise the exclusion. Each generated tree
+//! therefore carries excluded entries beside its inputs.
+//!
+//! # What these tests cannot show
+//!
+//! They cannot show that the walk *sorts*. On ext4 — measured on the host
+//! this was written on — `read_dir` returns entries in a hash of their names,
+//! independent of creation order and of how many times the directory grew, so
+//! two trees with the same names and contents list in the same order however
+//! they were written. A property that hashes one tree built two ways
+//! therefore passes even when the sort is deleted: this was checked by
+//! replacing the sort with a reversal and watching it still pass. That
+//! invariant belongs to a test that supplies the entry sequence directly, and
+//! lives in `input_hash`'s own unit tests as
+//! `entries_hash_in_sorted_order_not_listing_order`.
+
+use std::{collections::BTreeMap, fs, path::Path};
+
+use proptest::prelude::*;
+
+use super::{Preparation, input_hash};
+
+/// One file to create, as a path relative to the tree root.
+type Tree = BTreeMap<String, Vec<u8>>;
+
+/// Segment names that [`super::input_hash`] must treat as build output.
+///
+/// Written from the module's own contract rather than from the generated
+/// input, so a case that nests one is checking the exclusion and not merely
+/// producing another ordinary file.
+const EXCLUDED: [&str; 3] = ["target", "wip", ".git"];
+
+/// A relative path of one to three segments, none of them excluded.
+fn input_path() -> impl Strategy<Value = String> {
+    let segment = "[a-z][a-z0-9_]{0,6}";
+    proptest::collection::vec(segment, 1..=3).prop_map(|segments| segments.join("/"))
+}
+
+/// A relative path whose first segment is build output.
+fn excluded_path() -> impl Strategy<Value = String> {
+    let leaf = "[a-z][a-z0-9_]{0,6}";
+    let (root, tail) = (
+        proptest::sample::select(EXCLUDED.as_slice()),
+        proptest::collection::vec(leaf, 0..=2),
+    );
+    (root, tail).prop_map(|(root, tail)| {
+        let mut path = root.to_owned();
+        for segment in tail {
+            path.push('/');
+            path.push_str(&segment);
+        }
+        path
+    })
+}
+
+/// A tree: some input files plus some excluded entries.
+///
+/// The two sets are generated separately so a case can never be all inputs (no
+/// exclusion tested) or all excluded entries (nothing to hash). Members of
+/// either set that cannot coexist with the other are dropped afterwards: a
+/// path cannot be both a file and a directory, so `.git` and `.git/a` describe
+/// no tree any filesystem can hold.
+fn tree() -> impl Strategy<Value = Tree> {
+    let contents = prop::collection::vec(any::<u8>(), 0..=8);
+    let inputs = proptest::collection::btree_map(input_path(), contents.clone(), 1..=6);
+    let excluded = proptest::collection::btree_map(excluded_path(), contents, 0..=3);
+    (inputs, excluded).prop_map(|(inputs, excluded)| {
+        let mut tree = Tree::new();
+        for (path, contents) in &inputs {
+            if !tree.keys().any(|kept| conflicts(kept, path)) {
+                tree.insert(path.clone(), contents.clone());
+            }
+        }
+        for (path, contents) in excluded {
+            if !tree.keys().any(|kept| conflicts(kept, &path)) {
+                tree.insert(path, contents);
+            }
+        }
+        tree
+    })
+}
+
+/// Whether two relative paths cannot both exist as files.
+fn conflicts(left: &str, right: &str) -> bool {
+    left == right || is_prefix(left, right) || is_prefix(right, left)
+}
+
+/// Whether `prefix` names a directory containing `path`.
+fn is_prefix(prefix: &str, path: &str) -> bool {
+    path.strip_prefix(prefix)
+        .is_some_and(|rest| rest.starts_with('/'))
+}
+
+/// Create `tree` under `root`, creating each parent directory as needed.
+///
+/// Only one creation order exists here, and that is deliberate. An earlier
+/// version wrote the same tree in two orders to test that the walk sorts;
+/// on ext4 that measured nothing, because `read_dir` returned the same
+/// hash-derived order either way. See the module note on what these tests
+/// cannot show.
+fn write_tree(root: &Path, tree: &Tree) {
+    for (path, contents) in tree {
+        let destination = root.join(path);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).expect("parent directory");
+        }
+        fs::write(&destination, contents).expect("input file");
+    }
+}
+
+/// Hash `tree` created under a fresh temporary root.
+fn hash_of(tree: &Tree) -> String {
+    let directory = tempfile::tempdir().expect("temp dir");
+    write_tree(directory.path(), tree);
+    input_hash(std::slice::from_ref(&directory.path().to_path_buf())).expect("input hash")
+}
+
+proptest! {
+    /// Moving an input to a different directory changes the hash, and moving
+    /// it back restores it.
+    ///
+    /// This is a round trip over the *structure* of the tree rather than its
+    /// file ordering: the same bytes under a different path are a different
+    /// input, because the path is what the family compiles. Flattening a
+    /// nested walk would pass a byte-only comparison, so the paths must
+    /// reach the hash.
+    #[test]
+    fn moving_an_input_changes_the_hash(tree in tree()) {
+        let leaf = tree
+            .iter()
+            .find(|(path, _)| !is_excluded(path))
+            .map(|(path, contents)| (path.clone(), contents.clone()));
+        if let Some((path, contents)) = leaf {
+            let mut moved = tree.clone();
+            moved.remove(&path);
+            // A sibling directory keeps the leaf's bytes and only changes
+            // where they live.
+            let destination = format!("moved/{path}");
+            if !moved.keys().any(|kept| conflicts(kept, &destination)) {
+                moved.insert(destination, contents);
+                prop_assert_ne!(
+                    hash_of(&tree),
+                    hash_of(&moved),
+                    "an input's path must reach the hash, not only its bytes"
+                );
+            }
+        }
+    }
+
+    /// Changing any input's bytes changes the hash.
+    ///
+    /// The changed path is chosen from the generated tree, so this exercises
+    /// files at every depth rather than only the root.
+    #[test]
+    fn changing_an_input_changes_the_hash(tree in tree(), delta in any::<u8>()) {
+        let changed = tree
+            .iter()
+            .find(|(path, _)| !is_excluded(path))
+            .map(|(path, contents)| {
+                let mut copy = tree.clone();
+                let mut new = contents.clone();
+                new.push(delta);
+                copy.insert(path.clone(), new);
+                copy
+            });
+        if let Some(changed) = changed {
+            prop_assert_ne!(
+                hash_of(&tree),
+                hash_of(&changed),
+                "an input's bytes must reach the hash"
+            );
+        }
+    }
+
+    /// Excluded entries never reach the hash, at any depth.
+    ///
+    /// The excluded subtree is varied independently of the inputs, so a case
+    /// that excluded only root-level entries would be caught: the added member
+    /// can be nested.
+    #[test]
+    fn excluded_entries_do_not_reach_the_hash(tree in tree(), extra in excluded_path()) {
+        // `tree()` keeps its own sets consistent, but `extra` is added here,
+        // so it needs the same check: `wip` cannot be a file beside `wip/a`.
+        if !tree.keys().any(|kept| conflicts(kept, &extra)) {
+            let mut with_extra = tree.clone();
+            with_extra.insert(extra, b"build output".to_vec());
+            prop_assert_eq!(
+                hash_of(&tree),
+                hash_of(&with_extra),
+                "build output must be excluded wherever it appears"
+            );
+        }
+    }
+}
+
+/// Whether a tree path is build output, judged by its first segment.
+fn is_excluded(path: &str) -> bool {
+    path.split('/')
+        .next()
+        .is_some_and(|root| EXCLUDED.contains(&root))
+}
+
+/// The stamp's own file is not an input, so a family that stamps a root does
+/// not thereby invalidate its own fingerprint.
+#[test]
+fn a_stamp_beside_the_inputs_does_not_change_the_hash() {
+    let directory = tempfile::tempdir().expect("temp dir");
+    let root = directory.path().to_path_buf();
+    fs::write(root.join("feature.feature"), b"Feature: one").expect("input");
+
+    let before = input_hash(std::slice::from_ref(&root)).expect("hash before");
+    // The name is the one `write_stamp` derives for a family rooted here.
+    let environment = crate::nested_cargo::env_from_vars(
+        Vec::new(),
+        Some(&std::env::temp_dir().join("target")),
+        crate::nested_cargo::ProfileDestination::Caller,
+    );
+    let preparation = Preparation::new(
+        super::Sources::new("unit", "v", "hash"),
+        root.clone(),
+        environment,
+    );
+    let stamp = super::stamp::stamp_path(&preparation);
+    assert_eq!(stamp.parent(), Some(root.as_path()), "stamp beside inputs");
+    fs::write(&stamp, b"fingerprint").expect("stamp");
+    let after = input_hash(std::slice::from_ref(&root)).expect("hash after");
+
+    assert_eq!(
+        before, after,
+        "the stamp records the fingerprint of these inputs, so it cannot be one of them"
+    );
+}
