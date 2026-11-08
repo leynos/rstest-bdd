@@ -1,4 +1,10 @@
 //! CLI configuration types, source merging and validated handler settings.
+//!
+//! Both loaders carry a `cargo_bdd.configuration` span so a tracing
+//! subscriber can time configuration loading per command. The spans record
+//! only the command name: configuration values, file paths and environment
+//! lookups stay out of the trace, and the binary installs no subscriber, so
+//! the default command output is unchanged.
 
 use clap::{ArgMatches, Parser};
 use eyre::{Context, Result, bail};
@@ -54,6 +60,7 @@ pub(crate) struct SkippedSettings {
 }
 
 /// Merge `steps` settings from process sources.
+#[tracing::instrument(name = "cargo_bdd.configuration", skip_all, fields(command = "steps"))]
 pub(crate) fn merge_steps(config: &StepsConfig, matches: &ArgMatches) -> Result<StepsConfig> {
     config
         .load_and_merge_with_matches(matches)
@@ -61,6 +68,11 @@ pub(crate) fn merge_steps(config: &StepsConfig, matches: &ArgMatches) -> Result<
 }
 
 /// Load `skipped` settings from process sources.
+#[tracing::instrument(
+    name = "cargo_bdd.configuration",
+    skip_all,
+    fields(command = "skipped")
+)]
 pub(crate) fn resolve_skipped(
     config: &SkippedConfig,
     matches: &ArgMatches,
