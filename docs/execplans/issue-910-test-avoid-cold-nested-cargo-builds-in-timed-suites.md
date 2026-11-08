@@ -844,6 +844,34 @@ rather than by reading this branch's comments.
 
 ## Surprises & Discoveries
 
+- **A required check can fail for a reason that is not in the diff, and the
+  distinction is provable rather than rhetorical.** On 2026-11-08 the required
+  lane `build-test (linux, default features)` began failing in its `Lint` step,
+  inside `make lint-whitaker`, before any lint of this branch's code ran. The
+  Dylint driver panics at registration:
+  `duplicate specification of lint string_continuation_style`. The failing
+  invocation passes two libraries,
+  `libstring_continuation_style@nightly-2026-05-28.so` and
+  `libwhitaker_suite@nightly-2026-05-28.so`, and the lint is registered by both.
+
+  What makes this host state rather than this PR: the failure is identical at
+  the same rustc commit (`57d06900`) on `8d45fae5`, a branch unrelated to this
+  one, and it begins at a clean time boundary — the last success is `0c13d4a7`
+  at 01:38Z and the first failure is `8d45fae5` at 05:02Z. The Whitaker cache
+  key is byte-identical on a passing and a failing run
+  (`whitaker-v1-Linux-X64-self-hosted-0.2.11-75f5f665…`), `dylint.toml` is
+  untouched by this branch, and the runner label is `ubicloud-standard-2` on
+  both. `WHITAKER_INSTALLER_VERSION` is the string `0.2.11`, a version range
+  rather than a content digest, so a republished installer changes the lint set
+  without changing the key.
+
+  The local install carries only `libwhitaker_suite@nightly-2026-05-28.so`, a
+  single library, which is why `make lint` passes on this machine and why the
+  defect is invisible locally. An installer-level fix is out of scope here; a
+  focused investigation request with the full comparison is posted on the PR.
+  This is an impasse of the "unhealthy external service" kind until the install
+  path is corrected or the affected runners' Whitaker state is rebuilt.
+
 - **A required check and a quality signal are different things.** CodeScene
   failed on every push to this branch, which looks like a blocker and is not
   one: `gh api repos/leynos/rstest-bdd/rulesets/18427987` shows the merge gate
