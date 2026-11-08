@@ -13,7 +13,7 @@ mod configuration;
 #[path = "invocation/workspace.rs"]
 mod workspace;
 
-use workspace::{IsolatedWorkspace, isolated_workspace};
+use workspace::{Invocation, IsolatedWorkspace, isolated_workspace};
 
 /// Every invocation form renders the same `steps --help` usage text.
 #[rstest]
@@ -62,8 +62,10 @@ fn explicit_json_uses_environment_configuration_in_a_child_process(
 ) -> io::Result<()> {
     let workspace = isolated_workspace?;
     workspace.write_empty_package()?;
-    let output =
-        workspace.direct_with_env(&["steps", "--json"], "CARGO_BDD_CMDS_STEPS_SKIPPED", "true")?;
+    let output = workspace.direct_with_environment(Invocation {
+        arguments: &["steps", "--json"],
+        variables: &[("CARGO_BDD_CMDS_STEPS_SKIPPED", "true")],
+    })?;
 
     assert_successful_json_listing(&output);
     Ok(())
