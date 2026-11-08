@@ -10,7 +10,13 @@ use std::io;
 
 use rstest::rstest;
 
-use super::{Invocation, IsolatedWorkspace, assert_successful_json_listing, isolated_workspace};
+use super::{
+    Invocation,
+    IsolatedWorkspace,
+    assert_invalid_configuration_error,
+    assert_successful_json_listing,
+    isolated_workspace,
+};
 
 /// One configuration source combination driven through a child process.
 struct ConfigurationCase {
@@ -91,6 +97,20 @@ const FLAG_OVER_ENVIRONMENT_STEPS_JSON: ConfigurationCase = ConfigurationCase {
     ],
 };
 
+/// A local file enables `steps.json` without enabling `steps.skipped`.
+const STEPS_JSON_WITHOUT_SKIPPED_FILE: ConfigurationCase = ConfigurationCase {
+    local_config: Some("[cmds.steps]\njson = true\n"),
+    arguments: &["steps"],
+    variables: &[],
+};
+
+/// The environment enables `steps.json` without enabling `steps.skipped`.
+const STEPS_JSON_WITHOUT_SKIPPED_ENVIRONMENT: ConfigurationCase = ConfigurationCase {
+    local_config: None,
+    arguments: &["steps"],
+    variables: &[("CARGO_BDD_CMDS_STEPS_JSON", "true")],
+};
+
 /// Every source tier reaches the handlers without an explicit flag.
 ///
 /// The case names identify the tier each row exercises: `*_file` sets the
@@ -126,5 +146,33 @@ fn configuration_reaches_the_handlers_from_every_source(
     })?;
 
     assert_successful_json_listing(&output);
+    Ok(())
+}
+
+/// A configured JSON mode with no merged `skipped` fails with its own message.
+///
+/// Neither row can pass by accident: a resolver that ignored configuration
+/// would print the human-readable listing and exit zero, and the CLI-only
+/// guard would exit with Clap's status 2 and different text. Only the merged
+/// cross-field rule produces the status and message asserted here.
+#[rstest]
+#[case::file(STEPS_JSON_WITHOUT_SKIPPED_FILE)]
+#[case::environment(STEPS_JSON_WITHOUT_SKIPPED_ENVIRONMENT)]
+fn configuration_rejects_json_without_skipped_from_every_source(
+    isolated_workspace: io::Result<IsolatedWorkspace>,
+    #[case] case: ConfigurationCase,
+) -> io::Result<()> {
+    let workspace = isolated_workspace?;
+    workspace.write_empty_package()?;
+    if let Some(contents) = case.local_config {
+        workspace.write_local_config(contents)?;
+    }
+
+    let output = workspace.direct_with_environment(Invocation {
+        arguments: case.arguments,
+        variables: case.variables,
+    })?;
+
+    assert_invalid_configuration_error(&output);
     Ok(())
 }

@@ -7,10 +7,17 @@ workspace lint gate for panic-only `unwrap_or_else` closures.
 
 Amended (2026-07-20): the delivery mechanism and pinned toolchain recorded
 below describe the original 2026-06-21 delivery and are retained as a
-historical record. The current operational contract is captured in
-[Update (2026-07-20): current compatibility contract](#update-2026-07-20-current-compatibility-contract),
-which supersedes the toolchain and mechanism details in the *Decision outcome*
-and *Consequences* sections.
+historical record. The 2026-07-20 update in
+[Update (2026-07-20): current compatibility contract](#update-2026-07-20-current-compatibility-contract)
+supersedes the toolchain and mechanism details in the *Decision outcome* and
+*Consequences* sections, and is itself a historical record of the invocation
+in force on that date. That heading is frozen by a repository contract test,
+so it keeps its original wording.
+
+Amended (2026-11-08): the lint gate no longer invokes `whitaker --all`; it
+names the aggregated suite it installs. The current invocation contract is
+[Addendum (2026-11-08): the lint gate names the aggregated suite](#addendum-2026-11-08-the-lint-gate-names-the-aggregated-suite).
+The adopted lint set is unchanged.
 
 ## Date
 

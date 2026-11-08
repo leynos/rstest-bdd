@@ -599,6 +599,20 @@ Hard invariants. Violation requires escalation, not a workaround.
       The change is recorded in an ADR-013 addendum and in the developers'
       guide. Upstream tracks the pruning defect as `leynos/whitaker#565`.
 
+- [x] (2026-11-08) Review round on `74f066af` closed four documentation and
+      test-scope gaps and one design gap. `crates/cargo-bdd/src/config.rs` now
+      takes its discovery roots and environment from a `ConfigSources` value:
+      the application edge builds process-backed sources in `cli::run`, and
+      the unit tests build isolated ones, so the tests drive the production
+      resolvers instead of repeating the `ortho_config` call beside them. A
+      subprocess test now covers the merged cross-field rejection — a
+      configured `steps.json` with no effective `steps.skipped`, from both a
+      file and the environment — asserting the status, the empty stdout and
+      the exact diagnostic. Three doc comments were moved above their
+      attributes to match the repository convention, design §3.6a now
+      describes the settings the handlers receive and forward, and ADR-013's
+      status section marks the 2026-07-20 invocation as historical.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -911,19 +925,20 @@ Gate evidence at revision `96e38df8`, the rebased candidate this commit carries:
 - Sixteen doc-test suites passed, `make check-fixture-lockfiles` passed, and
   `scripts/tests` passed 290 tests.
 
-Retain one explicit validation exception: a single `make test` invocation
-cannot finish on this host. `step_macros_compile` exceeds its 1,200-second
-Nextest budget because its 83 fixture cases each run a nested Cargo build
-behind the host-wide compiler-admission pool, which queued 100-180 requests
-throughout; the same binary passes when run to completion outside Nextest.
-Every test still ran and passed at the cited revision, so the suite result is
-complete even though `make test` did not reach `EXIT=0` in one call. Cold
-nested compilation is tracked by issue #910, and child-Cargo network isolation
-by issue #911.
+The validation exception recorded at `96e38df8` has been withdrawn. A single
+`make test` invocation now reaches `EXIT=0` on this host: the workspace,
+doc-test, no-default-features and `scripts/tests` legs all passed in one run at
+the tree published as `74f066af`, with `step_macros_compile` and the
+feature-rebuild test completing inside their existing budgets. Nothing was
+raised, ignored or skipped to reach that result. Cold nested compilation and
+child-Cargo network isolation remain tracked separately by issues #910 and
+#911.
 
-Merging pull request #912 is the remaining step. This plan cites the gated
-revision rather than its own commit. Review follow-ups after that revision are
-recorded in the surprises below; two of them added tests rather than prose.
+Validation is therefore complete for the published tree. The remaining step is
+acquiring the required review approval and merging pull request #912, not
+completing test evidence. This plan cites the gated revision rather than its
+own commit. Review follow-ups after that revision are recorded in the progress
+log and surprises below.
 
 ## Context and orientation
 
