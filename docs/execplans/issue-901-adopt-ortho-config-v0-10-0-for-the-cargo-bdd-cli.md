@@ -549,9 +549,9 @@ Hard invariants. Violation requires escalation, not a workaround.
 
 ## Surprises & discoveries
 
-- Observation: `cargo-bdd bdd steps` — the form Cargo produces — is rejected
-  today with `error: unrecognized subcommand 'bdd'`, exit 2, 0 bytes on stdout
-  and 102 bytes on stderr. Evidence: captured in
+- Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
+  by the pre-change binary with `error: unrecognized subcommand 'bdd'`, exit 2,
+  0 bytes on stdout and 102 bytes on stderr. Evidence: captured in
   `/tmp/baseline-cli-errors-issue-901.out`. Impact: this is a real defect, not
   a documentation gap, and issue #901 requires it fixed while preserving the
   flat form. Both forms need a test.
@@ -687,6 +687,16 @@ Hard invariants. Violation requires escalation, not a workaround.
   one stable format run, reverted with `git checkout --`. Impact: format with
   `cargo +$(FMT_TOOLCHAIN) fmt`, and stage by path so unrelated drift cannot
   reach the commit.
+
+- Observation: the pre-merge review also asked for observability on the new
+  configuration path, and the developers' guide described the settings as
+  reaching the registry module, which never receives them. Evidence: the
+  guide's "cargo-bdd configuration boundary" section against
+  `crates/cargo-bdd/src/cli.rs`, where handlers forward only booleans to the
+  output module. Impact: both loaders now carry a `cargo_bdd.configuration`
+  span recording only the command name, and the guide states the actual
+  boundary. The binary installs no subscriber, so the default output contract
+  is unchanged.
 
 ## Decision log
 
@@ -1322,6 +1332,7 @@ of 2,104 tests before
 configured 20-minute limit while compiling its isolated UI fixture. This
 reproduces the cold nested-build concern tracked in #910; child Cargo remained
 offline. The Windows usage correction was subsequently committed and pushed in
-the revisions leading to current head
-`63b01c4d1cb7e333d6039357daace37d1e435185`. Finish the current-head validation
-and merge cycle described above.
+the revisions leading to `63b01c4d1cb7e333d6039357daace37d1e435185`, which was
+the head at that point in the cycle rather than the head under review now.
+Finish the validation and merge cycle described above against whatever head the
+pull request currently carries.

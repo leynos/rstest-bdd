@@ -3357,9 +3357,16 @@ wrappers feature-independent.
 The `cargo-bdd` application is the only crate that reads command-line,
 configuration-file and environment settings. Its `src/config.rs` module owns
 the OrthoConfig-derived parsing types and the validated `StepsSettings` and
-`SkippedSettings` passed to command handlers. The registry and output modules
-receive those plain settings; they do not read process sources or handle
-configuration errors.
+`SkippedSettings` passed to command handlers. Those handlers in `src/cli.rs`
+are the only holders of the settings; they forward individual booleans, such as
+the JSON mode and the scenario display options, to the output module, and the
+registry module receives no settings at all. Neither reads process sources or
+handles configuration errors.
+
+Both configuration loaders are instrumented with a `cargo_bdd.configuration`
+span named for the command they serve. The span records only that command name;
+configuration values, file paths and environment variable values stay out of
+the trace so a subscriber cannot leak them into logs.
 
 Keep OrthoConfig within `crates/cargo-bdd`. Reusable library crates stay free
 of the dependency and retain the workspace Rust 1.88 MSRV; only the binary
