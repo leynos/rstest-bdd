@@ -108,9 +108,13 @@ fn single_preparation_override(overrides: &[Value]) -> Result<&Value, Box<dyn Er
         .ok_or_else(|| io::Error::other("expected one preparation nextest override"))?;
     assert_eq!(
         found_position, 0,
-        "the preparation override must be first in the file; nextest applies the first override \
-         that matches a test and configures a setting, so a later position would silently defer \
-         to an earlier match",
+        concat!(
+            "the preparation override must be first in the file; nextest applies the first \
+             override ",
+            "that matches a test and configures a setting, so a later position would silently \
+             defer ",
+            "to an earlier match",
+        ),
     );
     Ok(override_value)
 }
@@ -130,8 +134,11 @@ fn assert_preparation_budget(override_value: &Value) -> Result<(), Box<dyn Error
     assert_eq!(
         slow_timeout.get("period").and_then(Value::as_str),
         Some("30m"),
-        "the preparation override must allow a 30-minute period, which is where a cold dependency \
-         build belongs; a timed assertion has no budget for one",
+        concat!(
+            "the preparation override must allow a 30-minute period, which is where a cold \
+             dependency ",
+            "build belongs; a timed assertion has no budget for one",
+        ),
     );
     assert_eq!(
         slow_timeout
@@ -148,8 +155,11 @@ fn assert_preparation_budget(override_value: &Value) -> Result<(), Box<dyn Error
     assert_eq!(
         override_value.get("test-group").and_then(Value::as_str),
         Some("cargo-spawning"),
-        "the preparation override must remain in the cargo-spawning group, so it serializes with \
-         the tests whose build trees it warms",
+        concat!(
+            "the preparation override must remain in the cargo-spawning group, so it serializes \
+             with ",
+            "the tests whose build trees it warms",
+        ),
     );
     Ok(())
 }
@@ -170,8 +180,11 @@ fn assert_preparation_scheduling(
     assert_eq!(
         priority,
         Some(100),
-        "the preparation override must carry the highest scheduling priority nextest accepts, so \
-         the preparations run before the timed assertions that depend on them",
+        concat!(
+            "the preparation override must carry the highest scheduling priority nextest accepts, \
+             so ",
+            "the preparations run before the timed assertions that depend on them",
+        ),
     );
     let competing = overrides
         .iter()
@@ -232,8 +245,10 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         .ok_or_else(|| io::Error::other("trybuild nextest override must name a period"))?;
     assert_eq!(
         period, "20m",
-        "trybuild nextest override must allow a 20-minute slow timeout, which is what a cold \
-         compiler cache costs this fixture tree",
+        concat!(
+            "trybuild nextest override must allow a 20-minute slow timeout, which is what a cold ",
+            "compiler cache costs this fixture tree",
+        ),
     );
 
     let global_timeout = default_global_timeout(&configuration)?;

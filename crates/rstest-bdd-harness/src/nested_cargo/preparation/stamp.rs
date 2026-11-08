@@ -292,8 +292,10 @@ fn toolchain_identity() -> io::Result<String> {
     let output = Command::new(env!("CARGO")).arg("-vV").output()?;
     if !output.status.success() {
         return Err(io::Error::other(format!(
-            "`cargo -vV` failed with {}; the toolchain cannot be identified, so no preparation \
-             stamp can be trusted against it",
+            concat!(
+                "`cargo -vV` failed with {}; the toolchain cannot be identified, so no ",
+                "preparation stamp can be trusted against it"
+            ),
             output.status
         )));
     }
@@ -307,10 +309,10 @@ fn toolchain_identity() -> io::Result<String> {
         })
         .collect();
     if kept.is_empty() {
-        return Err(io::Error::other(
-            "`cargo -vV` printed no release, commit-hash or host line; the toolchain cannot be \
-             identified, so no preparation stamp can be trusted against it",
-        ));
+        return Err(io::Error::other(concat!(
+            "`cargo -vV` printed no release, commit-hash or host line; the toolchain ",
+            "cannot be identified, so no preparation stamp can be trusted against it"
+        )));
     }
     Ok(kept.join(" "))
 }

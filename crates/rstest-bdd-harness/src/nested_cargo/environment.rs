@@ -162,10 +162,10 @@ fn ensure_target_directory(vars: &mut Vec<(OsString, OsString)>, fallback: Optio
         return;
     }
     let Some(fallback) = fallback else {
-        panic!(
-            "no CARGO_TARGET_DIR in the parent environment and no fallback target directory \
-             provided"
-        );
+        panic!(concat!(
+            "no CARGO_TARGET_DIR in the parent environment and no fallback target ",
+            "directory provided"
+        ));
     };
     vars.push((
         OsString::from("CARGO_TARGET_DIR"),

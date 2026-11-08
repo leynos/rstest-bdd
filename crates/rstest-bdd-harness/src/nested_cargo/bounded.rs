@@ -137,8 +137,10 @@ fn timeout_error(timeout: Duration, stdout: &[u8], stderr: &[u8]) -> io::Error {
     io::Error::new(
         io::ErrorKind::TimedOut,
         format!(
-            "nested cargo exceeded its {} s wall-clock bound; the child was killed;\nstdout so \
-             far:\n{}\nstderr so far:\n{}",
+            concat!(
+                "nested cargo exceeded its {} s wall-clock bound; the child was killed;\n",
+                "stdout so far:\n{}\nstderr so far:\n{}"
+            ),
             timeout.as_secs(),
             String::from_utf8_lossy(stdout),
             String::from_utf8_lossy(stderr)

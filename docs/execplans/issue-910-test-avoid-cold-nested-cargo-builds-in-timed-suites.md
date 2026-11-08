@@ -187,6 +187,12 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   checked against `main` — the same mistake, in a different guise, as the three
   wrong duplication hypotheses. Check the base revision before calling a
   finding inherited.
+- [x] Keep the `Lint` gate working against a rolling suite. `--lib
+      whitaker_suite` fixed the duplicate-registration panic, and the suite's
+      new `string_continuation_style` lint then required 24 `concat!()`
+      rewrites in 12 files. None of those files is part of issue 910's
+      change; the lint arrived through the rolling release and would have
+      broken `main` on its next run regardless of this branch.
 - [x] Record CI-lane timings for the affected suites once the PR runs, since
       only that lane answers acceptance criterion (c). Run `41981885921`
       (head `bca39c7d`) passed all three required lanes; the figures below are
@@ -1102,6 +1108,33 @@ rather than by reading this branch's comments.
   asserts on *elapsed wall-clock time* with a grandchild holding the pipe, not
   on the error text, because the defect is precisely that the error text never
   arrives.
+- **The rolling suite, not this branch, is what changes the lint gate.** After
+  `--lib whitaker_suite` removed the duplicate-registration panic, CI's `Lint`
+  step failed again on `string_continuation_style`, a lint Whitaker added to
+  the suite in `67c5afaa`. Every file that failed —
+  `implementation_navigation.rs`, `examples/todo-cli/tests/todo.rs`,
+  `runner_cancel/cases.rs`, `runner_instrumentation.rs` — is byte-identical to
+  `main`, which passed CI at `42434205582`. Two independent facts rule out a
+  branch-local cause: `git diff base...HEAD` lists none of them, and the shared
+  action's `suite-version` input is *declared only to fail the step*, because
+  "Whitaker's lint suite is a rolling release that every consumer takes from
+  the default branch tip, and a pin would force a source build." There is no
+  pinning lever; `main` will fail the same way on its next run.
+- **The remediation is bounded, and far smaller than a textual scan suggests.**
+  A grep for trailing backslashes finds 169 candidates, but the lint only
+  diagnoses proven `concat!()` candidates: it exempts layout trims, byte and C
+  strings, literals at non-zero wrapper depth, and any format string with a
+  `FormatArgumentKind::Captured` argument. Driving the real suite with
+  `--keep-going` over `--workspace --all-targets --all-features` found 24
+  literals in 12 files. Two sites the scan flagged were *correctly* not
+  diagnosed because they use implicit capture (`{polls}`, `{MAX_POLLS}`) — the
+  exact case the RFC calls a required continuation. The final scan of the whole
+  workspace exits 0.
+- **`concat!()` survives rustfmt, which is why the fix is stable.** `make fmt`
+  re-wrapped several fragments back onto `\`-continuations inside the
+  `concat!()` arguments. That is not a regression: a literal inside a macro
+  expansion has `is_source_literal == false`, which the decision matrix routes
+  to `Ignore`. Re-running the suite after formatting still exits 0.
 
 ## Decision Log
 
