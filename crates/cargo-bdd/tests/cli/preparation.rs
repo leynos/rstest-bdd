@@ -53,7 +53,7 @@ fn cli_preparation() -> Result<(nested_cargo::NestedCargoEnv, PathBuf, String)> 
     // working directory, so the development profile options and the Linux
     // linker flags in it change dependency artefacts without touching a
     // fixture source.
-    roots.extend(nested_cargo::cargo_config_inputs(&workspace));
+    roots.extend(nested_cargo::cargo_config_inputs(&workspace)?);
     let inputs = nested_cargo::input_hash(&roots)?;
     Ok((child_env, target_root, inputs))
 }

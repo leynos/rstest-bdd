@@ -1035,7 +1035,11 @@ the committed `.cargo/config.toml`. That file sets development-profile options
 and the Linux linker flags, and changing either rebuilds dependency artefacts
 without changing a fixture source. Every family therefore includes it through
 `nested_cargo::cargo_config_inputs`, which reports `.cargo/config.toml` and the
-legacy `.cargo/config` at the workspace root when they exist.
+legacy `.cargo/config` at the workspace root when they exist. A missing file is
+skipped, but a path that exists and cannot be inspected — a permission denial
+or a symlink loop — is an error rather than an absence: reporting it absent
+would drop the configuration from the input hash and let a stamp survive a
+change the build notices.
 
 Configuration deeper in the tree needs no separate entry — every caller already
 hashes `crates/` and its own fixture directory, and `input_hash` walks both.

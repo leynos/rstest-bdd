@@ -88,14 +88,20 @@ fn workspace_root() -> std::path::PathBuf {
 /// discovers it by walking up from the nested build's working directory, so a
 /// change to the development profile options or the Linux linker flags
 /// invalidates dependency artefacts without touching a fixture source.
-fn workspace_inputs() -> Vec<std::path::PathBuf> {
+///
+/// # Errors
+///
+/// Returns the error when a workspace Cargo configuration path exists but
+/// cannot be inspected, so an unreadable configuration refuses the
+/// preparation instead of silently leaving it out of the input hash.
+fn workspace_inputs() -> std::io::Result<Vec<std::path::PathBuf>> {
     let workspace = workspace_root();
     let mut roots: Vec<std::path::PathBuf> = ["Cargo.toml", "Cargo.lock", "crates"]
         .into_iter()
         .map(|entry| workspace.join(entry))
         .collect();
-    roots.extend(nested_cargo::cargo_config_inputs(&workspace));
-    roots
+    roots.extend(nested_cargo::cargo_config_inputs(&workspace)?);
+    Ok(roots)
 }
 
 /// The directory inside the resolved target root where a family stamps.
@@ -126,7 +132,7 @@ fn fixture_preparation(
     source_dir: std::path::PathBuf,
 ) -> std::io::Result<nested_cargo::Preparation> {
     let mut roots = vec![source_dir];
-    roots.extend(workspace_inputs());
+    roots.extend(workspace_inputs()?);
     let inputs = nested_cargo::input_hash(&roots)?;
     Ok(nested_cargo::Preparation::new(
         nested_cargo::Sources::new(family, "locked-offline-test-no-run", inputs),

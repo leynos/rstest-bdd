@@ -237,7 +237,7 @@ impl TrybuildTree {
             self.family.clone(),
             target_root,
             self.variant.clone(),
-            nested_cargo::input_hash(&self.inputs())?,
+            nested_cargo::input_hash(&self.inputs()?)?,
         ))
     }
 
@@ -252,22 +252,28 @@ impl TrybuildTree {
     /// are skipped rather than treated as an error, and `input_hash` skips
     /// every `target` directory, so build output never invalidates its own
     /// stamp.
-    fn inputs(&self) -> Vec<PathBuf> {
+    ///
+    /// # Errors
+    ///
+    /// Returns the error when a Cargo configuration path exists but cannot be
+    /// inspected, so an unreadable configuration refuses the preparation
+    /// instead of silently leaving it out of the input hash.
+    fn inputs(&self) -> io::Result<Vec<PathBuf>> {
         let Some(workspace_root) = self
             .crate_root
             .parent()
             .and_then(Path::parent)
             .map(Path::to_path_buf)
         else {
-            return vec![self.crate_root.clone()];
+            return Ok(vec![self.crate_root.clone()]);
         };
         let mut roots: Vec<PathBuf> = ["Cargo.toml", "Cargo.lock", "crates", "vendor"]
             .into_iter()
             .map(|entry| workspace_root.join(entry))
             .filter(|path| path.exists())
             .collect();
-        roots.extend(nested_cargo::cargo_config_inputs(&workspace_root));
-        roots
+        roots.extend(nested_cargo::cargo_config_inputs(&workspace_root)?);
+        Ok(roots)
     }
 }
 
@@ -295,10 +301,10 @@ mod tests {
         fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
 
         let tree = TrybuildTree::new(&crate_root, "under-test", "family", "variant");
+        let inputs = tree.inputs().expect("inputs");
         assert!(
-            tree.inputs().contains(&config),
-            "the workspace Cargo configuration must be a preparation input: {:?}",
-            tree.inputs()
+            inputs.contains(&config),
+            "the workspace Cargo configuration must be a preparation input: {inputs:?}"
         );
     }
 }

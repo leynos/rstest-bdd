@@ -127,11 +127,16 @@ fn cargo_configuration_is_an_input() {
     let config = workspace.path().join(".cargo/config.toml");
     std::fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
 
-    assert_eq!(cargo_config_inputs(workspace.path()), vec![config.clone()]);
+    assert_eq!(
+        cargo_config_inputs(workspace.path()).expect("config inputs"),
+        vec![config.clone()]
+    );
 
-    let before = input_hash(&cargo_config_inputs(workspace.path())).expect("hash before");
+    let before = input_hash(&cargo_config_inputs(workspace.path()).expect("config inputs"))
+        .expect("hash before");
     std::fs::write(&config, "[profile.dev]\nincremental = true\n").expect("config edit");
-    let after = input_hash(&cargo_config_inputs(workspace.path())).expect("hash after");
+    let after = input_hash(&cargo_config_inputs(workspace.path()).expect("config inputs"))
+        .expect("hash after");
     assert_ne!(
         before, after,
         "a configuration-only change must invalidate the prepared artefacts"
@@ -144,7 +149,36 @@ fn missing_cargo_configuration_is_not_an_input() {
     // would make every preparation fail on a read error instead of treating the
     // configuration as absent.
     let workspace = tempfile::tempdir().expect("workspace dir");
-    assert_eq!(cargo_config_inputs(workspace.path()), [] as [PathBuf; 0]);
+    assert_eq!(
+        cargo_config_inputs(workspace.path()).expect("config inputs"),
+        [] as [PathBuf; 0]
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn an_unreadable_cargo_configuration_is_an_error() {
+    // A configuration path that exists but cannot be inspected must not be
+    // reported as absent. Reporting it absent would drop the configuration
+    // from the fingerprint, so a stamp would survive a change the build
+    // notices — exactly the invalidation this input exists to force.
+    //
+    // A symlink loop reaches that state without any permission setup, which
+    // would not hold when the suite runs as root. It is a Unix-only fixture
+    // because creating a symlink on Windows needs a privilege the test runner
+    // does not have.
+    let workspace = tempfile::tempdir().expect("workspace dir");
+    std::fs::create_dir(workspace.path().join(".cargo")).expect("cargo dir");
+    let looped = workspace.path().join(".cargo/config.toml");
+    std::os::unix::fs::symlink(&looped, &looped).expect("symlink loop");
+
+    let error = cargo_config_inputs(workspace.path())
+        .expect_err("an uninspectable configuration must not pass as absent");
+    assert_ne!(
+        error.kind(),
+        std::io::ErrorKind::NotFound,
+        "a loop is not an absence: {error}"
+    );
 }
 
 #[test]

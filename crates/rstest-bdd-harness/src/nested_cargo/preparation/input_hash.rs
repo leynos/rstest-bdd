@@ -35,14 +35,28 @@ use super::stamp::{PREPARED_FILE_SUFFIX, STAMP_VERSION};
 /// alone.
 ///
 /// Cargo accepts `config.toml` or the legacy `config` name, and a checkout may
-/// commit neither, so missing files are skipped.
-#[must_use]
-pub fn cargo_config_inputs(workspace_root: &Path) -> Vec<PathBuf> {
-    [".cargo/config.toml", ".cargo/config"]
-        .into_iter()
-        .map(|entry| workspace_root.join(entry))
-        .filter(|path| path.is_file())
-        .collect()
+/// commit neither, so a missing file is skipped rather than named.
+///
+/// # Errors
+///
+/// Returns the error when either path cannot be inspected. The probe is
+/// fallible for the same reason [`input_hash`] is: a path that exists but
+/// cannot be examined — a permission denial or a symlink loop — must not be
+/// reported as absent. That answer would leave the configuration out of the
+/// fingerprint, so a stamp would survive a configuration change the build
+/// would notice, which is the gap this function exists to close. A missing
+/// file is the only error treated as "no configuration".
+pub fn cargo_config_inputs(workspace_root: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut present = Vec::new();
+    for entry in [".cargo/config.toml", ".cargo/config"] {
+        let path = workspace_root.join(entry);
+        match fs::metadata(&path) {
+            Ok(_) => present.push(path),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(present)
 }
 
 /// Directory names that hold build output rather than fixture inputs.

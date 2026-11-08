@@ -102,7 +102,7 @@ fn a_configuration_only_change_invalidates_the_preparation() {
         workspace_config.display()
     );
 
-    let roots = workspace_inputs();
+    let roots = workspace_inputs().expect("workspace inputs");
     assert!(
         roots.contains(&workspace_config),
         "the configuration must be among the family's own inputs: {roots:?}"

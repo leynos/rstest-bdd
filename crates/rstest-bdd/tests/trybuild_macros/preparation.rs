@@ -88,14 +88,20 @@ fn ui_clippy_target_directory() -> Utf8PathBuf {
 /// beneath the workspace, so Cargo applies it, and changing the development
 /// profile options or the Linux linker flags rebuilds dependency artefacts
 /// without touching a fixture source.
-fn input_roots() -> Vec<PathBuf> {
+///
+/// # Errors
+///
+/// Returns the error when a workspace Cargo configuration path exists but
+/// cannot be inspected, so an unreadable configuration refuses the
+/// preparation instead of silently leaving it out of the input hash.
+fn input_roots() -> io::Result<Vec<PathBuf>> {
     let workspace = workspace_root();
     let mut roots: Vec<PathBuf> = ["Cargo.toml", "Cargo.lock", "crates"]
         .into_iter()
         .map(|entry| workspace.join(entry).into_std_path_buf())
         .collect();
-    roots.extend(nested_cargo::cargo_config_inputs(workspace.as_std_path()));
-    roots
+    roots.extend(nested_cargo::cargo_config_inputs(workspace.as_std_path())?);
+    Ok(roots)
 }
 
 /// The variant label that records what the trybuild preparation resolved.
@@ -129,7 +135,7 @@ fn trybuild_preparation(target_directory: &Utf8Path) -> io::Result<nested_cargo:
         TRYBUILD_FAMILY,
         directory.into_std_path_buf(),
         trybuild_variant(),
-        nested_cargo::input_hash(&input_roots())?,
+        nested_cargo::input_hash(&input_roots()?)?,
     ))
 }
 
@@ -139,7 +145,7 @@ fn ui_clippy_preparation() -> io::Result<nested_cargo::Preparation> {
         UI_CLIPPY_FAMILY,
         ui_clippy_target_directory().into_std_path_buf(),
         format!("clippy:{}", env!("CARGO_PKG_VERSION")),
-        nested_cargo::input_hash(&input_roots())?,
+        nested_cargo::input_hash(&input_roots()?)?,
     ))
 }
 
@@ -307,7 +313,7 @@ mod tests {
         // Removing the root from the same list, rather than hashing a different
         // tree, isolates the configuration's contribution: every other input is
         // identical between the two hashes.
-        let roots = input_roots();
+        let roots = input_roots().expect("input roots");
         let workspace_config = super::workspace_root()
             .join(".cargo/config.toml")
             .into_std_path_buf();
