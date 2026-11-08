@@ -2,7 +2,18 @@
 
 mod cli;
 mod config;
+mod observability;
 mod output;
 mod registry;
 
-fn main() -> eyre::Result<()> { cli::run() }
+use cli::CliError;
+
+/// Run the selected diagnostic, printing parse failures as Clap renders them.
+fn main() -> eyre::Result<()> {
+    observability::install();
+    match cli::run() {
+        Ok(()) => Ok(()),
+        Err(CliError::Clap(error)) => error.exit(),
+        Err(CliError::Report(report)) => Err(report),
+    }
+}

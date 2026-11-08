@@ -1,218 +1,29 @@
 //! Source-injected tests for configuration precedence and failure handling.
+//!
+//! Each test supplies isolated discovery roots and an injected environment
+//! through the `fixture` module, then asserts what the real `ortho_config`
+//! loader produces. Keeping the fixture separate leaves this file to state the
+//! precedence and failure contracts themselves.
 
-use std::sync::Arc;
+use ortho_config::MapEnv;
+use rstest::rstest;
+use support::{BooleanOptions, ConfigFixture, fixture};
 
-use camino::{Utf8Path, Utf8PathBuf};
-use cap_std::{ambient_authority, fs::Dir};
-use clap::{CommandFactory, FromArgMatches};
-use ortho_config::{
-    MapEnv,
-    OrthoResult,
-    SharedScanEnvSource,
-    SubcommandCliMatches,
-    SubcommandFileContext,
-    load_and_merge_subcommand_for_with_matches_with_sources_at,
-};
-use rstest::{fixture, rstest};
-use tempfile::TempDir;
+use super::{StepsSettings, validate_steps};
 
-use super::{SkippedConfig, StepsConfig, StepsSettings, validate_steps};
+// The fixture's module is named `support` so the `#[fixture]` function it
+// exports can keep the `fixture` name that the `#[rstest]` parameters look up.
+#[path = "tests/fixture.rs"]
+mod support;
+
+#[path = "tests/observability.rs"]
+mod observability;
 
 #[path = "tests/property.rs"]
 mod property;
 
-struct ConfigFixture {
-    _temporary_directory: TempDir,
-    root: Dir,
-    local_base: Utf8PathBuf,
-    discovery: MapEnv,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum BooleanOptions {
-    Steps,
-    Skipped,
-}
-
-impl BooleanOptions {
-    const fn command(self) -> &'static str {
-        match self {
-            Self::Steps => "steps",
-            Self::Skipped => "skipped",
-        }
-    }
-
-    const fn option(self, is_json: bool) -> &'static str {
-        if is_json {
-            "json"
-        } else {
-            match self {
-                Self::Steps => "skipped",
-                Self::Skipped => "reasons",
-            }
-        }
-    }
-
-    const fn cli_flags(self, is_json: bool) -> &'static [&'static str] {
-        match (self, is_json) {
-            (Self::Steps | Self::Skipped, true) => &["--json"],
-            (Self::Steps, false) => &["--skipped"],
-            (Self::Skipped, false) => &["--reasons"],
-        }
-    }
-
-    fn environment_variable(self, is_json: bool) -> String {
-        format!(
-            "CARGO_BDD_CMDS_{}_{}",
-            self.command().to_ascii_uppercase(),
-            self.option(is_json).to_ascii_uppercase()
-        )
-    }
-
-    const fn expected_values(self, is_json: bool, enabled: bool) -> (bool, bool) {
-        match (self, is_json) {
-            (Self::Steps, true) => (true, enabled),
-            (Self::Steps | Self::Skipped, false) => (enabled, false),
-            (Self::Skipped, true) => (false, enabled),
-        }
-    }
-
-    fn merge(
-        self,
-        fixture: &ConfigFixture,
-        args: &[&str],
-        environment: MapEnv,
-    ) -> OrthoResult<(bool, bool)> {
-        match self {
-            Self::Steps => fixture
-                .merge_steps(args, environment)
-                .map(|config| (config.skipped, config.json)),
-            Self::Skipped => fixture
-                .merge_skipped(args, environment)
-                .map(|config| (config.reasons, config.json)),
-        }
-    }
-}
-
-impl ConfigFixture {
-    fn new() -> Self {
-        let Ok(temporary_directory) = tempfile::tempdir() else {
-            panic!("test setup should create a temporary directory");
-        };
-        let Some(temporary_root) = Utf8Path::from_path(temporary_directory.path()) else {
-            panic!("test directory should be representable as UTF-8");
-        };
-        let Ok(root) = Dir::open_ambient_dir(temporary_root.as_std_path(), ambient_authority())
-        else {
-            panic!("test setup should open the temporary directory capability");
-        };
-        for directory in [
-            "home",
-            "home/.config",
-            "xdg-config-home",
-            "xdg-config-home/cargo_bdd",
-            "xdg-config-dirs",
-            "local",
-        ] {
-            let Ok(()) = root.create_dir_all(directory) else {
-                panic!("test setup should create isolated discovery roots");
-            };
-        }
-        let home = temporary_root.join("home");
-        let xdg_config_home = temporary_root.join("xdg-config-home");
-        let xdg_config_dirs = temporary_root.join("xdg-config-dirs");
-        let local_base = temporary_root.join("local");
-        let discovery = MapEnv::new()
-            .with_var("HOME", &home)
-            .with_var("USERPROFILE", &home)
-            .with_var("XDG_CONFIG_HOME", &xdg_config_home)
-            .with_var("XDG_CONFIG_DIRS", &xdg_config_dirs)
-            .with_var("APPDATA", &xdg_config_home);
-
-        Self {
-            _temporary_directory: temporary_directory,
-            root,
-            local_base,
-            discovery,
-        }
-    }
-
-    fn write_local_config(&self, contents: &str) {
-        let Ok(local) = self.root.open_dir("local") else {
-            panic!("test setup should open the local configuration directory");
-        };
-        assert!(
-            local.write(".cargo_bdd.toml", contents).is_ok(),
-            "test setup should write the local configuration file"
-        );
-    }
-
-    #[cfg(unix)]
-    fn local_directory(&self) -> Dir {
-        let Ok(local) = self.root.open_dir("local") else {
-            panic!("test setup should open the local configuration directory");
-        };
-        local
-    }
-
-    fn merge_steps(&self, args: &[&str], environment: MapEnv) -> OrthoResult<StepsConfig> {
-        let (config, matches) = parse_steps(args);
-        self.merge(&config, &matches, environment)
-    }
-
-    fn merge_skipped(&self, args: &[&str], environment: MapEnv) -> OrthoResult<SkippedConfig> {
-        let (config, matches) = parse_skipped(args);
-        self.merge(&config, &matches, environment)
-    }
-
-    fn merge<T>(
-        &self,
-        config: &T,
-        matches: &clap::ArgMatches,
-        environment: MapEnv,
-    ) -> OrthoResult<T>
-    where
-        T: ortho_config::OrthoConfig
-            + serde::Serialize
-            + serde::de::DeserializeOwned
-            + Default
-            + CommandFactory
-            + ortho_config::CliValueExtractor,
-    {
-        let files = SubcommandFileContext::new(self.local_base.as_std_path(), &self.discovery);
-        let merge_source: SharedScanEnvSource = Arc::new(environment);
-        load_and_merge_subcommand_for_with_matches_with_sources_at(
-            &SubcommandCliMatches::new(config, matches),
-            files,
-            merge_source,
-        )
-    }
-}
-
-#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
-#[fixture]
-fn fixture() -> ConfigFixture { ConfigFixture::new() }
-
-fn parse_steps(args: &[&str]) -> (StepsConfig, clap::ArgMatches) {
-    let Ok(matches) = StepsConfig::command().try_get_matches_from(args) else {
-        panic!("steps test arguments should parse");
-    };
-    let Ok(config) = StepsConfig::from_arg_matches(&matches) else {
-        panic!("steps arguments should decode");
-    };
-    (config, matches)
-}
-
-fn parse_skipped(args: &[&str]) -> (SkippedConfig, clap::ArgMatches) {
-    let Ok(matches) = SkippedConfig::command().try_get_matches_from(args) else {
-        panic!("skipped test arguments should parse");
-    };
-    let Ok(config) = SkippedConfig::from_arg_matches(&matches) else {
-        panic!("skipped arguments should decode");
-    };
-    (config, matches)
-}
-
+/// Defaults yield false, a file enables the setting, an environment value
+/// overrides the file, and an explicit flag overrides the environment.
 #[rstest]
 #[case::steps_skipped(BooleanOptions::Steps, false)]
 #[case::steps_json(BooleanOptions::Steps, true)]
@@ -260,6 +71,7 @@ fn subcommand_configuration_uses_defaults_file_environment_then_cli(
     assert_eq!(cli, options.expected_values(is_json, true));
 }
 
+/// A subcommand ignores settings addressed to a different subcommand.
 #[rstest]
 fn settings_from_other_subcommand_namespaces_do_not_leak(fixture: ConfigFixture) {
     fixture.write_local_config("[cmds.skipped]\njson = true\n");
@@ -290,6 +102,7 @@ fn settings_from_other_subcommand_namespaces_do_not_leak(fixture: ConfigFixture)
     assert!(!skipped.reasons && !skipped.json);
 }
 
+/// Unknown keys are ignored, while malformed or mistyped values are reported.
 #[rstest]
 fn unknown_keys_are_ignored_and_malformed_or_invalid_values_fail(fixture: ConfigFixture) {
     fixture.write_local_config("[cmds.steps]\nunknown = true\n");
@@ -322,6 +135,7 @@ fn unknown_keys_are_ignored_and_malformed_or_invalid_values_fail(fixture: Config
     );
 }
 
+/// The cross-field rule rejects JSON output that no merged source enables.
 #[rstest]
 fn configuration_cannot_enable_steps_json_without_skipped_steps(fixture: ConfigFixture) {
     fixture.write_local_config("[cmds.steps]\njson = true\n");
@@ -335,6 +149,7 @@ fn configuration_cannot_enable_steps_json_without_skipped_steps(fixture: ConfigF
     assert!(message.contains("cmds.steps.skipped = true"));
 }
 
+/// An explicit JSON flag borrows `skipped` from whichever source supplies it.
 #[rstest]
 #[case::file(true)]
 #[case::environment(false)]
@@ -362,6 +177,7 @@ fn explicit_steps_json_uses_skipped_from_merged_sources(
     );
 }
 
+/// An unreadable discovered file is reported rather than skipped.
 #[cfg(unix)]
 #[rstest]
 fn unreadable_configuration_file_is_reported_when_permissions_are_enforced(fixture: ConfigFixture) {
