@@ -724,6 +724,57 @@ rather than by reading this branch's comments.
       the module documents what it cannot show rather than implying coverage
       it does not have. Lesson: a property test must be falsified before it is
       believed, exactly like the predicate it guards.
+- [x] Answer the review of `449e1caf`: three CodeRabbit findings and one
+      CodeScene regression, committed as `ed80e103`.
+      1. **CodeScene failed the gate on the property strategy.** `tree()` held
+         two separately filtered sets — `inputs` then `excluded` — so it
+         carried two nested `if`s, one per loop. That is a Bumpy Road with
+         `bumps = 2`, which is the threshold, and the quality gate recorded
+         9.84 and went red. `cs review` named the function and the bump count
+         directly, which is what made the fix obvious rather than guessed: one
+         loop over `inputs.into_iter().chain(excluded)` keeps the precedence
+         (inputs win) and scores 10.00. This is the same lesson as the
+         duplication findings earlier in this plan — ask the tool which
+         function and which metric, do not infer it from the summary.
+      2. **The eviction tests did not cover each directory independently.**
+         `evicting_the_dependency_artefacts_invalidates_the_preparation`
+         removed `deps` whole, which fails the non-empty check before
+         `.fingerprint` is ever consulted; removing both would have passed even
+         if only one were checked. `evicting_either_dependency_directory_alone_invalidates_the_preparation`
+         now loops over `DEPENDENCY_ARTEFACT_DIRS`, removes one at a time, and
+         asserts the sibling survives so the two checks cannot collapse into
+         one. `emptying_a_dependency_directory_invalidates_the_preparation`
+         covers the state `cargo clean -p` leaves behind — the directory exists
+         and holds nothing, which `exists()` cannot see.
+      3. **`stamping` was exactly at the 400-line budget**, so it could not take
+         the two cases above. They went into a new `eviction` test module
+         rather than being squeezed in: the six cases there all share one shape
+         (the stamp survives, something beneath the profile does not), which is
+         what distinguishes them from the lifecycle tests that remain. The
+         shared setup became `stamped_preparation`, so each case starts from a
+         genuinely stamped tree instead of resetting one inline.
+      4. **Deferred, with evidence, the process-tree finding on
+         `bounded.rs:83`.** `child.kill()` leaves a `rustc` that `cargo`
+         started running, and that orphan can hold the build-directory lock.
+         The finding is correct and its proposed fix is implementable — I had
+         nearly deferred it on a false premise, that `unsafe_code = "deny"`
+         blocks `process_group`, when `CommandExt::process_group` is a safe
+         API. What makes it a follow-up is scope and risk: it is a behavioural
+         change to the timeout path, outside issue 910; it needs a Unix path
+         and a Windows job object, and the Windows lanes are the ones that
+         already caught two under-specified predicates on this branch; and the
+         lock-contention premise is unmeasured, which CodeRabbit itself
+         recorded. The existing test proves the *call* returns in bounded time
+         and deliberately does not assert the grandchild is gone. Tracked for a
+         separate issue rather than folded in at the last gate.
+- [x] Gate `ed80e103` with the full sequence, one gate at a time:
+      `make check-fmt`, `make markdownlint`, `make lint` and `make test` all
+      exit 0. `make fmt` was needed first because rustfmt reflowed two
+      expressions in the new test file. The `make test` run reports every new
+      case passing by name, including
+      `evicting_either_dependency_directory_alone_invalidates_the_preparation`
+      and `emptying_a_dependency_directory_invalidates_the_preparation`, and
+      `cs review` on the strategy file reads 10.00 with no findings.
 
 ## Surprises & Discoveries
 
