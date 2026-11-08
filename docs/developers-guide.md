@@ -3368,6 +3368,17 @@ span named for the command they serve. The span records only that command name;
 configuration values, file paths and environment variable values stay out of
 the trace so a subscriber cannot leak them into logs.
 
+`src/observability.rs` owns the only subscriber the binary installs, and it
+does so only when `CARGO_BDD_LOG` is set; `RUST_LOG` is deliberately ignored so
+a host toolchain or wrapper cannot change this binary's output. The subscriber
+renders span *close* events (`FmtSpan::CLOSE`), because the loaders record no
+events of their own and the close line is what exposes the per-command timing.
+Close events inherit the span's `INFO` level, so `CARGO_BDD_LOG=info` is enough
+to see them. Any new instrumentation added to the binary must keep the
+no-values, no-paths rule above; the child-process tests in
+`crates/cargo-bdd/tests/invocation/observability.rs` enforce it for both
+command labels.
+
 Keep OrthoConfig within `crates/cargo-bdd`. Reusable library crates stay free
 of the dependency and retain the workspace Rust 1.88 MSRV; only the binary
 crate requires Rust 1.89. When adding a configurable option, first record its

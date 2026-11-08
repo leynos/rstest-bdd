@@ -67,12 +67,39 @@ const FLAG_OVER_ENVIRONMENT: ConfigurationCase = ConfigurationCase {
     variables: &[("CARGO_BDD_CMDS_SKIPPED_JSON", "false")],
 };
 
+/// The environment enables `steps.skipped` over a file that disables it.
+const ENVIRONMENT_OVER_FILE_STEPS_SKIPPED: ConfigurationCase = ConfigurationCase {
+    local_config: Some("[cmds.steps]\nskipped = false\njson = true\n"),
+    arguments: &["steps"],
+    variables: &[("CARGO_BDD_CMDS_STEPS_SKIPPED", "true")],
+};
+
+/// The environment enables `steps.json` over a file that disables it.
+const ENVIRONMENT_OVER_FILE_STEPS_JSON: ConfigurationCase = ConfigurationCase {
+    local_config: Some("[cmds.steps]\nskipped = true\njson = false\n"),
+    arguments: &["steps"],
+    variables: &[("CARGO_BDD_CMDS_STEPS_JSON", "true")],
+};
+
+/// An explicit `--json` overrides an environment value that disables it.
+const FLAG_OVER_ENVIRONMENT_STEPS_JSON: ConfigurationCase = ConfigurationCase {
+    local_config: None,
+    arguments: &["steps", "--json"],
+    variables: &[
+        ("CARGO_BDD_CMDS_STEPS_SKIPPED", "true"),
+        ("CARGO_BDD_CMDS_STEPS_JSON", "false"),
+    ],
+};
+
 /// Every source tier reaches the handlers without an explicit flag.
 ///
 /// The case names identify the tier each row exercises: `*_file` sets the
 /// setting only in a local configuration file, `*_environment` only in the
-/// environment, and the final two rows assert the documented precedence of
-/// environment over file and explicit flag over environment.
+/// environment, and the remaining rows assert the documented precedence of
+/// environment over file and explicit flag over environment for each
+/// configurable field. A row whose lower tier won would produce human-readable
+/// output instead of the empty JSON array, so none of them can pass by
+/// accident.
 #[rstest]
 #[case::skipped_file(SKIPPED_FILE)]
 #[case::skipped_environment(SKIPPED_ENVIRONMENT)]
@@ -80,6 +107,9 @@ const FLAG_OVER_ENVIRONMENT: ConfigurationCase = ConfigurationCase {
 #[case::steps_environment(STEPS_ENVIRONMENT)]
 #[case::environment_over_file(ENVIRONMENT_OVER_FILE)]
 #[case::flag_over_environment(FLAG_OVER_ENVIRONMENT)]
+#[case::steps_skipped_environment_over_file(ENVIRONMENT_OVER_FILE_STEPS_SKIPPED)]
+#[case::steps_json_environment_over_file(ENVIRONMENT_OVER_FILE_STEPS_JSON)]
+#[case::steps_json_flag_over_environment(FLAG_OVER_ENVIRONMENT_STEPS_JSON)]
 fn configuration_reaches_the_handlers_from_every_source(
     isolated_workspace: io::Result<IsolatedWorkspace>,
     #[case] case: ConfigurationCase,
