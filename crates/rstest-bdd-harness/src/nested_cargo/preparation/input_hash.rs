@@ -239,7 +239,13 @@ mod tests {
 
     use std::{collections::hash_map::DefaultHasher, fs, hash::Hasher};
 
-    use super::{hash_sorted, input_hash};
+    use super::hash_sorted;
+    // Only the two cycle tests below hash through the public entry point, and
+    // they are Unix-only because creating a link on Windows needs a privilege
+    // the test runner does not have. Importing it unconditionally would be an
+    // unused import on Windows, which `-D warnings` turns into a build failure.
+    #[cfg(unix)]
+    use super::input_hash;
 
     /// The same entries hash the same whatever order the directory listed
     /// them in.
