@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Doc strings annotated with a media type after the opening delimiter
+  (`"""json`, ```` ```application/json ````) now reach steps without the
+  annotation, byte-identical to the same doc string with a bare delimiter.
+  `gherkin` 0.16 kept the token as the first content line and, because it sat
+  at column zero, left the body undedented. A doc string whose first line is a
+  single media-type-like token now loses that line.
+
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and
   `find_step_with_mode` in favour of `lookup_step_with_metadata` and

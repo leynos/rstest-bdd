@@ -3003,6 +3003,15 @@ not shipped with the crate. Procedural macro diagnostics remain in English so
 compile-time output stays deterministic regardless of the host machine’s
 language settings.
 
+### Doc string media types
+
+A doc string may name its media type after the opening delimiter, as in
+`"""json` or ```` ```application/json ````. The annotation is not part of the
+text the step receives: an annotated doc string yields exactly the same string
+as the same doc string with a bare delimiter, including its leading and
+trailing newlines. A doc string whose first line is a single media-type token
+(ASCII letters and digits, plus `.`, `+`, `-`, `_` and `/`) loses that line.
+
 ## Limitations and roadmap
 
 The `rstest‑bdd` project is evolving. Several features described in the design
