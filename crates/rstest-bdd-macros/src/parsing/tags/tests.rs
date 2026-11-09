@@ -84,3 +84,21 @@ fn reports_parse_errors(#[case] input: &str, #[case] expected: &str) {
     let err = parse_error_message(input);
     assert!(err.contains(expected), "unexpected error message: {err}");
 }
+
+#[rstest]
+#[case::colon("@stage:draft", "@stage:draft")]
+#[case::full_stop("@v1.2", "@v1.2")]
+#[case::both("@release:v1.2", "@release:v1.2")]
+fn parses_tags_with_colons_and_full_stops(#[case] input: &str, #[case] tag: &str) {
+    let expr = parse_expression(input);
+    assert!(expr.evaluate([tag]));
+    assert!(!expr.evaluate(["@stage"]));
+    assert!(!expr.evaluate(["@v1"]));
+}
+
+#[test]
+fn punctuated_tags_combine_with_operators() {
+    let expr = parse_expression("@stage:draft and not @v1.2");
+    assert!(expr.evaluate(["@stage:draft"]));
+    assert!(!expr.evaluate(["@stage:draft", "@v1.2"]));
+}

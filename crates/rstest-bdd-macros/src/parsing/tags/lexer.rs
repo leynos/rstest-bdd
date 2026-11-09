@@ -181,4 +181,9 @@ impl<'a> Lexer<'a> {
 }
 
 /// Return whether a character may occur in a tag identifier.
-fn is_tag_char(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }
+///
+/// `:` and `.` are accepted because `gherkin` accepts them in tags, so a
+/// feature may be tagged `@stage:draft` or `@v1.2`.
+fn is_tag_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '.')
+}
