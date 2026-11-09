@@ -56,11 +56,14 @@ pub(super) fn generate_capture_validation(
 pub(super) fn generate_unwind_handling(
     path: &TokenStream2,
     call_expr: &TokenStream2,
+    fixture_guards: &[syn::Ident],
     exec_err: &TokenStream2,
     panic_err: &TokenStream2,
 ) -> TokenStream2 {
     quote! {
-        match #path::__rstest_bdd_catch_unwind_future(async move { #call_expr }).await {
+        let __rstest_bdd_step_outcome = #path::__rstest_bdd_catch_unwind_future(async move { #call_expr }).await;
+        #(drop(#fixture_guards);)*
+        match __rstest_bdd_step_outcome {
             Ok(res) => res
                 .map(|value| #path::StepExecution::from_value(value))
                 .map_err(|message| #exec_err),

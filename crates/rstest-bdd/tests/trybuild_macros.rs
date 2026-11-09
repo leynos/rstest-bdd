@@ -173,6 +173,10 @@ fn run_lint_ui_tests() -> io::Result<()> {
             "scenario_underscore_fixture_param",
             &["-D", "clippy::used_underscore_binding"][..],
         ),
+        (
+            "step_fixture_guard_drop",
+            &["-D", "clippy::significant_drop_tightening"][..],
+        ),
         ("step_return_dispatch_lint_clean", &["-D", "warnings"][..]),
         ("registry_lookup_api", &["-D", "warnings"][..]),
         ("registry_lookup_projection", &["-D", "warnings"][..]),

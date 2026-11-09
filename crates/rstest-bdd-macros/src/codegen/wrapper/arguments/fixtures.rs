@@ -233,6 +233,23 @@ pub(super) fn gen_fixture_decls(
         .collect()
 }
 
+/// Name the borrow guards that [`gen_fixture_decls`] declares, in reverse
+/// declaration order.
+///
+/// Wrappers drop these straight after the step call so a fixture borrow lasts
+/// only as long as the step itself. Reverse order mirrors the order in which
+/// the guards would drop at the end of the wrapper's scope.
+///
+/// For fixtures bound as `rstest_bdd_arg_0` and `rstest_bdd_arg_1`, this
+/// returns `[__rstest_bdd_guard_rstest_bdd_arg_1, __rstest_bdd_guard_rstest_bdd_arg_0]`.
+pub(super) fn fixture_guard_idents(fixtures: &[BoundFixtureArg<'_>]) -> Vec<syn::Ident> {
+    fixtures
+        .iter()
+        .rev()
+        .map(|fixture| format_ident!("__rstest_bdd_guard_{}", fixture.binding))
+        .collect()
+}
+
 /// Provides the internal `is_unsized_reference_target` operation.
 fn is_unsized_reference_target(ty: &syn::Type) -> bool {
     matches!(
