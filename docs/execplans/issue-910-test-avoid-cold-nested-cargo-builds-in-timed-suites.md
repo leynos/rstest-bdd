@@ -850,6 +850,28 @@ rather than by reading this branch's comments.
 
 ## Surprises & Discoveries
 
+- **A `#[cfg(unix)]` test can break the Windows *build* through its import
+  alone.** 2026-11-09. Two cycle tests were marked `#[cfg(unix)]` because
+  creating a link on Windows needs a privilege the runner lacks, but their
+  import of `input_hash` sat at module scope. On Windows that import was
+  therefore unused, and the workspace's `-D warnings` turned it into
+  `error: unused import: input_hash` — so both required Windows lanes failed
+  before a single test ran. The gate is cheap to check locally, which is the
+  lesson worth keeping:
+  `cargo check --target x86_64-pc-windows-msvc --all-features --tests` with
+  `-Dwarnings` reproduces it in about two minutes. Verified by reverting the
+  `#[cfg(unix)]` on the import and watching that command fail with exactly the
+  hosted message.
+
+- **Escaping a value changes the strings tests must compare against.** The
+  fingerprint escaping added for the forging fix made a Windows target
+  directory render as `C:\\Users\\RUNNER~1\\...`. One test still asserted on
+  the raw path and so failed on Windows only, while passing locally where the
+  path has no backslashes. The production text was right and the expectation
+  was stale; the expectation now escapes the same way. This is the general
+  shape to watch for: a change to how a value is *rendered* is invisible to
+  Linux-only assertions when the Linux rendering happens to be unchanged.
+
 - **Following a symlink turns a tree walk into a possibly cyclic graph.**
   2026-11-09. The fix for the configuration-link gap made `hash_entry` resolve
   a link instead of skipping it. That is correct for the case that motivated it
