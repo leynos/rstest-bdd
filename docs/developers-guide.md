@@ -977,10 +977,10 @@ be present, and reports the ones that have gone.
 
 The record exists because no naming rule can decide the question. Removing only
 `lib<stem>.rlib` while `lib<stem>.rmeta` survives makes Cargo recompile that
-unit — measured against a real crate — and the tree that leaves behind is the
-same shape a `cargo check` leaves for a genuine metadata-only unit, which Cargo
-does reuse. Two states with identical file names, one reusable and one not, so
-any predicate over names is either wrong or a guess about a toolchain this code
+unit — measured against a real crate — and the tree left behind is the same
+shape a `cargo check` leaves for a genuine metadata-only unit, which Cargo does
+reuse. Two states with identical file names, one reusable and one not, so any
+predicate over names is either wrong or a guess about a toolchain this code
 does not control. Earlier versions tried both shapes and each refused a genuine
 tree in CI: the first accepted only `rlib` and rejected metadata-only units
 (the commonest form in this workspace's own `target/debug/deps` — 1,061 `rmeta`

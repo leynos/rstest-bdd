@@ -850,6 +850,21 @@ rather than by reading this branch's comments.
 
 ## Surprises & Discoveries
 
+- **Following a symlink turns a tree walk into a possibly cyclic graph.**
+  2026-11-09. The fix for the configuration-link gap made `hash_entry` resolve
+  a link instead of skipping it. That is correct for the case that motivated it
+  — a `.cargo/config.toml` committed as a link — but a link may also point at
+  an *ancestor of the walk*, and following that without a bound never
+  terminates. The earlier code was safe here only by accident: because it
+  skipped every link, it could not recurse through one. Review flagged the
+  hazard as a reason to keep `hash_entry` unchanged for nested entries; the
+  stronger fix is to keep the resolution and bound the descent, since a nested
+  link is an input for the same reason a root link is. `hash_directory` now
+  canonicalises each directory as it enters it, refuses to re-enter one already
+  on the stack, and hashes a `symlink-cycle` marker so a cut descent cannot
+  read as an empty directory. Verified non-vacuous by deleting the check and
+  watching both tests hang past a 120-second cap.
+
 - **A required check can fail for a reason that is not in the diff, and the
   distinction is provable rather than rhetorical.** On 2026-11-08 the required
   lane `build-test (linux, default features)` began failing in its `Lint` step,
@@ -1228,8 +1243,8 @@ rather than by reading this branch's comments.
   a repository committing `.cargo/config.toml` as a symlink would keep a
   matching stamp after the file it points at changed. The walk now resolves a
   link with `fs::metadata` and hashes the target — as a file's contents, or as
-  a directory walk — plus the link's own name. A dangling link stays "absent"
-  in `cargo_config_inputs` and is safe in both directions, because either
+  a directory walk — plus the link's own name. A dangling link stays "absent" in
+  `cargo_config_inputs` and is safe in both directions, because either
   transition changes the hash; that is pinned rather than changed.
 - **Text compared for equality needs its field boundaries escaped.** The
   fingerprint is a line-oriented record compared as text, and each value was
@@ -1238,9 +1253,9 @@ rather than by reading this branch's comments.
   different builds could share one stamp — and the test that pins this had to
   be written against that specific collision, because a first attempt compared
   two descriptions that already differed and would have passed over a
-  fingerprint with no boundary handling at all. Values now escape `\`, `\n`
-  and `\r` onto one line, and `STAMP_VERSION` moved to `3` so every stamp
-  written under the old encoding is invalidated once.
+  fingerprint with no boundary handling at all. Values now escape `\`, `\n` and
+  `\r` onto one line, and `STAMP_VERSION` moved to `3` so every stamp written
+  under the old encoding is invalidated once.
 
 ## Decision Log
 

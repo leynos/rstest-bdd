@@ -75,6 +75,14 @@ fn is_build_output(name: &str) -> bool {
     BUILD_OUTPUT_ENTRIES.contains(&name) || name.ends_with(PREPARED_FILE_SUFFIX)
 }
 
+/// Marker hashed where a link re-enters a directory already on the walk.
+///
+/// Without it a cyclic descent and an empty directory would contribute the
+/// same bytes, so two genuinely different trees would share a hash. The marker
+/// is a fixed string rather than the resolved path of the directory it cuts,
+/// because the hash has to be reproducible from the checkout alone.
+const CYCLE_MARKER: &str = "symlink-cycle";
+
 /// Hash the inputs a preparation family's artefacts derive from.
 ///
 /// `roots` may name files or directories; directories are walked in sorted
@@ -91,6 +99,10 @@ fn is_build_output(name: &str) -> bool {
 /// directory, so counting it would make every stamp stale the moment it was
 /// written.
 ///
+/// Following a link means the walk can be led back to a directory it is
+/// already inside; the walk cuts the descent there, so a cyclic tree is hashed
+/// rather than walked for ever.
+///
 /// # Errors
 ///
 /// Returns the read error when a named input or one of its files cannot be
@@ -98,17 +110,22 @@ fn is_build_output(name: &str) -> bool {
 pub fn input_hash(roots: &[PathBuf]) -> io::Result<String> {
     let mut hasher = DefaultHasher::new();
     STAMP_VERSION.hash(&mut hasher);
+    let mut ancestors = Vec::new();
     for root in roots {
-        hash_entry(root, &mut hasher)?;
+        hash_entry(root, &mut hasher, &mut ancestors)?;
     }
     Ok(format!("{:016x}", hasher.finish()))
 }
 
 /// Feed one file or directory tree into `hasher`.
-fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
+fn hash_entry(
+    path: &Path,
+    hasher: &mut impl Hasher,
+    ancestors: &mut Vec<PathBuf>,
+) -> io::Result<()> {
     let entry = fs::symlink_metadata(path)?;
     if entry.file_type().is_symlink() {
-        return hash_symlink(path, hasher);
+        return hash_symlink(path, hasher, ancestors);
     }
     if entry.is_file() {
         path.file_name()
@@ -122,7 +139,7 @@ fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
     if !entry.is_dir() {
         return Ok(());
     }
-    hash_directory(path, hasher)
+    hash_directory(path, hasher, ancestors)
 }
 
 /// Hash a symbolic link as the target Cargo would read through it.
@@ -135,17 +152,25 @@ fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
 /// recorded as well, because removing or renaming it changes what Cargo
 /// discovers even when the target is untouched.
 ///
-/// A link is resolved with [`fs::metadata`], which follows. A dangling link is
+/// A link is resolved with [`fs::metadata`], which follows, and its target is
+/// then walked as the directory or file Cargo would read. Walking it calls
+/// back into [`hash_directory`], which cuts a descent that re-enters a
+/// directory already on the stack — a link can point at an ancestor, and
+/// following that without a bound would never terminate. A dangling link is
 /// therefore a read error rather than a silent absence, matching how the rest
 /// of this module treats an entry that exists but cannot be read.
-fn hash_symlink(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
+fn hash_symlink(
+    path: &Path,
+    hasher: &mut impl Hasher,
+    ancestors: &mut Vec<PathBuf>,
+) -> io::Result<()> {
     let target = fs::metadata(path)?;
     path.file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .hash(hasher);
     if target.is_dir() {
-        return hash_directory(path, hasher);
+        return hash_directory(path, hasher, ancestors);
     }
     if target.is_file() {
         let contents = fs::read(path)?;
@@ -155,11 +180,28 @@ fn hash_symlink(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
 }
 
 /// Walk `directory` in sorted order, hashing each entry.
-fn hash_directory(directory: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
+///
+/// The directory's resolved identity is pushed for the duration of the walk so
+/// a link back into it is recognised. Resolution happens on the identity only
+/// — the paths handed to [`hash_entry`] stay as the tree names them, so the
+/// hash keeps depending on the checkout rather than on where it is mounted.
+fn hash_directory(
+    directory: &Path,
+    hasher: &mut impl Hasher,
+    ancestors: &mut Vec<PathBuf>,
+) -> io::Result<()> {
+    let identity = fs::canonicalize(directory)?;
+    if ancestors.contains(&identity) {
+        CYCLE_MARKER.hash(hasher);
+        return Ok(());
+    }
+    ancestors.push(identity);
     let entries: Vec<PathBuf> = fs::read_dir(directory)?
         .map(|entry| entry.map(|entry| entry.path()))
         .collect::<io::Result<_>>()?;
-    hash_sorted(entries, hasher)
+    let outcome = hash_sorted(entries, hasher, ancestors);
+    ancestors.pop();
+    outcome
 }
 
 /// Hash `entries` in sorted order, skipping build output.
@@ -171,7 +213,11 @@ fn hash_directory(directory: &Path, hasher: &mut impl Hasher) -> io::Result<()> 
 /// where the fixture was built. Separating the sort from the traversal lets
 /// a test supply a known-unsorted sequence, which no sequence of file
 /// creations on a real filesystem can force.
-fn hash_sorted(mut entries: Vec<PathBuf>, hasher: &mut impl Hasher) -> io::Result<()> {
+fn hash_sorted(
+    mut entries: Vec<PathBuf>,
+    hasher: &mut impl Hasher,
+    ancestors: &mut Vec<PathBuf>,
+) -> io::Result<()> {
     entries.sort();
     for entry in entries {
         let name = entry
@@ -182,7 +228,7 @@ fn hash_sorted(mut entries: Vec<PathBuf>, hasher: &mut impl Hasher) -> io::Resul
             continue;
         }
         name.hash(hasher);
-        hash_entry(&entry, hasher)?;
+        hash_entry(&entry, hasher, ancestors)?;
     }
     Ok(())
 }
@@ -193,7 +239,7 @@ mod tests {
 
     use std::{collections::hash_map::DefaultHasher, fs, hash::Hasher};
 
-    use super::hash_sorted;
+    use super::{hash_sorted, input_hash};
 
     /// The same entries hash the same whatever order the directory listed
     /// them in.
@@ -220,11 +266,11 @@ mod tests {
 
         let mut listed = DefaultHasher::new();
         let listed_order = entries.clone();
-        hash_sorted(listed_order, &mut listed).expect("listed order");
+        hash_sorted(listed_order, &mut listed, &mut Vec::new()).expect("listed order");
 
         entries.sort();
         let mut sorted = DefaultHasher::new();
-        hash_sorted(entries, &mut sorted).expect("sorted order");
+        hash_sorted(entries, &mut sorted, &mut Vec::new()).expect("sorted order");
 
         assert_eq!(
             listed.finish(),
@@ -243,7 +289,7 @@ mod tests {
         let mut entries = vec![input.clone()];
 
         let mut before = DefaultHasher::new();
-        hash_sorted(entries.clone(), &mut before).expect("without build output");
+        hash_sorted(entries.clone(), &mut before, &mut Vec::new()).expect("without build output");
 
         let output = directory.path().join("target");
         fs::create_dir_all(&output).expect("target dir");
@@ -252,12 +298,53 @@ mod tests {
         entries.push(directory.path().join("wip"));
 
         let mut after = DefaultHasher::new();
-        hash_sorted(entries, &mut after).expect("with build output");
+        hash_sorted(entries, &mut after, &mut Vec::new()).expect("with build output");
 
         assert_eq!(
             before.finish(),
             after.finish(),
             "target and wip must not reach the hash"
+        );
+    }
+
+    /// A link back into a directory the walk is already inside terminates.
+    ///
+    /// Following a link is what makes a symlinked `.cargo/config.toml`
+    /// contribute, but it also lets a tree point back at an ancestor. Without
+    /// the ancestor check this walk never returns, so the test is the
+    /// termination proof: it fails by hanging rather than by asserting.
+    #[test]
+    #[cfg(unix)]
+    fn a_link_back_to_an_ancestor_terminates() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let nested = directory.path().join("nested");
+        fs::create_dir_all(&nested).expect("nested dir");
+        fs::write(nested.join("input"), b"Feature: one").expect("input file");
+        std::os::unix::fs::symlink(directory.path(), nested.join("back")).expect("cycle link");
+
+        let roots = vec![directory.path().to_path_buf()];
+        let first = input_hash(&roots).expect("a cyclic tree must still hash");
+        let second = input_hash(&roots).expect("the cycle must hash reproducibly");
+        assert_eq!(first, second, "a cyclic tree must hash the same twice");
+    }
+
+    /// A cycle is not the same input as an empty directory.
+    ///
+    /// Both stop the descent at the same point, so without a marker the two
+    /// trees would contribute identical bytes and a stamp would survive the
+    /// tree growing a link that leads somewhere.
+    #[test]
+    #[cfg(unix)]
+    fn a_cycle_is_distinct_from_an_empty_directory() {
+        let cyclic = tempfile::tempdir().expect("cyclic dir");
+        std::os::unix::fs::symlink(cyclic.path(), cyclic.path().join("back")).expect("cycle link");
+        let empty = tempfile::tempdir().expect("empty dir");
+
+        let cyclic_hash = input_hash(&[cyclic.path().to_path_buf()]).expect("cyclic hash");
+        let empty_hash = input_hash(&[empty.path().to_path_buf()]).expect("empty hash");
+        assert_ne!(
+            cyclic_hash, empty_hash,
+            "cutting a cycle must record something, or it reads as an empty tree"
         );
     }
 }
