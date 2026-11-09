@@ -56,7 +56,9 @@ fn a_written_stamp_is_found_and_a_missing_one_is_not() {
     let directory = tempfile::tempdir().expect("temp dir");
     let stamp = directory.path().join(".unit.rstest-bdd-prepared");
     assert!(
-        matching_stamp(&stamp, &fingerprint_of("version: 2\n")).is_none(),
+        matching_stamp(&stamp, &fingerprint_of("version: 2\n"))
+            .expect("an absent stamp is not a read failure")
+            .is_none(),
         "an absent stamp is not a match"
     );
 
@@ -67,18 +69,51 @@ fn a_written_stamp_is_found_and_a_missing_one_is_not() {
     )
     .expect("write the stamp");
 
-    let found: Stamp = matching_stamp(&stamp, &fingerprint).expect("the stamp must match");
+    let found: Stamp = matching_stamp(&stamp, &fingerprint)
+        .expect("the stamp is readable")
+        .expect("the stamp must match");
     assert_eq!(found.recorded, vec![vec!["liba.rlib".to_owned()]]);
     assert!(
         matching_stamp(
             &stamp,
             &fingerprint_of("version: 2\ntoolchain: release: 1.89.0\n")
         )
+        .expect("the stamp is readable")
         .is_none(),
         "a stamp from another toolchain must not match"
     );
     assert!(
         !PathBuf::from(".unit.rstest-bdd-prepared").exists(),
         "the stamp must live where it was asked to"
+    );
+}
+
+/// An unreadable stamp reports its cause rather than passing as absent.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_stamp_is_reported_rather_than_treated_as_absent() {
+    // Folding a read failure into `None` makes a stamp that may well describe a
+    // warm tree indistinguishable from no stamp at all, so the rebuild it
+    // causes has no visible reason. A symlink loop reaches that state without
+    // any permission setup, which would not hold when the suite runs as root.
+    let directory = tempfile::tempdir().expect("temp dir");
+    let stamp = directory.path().join(".unit.rstest-bdd-prepared");
+    std::os::unix::fs::symlink(&stamp, &stamp).expect("symlink loop");
+
+    let error = match matching_stamp(&stamp, &fingerprint_of("version: 2\n")) {
+        Err(error) => error,
+        Ok(matching) => panic!(
+            "a loop must be reported as a read failure, not as {}",
+            if matching.is_some() {
+                "a match"
+            } else {
+                "an absence"
+            }
+        ),
+    };
+    assert_ne!(
+        error.kind(),
+        std::io::ErrorKind::NotFound,
+        "a loop is not an absence: {error}"
     );
 }

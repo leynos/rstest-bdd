@@ -1135,6 +1135,68 @@ rather than by reading this branch's comments.
   `concat!()` arguments. That is not a regression: a literal inside a macro
   expansion has `is_source_literal == false`, which the decision matrix routes
   to `Ignore`. Re-running the suite after formatting still exits 0.
+- **A check that fails open is worse than no check, and this module had one.**
+  `has_entries` decides whether `deps` or `.fingerprint` is populated, and its
+  own documentation says an inspection failure "must fail closed rather than be
+  read as an empty directory, which is the unsafe direction". The body did the
+  opposite one level down: `entries.next().is_some()` maps an `Err` from the
+  directory iterator — a read fault partway through the listing — to `true`, so
+  an unreadable profile passed the structural check. `read_dir` reports such a
+  fault only from `next()`, and no portable fixture produces it as the *first*
+  item, so the decision was split into `has_entries_from` to keep the branch
+  reachable from a test; reverting the fix now fails that test.
+- **A recoverable error path still has to name its cause.** `matching_stamp`
+  logged an unreadable stamp and returned `None`, and `eviction_of` used
+  `is_dir()`, which folds a metadata fault into "evicted". Both fail closed,
+  but both read a tree that cannot be inspected as one that is known to be
+  absent, and the rebuild that follows has no visible reason. Both now return
+  the error; the caller still re-prepares, because the alternative to a
+  readable stamp is to prepare again either way.
+- **The 400-line module cap and the two failure modes it creates.** Moving an
+  inherited bug's fix into `preparation.rs` pushed it from 399 to 418 lines and
+  tripped `check_rs_file_lengths.py`. The helper belonged beside the read it
+  wraps anyway, so it moved to `stamp.rs`; `preparation.rs` returned to 399.
+  The earlier discovery is the more useful one: `preparation.rs` was *one line
+  under* the cap before this work, so the gate was green only by luck and any
+  addition to the module would have failed it.
+- **A pre-existing timeout must be proved pre-existing, not assumed.** The
+  harness suite reported `binary_test_support_cargo::locate_or_build…` as a 60
+  s nextest `slow-timeout`. Nextest's default period is 60 s and the test
+  spawns a nested `cargo` build, so with the compile-admission pool fully held
+  (`capacity 4, held 4`, ~100 crates queued) it legitimately overruns. Stashing
+  the whole diff and re-running reproduced the timeout on clean `HEAD`, which
+  is what makes it environmental rather than a regression.
+- **A preparation bound can be spent entirely in the admission queue, and that
+  is the failure issue 910 describes showing up on the preparation side.** On
+  2026-11-09 the host was running several agents' builds at once; the shared
+  compile-admission pool held `capacity 4, held 4` with 100–300 crates waiting.
+  `make test` then failed in two different preparation families for the same
+  reason, and neither was a code defect:
+  - `cargo-bdd::cli` spent its whole 540 s bound queued 115–195 deep and was
+    killed having just printed `Finished … in 8m 55s` — the compile succeeded,
+    the next command never started.
+  - `rstest-bdd::trybuild_macros` *prepared and stamped* its family in
+    1195.9 s, then lost a later bounded `cargo clippy` command to the same
+    540 s bound while queued behind ~100 crates.
+
+  Two things follow. First, the bound is doing its documented job: it names the
+  command and reports the captured output rather than hanging the runner, and
+  `3 × 540 s < 30 m` still holds, so widening it is not available and is not
+  the fix. Second, the *evidence* for this branch has to be read from a host
+  that is not oversubscribed, or from the hosted lanes. Both are recorded
+  separately in the Progress section; a red local run under a 300-deep queue
+  says nothing about the diff, and a green hosted run says nothing about this
+  host.
+- **A bare `cargo nextest run` is not the make target, and the fingerprint
+  knows the difference.** Rerunning the failed CLI preparation directly
+  (`cargo nextest run -p cargo-bdd --test cli -E …`) reproduced the failure
+  against a *different* cause: without
+  `RUSTFLAGS="-D warnings -Clink-arg=-fuse-ld=mold"` the fingerprint changed,
+  so the prepared tree was correctly rejected and the child paid for a full
+  cold build inside its bound. The gate was working; the invocation was wrong.
+  This is the trap the "Concrete steps" section already documents, and it is
+  worth restating as an operational rule: a preparation failure has to be
+  diagnosed by reading *whether the stamp matched*, not by the timeout alone.
 
 ## Decision Log
 

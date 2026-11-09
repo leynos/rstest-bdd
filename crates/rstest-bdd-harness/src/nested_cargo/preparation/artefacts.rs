@@ -65,9 +65,24 @@ pub const DEPENDENCY_ARTEFACT_DIRS: [&str; 2] = ["deps", ".fingerprint"];
 /// profile pass the check.
 fn has_entries(directory: &Path) -> io::Result<bool> {
     match fs::read_dir(directory) {
-        Ok(mut entries) => Ok(entries.next().is_some()),
+        Ok(mut entries) => has_entries_from(entries.next()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error),
+    }
+}
+
+/// Decide whether a listing is non-empty from its first step.
+///
+/// `read_dir` yields each entry lazily, so its error arrives from `next()`. An
+/// `Err` there is a read fault partway through the listing, not evidence of an
+/// entry: counting it as one would report an unreadable directory as populated,
+/// the same fail-open direction [`has_entries`] guards. No portable fixture
+/// produces that error as the *first* item, hence this seam.
+fn has_entries_from(first: Option<io::Result<fs::DirEntry>>) -> io::Result<bool> {
+    match first {
+        Some(Ok(_)) => Ok(true),
+        Some(Err(error)) => Err(error),
+        None => Ok(false),
     }
 }
 
@@ -203,6 +218,14 @@ pub(super) struct Eviction {
 const NAMED_OUTPUTS: usize = 5;
 
 impl Eviction {
+    /// An eviction of the whole profile, naming no individual output.
+    fn whole(directory: &Path) -> Self {
+        Self {
+            profile: directory.to_path_buf(),
+            missing: Vec::new(),
+        }
+    }
+
     /// Describe this eviction for a failure message.
     pub(super) fn describe(&self) -> String {
         let profile = self.profile.display();
@@ -234,26 +257,27 @@ impl Eviction {
 /// Returns the read error when a directory cannot be inspected, so an
 /// unreadable tree refuses the preparation instead of passing it.
 fn eviction_of(directory: &Path, recorded: Option<&[String]>) -> io::Result<Option<Eviction>> {
-    if !directory.is_dir() {
-        return Ok(Some(Eviction {
-            profile: directory.to_path_buf(),
-            missing: Vec::new(),
-        }));
+    match fs::metadata(directory) {
+        Ok(metadata) if metadata.is_dir() => {}
+        // Absent, or present as something that is not a directory: both are the
+        // ordinary eviction named above.
+        Ok(_) => return Ok(Some(Eviction::whole(directory))),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(Some(Eviction::whole(directory)));
+        }
+        // A permission or I/O fault must name itself. Folding it into an
+        // eviction would report a tree that cannot be inspected as one that is
+        // known to be empty, which is a diagnosis the reader cannot act on.
+        Err(error) => return Err(error),
     }
     let deps = directory.join("deps");
     if !has_entries(&deps)? {
         // Naming the directory is the whole diagnosis when it is empty or
         // absent; nothing inside it can be reported as individually gone.
-        return Ok(Some(Eviction {
-            profile: directory.to_path_buf(),
-            missing: Vec::new(),
-        }));
+        return Ok(Some(Eviction::whole(directory)));
     }
     if !has_entries(&directory.join(".fingerprint"))? {
-        return Ok(Some(Eviction {
-            profile: directory.to_path_buf(),
-            missing: Vec::new(),
-        }));
+        return Ok(Some(Eviction::whole(directory)));
     }
     let Some(recorded) = recorded else {
         return Ok(None);

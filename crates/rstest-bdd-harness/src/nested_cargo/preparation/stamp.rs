@@ -51,7 +51,7 @@ const OUTPUTS_SEPARATOR: &str = "@@ recorded-artefacts";
 /// Everything else in the child environment (`NEXTEST_*`,
 /// `LLVM_PROFILE_FILE`, thread counts, logging filters) is excluded: a change
 /// to those must not force a rebuild.
-const FINGERPRINT_EXACT: [&str; 5] = [
+pub(super) const FINGERPRINT_EXACT: [&str; 5] = [
     "RUSTFLAGS",
     "CARGO_ENCODED_RUSTFLAGS",
     "CARGO_INCREMENTAL",
@@ -60,7 +60,7 @@ const FINGERPRINT_EXACT: [&str; 5] = [
 ];
 
 /// Prefixes whose whole variable set changes the compiled artefacts.
-const FINGERPRINT_PREFIXES: [&str; 5] = [
+pub(super) const FINGERPRINT_PREFIXES: [&str; 5] = [
     "RUSTC",
     "RUSTDOC",
     "CARGO_BUILD_",
@@ -117,23 +117,44 @@ pub(super) fn stamp_path(preparation: &Preparation) -> PathBuf {
 
 /// The stamp at `stamp`, if it was written for exactly `fingerprint`.
 ///
-/// Returns `None` for a missing stamp, a stamp that cannot be read, and one
-/// whose fingerprint differs. Each of those is "not prepared", which is the
-/// safe answer: the caller prepares again or fails fast rather than admitting
-/// a timed assertion against a tree the stamp does not describe.
-pub(super) fn matching_stamp(stamp: &Path, fingerprint: &Fingerprint) -> Option<Stamp> {
+/// Returns `Ok(None)` for a missing stamp and for one whose fingerprint
+/// differs. Both are "not prepared", which is the safe answer: the caller
+/// prepares again or fails fast rather than admitting a timed assertion
+/// against a tree the stamp does not describe.
+///
+/// # Errors
+///
+/// Returns the read error when the stamp exists but cannot be read. Treating
+/// that as "not prepared" would silently discard a stamp that may well
+/// describe a warm tree, and the caller would pay for the rebuild with no
+/// indication of why. Reporting it keeps the cause visible; the caller still
+/// re-prepares.
+pub(super) fn matching_stamp(stamp: &Path, fingerprint: &Fingerprint) -> io::Result<Option<Stamp>> {
     let text = match fs::read_to_string(stamp) {
         Ok(text) => text,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    Ok(parse(&text, fingerprint))
+}
+
+/// The matching stamp, reporting an unreadable one before re-preparing.
+///
+/// An unreadable stamp is neither a match nor an absence. Every caller has to
+/// re-prepare either way, so the read failure is not fatal; it is reported so a
+/// tree that was warm for reasons the reader cannot see does not turn into an
+/// unexplained rebuild.
+pub(super) fn matching_stamp_or_note(stamp: &Path, fingerprint: &Fingerprint) -> Option<Stamp> {
+    match matching_stamp(stamp, fingerprint) {
+        Ok(matching) => matching,
         Err(error) => {
             note(&format!(
                 "could not read stamp {}: {error}; preparing again",
                 stamp.display()
             ));
-            return None;
+            None
         }
-    };
-    parse(&text, fingerprint)
+    }
 }
 
 /// Split a stamp file into its fingerprint and recorded names.
@@ -215,9 +236,33 @@ pub(super) fn write_stamp(stamp: &Path, stamp_text: &StampText) -> io::Result<()
 /// Reporting the failure is the only answer that fails closed without
 /// re-preparing on every single run.
 pub(super) fn fingerprint(preparation: &Preparation) -> io::Result<Fingerprint> {
+    fingerprint_from(preparation, toolchain_identity)
+}
+
+/// The fingerprint text, with the toolchain identity resolved by `resolve`.
+///
+/// [`toolchain_identity`] spawns `cargo -vV`, which a unit test cannot make
+/// fail on demand, yet its failure is the branch that decides whether a stamp
+/// may be trusted at all. Taking the resolver as a parameter keeps that branch
+/// reachable from a test while leaving production callers on the real probe.
+pub(super) fn fingerprint_from(
+    preparation: &Preparation,
+    resolve: impl FnOnce() -> io::Result<String>,
+) -> io::Result<Fingerprint> {
+    Ok(compose(preparation, &resolve()?))
+}
+
+/// Compose the fingerprint text from an already-resolved toolchain identity.
+///
+/// Separated from [`fingerprint`] so the text can be exercised against a chosen
+/// identity: [`toolchain_identity`] runs `cargo -vV`, which a unit test cannot
+/// vary, yet the identity decides whether a stamp survives a compiler change.
+/// Composition is therefore free of process execution, and infallible — the
+/// only fallible step left in [`fingerprint`] is resolving the identity.
+pub(super) fn compose(preparation: &Preparation, toolchain: &str) -> Fingerprint {
     let mut text = String::new();
     let _ = writeln!(text, "version: {STAMP_VERSION}");
-    let _ = writeln!(text, "toolchain: {}", toolchain_identity()?);
+    let _ = writeln!(text, "toolchain: {toolchain}");
     for (key, value) in preparation.environment.iter() {
         let key_text = key.to_string_lossy();
         if is_fingerprint_variable(&key_text) {
@@ -226,7 +271,7 @@ pub(super) fn fingerprint(preparation: &Preparation) -> io::Result<Fingerprint> 
     }
     let _ = writeln!(text, "variant: {}", preparation.variant);
     let _ = writeln!(text, "inputs: {}", preparation.inputs);
-    Ok(Fingerprint(text))
+    Fingerprint(text)
 }
 
 /// Whether `key` influences the compiled artefacts.

@@ -3,8 +3,16 @@
 use std::path::{Path, PathBuf};
 
 use super::{
-    super::stamp::{PREPARED_FILE_SUFFIX, fingerprint},
+    super::stamp::{
+        FINGERPRINT_EXACT,
+        FINGERPRINT_PREFIXES,
+        PREPARED_FILE_SUFFIX,
+        compose,
+        fingerprint,
+        fingerprint_from,
+    },
     environment,
+    environment_in,
     fixture_package,
     preparation,
 };
@@ -178,6 +186,158 @@ fn an_unreadable_cargo_configuration_is_an_error() {
         error.kind(),
         std::io::ErrorKind::NotFound,
         "a loop is not an absence: {error}"
+    );
+}
+
+/// Every variable the fingerprint claims to cover, with a representative value.
+///
+/// The list is derived from the constants the fingerprint itself consults, so a
+/// variable added to either list without a matching case here fails the
+/// coverage assertion below rather than silently going untested.
+fn build_relevant_variables() -> Vec<(String, String)> {
+    let exact = FINGERPRINT_EXACT;
+    let prefixes = FINGERPRINT_PREFIXES;
+    let mut variables: Vec<(String, String)> = exact
+        .iter()
+        .map(|name| ((*name).to_owned(), "exact-value".to_owned()))
+        .collect();
+    variables.extend(
+        prefixes
+            .iter()
+            .map(|prefix| (format!("{prefix}SOMETHING"), "prefixed-value".to_owned())),
+    );
+    variables
+}
+
+#[test]
+fn every_build_relevant_variable_changes_the_fingerprint() {
+    // The fingerprint exists to force a rebuild when the build graph moves. A
+    // variable that the filter admits but the fingerprint drops, or one the
+    // filter drops by mistake, is invisible here unless each name is exercised
+    // individually — the neighbouring case varies only `RUSTFLAGS`, which
+    // cannot tell "recorded" from "recorded by coincidence of that one name".
+    let target = std::env::temp_dir().join("target");
+    let base = environment_in(&target);
+    let baseline = fingerprint(&preparation(&target, &base, "v", "hash")).expect("baseline");
+
+    let variables = build_relevant_variables();
+    assert!(
+        !variables.is_empty(),
+        "the fingerprint must cover at least one build-relevant variable"
+    );
+
+    for (name, value) in variables {
+        let with_variable = crate::nested_cargo::env_from_vars(
+            vec![
+                ("RUSTFLAGS".into(), "-Dwarnings".into()),
+                (name.clone().into(), value.into()),
+            ],
+            Some(&target),
+            crate::nested_cargo::ProfileDestination::Caller,
+        );
+        let changed = fingerprint(&preparation(&target, &with_variable, "v", "hash"))
+            .expect("fingerprint with an extra variable");
+        assert_ne!(
+            baseline, changed,
+            "setting `{name}` must change the fingerprint, or a stamp would survive a change that \
+             rebuilds the dependency graph"
+        );
+    }
+}
+
+#[test]
+fn variables_outside_the_build_relevant_set_do_not_change_the_fingerprint() {
+    // The complement of the case above: if unrelated variables leaked into the
+    // fingerprint, every nextest run (a fresh `NEXTEST_RUN_ID` each time) would
+    // invalidate every stamp and nothing would ever stay prepared.
+    let target = std::env::temp_dir().join("target");
+    let base = environment_in(&target);
+    let baseline = fingerprint(&preparation(&target, &base, "v", "hash")).expect("baseline");
+
+    for (name, value) in [
+        ("NEXTEST_RUN_ID", "run-2"),
+        ("LLVM_PROFILE_FILE", "other.profraw"),
+        ("PATH", "/usr/local/bin"),
+    ] {
+        let with_variable = crate::nested_cargo::env_from_vars(
+            vec![
+                ("RUSTFLAGS".into(), "-Dwarnings".into()),
+                (name.into(), value.into()),
+            ],
+            Some(&target),
+            crate::nested_cargo::ProfileDestination::Caller,
+        );
+        let changed = fingerprint(&preparation(&target, &with_variable, "v", "hash"))
+            .expect("fingerprint with an extra variable");
+        assert_eq!(
+            baseline, changed,
+            "`{name}` must not change the fingerprint, or unrelated runner state would invalidate \
+             every prepared family"
+        );
+    }
+}
+
+#[test]
+fn distinct_toolchain_identities_produce_distinct_fingerprints() {
+    // The toolchain field exists to force a rebuild when the compiler moves. If
+    // two identities composed to the same text, a stamp written under one
+    // toolchain would be accepted under another and a timed assertion would
+    // compile the difference inside its own deadline. Composition is
+    // exercised directly because resolving the identity runs `cargo -vV`,
+    // which a unit test cannot vary.
+    let target = std::env::temp_dir().join("target");
+    let base = environment_in(&target);
+    let preparation = preparation(&target, &base, "v", "hash");
+
+    let stable = compose(&preparation, "release: 1.88.0 abc host: x");
+    let nightly = compose(&preparation, "release: 1.92.0 def host: x");
+    assert_ne!(
+        stable, nightly,
+        "a toolchain change must not leave a stamp matching"
+    );
+}
+
+#[test]
+fn a_failing_toolchain_probe_refuses_the_fingerprint() {
+    // A fingerprint that could not name the toolchain would be the *same* text
+    // on a host where identification fails as on the run before, so a stamp
+    // would survive a toolchain change. Failing closed is the only answer that
+    // forces invalidation without re-preparing on every run. The resolver is
+    // injected here because `toolchain_identity` shells out to `cargo -vV` and
+    // a unit test cannot make that fail on demand.
+    let target = std::env::temp_dir().join("target");
+    let base = environment_in(&target);
+    let preparation = preparation(&target, &base, "v", "hash");
+
+    let error = fingerprint_from(&preparation, || {
+        Err(std::io::Error::other("cargo -vV is unavailable"))
+    })
+    .expect_err("a fingerprint that cannot name the toolchain must not be issued");
+    assert!(
+        error.to_string().contains("cargo -vV is unavailable"),
+        "the probe's failure must reach the caller rather than being replaced by a placeholder, \
+         got: {error}"
+    );
+}
+
+#[test]
+fn a_successful_toolchain_probe_names_the_release_commit_and_host() {
+    // The complement: the injected resolver above proves the failure branch is
+    // taken, and this proves the real probe is wired into it. Together they
+    // would catch a resolver whose identity was dropped from the text.
+    let target = std::env::temp_dir().join("target");
+    let base = environment_in(&target);
+    let preparation = preparation(&target, &base, "v", "hash");
+    let text = fingerprint(&preparation).expect("toolchain probe");
+    let line = text
+        .as_str()
+        .lines()
+        .find(|line| line.starts_with("toolchain: "))
+        .expect("the fingerprint records a toolchain line");
+    let identity = line.trim_start_matches("toolchain: ").trim();
+    assert!(
+        identity.len() > "release:".len(),
+        "the recorded toolchain must name the release, commit and host: {line}"
     );
 }
 

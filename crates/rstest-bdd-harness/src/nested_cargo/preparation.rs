@@ -55,7 +55,7 @@ use stamp::{
     Fingerprint,
     Stamp,
     fingerprint,
-    matching_stamp,
+    matching_stamp_or_note,
     missing_stamp_message,
     note,
     render,
@@ -301,7 +301,7 @@ where
 {
     let fingerprint = fingerprint(preparation)?;
     let stamp = stamp_path(preparation);
-    let matching = matching_stamp(&stamp, &fingerprint);
+    let matching = matching_stamp_or_note(&stamp, &fingerprint);
     if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
         note(&format!(
             "family={} is prepared ({})",
@@ -353,7 +353,7 @@ where
     // waited for the lock. The artefacts are re-checked on the same terms as
     // the gate: a stamp whose tree was evicted while this process waited is
     // not a prepared family.
-    let matching: Option<Stamp> = matching_stamp(stamp, fingerprint);
+    let matching: Option<Stamp> = matching_stamp_or_note(stamp, fingerprint);
     if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
         return Ok(());
     }

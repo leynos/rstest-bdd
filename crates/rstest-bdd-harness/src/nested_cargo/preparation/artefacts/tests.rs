@@ -2,7 +2,7 @@
 
 use std::fs;
 
-use super::{Eviction, all_present, evicted, is_output_of, record};
+use super::{Eviction, all_present, evicted, has_entries_from, is_output_of, record};
 use crate::nested_cargo::{Preparation, ProfileDestination, Sources, env_from_vars};
 
 /// The profile directory a `preparation_with` fixture vouches for.
@@ -198,5 +198,49 @@ fn a_missing_profile_is_an_eviction_without_a_record() {
     assert!(
         !all_present(&preparation, None).expect("check"),
         "an absent profile must never pass"
+    );
+}
+
+/// A failed first listing step is an error, never evidence of an entry.
+#[test]
+fn a_failed_entry_read_is_not_counted_as_an_entry() {
+    // Reaching this branch through the public gate is not possible: the
+    // profile's own metadata probe fails first for every state a test can
+    // create without privileges (a loop, a permission denial on the
+    // directory). The branch is still load-bearing defence in depth, because
+    // it is the difference between an unreadable `deps` refusing the
+    // preparation and passing it — the same fail-open direction the `Err` arm
+    // of `has_entries` exists to prevent, reached one step later. The listing
+    // is therefore modelled, since `read_dir` yields its error lazily and no
+    // portable filesystem fixture produces an `Err` as the *first* item.
+    let failed = Some(Err::<std::fs::DirEntry, _>(std::io::Error::other(
+        "a read fault partway through the listing",
+    )));
+    assert!(
+        has_entries_from(failed).is_err(),
+        "an iteration fault must be reported, not counted as an entry"
+    );
+}
+
+/// A profile that cannot be inspected reports the fault, not an eviction.
+#[cfg(unix)]
+#[test]
+fn an_uninspectable_profile_reports_the_read_error() {
+    // Folding a metadata fault into an eviction reports a tree that cannot be
+    // inspected as one that is known to be gone. The reader cannot act on that,
+    // and an unreadable tree is exactly the case where guessing is unsafe.
+    // A symlink loop reaches the state without any permission setup, which
+    // would not hold when the suite runs as root.
+    let (_directory, preparation) = preparation_with(&[("unit", "rlib")]);
+    let profile = profile_of(&preparation);
+    fs::remove_dir_all(&profile).expect("evict the directory");
+    std::os::unix::fs::symlink(&profile, &profile).expect("symlink loop");
+
+    let error = all_present(&preparation, None)
+        .expect_err("a profile that cannot be inspected must not pass as evicted or present");
+    assert_ne!(
+        error.kind(),
+        std::io::ErrorKind::NotFound,
+        "a loop is not an absence: {error}"
     );
 }
