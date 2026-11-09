@@ -3,10 +3,12 @@
 //! The cases are split by what they exercise: `stamping` covers the
 //! preparation lifecycle and the gate that admits a timed test against it,
 //! `eviction` covers the states a stamp cannot see because only the profile
-//! beneath it was removed or gutted, and `inputs` covers the environment and
-//! input hashing that decide when a prepared directory is stale. The fixtures
-//! all three share live here.
+//! beneath it was removed or gutted, `inputs` covers the environment and input
+//! hashing that decide when a prepared directory is stale, and `cargo_config`
+//! covers Cargo's own configuration as one of those inputs. The fixtures all
+//! four share live here.
 
+mod cargo_config;
 mod eviction;
 mod inputs;
 mod stamping;

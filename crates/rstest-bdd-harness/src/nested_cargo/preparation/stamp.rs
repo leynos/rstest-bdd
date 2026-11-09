@@ -31,7 +31,11 @@ use std::{
 use super::Preparation;
 
 /// Fingerprint format version; bump to invalidate every existing stamp.
-pub(super) const STAMP_VERSION: &str = "2";
+///
+/// Version 3 escapes each recorded value onto a single line. Version 2 wrote
+/// values verbatim, so a value containing a line break could forge the field
+/// that followed it.
+pub(super) const STAMP_VERSION: &str = "3";
 
 /// Suffix of the hidden stamp file written inside a prepared artefact
 /// directory.
@@ -268,16 +272,42 @@ pub(super) fn fingerprint(preparation: &Preparation) -> io::Result<Fingerprint> 
 pub(super) fn compose(preparation: &Preparation, toolchain: &str) -> Fingerprint {
     let mut text = String::new();
     let _ = writeln!(text, "version: {STAMP_VERSION}");
-    let _ = writeln!(text, "toolchain: {toolchain}");
+    let _ = writeln!(text, "toolchain: {}", escape(toolchain));
     for (key, value) in preparation.environment.iter() {
         let key_text = key.to_string_lossy();
         if is_fingerprint_variable(&key_text) {
-            let _ = writeln!(text, "{key_text}={}", value.to_string_lossy());
+            let _ = writeln!(text, "{key_text}={}", escape(&value.to_string_lossy()));
         }
     }
-    let _ = writeln!(text, "variant: {}", preparation.variant);
-    let _ = writeln!(text, "inputs: {}", preparation.inputs);
+    let _ = writeln!(text, "variant: {}", escape(&preparation.variant));
+    let _ = writeln!(text, "inputs: {}", escape(&preparation.inputs));
     Fingerprint(text)
+}
+
+/// Escape one recorded value so it occupies exactly one line.
+///
+/// Every field is one `name: value` or `name=value` line, and the fingerprint
+/// is compared as text, so a value carrying a line break could otherwise write
+/// what looks like the next field: a `RUSTFLAGS` of `"-Dwarnings\ninputs: x"`
+/// composes exactly the same text as the same flags with an `inputs` of `x`.
+/// Two different builds would then share a stamp, which is the invalidation
+/// this fingerprint exists to force. `\` and the two line breaks are the only
+/// characters escaped, so ordinary values are recorded unchanged and remain
+/// readable in the stamp file.
+fn escape(value: &str) -> String {
+    if !value.contains(['\\', '\n', '\r']) {
+        return value.to_owned();
+    }
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            other => escaped.push(other),
+        }
+    }
+    escaped
 }
 
 /// Whether `key` influences the compiled artefacts.

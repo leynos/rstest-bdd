@@ -1219,6 +1219,28 @@ rather than by reading this branch's comments.
   non-zero exit and the unusable-output branches reachable without a
   subprocess, and it moved to its own `toolchain` module so the fingerprint
   query itself contains no process execution.
+- **A hash that reads an entry as "neither file nor directory" hashes
+  nothing.** `input_hash` classified with `fs::symlink_metadata`, which reports
+  a symbolic link as neither, so the link fell through both branches and
+  contributed no bytes and no name. That was invisible until the configuration
+  input made it matter: `cargo_config_inputs` follows the link with
+  `fs::metadata` and reports it present, while the hash silently dropped it, so
+  a repository committing `.cargo/config.toml` as a symlink would keep a
+  matching stamp after the file it points at changed. The walk now resolves a
+  link with `fs::metadata` and hashes the target — as a file's contents, or as
+  a directory walk — plus the link's own name. A dangling link stays "absent"
+  in `cargo_config_inputs` and is safe in both directions, because either
+  transition changes the hash; that is pinned rather than changed.
+- **Text compared for equality needs its field boundaries escaped.** The
+  fingerprint is a line-oriented record compared as text, and each value was
+  written verbatim. A `RUSTFLAGS` of `-Dwarnings\ninputs: h` composed exactly
+  the same bytes as the same flags with an `inputs` of `h`, so two genuinely
+  different builds could share one stamp — and the test that pins this had to
+  be written against that specific collision, because a first attempt compared
+  two descriptions that already differed and would have passed over a
+  fingerprint with no boundary handling at all. Values now escape `\`, `\n`
+  and `\r` onto one line, and `STAMP_VERSION` moved to `3` so every stamp
+  written under the old encoding is invalidated once.
 
 ## Decision Log
 

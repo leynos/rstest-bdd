@@ -79,9 +79,11 @@ fn is_build_output(name: &str) -> bool {
 ///
 /// `roots` may name files or directories; directories are walked in sorted
 /// order and every regular file contributes its relative path, length and
-/// bytes. Directory entries named `target`, `.git` or `wip` are skipped, as
-/// are the stamp files the preparation module writes, so a nested build never
-/// invalidates the fingerprint that describes it.
+/// bytes. A symbolic link contributes its own name and, through the link, the
+/// contents of its target, because that is what Cargo reads. Directory entries
+/// named `target`, `.git` or `wip` are skipped, as are the stamp files the
+/// preparation module writes, so a nested build never invalidates the
+/// fingerprint that describes it.
 ///
 /// `wip` is excluded because `trybuild` writes its scratch directory there,
 /// beside the crate under test rather than inside the target directory. The
@@ -104,8 +106,11 @@ pub fn input_hash(roots: &[PathBuf]) -> io::Result<String> {
 
 /// Feed one file or directory tree into `hasher`.
 fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
-    let metadata = fs::symlink_metadata(path)?;
-    if metadata.is_file() {
+    let entry = fs::symlink_metadata(path)?;
+    if entry.file_type().is_symlink() {
+        return hash_symlink(path, hasher);
+    }
+    if entry.is_file() {
         path.file_name()
             .unwrap_or_default()
             .to_string_lossy()
@@ -114,10 +119,44 @@ fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
         contents.hash(hasher);
         return Ok(());
     }
-    if !metadata.is_dir() {
+    if !entry.is_dir() {
         return Ok(());
     }
-    let entries: Vec<PathBuf> = fs::read_dir(path)?
+    hash_directory(path, hasher)
+}
+
+/// Hash a symbolic link as the target Cargo would read through it.
+///
+/// [`fs::symlink_metadata`] classifies a link as neither file nor directory, so
+/// hashing it as one would contribute nothing: a `.cargo/config.toml` committed
+/// as a symlink would be left out of the fingerprint entirely, and editing the
+/// file it points at would leave the stamp matching — the configuration-only
+/// invalidation [`cargo_config_inputs`] exists to force. The link's own name is
+/// recorded as well, because removing or renaming it changes what Cargo
+/// discovers even when the target is untouched.
+///
+/// A link is resolved with [`fs::metadata`], which follows. A dangling link is
+/// therefore a read error rather than a silent absence, matching how the rest
+/// of this module treats an entry that exists but cannot be read.
+fn hash_symlink(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
+    let target = fs::metadata(path)?;
+    path.file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .hash(hasher);
+    if target.is_dir() {
+        return hash_directory(path, hasher);
+    }
+    if target.is_file() {
+        let contents = fs::read(path)?;
+        contents.hash(hasher);
+    }
+    Ok(())
+}
+
+/// Walk `directory` in sorted order, hashing each entry.
+fn hash_directory(directory: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
+    let entries: Vec<PathBuf> = fs::read_dir(directory)?
         .map(|entry| entry.map(|entry| entry.path()))
         .collect::<io::Result<_>>()?;
     hash_sorted(entries, hasher)

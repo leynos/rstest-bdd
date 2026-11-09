@@ -1,6 +1,10 @@
 //! What makes a prepared directory stale: the fingerprint and the input hash.
+//!
+//! The input hash sees what a fixture's own source tree contributes. Cargo's
+//! configuration is a separate class of input with its own discovery rules and
+//! its own failure modes, so it lives in `cargo_config`.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::{
     super::stamp::{
@@ -15,7 +19,7 @@ use super::{
     fixture_package,
     preparation,
 };
-use crate::nested_cargo::{cargo_config_inputs, count_compiling, input_hash};
+use crate::nested_cargo::{count_compiling, input_hash};
 
 #[test]
 fn fingerprint_excludes_runner_and_coverage_variables() {
@@ -119,72 +123,6 @@ fn input_hash_ignores_trybuild_wip_scratch() {
     assert_eq!(
         before, after,
         "trybuild's wip scratch must not change the inputs"
-    );
-}
-
-#[test]
-fn cargo_configuration_is_an_input() {
-    // Cargo discovers configuration by walking up from a nested build's working
-    // directory, so the workspace `.cargo/config.toml` applies to every fixture
-    // build here. Changing its profile options or linker flags invalidates
-    // dependency artefacts without changing a fixture source, so a stamp that
-    // ignored it would let a timed assertion pay for the rebuild.
-    let workspace = tempfile::tempdir().expect("workspace dir");
-    std::fs::create_dir(workspace.path().join(".cargo")).expect("cargo dir");
-    let config = workspace.path().join(".cargo/config.toml");
-    std::fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
-
-    assert_eq!(
-        cargo_config_inputs(workspace.path()).expect("config inputs"),
-        vec![config.clone()]
-    );
-
-    let before = input_hash(&cargo_config_inputs(workspace.path()).expect("config inputs"))
-        .expect("hash before");
-    std::fs::write(&config, "[profile.dev]\nincremental = true\n").expect("config edit");
-    let after = input_hash(&cargo_config_inputs(workspace.path()).expect("config inputs"))
-        .expect("hash after");
-    assert_ne!(
-        before, after,
-        "a configuration-only change must invalidate the prepared artefacts"
-    );
-}
-
-#[test]
-fn missing_cargo_configuration_is_not_an_input() {
-    // A checkout may commit neither accepted file name; naming a missing root
-    // would make every preparation fail on a read error instead of treating the
-    // configuration as absent.
-    let workspace = tempfile::tempdir().expect("workspace dir");
-    assert_eq!(
-        cargo_config_inputs(workspace.path()).expect("config inputs"),
-        [] as [PathBuf; 0]
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn an_unreadable_cargo_configuration_is_an_error() {
-    // A configuration path that exists but cannot be inspected must not be
-    // reported as absent. Reporting it absent would drop the configuration
-    // from the fingerprint, so a stamp would survive a change the build
-    // notices — exactly the invalidation this input exists to force.
-    //
-    // A symlink loop reaches that state without any permission setup, which
-    // would not hold when the suite runs as root. It is a Unix-only fixture
-    // because creating a symlink on Windows needs a privilege the test runner
-    // does not have.
-    let workspace = tempfile::tempdir().expect("workspace dir");
-    std::fs::create_dir(workspace.path().join(".cargo")).expect("cargo dir");
-    let looped = workspace.path().join(".cargo/config.toml");
-    std::os::unix::fs::symlink(&looped, &looped).expect("symlink loop");
-
-    let error = cargo_config_inputs(workspace.path())
-        .expect_err("an uninspectable configuration must not pass as absent");
-    assert_ne!(
-        error.kind(),
-        std::io::ErrorKind::NotFound,
-        "a loop is not an absence: {error}"
     );
 }
 
@@ -315,6 +253,44 @@ fn distinct_toolchain_identities_produce_distinct_fingerprints() {
         stable, nightly,
         "a toolchain change must not leave a stamp matching"
     );
+}
+
+#[test]
+fn a_value_containing_a_line_break_cannot_forge_a_field() {
+    // Every field is one line and the fingerprint is compared as text, so a
+    // value carrying a line break could otherwise write what looks like the
+    // next field. Two genuinely different builds would then share a stamp,
+    // and the invalidation the fingerprint exists to force would not happen.
+    let target = std::env::temp_dir().join("target");
+    let environment = environment_in(&target);
+    // These two descriptions are genuinely different — one has an empty input
+    // hash, the other an empty variant — and without escaping they compose the
+    // same three trailing lines: `variant: v`, `inputs: h` and `inputs: `,
+    // because the first moves its tail into the variant and the second moves
+    // its tail into the inputs. A stamp written for one would then match the
+    // other, so a changed fixture would keep its prepared artefacts.
+    let tail_in_variant = preparation(&target, &environment, "v\ninputs: h", "");
+    let tail_in_inputs = preparation(&target, &environment, "v", "h\ninputs: ");
+
+    let one = compose(&tail_in_variant, "release: 1.88.0 host: x");
+    let other = compose(&tail_in_inputs, "release: 1.88.0 host: x");
+    assert_ne!(
+        one,
+        other,
+        "a newline in a value must not be able to forge the following field:\n{}",
+        one.as_str()
+    );
+    for text in [one.as_str(), other.as_str()] {
+        assert_eq!(
+            text.lines().count(),
+            environment
+                .iter()
+                .filter(|(key, _)| is_fingerprint_variable(&key.to_string_lossy()))
+                .count()
+                + 4,
+            "each field must occupy exactly one line, got:\n{text}"
+        );
+    }
 }
 
 #[test]
