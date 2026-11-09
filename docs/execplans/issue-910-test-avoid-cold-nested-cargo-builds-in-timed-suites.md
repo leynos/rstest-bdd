@@ -1197,6 +1197,28 @@ rather than by reading this branch's comments.
   This is the trap the "Concrete steps" section already documents, and it is
   worth restating as an operational rule: a preparation failure has to be
   diagnosed by reading *whether the stamp matched*, not by the timeout alone.
+- **A fail-closed check can still be reported as the wrong failure.** The first
+  version of the unreadable-stamp handling logged the read error and returned
+  `None`, which is indistinguishable from "no stamp" at the gate. Under
+  `nextest` that turned a present-but-unreadable stamp into a "missing or
+  stale" message naming evicted artefacts that were not evicted. The two
+  runners need opposite outcomes from the same fact — fail fast under nextest,
+  prepare again under `cargo test` — so the read error now reaches the boundary
+  that owns the runner policy, and the nextest message names the read failure
+  and its remedy. Reported by CodeRabbit on `70edad19`; the "reported rather
+  than silent" half was right, the "therefore treat as absent" half was not.
+- **Removing a derivation can empty a test of meaning.** The fingerprint
+  coverage test originally built its expected variable list from
+  `FINGERPRINT_EXACT` and `FINGERPRINT_PREFIXES`. Deleting `RUSTUP_TOOLCHAIN`
+  from the constant also deleted its case, so the test kept passing over a
+  fingerprint that no longer covered the toolchain selector. The list is now
+  written out independently and checked both ways against the constants, so
+  each is a claim the other must confirm. The same review round found that a
+  failure test injecting into `fingerprint_from` never exercised the production
+  probe; `identity_from` now takes the exit flag and output text, making the
+  non-zero exit and the unusable-output branches reachable without a
+  subprocess, and it moved to its own `toolchain` module so the fingerprint
+  query itself contains no process execution.
 
 ## Decision Log
 

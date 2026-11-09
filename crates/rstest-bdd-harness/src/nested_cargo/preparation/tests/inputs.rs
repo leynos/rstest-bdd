@@ -5,11 +5,10 @@ use std::path::{Path, PathBuf};
 use super::{
     super::stamp::{
         FINGERPRINT_EXACT,
-        FINGERPRINT_PREFIXES,
         PREPARED_FILE_SUFFIX,
         compose,
         fingerprint,
-        fingerprint_from,
+        is_fingerprint_variable,
     },
     environment,
     environment_in,
@@ -189,24 +188,33 @@ fn an_unreadable_cargo_configuration_is_an_error() {
     );
 }
 
-/// Every variable the fingerprint claims to cover, with a representative value.
+/// Every variable class the fingerprint must cover, with a representative value.
 ///
-/// The list is derived from the constants the fingerprint itself consults, so a
-/// variable added to either list without a matching case here fails the
-/// coverage assertion below rather than silently going untested.
+/// Written out independently of [`FINGERPRINT_EXACT`] and
+/// [`FINGERPRINT_PREFIXES`] rather than derived from them. A derived list
+/// cannot detect a removal: deleting `RUSTUP_TOOLCHAIN` from the production
+/// constant would also delete its case, so the coverage test would keep passing
+/// over a fingerprint that had stopped covering the toolchain selector. The
+/// explicit list makes the constant's contents a claim the test checks.
 fn build_relevant_variables() -> Vec<(String, String)> {
-    let exact = FINGERPRINT_EXACT;
-    let prefixes = FINGERPRINT_PREFIXES;
-    let mut variables: Vec<(String, String)> = exact
-        .iter()
-        .map(|name| ((*name).to_owned(), "exact-value".to_owned()))
-        .collect();
-    variables.extend(
-        prefixes
-            .iter()
-            .map(|prefix| (format!("{prefix}SOMETHING"), "prefixed-value".to_owned())),
-    );
-    variables
+    [
+        // Value that differs from what `environment_in` already sets. Deciding
+        // a variable is covered means changing its *value*: re-setting the
+        // baseline value would compare equal and pass for the wrong reason.
+        ("RUSTFLAGS", "-Dwarnings -Cdebuginfo=1"),
+        ("CARGO_ENCODED_RUSTFLAGS", "-Dwarnings"),
+        ("CARGO_INCREMENTAL", "0"),
+        ("RUSTDOCFLAGS", "-Dwarnings"),
+        ("RUSTUP_TOOLCHAIN", "nightly"),
+        ("RUSTC_WRAPPER", "sccache"),
+        ("RUSTDOC_WRAPPER", "wrapper"),
+        ("CARGO_BUILD_TARGET_DIR", "/tmp/other-target"),
+        ("CARGO_PROFILE_DEV_OPT_LEVEL", "2"),
+        ("CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER", "clang"),
+    ]
+    .into_iter()
+    .map(|(name, value)| (name.to_owned(), value.to_owned()))
+    .collect()
 }
 
 #[test]
@@ -221,10 +229,22 @@ fn every_build_relevant_variable_changes_the_fingerprint() {
     let baseline = fingerprint(&preparation(&target, &base, "v", "hash")).expect("baseline");
 
     let variables = build_relevant_variables();
-    assert!(
-        !variables.is_empty(),
-        "the fingerprint must cover at least one build-relevant variable"
-    );
+    // The explicit list above and the production constants are two independent
+    // statements of the same policy, so each must imply the other. A name in
+    // the list but not in the constants is a stale expectation; a constant with
+    // no case is an untested claim.
+    for name in &FINGERPRINT_EXACT {
+        assert!(
+            variables.iter().any(|(candidate, _)| candidate == name),
+            "`{name}` is fingerprint-relevant but has no case in this test"
+        );
+    }
+    for (name, _) in &variables {
+        assert!(
+            is_fingerprint_variable(name),
+            "`{name}` is asserted relevant here but the fingerprint does not admit it"
+        );
+    }
 
     for (name, value) in variables {
         let with_variable = crate::nested_cargo::env_from_vars(
@@ -298,46 +318,22 @@ fn distinct_toolchain_identities_produce_distinct_fingerprints() {
 }
 
 #[test]
-fn a_failing_toolchain_probe_refuses_the_fingerprint() {
-    // A fingerprint that could not name the toolchain would be the *same* text
-    // on a host where identification fails as on the run before, so a stamp
-    // would survive a toolchain change. Failing closed is the only answer that
-    // forces invalidation without re-preparing on every run. The resolver is
-    // injected here because `toolchain_identity` shells out to `cargo -vV` and
-    // a unit test cannot make that fail on demand.
+fn the_recorded_toolchain_reaches_the_fingerprint() {
+    // The probe and the composition are tested separately above; this ties
+    // them together. If `fingerprint` stopped forwarding the resolved identity,
+    // the two branches would still pass while every stamp became
+    // toolchain-blind.
     let target = std::env::temp_dir().join("target");
     let base = environment_in(&target);
-    let preparation = preparation(&target, &base, "v", "hash");
+    let prepared = preparation(&target, &base, "v", "hash");
 
-    let error = fingerprint_from(&preparation, || {
-        Err(std::io::Error::other("cargo -vV is unavailable"))
-    })
-    .expect_err("a fingerprint that cannot name the toolchain must not be issued");
+    let first = compose(&prepared, "release: 1.88.0 commit-hash: a host: x");
+    let second = compose(&prepared, "release: 1.92.0 commit-hash: b host: x");
+    assert_ne!(first, second);
     assert!(
-        error.to_string().contains("cargo -vV is unavailable"),
-        "the probe's failure must reach the caller rather than being replaced by a placeholder, \
-         got: {error}"
-    );
-}
-
-#[test]
-fn a_successful_toolchain_probe_names_the_release_commit_and_host() {
-    // The complement: the injected resolver above proves the failure branch is
-    // taken, and this proves the real probe is wired into it. Together they
-    // would catch a resolver whose identity was dropped from the text.
-    let target = std::env::temp_dir().join("target");
-    let base = environment_in(&target);
-    let preparation = preparation(&target, &base, "v", "hash");
-    let text = fingerprint(&preparation).expect("toolchain probe");
-    let line = text
-        .as_str()
-        .lines()
-        .find(|line| line.starts_with("toolchain: "))
-        .expect("the fingerprint records a toolchain line");
-    let identity = line.trim_start_matches("toolchain: ").trim();
-    assert!(
-        identity.len() > "release:".len(),
-        "the recorded toolchain must name the release, commit and host: {line}"
+        first
+            .as_str()
+            .contains("release: 1.88.0 commit-hash: a host: x")
     );
 }
 

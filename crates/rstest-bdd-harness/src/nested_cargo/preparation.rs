@@ -34,6 +34,7 @@
 mod artefacts;
 mod input_hash;
 mod stamp;
+mod toolchain;
 
 pub use artefacts::DEPENDENCY_ARTEFACT_DIRS;
 
@@ -60,6 +61,7 @@ use stamp::{
     note,
     render,
     stamp_path,
+    unreadable_stamp_error,
     write_stamp,
 };
 
@@ -96,12 +98,10 @@ pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(9 * 60);
 /// period, and the per-command bound above must keep this many commands inside
 /// it. The rebuild-invalidation preparation is the worst case: it compiles one
 /// fixture, then runs the addition fixture's metadata preflight and its
-/// compile. Every other family runs a single bounded command.
-///
-/// A new family that runs more commands than this must raise it and shrink
-/// [`PREPARATION_COMMAND_TIMEOUT`] to match, which
-/// `preparation_command_bound_fires_before_the_runner_kills_the_test` enforces
-/// rather than trusting this comment.
+/// compile. Every other family runs a single bounded command. A new family
+/// that runs more must raise this and shrink [`PREPARATION_COMMAND_TIMEOUT`] to
+/// match, which `preparation_command_bound_fires_before_the_runner_kills_the_test`
+/// enforces rather than trusting this comment.
 pub const MAX_SEQUENTIAL_COMMANDS: u64 = 3;
 
 /// Process-wide lock serializing lazy preparation under plain `cargo test`.
@@ -278,7 +278,7 @@ pub fn ensure_prepared<F>(preparation: &Preparation, prepare: F) -> io::Result<(
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    ensure_prepared_with(preparation, running_under_nextest(), prepare)
+    ensure_prepared_with(preparation, super::running_under_nextest(), prepare)
 }
 
 /// [`ensure_prepared`] with the runner decision supplied.
@@ -301,7 +301,21 @@ where
 {
     let fingerprint = fingerprint(preparation)?;
     let stamp = stamp_path(preparation);
-    let matching = matching_stamp_or_note(&stamp, &fingerprint);
+    // An unreadable stamp is neither a match nor an absence, and the two
+    // runners reach opposite conclusions from it. Under `nextest` it is
+    // fail-fast evidence — the tree is present but cannot be vouched for, which
+    // a "missing or stale" message would misreport. Under `cargo test` the
+    // caller prepares again, so the read failure only costs a rebuild.
+    let matching = match matching_stamp_or_note(&stamp, &fingerprint) {
+        Ok(matching) => matching,
+        Err(error) if !under_nextest => {
+            note(&format!("stamp {} unreadable ({error})", stamp.display()));
+            None
+        }
+        Err(error) => return Err(unreadable_stamp_error(&stamp, &error)),
+    };
+    // Both halves are required: a stamp vouches for the inputs, and the tree
+    // must still hold the units it recorded.
     if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
         note(&format!(
             "family={} is prepared ({})",
@@ -353,7 +367,7 @@ where
     // waited for the lock. The artefacts are re-checked on the same terms as
     // the gate: a stamp whose tree was evicted while this process waited is
     // not a prepared family.
-    let matching: Option<Stamp> = matching_stamp_or_note(stamp, fingerprint);
+    let matching: Option<Stamp> = matching_stamp_or_note(stamp, fingerprint).ok().flatten();
     if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
         return Ok(());
     }
@@ -381,19 +395,6 @@ where
     ));
     Ok(())
 }
-
-/// Count `Compiling` lines in captured child output.
-#[must_use]
-pub fn count_compiling(stderr: &[u8]) -> usize {
-    String::from_utf8_lossy(stderr)
-        .lines()
-        .filter(|line| line.trim_start().starts_with("Compiling "))
-        .count()
-}
-
-/// Whether the current process was started by `cargo nextest`.
-#[must_use]
-pub fn running_under_nextest() -> bool { env::var_os("NEXTEST_RUN_ID").is_some() }
 
 /// Take the process-wide preparation lock.
 fn lock() -> MutexGuard<'static, ()> { PREPARE_LOCK.lock().unwrap_or_else(PoisonError::into_inner) }

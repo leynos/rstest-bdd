@@ -22,12 +22,10 @@
 //! never looks complete.
 
 use std::{
-    env,
     fmt::Write as _,
     fs,
     io,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use super::Preparation;
@@ -115,46 +113,60 @@ pub(super) fn stamp_path(preparation: &Preparation) -> PathBuf {
         .join(format!(".{}{}", preparation.family, PREPARED_FILE_SUFFIX))
 }
 
-/// The stamp at `stamp`, if it was written for exactly `fingerprint`.
+/// The stamp at `stamp` if it was written for exactly `fingerprint`.
 ///
 /// Returns `Ok(None)` for a missing stamp and for one whose fingerprint
 /// differs. Both are "not prepared", which is the safe answer: the caller
 /// prepares again or fails fast rather than admitting a timed assertion
 /// against a tree the stamp does not describe.
 ///
+/// An unreadable stamp is neither a match nor an absence, and the two runners
+/// reach opposite conclusions from it: under `nextest` a non-match fails the
+/// test, while under `cargo test` it re-prepares. Deciding that here would
+/// force the `nextest` case to report a missing stamp for a tree that is
+/// present but unreadable — a diagnosis the reader cannot act on. Returning the
+/// error keeps the choice, and the cause, at the boundary that owns the runner
+/// policy. The note records the read attempt for the log.
+///
 /// # Errors
 ///
 /// Returns the read error when the stamp exists but cannot be read. Treating
 /// that as "not prepared" would silently discard a stamp that may well
 /// describe a warm tree, and the caller would pay for the rebuild with no
-/// indication of why. Reporting it keeps the cause visible; the caller still
-/// re-prepares.
-pub(super) fn matching_stamp(stamp: &Path, fingerprint: &Fingerprint) -> io::Result<Option<Stamp>> {
+/// indication of why.
+pub(super) fn matching_stamp_or_note(
+    stamp: &Path,
+    fingerprint: &Fingerprint,
+) -> io::Result<Option<Stamp>> {
     let text = match fs::read_to_string(stamp) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
+        Err(error) => {
+            note(&format!(
+                "could not read stamp {}: {error}",
+                stamp.display()
+            ));
+            return Err(error);
+        }
     };
     Ok(parse(&text, fingerprint))
 }
 
-/// The matching stamp, reporting an unreadable one before re-preparing.
+/// The fail-fast error for a stamp that exists but cannot be read.
 ///
-/// An unreadable stamp is neither a match nor an absence. Every caller has to
-/// re-prepare either way, so the read failure is not fatal; it is reported so a
-/// tree that was warm for reasons the reader cannot see does not turn into an
-/// unexplained rebuild.
-pub(super) fn matching_stamp_or_note(stamp: &Path, fingerprint: &Fingerprint) -> Option<Stamp> {
-    match matching_stamp(stamp, fingerprint) {
-        Ok(matching) => matching,
-        Err(error) => {
-            note(&format!(
-                "could not read stamp {}: {error}; preparing again",
-                stamp.display()
-            ));
-            None
-        }
-    }
+/// Under `nextest` this is a distinct condition from a missing stamp: the tree
+/// is there, and the reader cannot say whether it matches. Reporting it as
+/// "missing or stale" would send the reader looking for an evicted directory
+/// that is present, so the message names the read failure and the remedy.
+pub(super) fn unreadable_stamp_error(stamp: &Path, error: &io::Error) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::NotFound,
+        format!(
+            "the preparation stamp {} exists but cannot be read ({error}), so the prepared \
+             artefacts cannot be vouched for; re-run `make prepare-nested-fixtures`",
+            stamp.display()
+        ),
+    )
 }
 
 /// Split a stamp file into its fingerprint and recorded names.
@@ -227,29 +239,24 @@ pub(super) fn write_stamp(stamp: &Path, stamp_text: &StampText) -> io::Result<()
 
 /// The fingerprint text recorded in the stamp.
 ///
+/// The toolchain is resolved first, at this boundary, and the text is then
+/// composed from the resolved identity. Composition itself reads no process
+/// state: everything it needs has already been resolved into `preparation` or
+/// is passed in as `toolchain`. Keeping the probe here — rather than inside the
+/// query — is what lets the composition be exercised against a chosen identity
+/// and the probe's failure be exercised independently.
+///
 /// # Errors
 ///
-/// Returns an error when the toolchain cannot be identified. A fingerprint
-/// that could not name the toolchain would be the *same* text on a host where
-/// identification fails as on the run before, so a stamp would survive a
-/// toolchain change — exactly the invalidation the field exists to force.
-/// Reporting the failure is the only answer that fails closed without
+/// Returns the toolchain probe's error when the toolchain cannot be identified.
+/// A fingerprint that could not name the toolchain would be the *same* text on
+/// a host where identification fails as on the run before, so a stamp would
+/// survive a toolchain change — exactly the invalidation the field exists to
+/// force. Reporting the failure is the only answer that fails closed without
 /// re-preparing on every single run.
 pub(super) fn fingerprint(preparation: &Preparation) -> io::Result<Fingerprint> {
-    fingerprint_from(preparation, toolchain_identity)
-}
-
-/// The fingerprint text, with the toolchain identity resolved by `resolve`.
-///
-/// [`toolchain_identity`] spawns `cargo -vV`, which a unit test cannot make
-/// fail on demand, yet its failure is the branch that decides whether a stamp
-/// may be trusted at all. Taking the resolver as a parameter keeps that branch
-/// reachable from a test while leaving production callers on the real probe.
-pub(super) fn fingerprint_from(
-    preparation: &Preparation,
-    resolve: impl FnOnce() -> io::Result<String>,
-) -> io::Result<Fingerprint> {
-    Ok(compose(preparation, &resolve()?))
+    let toolchain = super::toolchain::toolchain_identity()?;
+    Ok(compose(preparation, &toolchain))
 }
 
 /// Compose the fingerprint text from an already-resolved toolchain identity.
@@ -257,8 +264,7 @@ pub(super) fn fingerprint_from(
 /// Separated from [`fingerprint`] so the text can be exercised against a chosen
 /// identity: [`toolchain_identity`] runs `cargo -vV`, which a unit test cannot
 /// vary, yet the identity decides whether a stamp survives a compiler change.
-/// Composition is therefore free of process execution, and infallible — the
-/// only fallible step left in [`fingerprint`] is resolving the identity.
+/// Composition is therefore free of process execution, and infallible.
 pub(super) fn compose(preparation: &Preparation, toolchain: &str) -> Fingerprint {
     let mut text = String::new();
     let _ = writeln!(text, "version: {STAMP_VERSION}");
@@ -275,7 +281,7 @@ pub(super) fn compose(preparation: &Preparation, toolchain: &str) -> Fingerprint
 }
 
 /// Whether `key` influences the compiled artefacts.
-fn is_fingerprint_variable(key: &str) -> bool {
+pub(super) fn is_fingerprint_variable(key: &str) -> bool {
     FINGERPRINT_EXACT.contains(&key)
         || FINGERPRINT_PREFIXES
             .iter()
@@ -320,46 +326,6 @@ pub(super) fn missing_stamp_message(
          different environment only warms a tree this run will not reuse.",
         preparation.family
     ))
-}
-
-/// Identify the toolchain that produced the prepared artefacts.
-///
-/// `cargo -vV` reports the release, commit and host of the Cargo in use, which
-/// changes whenever the toolchain does. Resolved from the `CARGO`
-/// compile-time variable, never a `PATH` lookup.
-///
-/// # Errors
-///
-/// Returns an error when `cargo -vV` cannot be run, exits non-zero, or prints
-/// none of the three fields. See [`fingerprint`] for why this is an error
-/// rather than an `"unknown"` placeholder.
-fn toolchain_identity() -> io::Result<String> {
-    let output = Command::new(env!("CARGO")).arg("-vV").output()?;
-    if !output.status.success() {
-        return Err(io::Error::other(format!(
-            concat!(
-                "`cargo -vV` failed with {}; the toolchain cannot be identified, so no ",
-                "preparation stamp can be trusted against it"
-            ),
-            output.status
-        )));
-    }
-    let text = String::from_utf8_lossy(&output.stdout);
-    let kept: Vec<&str> = text
-        .lines()
-        .filter(|line| {
-            line.starts_with("release:")
-                || line.starts_with("commit-hash:")
-                || line.starts_with("host:")
-        })
-        .collect();
-    if kept.is_empty() {
-        return Err(io::Error::other(concat!(
-            "`cargo -vV` printed no release, commit-hash or host line; the toolchain ",
-            "cannot be identified, so no preparation stamp can be trusted against it"
-        )));
-    }
-    Ok(kept.join(" "))
 }
 
 /// Report preparation progress on standard error.

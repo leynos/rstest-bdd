@@ -52,14 +52,33 @@ pub use preparation::{
     PreparationSummary,
     Sources,
     cargo_config_inputs,
-    count_compiling,
     ensure_prepared,
     ensure_prepared_with,
     input_hash,
     prepare_now,
-    running_under_nextest,
 };
 pub use profile::ProfileDestination;
+
+/// Count `Compiling` lines in captured child output.
+///
+/// Preparation summaries report this so the log line shows how much cold work
+/// a family paid for. `cargo check` prints `Checking` instead, which is why the
+/// count is deliberately of builds and not of units.
+#[must_use]
+pub fn count_compiling(stderr: &[u8]) -> usize {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .filter(|line| line.trim_start().starts_with("Compiling "))
+        .count()
+}
+
+/// Whether the current process was started by `cargo nextest`.
+///
+/// Nextest runs every test in its own process, so preparation cannot be shared
+/// lazily within one binary; this decides whether a missing stamp fails fast
+/// instead.
+#[must_use]
+pub fn running_under_nextest() -> bool { std::env::var_os("NEXTEST_RUN_ID").is_some() }
 
 /// Build a `cargo` invocation with the filtered environment.
 ///
