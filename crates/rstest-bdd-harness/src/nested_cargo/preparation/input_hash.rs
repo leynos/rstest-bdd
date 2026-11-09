@@ -182,7 +182,7 @@ fn hash_symlink(
 /// Walk `directory` in sorted order, hashing each entry.
 ///
 /// The directory's resolved identity is pushed for the duration of the walk so
-/// a link back into it is recognised. Resolution happens on the identity only
+/// a link back into it is recognized. Resolution happens on the identity only
 /// — the paths handed to [`hash_entry`] stay as the tree names them, so the
 /// hash keeps depending on the checkout rather than on where it is mounted.
 fn hash_directory(

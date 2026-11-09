@@ -860,7 +860,7 @@ rather than by reading this branch's comments.
   hazard as a reason to keep `hash_entry` unchanged for nested entries; the
   stronger fix is to keep the resolution and bound the descent, since a nested
   link is an input for the same reason a root link is. `hash_directory` now
-  canonicalises each directory as it enters it, refuses to re-enter one already
+  canonicalizes each directory as it enters it, refuses to re-enter one already
   on the stack, and hashes a `symlink-cycle` marker so a cut descent cannot
   read as an empty directory. Verified non-vacuous by deleting the check and
   watching both tests hang past a 120-second cap.
