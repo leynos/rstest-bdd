@@ -43,3 +43,57 @@ mod symlink_discovery {
 fn collects_symlinked_feature_files_without_following_directory_loops() {
     assert!(cfg!(not(unix)));
 }
+
+mod empty_results {
+    //! Coverage for the empty-expansion diagnostic.
+
+    use proc_macro2::{Span, TokenStream as TokenStream2};
+    use quote::quote;
+
+    use super::super::{TagFilter, check_empty_results};
+    use crate::parsing::tags::TagExpression;
+
+    fn dir() -> syn::LitStr { syn::LitStr::new("tests/features/empty", Span::call_site()) }
+
+    #[test]
+    fn errors_naming_the_path_when_no_scenarios_exist() {
+        let mut errors = Vec::new();
+        check_empty_results(&[], &mut errors, None, &dir());
+        let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
+        let [message] = rendered.as_slice() else {
+            panic!("expected one diagnostic, got {rendered:?}");
+        };
+        assert!(
+            message.contains("no scenarios found in `tests/features/empty`"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn errors_naming_the_expression_when_a_filter_matches_nothing() {
+        let filter = TagFilter {
+            expr: TagExpression::parse("@fast").expect("tag expression should parse"),
+            span: Span::call_site(),
+            raw: "@fast".to_owned(),
+        };
+        let mut errors = Vec::new();
+        check_empty_results(&[], &mut errors, Some(&filter), &dir());
+        let message = errors.first().map(ToString::to_string).unwrap_or_default();
+        assert!(
+            message.contains("no scenarios matched tag expression `@fast`"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn stays_silent_when_tests_or_errors_exist() {
+        let generated: Vec<TokenStream2> = vec![quote! { fn generated() {} }];
+        let mut errors = Vec::new();
+        check_empty_results(&generated, &mut errors, None, &dir());
+        assert!(errors.is_empty());
+
+        let mut errors = vec![quote! { compile_error!("earlier") }];
+        check_empty_results(&[], &mut errors, None, &dir());
+        assert_eq!(errors.len(), 1);
+    }
+}

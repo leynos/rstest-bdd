@@ -2361,6 +2361,10 @@ preflight validation report an ambiguity instead of choosing the first entry.
 Definitions in an unselected library are not used and are identified in
 missing-step diagnostics when they match the feature text.
 
+An expansion that generates no tests at all is a compile error. Without a tag
+filter the error reads ``no scenarios found in `<dir>` ``; with one it reports
+that no scenarios matched the expression.
+
 ### Fixture injection with `scenarios!`
 
 The `fixtures = [name: Type, ...]` parameter injects fixtures into all
