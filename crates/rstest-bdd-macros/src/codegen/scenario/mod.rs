@@ -35,12 +35,7 @@ use adapters::resolve_scenario_adapters;
 pub(crate) use domain::*;
 use emit::{ScenarioEmit, emit_scenario_test, scenario_metadata};
 pub(crate) use helpers::process_steps;
-use helpers::{
-    generate_case_attrs,
-    generate_indexed_case_attrs,
-    process_steps_substituted,
-    row_has_values,
-};
+use helpers::{generate_case_attrs, generate_indexed_case_attrs, process_steps_substituted};
 pub(crate) use metadata::{FeaturePath, ScenarioName};
 use runtime::{
     ContextIterators,
@@ -236,11 +231,11 @@ where
 
 /// Substitute each Examples row's placeholders into the scenario's steps.
 ///
-/// Rows without values are skipped rather than rejected: a blank Examples line
-/// is how a table stays readable between groups, and Gherkin itself does not
-/// give it meaning. The first failing row aborts the whole outline, because a
-/// partially generated `#[rstest]` case list would bind later cases to the
-/// wrong row.
+/// Every row is substituted, including rows whose cells are all empty: the
+/// case attributes number every row too, and the generated test indexes this
+/// table by that number, so both must enumerate the same rows. The first
+/// failing row aborts the whole outline, because a partially generated
+/// `#[rstest]` case list would bind later cases to the wrong row.
 fn substituted_outline_steps<'a>(
     config: &'a ScenarioConfig<'_>,
 ) -> Option<(
@@ -252,7 +247,6 @@ fn substituted_outline_steps<'a>(
     let substituted = examples
         .rows
         .iter()
-        .filter(|row| row_has_values(row))
         .map(|row| {
             let row = ExampleRow::new(row.clone());
             process_steps_substituted(&config.steps, &headers, &row)
