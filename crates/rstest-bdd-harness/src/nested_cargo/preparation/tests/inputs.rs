@@ -11,6 +11,7 @@ use super::{
         FINGERPRINT_EXACT,
         PREPARED_FILE_SUFFIX,
         compose,
+        escape,
         fingerprint,
         is_fingerprint_variable,
     },
@@ -47,8 +48,11 @@ fn fingerprint_excludes_runner_and_coverage_variables() {
         "the child must receive an absolute target directory, got: {target}"
     );
     assert!(text.contains("RUSTFLAGS=-Dwarnings"));
+    // Every recorded value is escaped onto one line, and a Windows path is
+    // full of backslashes, so the expectation has to be escaped the same way.
+    // Comparing against the raw path asserts that escaping does not happen.
     assert!(
-        text.contains(&format!("CARGO_TARGET_DIR={target}")),
+        text.contains(&format!("CARGO_TARGET_DIR={}", escape(&target))),
         "the fingerprint must record the resolved target directory, got:\n{text}"
     );
     assert!(text.contains("variant: all-features"));

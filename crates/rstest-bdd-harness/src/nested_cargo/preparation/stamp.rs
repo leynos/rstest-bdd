@@ -294,7 +294,7 @@ pub(super) fn compose(preparation: &Preparation, toolchain: &str) -> Fingerprint
 /// this fingerprint exists to force. `\` and the two line breaks are the only
 /// characters escaped, so ordinary values are recorded unchanged and remain
 /// readable in the stamp file.
-fn escape(value: &str) -> String {
+pub(super) fn escape(value: &str) -> String {
     if !value.contains(['\\', '\n', '\r']) {
         return value.to_owned();
     }
