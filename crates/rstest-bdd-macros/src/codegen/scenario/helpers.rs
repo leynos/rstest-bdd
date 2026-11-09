@@ -158,9 +158,9 @@ fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
                         let lit = cell_to_lit(cell);
                         quote! { #lit }
                     });
-                    quote! { &[#(#cells),*][..] }
+                    quote! { &[#(#cells),*] as &[&str] }
                 });
-                quote! { Some(&[#(#row_tokens),*][..]) }
+                quote! { Some(&[#(#row_tokens),*] as &[&[&str]]) }
             }
         },
     )
