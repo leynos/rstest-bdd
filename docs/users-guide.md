@@ -2856,9 +2856,17 @@ it to `run_bounded_with_timeout`, or the command runs unbounded.
 
 One preparation path cannot be bounded this way. `trybuild` spawns its own
 nested `cargo` and offers no hook to bound or capture that child, so a trybuild
-preparation is bounded only by the test runner's own slow-timeout — in this
-repository, the 20-minute period `.config/nextest.toml` gives the compile-test
-binaries. That exception is deliberate: the alternative would be re-implementing
+preparation has **no per-command bound at all**. It is limited only by the test
+runner, which is a distinction that matters in both directions:
+
+- Under `cargo nextest`, `.config/nextest.toml` gives the compile-test binaries
+  a 20-minute `slow-timeout` and the preparation tests a 30-minute one. That
+  runner period is the only limit a trybuild preparation has.
+- Under plain `cargo test` there is no per-command bound *and* no per-test
+  bound, so a wedged trybuild child is limited only by whatever the invocation
+  itself supplies.
+
+That exception is deliberate: the alternative would be re-implementing
 `trybuild`'s spawn, and a wedged trybuild build is reported as a runner
 slow-timeout without captured output.
 
@@ -2875,10 +2883,11 @@ expect that. `.config/nextest.toml` gives the preparation tests a 30-minute
 `slow-timeout` — the budget `PREPARATION_COMMAND_TIMEOUT` and
 `MAX_SEQUENTIAL_COMMANDS` are sized to stay inside. Plain `cargo test` imposes
 no such bound: it has no per-test timeout at all, so a lazy preparation there
-is limited only by the per-command bound and by whatever outer limit the
-invocation supplies. That is a difference in the runner, not in this module,
-and it is why the named preparation test exists as a separate Nextest pass
-rather than being left to the timed tests.
+is limited, for a command that goes through `run_bounded_with_timeout`, only by
+`PREPARATION_COMMAND_TIMEOUT` times `MAX_SEQUENTIAL_COMMANDS`, and for a
+trybuild preparation by nothing at all. That is a difference in the runner, not
+in this module, and it is why the named preparation test exists as a separate
+Nextest pass rather than being left to the timed tests.
 
 The artefact check requires each vouched-for profile to contain non-empty
 `deps` and `.fingerprint` directories (`DEPENDENCY_ARTEFACT_DIRS`), and then

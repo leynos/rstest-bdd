@@ -11,7 +11,9 @@
 mod cargo_config;
 mod eviction;
 mod inputs;
+mod stamp_file;
 mod stamping;
+mod unreadable;
 
 use std::path::{Path, PathBuf};
 

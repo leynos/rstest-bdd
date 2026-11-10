@@ -218,9 +218,11 @@ The three tests the issue names as failures now run at 0.3%, 0.3% and 16.5% of
 their deadlines, with the cold graph compiled by a separate test under a budget
 the assertion does not share.
 
-Run `42005188689` on the final head `851c9b1c` passed all three required lanes
-and is the second, independent measurement. Its suite finished in 348.345 s
-(2101 tests, 2101 passed, 7 skipped) — 4.0× faster than the figure above. That
+Run `42005188689` on `851c9b1c` — the head at the time, not the branch's final
+head; later commits changed `preparation.rs` and the stamp protocol without
+altering either measurement's subject — passed all three required lanes and is
+the second, independent measurement. Its suite finished in 348.345 s (2101
+tests, 2101 passed, 7 skipped) — 4.0× faster than the figure above. That
 difference is not the branch improving something: **the two runs differ in
 compiler-cache state, and the timings must not be compared without saying so.**
 `sccache` reported a 13.80% Rust hit rate on run `41981885921` and 95.71% on run
@@ -773,6 +775,64 @@ rather than by reading this branch's comments.
          recorded. The existing test proves the *call* returns in bounded time
          and deliberately does not assert the grandchild is gone. Tracked for a
          separate issue rather than folded in at the last gate.
+- [ ] Answer the review of `6905d6c3`: three inline findings and six pre-merge
+      rows.
+      1. **A real stamp-validity bug, and the most valuable finding of the
+         round.** `parse` compared `head.trim_end()` against
+         `fingerprint.trim_end()`, and `render` wrote `trim_end`ed text, while
+         the last field of a fingerprint is `inputs`. A stamp written for an
+         input hash of `hash` therefore admitted a build whose hash was
+         `hash`, so a changed fixture kept its prepared artefacts. Reproduced
+         before fixing, by composing two texts differing only in that space and
+         asking the real comparison predicate: both directions matched. The
+         fix is `strip_line_break`, which removes the single terminating `\n`
+         and nothing else, and `render` no longer normalizes on the way out.
+         `a_trailing_space_in_the_inputs_does_not_reuse_another_build_s_stamp`
+         pins it and fails against the old code.
+      2. **The property that should have caught it did not, and the reason is
+         worth keeping.** The first version of the round-trip property passed
+         under a deliberate `trim_end` mutation. So did a second, after the
+         generator was strengthened to emit trailing spaces. The blindness was
+         structural, not statistical: the reject property varied an
+         *environment variable* and held `inputs` fixed, so the whitespace
+         never landed in the field the parser trims. A named regression on the
+         exact field is what actually closes a boundary; a property over the
+         same predicate can be arranged so the boundary is never reached.
+      3. **The success path of `run_bounded` had the grandchild hazard too, and
+         no test.** The existing grandchild case used `sleep 30 & wait`, so the
+         direct child never exited. `run_bounded_returns_when_a_successful_child_leaves_a_pipe_holding_descendant`
+         exits 0 while a descendant holds both pipes; against a mutated
+         implementation that waits for EOF it fails after 30.00 s, which is the
+         hang it describes.
+      4. **Two documentation errors, both verified against source rather than
+         against the finding.** The migration guide claimed `env_from_vars`
+         drops an inherited `CARGO_TARGET_DIR`; `ensure_target_directory`
+         returns early when one is present, and it is `env_for_directory` that
+         drops it. The users guide said a lazy preparation is bounded by the
+         per-command bound; that is false for trybuild, which has no per-command
+         bound at all, so the two cases are now stated separately.
+      5. **`prepare_now` recovery is now covered directly.** The unreadable-stamp
+         cases exercised `ensure_prepared` under both runners but never the
+         unconditional entry point, which has no runner to consult and must
+         always replace. The new case also asserts the *replacement* is
+         readable, since a recovery that wrote another unreadable stamp would
+         re-prepare forever.
+      6. **Three files were at or over the 400-line limit.** `stamping` reached
+         412 and `inputs` 404 after the additions, and `stamp` sat exactly at
+         400, so any later edit would have failed the gate. Split along seams
+         that already existed: the round-trip cases into `stamp_file`, the
+         unreadable-stamp cases into `unreadable`, and `render`/`write_stamp`
+         into a production `stamp_file` module with `StampText::new` so the
+         field stays private.
+      7. **Deferred, with evidence, the filter-through-error row** (return the
+         current-directory error through `absolute_target_directory` and
+         `env_from_vars`). The finding is valid — a relative `CARGO_TARGET_DIR`
+         that cannot be made absolute is silently left as-is — but changing
+         those signatures reaches `build_child_env`, `env_for_directory`,
+         `Preparation::new` and every test constructor, which is public API
+         churn on a helper whose contract is documented as "leave it untouched
+         rather than failing". Recording it as a follow-up rather than
+         reworking the environment API in the last round before merge.
 - [x] Gate `ed80e103` with the full sequence, one gate at a time:
       `make check-fmt`, `make markdownlint`, `make lint` and `make test` all
       exit 0. `make fmt` was needed first because rustfmt reflowed two
@@ -922,6 +982,21 @@ rather than by reading this branch's comments.
       is a separate test module for the same reason.
 
 ## Surprises & Discoveries
+
+- **A property can hold the boundary still and still be unable to reach it.**
+  2026-11-10. The stamp's read-back contract is "a written fingerprint admits
+  exactly itself". The first property for it passed under a `trim_end`
+  mutation, so I strengthened the generator to emit trailing spaces and tabs —
+  the characters `trim_end` eats — and it *still* passed. The generator was not
+  the problem. Both properties varied an environment variable and held `inputs`
+  constant, and `inputs` is the *last* field `compose` writes, so it is the
+  only one whose trailing whitespace the comparison can reach. No amount of
+  further generation would have fixed a property that moved the wrong field.
+  The habit this changes: before trusting a property to pin a contract, mutate
+  the implementation and check it fails — if it does not, ask *which field,
+  which position, which shape* the mutation needs to be visible, rather than
+  widening the input space. The named regression over the real `inputs` field
+  is what caught it, immediately.
 
 - **A test that passes the two halves separately can still leave the seam
   untested.** 2026-11-10. Two existing tests covered the toolchain field:
@@ -1471,19 +1546,25 @@ an unapproached internal deadline should look like. It measures the 12-minute
 bound, though, not the 9-minute one.
 
 Run `42021251818` measures the 9-minute bound on the code the fix landed in,
-and run `42028526380` measures the true final head after the prose commits that
-followed it. The second matters for a reason the first does not cover. Its
-Linux lane took 36 m 08 s against the first's 32 m 09 s, which reads like a
-regression until the two are decomposed. In all three runs the nextest summary
-is about a sixth of the lane (17.5%, 17.3% and 16.6%), so roughly 30 minutes of
-each run happens before and after it — image setup, the Cargo build, coverage
-handling. That outside-the-suite time is where the 3.5-minute lane difference
-sits (26.6 minutes before, 30.1 now), while the suite grew 8.3% on code this
-diff does not touch. A diff that touches only Markdown cannot account for
-either figure. The lane duration is therefore not evidence about this change,
-and the suite duration is; recording both is what keeps the conclusion
-checkable. `make test-workflow-contracts` (364 tests), `nextest_config` (5) and
-`rstest-bdd-harness` (51) also pass locally on the final head.
+and run `42028526380` measures `434d8309`, the head at that point, after the
+prose commits that followed it. Neither run is on the branch's final head: the
+commits after them split `preparation.rs`, added the toolchain probe and
+corrected the stamp round trip. Those changes touch no preparation timing the
+runs measured — they add tests and move code between modules — but the
+attribution above is by commit, not by "the head", for that reason.
+
+The second run matters for a reason the first does not cover. Its Linux lane
+took 36 m 08 s against the first's 32 m 09 s, which reads like a regression
+until the two are decomposed. In all three runs the nextest summary is about a
+sixth of the lane (17.5%, 17.3% and 16.6%), so roughly 30 minutes of each run
+happens before and after it — image setup, the Cargo build, coverage handling.
+That outside-the-suite time is where the 3.5-minute lane difference sits (26.6
+minutes before, 30.1 now), while the suite grew 8.3% on code this diff does not
+touch. A diff that touches only Markdown cannot account for either figure. The
+lane duration is therefore not evidence about this change, and the suite
+duration is; recording both is what keeps the conclusion checkable.
+`make test-workflow-contracts` (364 tests), `nextest_config` (5) and
+`rstest-bdd-harness` (51) also pass locally on the head those commits produced.
 
 Every suite that compiles a nested Cargo graph is prepared and stamped,
 including the harness and server trybuild trees. On the development host a cold

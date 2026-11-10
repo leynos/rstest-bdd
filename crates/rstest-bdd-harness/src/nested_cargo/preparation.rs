@@ -38,6 +38,7 @@ mod artefacts;
 mod input_hash;
 mod lifecycle;
 mod stamp;
+mod stamp_file;
 mod toolchain;
 
 pub use artefacts::DEPENDENCY_ARTEFACT_DIRS;

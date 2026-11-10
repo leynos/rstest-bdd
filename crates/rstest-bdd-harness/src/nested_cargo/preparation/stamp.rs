@@ -29,6 +29,7 @@ use std::{
 };
 
 use super::Preparation;
+pub(super) use super::stamp_file::{render, write_stamp};
 
 /// Fingerprint format version; bump to invalidate every existing stamp.
 ///
@@ -46,7 +47,7 @@ pub(super) const PREPARED_FILE_SUFFIX: &str = ".rstest-bdd-prepared";
 /// One file rather than two keeps the stamp atomic: a single rename publishes
 /// the fingerprint and the names it vouches for together, so a reader can
 /// never see a new fingerprint beside a stale name list.
-const OUTPUTS_SEPARATOR: &str = "@@ recorded-artefacts";
+pub(super) const OUTPUTS_SEPARATOR: &str = "@@ recorded-artefacts";
 
 /// Environment variables that change what a nested preparation builds.
 ///
@@ -95,6 +96,13 @@ impl Fingerprint {
 pub(super) struct StampText(String);
 
 impl StampText {
+    /// Wrap rendered text for writing.
+    ///
+    /// Only [`render`](super::stamp_file::render) calls this, and the field
+    /// stays private so that remains true: a `StampText` built anywhere else
+    /// could pair a fingerprint with names that preparation never recorded.
+    pub(super) fn new(text: String) -> Self { Self(text) }
+
     /// The bytes to write to the stamp file.
     pub(super) fn as_str(&self) -> &str { &self.0 }
 }
@@ -175,15 +183,34 @@ pub(super) fn unreadable_stamp_error(stamp: &Path, error: &io::Error) -> io::Err
 /// A file with no separator line is a version-1 stamp. Its fingerprint also
 /// differs, because [`STAMP_VERSION`] changed, so returning `None` here is a
 /// second, independent guard rather than the only one.
-fn parse(text: &str, fingerprint: &Fingerprint) -> Option<Stamp> {
+pub(super) fn parse(text: &str, fingerprint: &Fingerprint) -> Option<Stamp> {
     let (head, tail) = text.split_once(OUTPUTS_SEPARATOR)?;
-    if head.trim_end() != fingerprint.as_str().trim_end() {
+    // Both sides lose exactly the one line break that separates the
+    // fingerprint from the separator, and nothing else. Trimming all trailing
+    // whitespace would make `inputs: h` and `inputs: h ` compare equal in one
+    // direction and unequal in the other, so a stamp written for the shorter
+    // value would admit a build whose inputs genuinely differ.
+    if strip_line_break(head) != strip_line_break(fingerprint.as_str()) {
         return None;
     }
     Some(Stamp {
         recorded: recorded_sections(tail),
     })
 }
+
+/// Remove the single line break that terminates a fingerprint.
+///
+/// [`render`] writes the fingerprint followed by one `\n` and then the
+/// separator, so reading a stamp back has to remove exactly that character.
+/// The value fields themselves are already line-safe — [`escape`] guarantees
+/// it — so the only whitespace here that is not significant is that one
+/// terminator.
+///
+/// Using `trim_end` instead would additionally discard trailing spaces and
+/// tabs belonging to the last field, so `inputs: h` and `inputs: h ` would
+/// match a stamp written for the other. That is a stamp outliving a change to
+/// the fixture, which is the invalidation the fingerprint exists to force.
+pub(super) fn strip_line_break(text: &str) -> &str { text.strip_suffix('\n').unwrap_or(text) }
 
 /// Read the artefact sections that follow the separator.
 ///
@@ -203,39 +230,6 @@ fn recorded_sections(tail: &str) -> Vec<Vec<String>> {
         }
     }
     sections
-}
-
-/// Render a stamp file from its fingerprint and recorded artefact names.
-pub(super) fn render(fingerprint: &Fingerprint, recorded: &[Vec<String>]) -> StampText {
-    let mut text = String::from(fingerprint.as_str().trim_end());
-    text.push('\n');
-    text.push_str(OUTPUTS_SEPARATOR);
-    text.push('\n');
-    for section in recorded {
-        text.push_str("dir\n");
-        for name in section {
-            let _ = writeln!(text, "out\t{name}");
-        }
-    }
-    StampText(text)
-}
-
-/// Write the stamp atomically, so a killed preparation never looks complete.
-pub(super) fn write_stamp(stamp: &Path, stamp_text: &StampText) -> io::Result<()> {
-    let Some(parent) = stamp.parent() else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("stamp path {} has no parent directory", stamp.display()),
-        ));
-    };
-    fs::create_dir_all(parent)?;
-    let stamp_name = stamp.file_name().map_or_else(
-        || String::from("prepared"),
-        |name| name.to_string_lossy().into_owned(),
-    );
-    let temporary = parent.join(format!(".{stamp_name}.{}.tmp", std::process::id()));
-    fs::write(&temporary, stamp_text.as_str())?;
-    fs::rename(&temporary, stamp)
 }
 
 /// The fingerprint text recorded in the stamp.

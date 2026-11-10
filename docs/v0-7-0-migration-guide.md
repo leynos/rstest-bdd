@@ -160,14 +160,24 @@ work leaves the timed test rather than that the timed test waits longer.
 
 ### `CARGO_TARGET_DIR` is resolved once, before the child sees it
 
-`env_for_directory` and `env_from_vars` resolve a relative `CARGO_TARGET_DIR`
-against the current directory and drop any inherited value, because the nested
-build does not run in this process's directory. A caller that previously passed
-a relative `CARGO_TARGET_DIR` through its own environment now has an absolute
-path in the child, and `Preparation::new` derives its `artefacts` list from
-that resolved value. Pass the path the build will really use; supplying it
-through the child environment instead is what keeps the stamp and the artefacts
-it vouches for describing the same directory.
+Both constructors resolve a relative `CARGO_TARGET_DIR` to an absolute path
+against the current directory, because a nested build does not run in this
+process's directory and Cargo would otherwise resolve the same value somewhere
+else. They differ in what they do with an inherited value:
+
+- `env_from_vars` **preserves** an inherited `CARGO_TARGET_DIR`, so nested
+  builds keep reusing the outer build cache, and falls back to the directory
+  the caller supplies only when the parent named none.
+- `env_for_directory` **drops** the inherited value and uses its own
+  `directory` instead, because that directory is the one being stamped and a
+  stale inherited value would point the build somewhere the stamp does not
+  describe.
+
+A caller that previously passed a relative `CARGO_TARGET_DIR` through its own
+environment now has an absolute path in the child. `Preparation::new` derives
+its `artefacts` list from the target directory resolved in the child
+environment rather than from the stamp directory, so the stamp and the compiled
+units it vouches for stay in step when the target directory moves.
 
 ## Migration checklist
 

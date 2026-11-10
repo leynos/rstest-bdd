@@ -18,7 +18,14 @@ use proptest::prelude::*;
 
 use super::{
     Preparation,
-    stamp::{FINGERPRINT_EXACT, FINGERPRINT_PREFIXES, compose, is_fingerprint_variable},
+    stamp::{
+        FINGERPRINT_EXACT,
+        FINGERPRINT_PREFIXES,
+        compose,
+        is_fingerprint_variable,
+        parse,
+        render,
+    },
 };
 
 /// A value for one build-relevant variable.
@@ -29,20 +36,44 @@ use super::{
 /// well-behaved text. An empty value is included too: "unset" and "set to
 /// nothing" reach the child differently for some variables, and the fingerprint
 /// must not let them look the same.
+///
+/// Space is deliberately over-represented, and trailing whitespace in
+/// particular is generated directly. A uniformly drawn value almost never ends
+/// in a space, and a trailing space is *exactly* the character a parser that
+/// normalizes with `trim_end` silently discards. With an even spread, a
+/// mutation making the parser lenient survived every property in this module,
+/// because no generated case ever had one.
 fn fingerprint_value() -> impl Strategy<Value = String> {
     // Every arm yields `String`, including the regex one, so `prop_oneof!` sees
     // a single `Value` type. A `Just("\\")` arm would be an `&str` strategy and
     // the collection below would refuse to unify the two.
     let character = prop_oneof![
-        Just(String::from("\\")),
-        Just(String::from("\n")),
-        Just(String::from("\r")),
-        Just(String::from(":")),
-        Just(String::from("=")),
-        Just(String::from(" ")),
-        "[a-z0-9]",
+        4 => Just(String::from(" ")),
+        1 => Just(String::from("\\")),
+        1 => Just(String::from("\n")),
+        1 => Just(String::from("\r")),
+        1 => Just(String::from(":")),
+        1 => Just(String::from("=")),
+        4 => "[a-z0-9]",
     ];
-    proptest::collection::vec(character, 0..=8).prop_map(|parts| parts.concat())
+    // The suffix is drawn *with* the body rather than by mapping the same
+    // strategy three times, which `prop_map` cannot do: it takes the strategy
+    // by value. A trailing space or tab is not decoration. Whitespace a caller
+    // can actually leave at the end of a value — an `inputs` hash built by
+    // joining fields is the ordinary way it happens — is the only input that
+    // distinguishes "strip the terminating line break" from "strip all
+    // trailing whitespace", and that distinction is the contract of the round
+    // trip below.
+    (
+        proptest::collection::vec(character, 0..=8).prop_map(|parts| parts.concat()),
+        prop_oneof![
+            Just(String::new()),
+            Just(String::from(" ")),
+            Just(String::from("\t")),
+            Just(String::from("  ")),
+        ],
+    )
+        .prop_map(|(value, suffix)| format!("{value}{suffix}"))
 }
 
 /// A variable name the fingerprint is supposed to record.
@@ -149,5 +180,91 @@ proptest! {
             expected,
             "{} = {:?} must stay on its own line: {:?}", name, value, text.as_str()
         );
+    }
+
+    /// A written stamp admits exactly the fingerprint it was written for.
+    ///
+    /// This is the round trip the other two properties do not reach. They
+    /// compare freshly composed texts, while a gate compares a composed text
+    /// against one read back out of a file, and the two paths are different
+    /// code: `render` writes the separator, `parse` splits on it. A parser that
+    /// normalized the text on the way back — `trim_end`, for instance — would
+    /// make a stamp written for `inputs: h` admit the build whose inputs are
+    /// `h `, and both properties above would still pass because both sides of
+    /// their comparison are unnormalized.
+    #[test]
+    fn a_written_fingerprint_reads_back_as_itself(
+        name in fingerprint_name(),
+        value in fingerprint_value(),
+        toolchain in fingerprint_value(),
+        variant in fingerprint_value(),
+        inputs in fingerprint_value(),
+    ) {
+        let preparation = preparation_over(vec![variable(&name, &value)], &variant, &inputs);
+        let fingerprint = compose(&preparation, &toolchain);
+        let written = render(&fingerprint, &[]);
+        prop_assert!(
+            parse(written.as_str(), &fingerprint).is_some(),
+            "a stamp written for a fingerprint must admit it: {:?}", written.as_str()
+        );
+    }
+
+    /// Two fingerprints that differ differ after a write and a read back.
+    ///
+    /// The complement of the round trip, and the reason the parser must not be
+    /// lenient: a *different* fingerprint must not be admitted by the stamp
+    /// written for this one. Together the two properties say the gate compares
+    /// the texts `compose` produced, not some normalization of them.
+    #[test]
+    fn a_written_fingerprint_rejects_a_different_one(
+        name in fingerprint_name(),
+        left in fingerprint_value(),
+        right in fingerprint_value(),
+        toolchain in fingerprint_value(),
+    ) {
+        prop_assume!(left != right);
+        let first = preparation_over(vec![variable(&name, &left)], "v", "hash");
+        let second = preparation_over(vec![variable(&name, &right)], "v", "hash");
+        let fingerprint = compose(&first, &toolchain);
+        let other = compose(&second, &toolchain);
+        prop_assume!(fingerprint != other);
+        let written = render(&fingerprint, &[]);
+        prop_assert!(
+            parse(written.as_str(), &other).is_none(),
+            "a stamp must not admit a different fingerprint: {:?}", written.as_str()
+        );
+    }
+
+    /// A difference in the variant, the inputs or the toolchain is a
+    /// difference in the fingerprint.
+    ///
+    /// The environment variable case above only ever varies one recorded
+    /// variable. These three fields reach the composition through separate
+    /// lines, so a composition that dropped or reordered one of them would
+    /// stay invisible to a property that only ever moved a variable's value.
+    #[test]
+    fn distinct_variant_inputs_or_toolchain_compose_distinct_fingerprints(
+        variant in fingerprint_value(),
+        inputs in fingerprint_value(),
+        toolchain in fingerprint_value(),
+        other_variant in fingerprint_value(),
+        other_inputs in fingerprint_value(),
+        other_toolchain in fingerprint_value(),
+    ) {
+        // One alternative value per field, each assumed different from *its
+        // own* field. A single `other` reused for both the variant and the
+        // inputs would let an equal pair reach an assertion, and the case that
+        // then fails is the property comparing one preparation with itself —
+        // a failure in the test, not in the code.
+        prop_assume!(other_variant != variant);
+        prop_assume!(other_inputs != inputs);
+        prop_assume!(other_toolchain != toolchain);
+
+        let base = preparation_over(Vec::new(), &variant, &inputs);
+        let changed_variant = preparation_over(Vec::new(), &other_variant, &inputs);
+        let changed_inputs = preparation_over(Vec::new(), &variant, &other_inputs);
+        prop_assert_ne!(compose(&base, &toolchain), compose(&changed_variant, &toolchain));
+        prop_assert_ne!(compose(&base, &toolchain), compose(&changed_inputs, &toolchain));
+        prop_assert_ne!(compose(&base, &toolchain), compose(&base, &other_toolchain));
     }
 }

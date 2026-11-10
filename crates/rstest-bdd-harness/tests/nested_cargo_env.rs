@@ -342,6 +342,44 @@ fn run_bounded_returns_after_killing_a_child_whose_grandchild_holds_the_pipe() {
 
 #[cfg(unix)]
 #[test]
+fn run_bounded_returns_when_a_successful_child_leaves_a_pipe_holding_descendant() {
+    // The success path has the same hazard as the timeout path, and no kill
+    // ends it. The direct child exits 0 while the `sleep` it started keeps the
+    // inherited stdout and stderr write ends open, so a drain that waited for
+    // EOF would block for the grandchild's full lifetime *after* a successful
+    // build. `collect_until` caps that collection at `DRAIN_GRACE` measured
+    // from the exit, which is what this asserts: a 30 s grandchild must not
+    // become a 30 s call.
+    let mut cmd = Command::new("sh");
+    cmd.args(["-c", "echo finished; echo err >&2; sleep 30 &"]);
+    let started = std::time::Instant::now();
+    let output = run_bounded_with_timeout(&mut cmd, Duration::from_secs(10))
+        .expect("a successful child must not be reported as a timeout");
+    let elapsed = started.elapsed();
+    assert!(
+        output.status.success(),
+        "the direct child's status must survive: {:?}",
+        output.status
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("finished"),
+        "output written before the exit must be captured: {:?}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("err"),
+        "stderr written before the exit must be captured: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        elapsed < Duration::from_secs(20),
+        "the call must return after the grace period, not when the descendant finally exits: \
+         {elapsed:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn run_bounded_surfaces_spawn_failures() {
     let mut cmd = Command::new("definitely-not-a-real-binary-3f8a");
     let error = run_bounded_with_timeout(&mut cmd, Duration::from_secs(1))
