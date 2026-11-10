@@ -63,6 +63,28 @@ fn a_trailing_space_in_the_inputs_does_not_reuse_another_build_s_stamp() {
 }
 
 #[test]
+fn a_stamp_admits_a_fingerprint_that_spells_the_separator() {
+    // `inputs` is caller-supplied text and `render` writes the fingerprint
+    // verbatim ahead of the separator line, so the separator's own spelling is
+    // reachable from a value. Splitting on its first occurrence then finds the
+    // one inside the fingerprint rather than the delimiter, and the stamp is
+    // refused in the same breath as it was written: the Nextest gate reports a
+    // missing or stale stamp, and `cargo test` prepares the family again.
+    let target = std::env::temp_dir().join("target");
+    let environment = environment_in(&target);
+    let fingerprint = compose(
+        &preparation(&target, &environment, "v", "@@ recorded-artefacts"),
+        "release: 1.88.0 host: x",
+    );
+    let stamp = render(&fingerprint, &[]);
+    assert!(
+        parse(stamp.as_str(), &fingerprint).is_some(),
+        "a stamp must admit the fingerprint it was written for, whatever the inputs spell: {:?}",
+        stamp.as_str()
+    );
+}
+
+#[test]
 fn a_stamp_refuses_a_different_variant_or_toolchain() {
     // The other two fields that reach the composition as their own lines. A
     // parser keyed only on the environment section would pass the cases above

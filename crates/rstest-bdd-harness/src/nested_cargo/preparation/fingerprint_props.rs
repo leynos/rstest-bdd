@@ -21,6 +21,7 @@ use super::{
     stamp::{
         FINGERPRINT_EXACT,
         FINGERPRINT_PREFIXES,
+        OUTPUTS_SEPARATOR,
         compose,
         is_fingerprint_variable,
         parse,
@@ -54,6 +55,11 @@ fn fingerprint_value() -> impl Strategy<Value = String> {
         1 => Just(String::from("\r")),
         1 => Just(String::from(":")),
         1 => Just(String::from("=")),
+        // The stamp's own delimiter, reachable because `render` writes the
+        // fingerprint verbatim ahead of the separator line. A parser that
+        // split on the separator before matching the fingerprint found this
+        // spelling inside a value and refused the stamp it had just written.
+        1 => Just(String::from(OUTPUTS_SEPARATOR)),
         4 => "[a-z0-9]",
     ];
     // The suffix is drawn *with* the body rather than by mapping the same

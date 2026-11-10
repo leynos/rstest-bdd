@@ -1043,13 +1043,24 @@ whitespace the two are allowed to lose is the one line break that terminates
 the fingerprint. `escape` already keeps every recorded value on one line, so
 the terminating break is the whole of the difference between the text `compose`
 produced and the text stored before the separator. Normalizing further — with
-`trim_end`, which the first implementation used on both sides — also discards
-trailing spaces belonging to the last field, and the last field is `inputs`. A
-stamp written for an input hash of `h` then admitted a build whose hash was
-`h`, so a changed fixture kept its prepared artefacts. The resolution is
-asymmetric on purpose: `strip_line_break` removes that single character and
-nothing else, and
+`trim_end`, which the first implementation used — also discards trailing spaces
+belonging to the last field, and the last field is `inputs`. A stamp written
+for an input hash of `h` then admitted a build whose hash was `h` (with one
+trailing space), so a changed fixture kept its prepared artefacts. The
+resolution is deliberately narrow: `strip_line_break` removes that single
+character and nothing else, and
 `a_trailing_space_in_the_inputs_does_not_reuse_another_build_s_stamp` pins it.
+
+The order of the two reads matters as much as their strictness. `parse`
+consumes the expected fingerprint first and only then the separator; it does
+not split on the separator and compare what came before it. Splitting first
+lets a value spell the delimiter, because `render` writes `inputs` verbatim
+ahead of the separator line: an input hash containing `@@ recorded-artefacts`
+split inside the fingerprint itself, and the gate refused the stamp it had
+written moments earlier, so every run prepared the family again.
+`a_stamp_admits_a_fingerprint_that_spells_the_separator` pins that, and the
+property generator draws the delimiter as a value so the round trip is tested
+against it rather than only against well-behaved text.
 
 Two rules, and only two, decide whether a recorded name is still there. Each
 directory in `Preparation::artefacts` must have a non-empty `deps` and a

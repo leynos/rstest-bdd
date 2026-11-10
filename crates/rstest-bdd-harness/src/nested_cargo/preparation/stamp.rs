@@ -184,15 +184,27 @@ pub(super) fn unreadable_stamp_error(stamp: &Path, error: &io::Error) -> io::Err
 /// differs, because [`STAMP_VERSION`] changed, so returning `None` here is a
 /// second, independent guard rather than the only one.
 pub(super) fn parse(text: &str, fingerprint: &Fingerprint) -> Option<Stamp> {
-    let (head, tail) = text.split_once(OUTPUTS_SEPARATOR)?;
-    // Both sides lose exactly the one line break that separates the
-    // fingerprint from the separator, and nothing else. Trimming all trailing
-    // whitespace would make `inputs: h` and `inputs: h ` compare equal in one
-    // direction and unequal in the other, so a stamp written for the shorter
-    // value would admit a build whose inputs genuinely differ.
-    if strip_line_break(head) != strip_line_break(fingerprint.as_str()) {
-        return None;
-    }
+    // Consume the expected fingerprint first, then the delimiter, rather than
+    // splitting on the delimiter and comparing what came before it. `inputs`
+    // is caller-supplied text that `render` writes verbatim ahead of the
+    // separator line, so the separator's own spelling is reachable from a
+    // value: splitting first found the text inside `inputs: @@ recorded-
+    // artefacts` and refused the stamp in the same breath as it was written,
+    // turning every gate run into a fresh preparation. Consuming the
+    // fingerprint first leaves only the delimiter to find. That ordering is
+    // also why this cannot accept a stamp written for different inputs at all:
+    // a mismatch fails at the first `strip_prefix`.
+    //
+    // `render` writes `<fingerprint>\n<separator>\n<sections>`. The one
+    // whitespace the two are allowed to lose is the line break terminating the
+    // fingerprint, and a fingerprint that ends its own break is accepted too,
+    // so the newline is consumed only when it is still there. Trimming all
+    // trailing whitespace instead would make `inputs: h` and `inputs: h `
+    // compare equal, and a stamp written for the shorter value would admit a
+    // build whose inputs genuinely differ.
+    let rest = text.strip_prefix(strip_line_break(fingerprint.as_str()))?;
+    let rest = rest.strip_prefix('\n').unwrap_or(rest);
+    let tail = rest.strip_prefix(OUTPUTS_SEPARATOR)?;
     Some(Stamp {
         recorded: recorded_sections(tail),
     })

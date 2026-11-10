@@ -195,6 +195,34 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       the merged assertion is not vacuous: mutating the success-path window
       from `DRAIN_GRACE` to 60 s still fails the test at 30.01 s against its
       20 s bound, and the restored source passes 20/20 in 4.20 s.
+- [x] Address the two findings from the CodeRabbit review of `02d33551`
+      (`5850117480`). Both were valid and both were mine.
+- [x] Fix `parse` splitting on the separator before matching the fingerprint.
+      `render` writes `inputs` verbatim ahead of the separator line, so the
+      delimiter's own spelling is reachable from a value. Reproduced by adding
+      `a_stamp_admits_a_fingerprint_that_spells_the_separator` with
+      `inputs: @@ recorded-artefacts` *before* changing `parse`: it failed on
+      the first run, printing the stamp `render` had just written and `parse`
+      had just refused. That is a self-invalidating stamp — the Nextest gate
+      reports it missing or stale and `cargo test` prepares the family again —
+      and it is the same defect class as the `wip/` finding earlier in this
+      run, so it was fixed rather than argued down. `parse` now consumes the
+      expected fingerprint and then the delimiter. I first transcribed the
+      suggestion with `strip_line_break` on the remainder, which strips a
+      *trailing* newline where a leading one was needed; 17 tests caught it
+      immediately and the fix was `strip_prefix` on `'\n'`, tolerating a
+      fingerprint that ends its own break. `fingerprint_props` now draws
+      `OUTPUTS_SEPARATOR` as a value, and reverting `parse` to the split form
+      fails `a_written_fingerprint_reads_back_as_itself` on generated input
+      `variant = "@@ recorded-artefacts"` — so the property reaches this
+      without the named test.
+- [x] Correct the developers-guide example, which said `h` and `h` and called
+      the fix "asymmetric". The first is a typo that made the example describe
+      no failure at all; the second was wrong about the code, which applied
+      `strip_line_break` to both sides. Both corrected, and — because the fix
+      above changed the mechanism — the paragraph now explains why consuming
+      the fingerprint before the separator cannot admit a stamp written for
+      different inputs, and a second paragraph records the ordering rule.
 - **"Pre-existing" is a claim to verify, not a safe default.** Both the
   execplan and a commit message described the `Preparation::new` argument count
   as pre-existing at 9.69 on `main`.
@@ -1008,6 +1036,23 @@ rather than by reading this branch's comments.
       is a separate test module for the same reason.
 
 ## Surprises & Discoveries
+
+- **A delimiter written into a data field is a parser problem, and only the
+  generator can prove the parser survives it.** 2026-11-10. `parse` split the
+  stamp on `@@ recorded-artefacts` and then compared the head with the expected
+  fingerprint. Every named test passed, because none of them put the delimiter
+  inside a value. Adding it to `inputs` failed on the first run, with `render`
+  and `parse` disagreeing about a stamp neither had any question about. Two
+  things follow. First, "write then read" is only a round trip if the reader
+  does not search for a token the writer copied from arbitrary data, so the
+  safe order is to consume the known quantity first and search only in what is
+  left. Second, the property that is supposed to establish the round trip could
+  not find this either until the generator's alphabet contained the token: the
+  previous alphabet held the characters that could forge a *line* (`\n`, `\r`,
+  `\`, `:`, `=`), and a delimiter is a *string*, not a character, so no
+  combination of its letters would reliably assemble the whole token under a
+  length bound. A generator has to draw the tokens the parser searches for, not
+  just the characters it treats specially.
 
 - **A per-file code-health score is a budget, and the budget is already
   spent.** 2026-11-10. Adding one ordinary four-assert test to
