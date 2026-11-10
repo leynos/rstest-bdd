@@ -11,14 +11,18 @@
 //! newline ending the delimiter line; the stripped form starts with the same
 //! newline, so the leading and trailing newlines that existing steps rely on
 //! are unchanged.
+//!
+//! Scope: these helpers are private to `parsing::feature` and are called only
+//! from `ParsedStep::try_from`, once per step docstring. `dedent` mirrors
+//! `gherkin`'s own dedent and is not a general-purpose text utility; remove
+//! this module rather than reuse it once `gherkin` parses media types itself.
 
 /// Return `docstring` without a leading media-type line, re-dedented.
 ///
 /// A docstring is only rewritten when its first line, which can only be
 /// non-empty when text follows the opening delimiter, is a single media-type
-/// token such as `json`, `text/plain`, or `application/vnd.api+json`. Media
-/// type parameters are not supported: `"""application/json; charset=utf-8`
-/// is not a single token, so that line is kept as docstring content.
+/// token such as `json`, `text/plain`, or `application/vnd.api+json`,
+/// optionally followed by parameters as in `application/json; charset=utf-8`.
 ///
 /// # Examples
 ///
@@ -37,9 +41,13 @@ pub(crate) fn strip_media_type(docstring: &str) -> String {
     }
 }
 
-/// Return whether a line consists of a single media-type token.
+/// Return whether a line consists of a single media-type token, optionally
+/// followed by `;`-separated parameters, which are not validated.
 fn is_media_type(line: &str) -> bool {
-    let token = line.trim();
+    let token = line
+        .split_once(';')
+        .map_or(line, |(media_type, _)| media_type)
+        .trim();
     token
         .chars()
         .next()
@@ -129,6 +137,7 @@ mod tests {
     #[case::json("\"\"\"json", BODY)]
     #[case::mime("\"\"\"application/vnd.api+json", BODY)]
     #[case::json_without_body("\"\"\"json", "")]
+    #[case::parameterised("\"\"\"application/json; charset=utf-8", BODY)]
     fn annotated_docstrings_match_bare_ones(#[case] delimiter_line: &str, #[case] body: &str) {
         let bare = parsed_docstring::get("\"\"\"", body);
         let annotated = parsed_docstring::get(delimiter_line, body);
@@ -144,7 +153,7 @@ mod tests {
     #[rstest]
     #[case::prose("not a token\n  body\n")]
     #[case::punctuated("{\"inline\": true}\n")]
-    #[case::media_type_parameters("application/json; charset=utf-8\n  body\n")]
+    #[case::parameters_without_media_type("; charset=utf-8\n  body\n")]
     fn other_first_lines_are_kept(#[case] docstring: &str) {
         assert_eq!(strip_media_type(docstring), docstring);
     }

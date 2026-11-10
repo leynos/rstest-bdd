@@ -20,3 +20,9 @@ Feature: Docstring media types
         "id": 7
       }
       ```
+    And the parameterised docstring is journalled
+      """application/json; charset=utf-8
+      {
+        "id": 7
+      }
+      """

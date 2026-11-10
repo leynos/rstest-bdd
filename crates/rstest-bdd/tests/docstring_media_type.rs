@@ -24,8 +24,13 @@ fn backtick_docstring(journal: &RefCell<Vec<String>>, docstring: String) {
     journal.borrow_mut().push(docstring);
 }
 
+#[given("the parameterised docstring is journalled")]
+fn parameterised_docstring(journal: &RefCell<Vec<String>>, docstring: String) {
+    journal.borrow_mut().push(docstring);
+}
+
 #[scenario(path = "tests/features/docstring_media_type.feature")]
 fn annotated_docstrings_match_bare_ones(journal: RefCell<Vec<String>>) {
     let expected = "\n{\n  \"id\": 7\n}\n";
-    assert_eq!(journal.into_inner(), [expected, expected, expected]);
+    assert_eq!(journal.into_inner(), [expected; 4]);
 }
