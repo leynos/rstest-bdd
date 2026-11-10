@@ -5,8 +5,9 @@
 - Fixed Scenario Outline substitution replacing placeholders inside values it
   had already substituted. With Examples values `first = "<second>"` and
   `second = "x"`, the step text `<first> <second>` now becomes `<second> x`
-  instead of `x x`. Substitution scans the step text, docstring and table cells
-  once. An unknown placeholder is still a compile error.
+  instead of `x x`. In step text, docstrings and table cells, each value is
+  inserted once and never rescanned. An unknown placeholder is still a compile
+  error.
 
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and

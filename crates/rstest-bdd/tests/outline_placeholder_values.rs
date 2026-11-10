@@ -1,8 +1,8 @@
 //! Behavioural test for Examples values that look like placeholders.
 //!
-//! Substitution scans the original step content once, so a value such as
-//! `<second>` reaches the step verbatim instead of being replaced by the
-//! `second` column's value.
+//! Placeholders are found in the original step content only, and each value
+//! is inserted once and never rescanned, so a value such as `<second>` reaches
+//! the step verbatim instead of being replaced by the `second` column's value.
 
 use std::cell::RefCell;
 

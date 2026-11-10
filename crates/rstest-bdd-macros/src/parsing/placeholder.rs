@@ -40,10 +40,10 @@ pub struct PlaceholderError {
 /// Substitutes `<placeholder>` tokens in text with values from an Examples row.
 ///
 /// Each placeholder token (e.g., `<count>`) is replaced with the corresponding
-/// value from the row, matched by column header name. Substitution is a single
-/// scan of the original text, so a substituted value that itself looks like a
-/// placeholder (for example a cell holding `<b>`) is kept verbatim rather than
-/// being substituted again.
+/// value from the row, matched by column header name. Placeholders are found
+/// in the original text only and each value is inserted once, never rescanned,
+/// so a substituted value that itself looks like a placeholder (for example a
+/// cell holding `<b>`) is kept verbatim rather than being substituted again.
 ///
 /// # Arguments
 ///
@@ -90,6 +90,15 @@ pub fn substitute_placeholders(
 }
 
 /// Looks up the row value for the Examples column named `placeholder`.
+///
+/// # Examples
+///
+/// ```ignore
+/// let headers = vec!["count".to_string()];
+/// let row = vec!["5".to_string()];
+/// assert_eq!(example_value("count", &headers, &row).unwrap(), "5");
+/// assert!(example_value("missing", &headers, &row).is_err());
+/// ```
 fn example_value<'a>(
     placeholder: &str,
     headers: &[String],
