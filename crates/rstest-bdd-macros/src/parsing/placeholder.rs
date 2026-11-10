@@ -40,7 +40,10 @@ pub struct PlaceholderError {
 /// Substitutes `<placeholder>` tokens in text with values from an Examples row.
 ///
 /// Each placeholder token (e.g., `<count>`) is replaced with the corresponding
-/// value from the row, matched by column header name.
+/// value from the row, matched by column header name. Placeholders are found
+/// in the original text only and each value is inserted once, never rescanned,
+/// so a substituted value that itself looks like a placeholder (for example a
+/// cell holding `<b>`) is kept verbatim rather than being substituted again.
 ///
 /// # Arguments
 ///
@@ -67,32 +70,59 @@ pub fn substitute_placeholders(
     headers: &[String],
     row: &[String],
 ) -> Result<String, PlaceholderError> {
-    let mut result = text.to_owned();
+    // Resolve every value first so an unknown placeholder still fails
+    // before anything is substituted.
+    let values = PLACEHOLDER_RE
+        .captures_iter(text)
+        .map(|cap| example_value(&cap[1], headers, row))
+        .collect::<Result<Vec<_>, _>>()?;
 
-    for cap in PLACEHOLDER_RE.captures_iter(text) {
-        // Safe: capture group 0 always exists for a successful match.
-        let Some(full_match) = cap.get(0) else {
-            continue;
-        };
-        let placeholder = &cap[1];
-
-        let idx = headers
-            .iter()
-            .position(|h| h == placeholder)
-            .ok_or_else(|| PlaceholderError {
-                placeholder: placeholder.to_owned(),
-                available_columns: headers.to_vec(),
-                available_columns_display: headers.join(", "),
-            })?;
-
-        // Invariant: headers and row must have equal length; panic if violated.
-        let Some(value) = row.get(idx) else {
-            panic!("row length must match headers length; this indicates a parsing bug");
-        };
-        result = result.replace(full_match.as_str(), value);
-    }
+    // `replace_all` visits the same matches in the same order and never
+    // rescans the values it inserts.
+    let mut values = values.into_iter();
+    let result = PLACEHOLDER_RE
+        .replace_all(text, |_: &regex::Captures<'_>| {
+            values.next().unwrap_or_default()
+        })
+        .into_owned();
 
     Ok(result)
+}
+
+/// Looks up the row value for the Examples column named `placeholder`.
+///
+/// Scope: private to this module and called only by
+/// [`substitute_placeholders`]. It assumes `row` is aligned with `headers`, an
+/// invariant the outline parser guarantees, so other callers should go
+/// through `substitute_placeholders` rather than reuse it directly.
+///
+/// # Examples
+///
+/// ```ignore
+/// let headers = vec!["count".to_string()];
+/// let row = vec!["5".to_string()];
+/// assert_eq!(example_value("count", &headers, &row).unwrap(), "5");
+/// assert!(example_value("missing", &headers, &row).is_err());
+/// ```
+fn example_value<'a>(
+    placeholder: &str,
+    headers: &[String],
+    row: &'a [String],
+) -> Result<&'a str, PlaceholderError> {
+    let idx = headers
+        .iter()
+        .position(|h| h == placeholder)
+        .ok_or_else(|| PlaceholderError {
+            placeholder: placeholder.to_owned(),
+            available_columns: headers.to_vec(),
+            available_columns_display: headers.join(", "),
+        })?;
+
+    // Invariant: headers and row must have equal length; panic if violated.
+    let Some(value) = row.get(idx) else {
+        panic!("row length must match headers length; this indicates a parsing bug");
+    };
+    Ok(value)
 }
 
 /// Checks if a text contains any placeholder tokens.
@@ -150,6 +180,18 @@ mod tests {
         vec!["count".to_owned()],
         vec![String::new()],
         "I have  items"
+    )]
+    #[case(
+        "<a> <b>",
+        vec!["a".to_owned(), "b".to_owned()],
+        vec!["<b>".to_owned(), "x".to_owned()],
+        "<b> x"
+    )]
+    #[case(
+        "<b> then <a>",
+        vec!["a".to_owned(), "b".to_owned()],
+        vec!["x".to_owned(), "<a>".to_owned()],
+        "<a> then x"
     )]
     fn substitute_placeholders_cases(
         #[case] text: &str,

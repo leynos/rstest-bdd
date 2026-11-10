@@ -87,6 +87,12 @@ before each `Scenario` in a feature file, enabling shared setup across
 scenarios. Advanced constructs such as data tables and doc strings provide
 structured or free‑form arguments to steps.
 
+In a Scenario Outline, each `<placeholder>` in step text, doc strings, and
+data-table cells is replaced by the value in the matching `Examples` column.
+Values are inserted once and never rescanned, so a value that itself looks like
+a placeholder, such as `<none>`, reaches the step verbatim. A placeholder that
+names no `Examples` column is a compile error.
+
 ### Example feature file
 
 ```gherkin
