@@ -14,7 +14,7 @@
 //! negation    := ("not")* primary
 //! primary     := TAG | "(" expression ")"
 //! TAG         := "@" IDENT
-//! IDENT       := (ALNUM | "_" | "-")+
+//! IDENT       := (ALNUM | "_" | "-" | ":" | ".")+
 //! ```
 //!
 //! Expressions may nest arbitrarily using parentheses. For example, the input
@@ -32,7 +32,7 @@
 //! # Tokens recognized by the lexer
 //!
 //! - Tag names written as `@identifier`, where identifiers may contain ASCII letters, digits,
-//!   underscores, and hyphens.
+//!   underscores, hyphens, colons, and full stops.
 //! - Case-insensitive keywords `not`, `and`, and `or`.
 //! - Opening and closing parentheses for grouping.
 //! - End-of-input markers used to report trailing tokens.
