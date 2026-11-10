@@ -1038,11 +1038,28 @@ fingerprint and the names it vouches for together, and no reader can see a new
 fingerprint beside a stale name list. The record is taken from what the command
 left, not from what it was expected to leave.
 
-`cargo clean -p` removes a unit's record and its output together, so the
-rebuild harness's intentional per-package clean does not trip the pairing. The
-failure message names at most five artefacts before summarizing the rest: one
-`cargo clean` can take hundreds at once, and an earlier version of this check
-printed 108 KB of names in a single line.
+Two rules, and only two, decide whether a recorded name is still there. Each
+directory in `Preparation::artefacts` must have a non-empty `deps` and a
+non-empty `.fingerprint`; and every name recorded from a dep-info stem must
+still be present in `deps`. The second rule pairs a `.d` record with the
+outputs rustc named for its stem, but that pairing only *discovers* which names
+belong together — it never decides that a tree is usable. `.fingerprint` is
+checked for being non-empty and nothing more: its per-unit records are Cargo's
+business, and re-deriving them here would duplicate Cargo's own format.
+
+Consequently `cargo clean -p <package>` **does** make the gate refuse, and that
+is correct rather than something to work around. It removes that package's `.d`
+records and their outputs from `deps`, so names this module recorded are
+genuinely gone. The rebuild harness relies on this: it consults the gate once
+per process, through `ensure_rebuild_prepared`, *before* its experiment runs,
+and the experiment's own `clean_fixture_units` then deliberately evicts the
+fixture's units to force the baseline rebuild it measures. A later process
+reaches `ensure_prepared` with a stamp that no longer describes the tree and is
+refused, which is why the named preparation test must run first.
+
+The failure message names at most five artefacts before summarizing the rest:
+one `cargo clean` can take hundreds at once, and an earlier version of this
+check printed 108 KB of names in a single line.
 
 `prepare_now` and the lazy path both re-check after the preparation command and
 before writing the stamp. A command that exits zero while leaving no usable

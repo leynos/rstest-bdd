@@ -20,9 +20,11 @@ use crate::nested_cargo::{
     PreparationSummary,
     ProfileDestination,
     ensure_prepared_with,
+    ensure_prepared_with_probe,
     env_from_vars,
     input_hash,
     prepare_now,
+    prepare_now_with_probe,
 };
 
 #[test]
@@ -292,4 +294,84 @@ fn stale_fingerprint_forces_preparation() {
     })
     .expect_err("stale inputs must fail under nextest");
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
+}
+
+#[test]
+fn a_changed_toolchain_invalidates_the_stamp_through_the_gate() {
+    // `distinct_toolchain_identities_produce_distinct_fingerprints` compares
+    // two `compose` calls, so it proves the text differs but not that the
+    // *gate* consults it. Both would pass if the boundary resolved one
+    // identity, stamped with it, and then compared against a different one that
+    // happened to be stable. This drives the same directory through the real
+    // gate twice with two identities: the second must be refused and must
+    // prepare, because a stamp that outlived a compiler change is exactly the
+    // invalidation the field exists to force.
+    let (_directory, family, _environment) = scratch_preparation();
+    let mut builds = 0_u32;
+    let stable = || Ok(String::from("release: 1.88.0 commit-hash: a host: x"));
+
+    ensure_prepared_with_probe(&family, false, stable, || {
+        builds += 1;
+        Ok(PreparationSummary::default())
+    })
+    .expect("the first preparation must stamp under its own identity");
+    assert_eq!(builds, 1);
+
+    let nightly = || Ok(String::from("release: 1.92.0 commit-hash: b host: x"));
+    ensure_prepared_with_probe(&family, false, nightly, || {
+        builds += 1;
+        Ok(PreparationSummary::default())
+    })
+    .expect("a changed toolchain must prepare again, not fail");
+    assert_eq!(
+        builds, 2,
+        "a stamp written by another compiler must not satisfy this one"
+    );
+
+    // And the identity the second preparation stamped with is now honoured:
+    // the gate must not rebuild merely because the probe was called again.
+    ensure_prepared_with_probe(&family, true, nightly, || {
+        panic!("the stamp just written must satisfy the gate")
+    })
+    .expect("a stamp under the current identity must be accepted");
+}
+
+#[test]
+fn an_uncertain_toolchain_refuses_to_stamp_or_reuse_a_stamp() {
+    // A probe that fails is not a toolchain change and not a toolchain match:
+    // it is "the identity is unknown". Composing an empty identity instead
+    // would write a stamp that the *next* successful probe no longer matches —
+    // or, worse, accept the previous stamp, which may describe another
+    // compiler. Either way a timed assertion would run against a tree the
+    // fingerprint cannot vouch for, so the gate must refuse before it reads the
+    // stamp at all.
+    let (_directory, family, _environment) = scratch_preparation();
+    let error = ensure_prepared_with_probe(
+        &family,
+        false,
+        || Err(io::Error::other("cargo -vV failed")),
+        || panic!("an unidentifiable toolchain must not prepare"),
+    )
+    .expect_err("a failing probe must refuse the gate");
+    assert_eq!(error.kind(), io::ErrorKind::Other);
+    assert!(
+        error.to_string().contains("cargo -vV failed"),
+        "the probe's own error must reach the caller: {error}"
+    );
+    assert!(
+        !stamp_path(&family).exists(),
+        "a failed probe must leave no stamp behind"
+    );
+
+    // The same must hold for the unconditional entry point, which is the one
+    // `make prepare-nested-fixtures` reaches: it may not build against an
+    // identity it could not resolve.
+    let refused = prepare_now_with_probe(
+        &family,
+        || Err(io::Error::other("cargo -vV failed")),
+        || panic!("prepare_now must not build behind a failing probe"),
+    )
+    .expect_err("prepare_now must refuse a failing probe");
+    assert_eq!(refused.kind(), io::ErrorKind::Other);
+    assert!(!stamp_path(&family).exists());
 }

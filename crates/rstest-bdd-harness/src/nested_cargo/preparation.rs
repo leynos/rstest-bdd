@@ -27,17 +27,31 @@
 //!   group, so a family whose test binary shares a directory must stay in that group.
 //!
 //! Preparation commands are bounded by [`PREPARATION_COMMAND_TIMEOUT`], which
-//! is deliberately separate from every assertion deadline. The stamp protocol
-//! lives in the private `stamp` submodule and input hashing in `input_hash`;
-//! only [`input_hash`] is re-exported.
+//! is deliberately separate from every assertion deadline. The pieces live in
+//! private submodules: `stamp` holds the fingerprint and the stamp file,
+//! `artefacts` decides whether a stamped tree is still there, `toolchain`
+//! resolves the compiler identity, `input_hash` hashes fixture sources, and
+//! `lifecycle` owns the gate that decides whether to build. What a caller
+//! needs is re-exported here.
 
 mod artefacts;
 mod input_hash;
+mod lifecycle;
 mod stamp;
 mod toolchain;
 
 pub use artefacts::DEPENDENCY_ARTEFACT_DIRS;
+pub use input_hash::{cargo_config_inputs, input_hash};
+pub use lifecycle::{
+    ensure_prepared,
+    ensure_prepared_with,
+    ensure_prepared_with_probe,
+    prepare_now,
+    prepare_now_with_probe,
+};
 
+#[cfg(test)]
+mod fingerprint_props;
 #[cfg(test)]
 mod prop_tests;
 #[cfg(test)]
@@ -45,24 +59,9 @@ mod tests;
 
 use std::{
     env,
-    io,
     path::{Path, PathBuf},
     sync::{Mutex, MutexGuard, PoisonError},
-    time::{Duration, Instant},
-};
-
-pub use input_hash::{cargo_config_inputs, input_hash};
-use stamp::{
-    Fingerprint,
-    Stamp,
-    fingerprint,
-    matching_stamp,
-    missing_stamp_message,
-    note,
-    render,
-    stamp_path,
-    unreadable_stamp_error,
-    write_stamp,
+    time::Duration,
 };
 
 use super::{NestedCargoEnv, ProfileDestination, env_from_vars};
@@ -260,140 +259,6 @@ pub fn env_for_directory(
 pub struct PreparationSummary {
     /// Number of `Compiling` lines the nested builds emitted.
     pub compiled_units: usize,
-}
-
-/// Ensure the family's artefacts are prepared, running `prepare` if needed.
-///
-/// A stamp that matches the current fingerprint returns immediately. A missing
-/// or stale stamp under `cargo nextest` returns a [`io::ErrorKind::NotFound`]
-/// error naming the preparation command instead of preparing inside a timed
-/// test. Under plain `cargo test` the closure runs under a process-wide lock,
-/// and the stamp is written only after it succeeds.
-///
-/// # Errors
-///
-/// Returns the closure's error when preparation fails, and the I/O error when
-/// the stamp cannot be read or written.
-pub fn ensure_prepared<F>(preparation: &Preparation, prepare: F) -> io::Result<()>
-where
-    F: FnOnce() -> io::Result<PreparationSummary>,
-{
-    ensure_prepared_with(preparation, super::running_under_nextest(), prepare)
-}
-
-/// [`ensure_prepared`] with the runner decision supplied.
-///
-/// Exposed as hidden API so the protocol can be tested — here and in the
-/// workspace suites that gate on it — without mutating the process
-/// environment, which would race every other test in the same binary.
-///
-/// # Errors
-///
-/// As [`ensure_prepared`].
-#[doc(hidden)]
-pub fn ensure_prepared_with<F>(
-    preparation: &Preparation,
-    under_nextest: bool,
-    prepare: F,
-) -> io::Result<()>
-where
-    F: FnOnce() -> io::Result<PreparationSummary>,
-{
-    let fingerprint = fingerprint(preparation)?;
-    let stamp = stamp_path(preparation);
-    // An unreadable stamp is neither a match nor an absence, and the two
-    // runners reach opposite conclusions from it. Under `nextest` it is
-    // fail-fast evidence — the tree is present but cannot be vouched for, which
-    // a "missing or stale" message would misreport. Under `cargo test` the
-    // caller prepares again, so the read failure only costs a rebuild.
-    let matching = match matching_stamp(&stamp, &fingerprint) {
-        Ok(matching) => matching,
-        Err(error) if !under_nextest => {
-            note(&format!("stamp {} unreadable ({error})", stamp.display()));
-            None
-        }
-        Err(error) => return Err(unreadable_stamp_error(&stamp, &error)),
-    };
-    // Both halves are required: a stamp vouches for the inputs, and the tree
-    // must still hold the units it recorded.
-    if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
-        note(&format!(
-            "family={} is prepared ({})",
-            preparation.family,
-            stamp.display()
-        ));
-        return Ok(());
-    }
-
-    if under_nextest {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            missing_stamp_message(preparation, &stamp, matching.as_ref())?,
-        ));
-    }
-
-    prepare_locked(preparation, &stamp, &fingerprint, prepare)
-}
-
-/// Prepare the family unconditionally, for the named preparation test.
-///
-/// This is the entry point `make prepare-nested-fixtures` reaches: it runs
-/// under nextest, where [`ensure_prepared`] would otherwise fail fast. It is
-/// still idempotent, so a warm target directory costs only the stamp read.
-///
-/// # Errors
-///
-/// As [`ensure_prepared`].
-pub fn prepare_now<F>(preparation: &Preparation, prepare: F) -> io::Result<()>
-where
-    F: FnOnce() -> io::Result<PreparationSummary>,
-{
-    let fingerprint = fingerprint(preparation)?;
-    prepare_locked(preparation, &stamp_path(preparation), &fingerprint, prepare)
-}
-
-/// Run `prepare` under the process-wide lock unless already prepared, then stamp.
-fn prepare_locked<F>(
-    preparation: &Preparation,
-    stamp: &Path,
-    fingerprint: &Fingerprint,
-    prepare: F,
-) -> io::Result<()>
-where
-    F: FnOnce() -> io::Result<PreparationSummary>,
-{
-    let _guard = lock();
-    // Another process or thread may have prepared the family while this one
-    // waited for the lock. The artefacts are re-checked on the same terms as
-    // the gate: a stamp whose tree was evicted while this process waited is
-    // not a prepared family.
-    let matching: Option<Stamp> = matching_stamp(stamp, fingerprint).ok().flatten();
-    if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
-        return Ok(());
-    }
-
-    let started = Instant::now();
-    let summary = prepare()?;
-    // Structural check first: a command can exit zero while leaving no profile
-    // at all, and asking for a record before that is known would report a bare
-    // filesystem error instead of the missing-directory diagnosis.
-    artefacts::verify_structural(preparation)?;
-    // Then record what the command left, and hold it to the same record. The
-    // artefacts can be gone again — a concurrent `cargo clean`, an interrupted
-    // build. Stamping that state would advertise a prepared family whose next
-    // timed assertion pays for the rebuild, so the missing names are reported
-    // instead.
-    let recorded = artefacts::record(preparation)?;
-    artefacts::verify_recorded(preparation, &recorded)?;
-    write_stamp(stamp, &render(fingerprint, &recorded))?;
-    note(&format!(
-        "family={} prepared in {:.1}s ({} Compiling lines); stamp {}",
-        preparation.family,
-        started.elapsed().as_secs_f64(),
-        summary.compiled_units,
-        stamp.display()
-    ));
-    Ok(())
 }
 
 /// Take the process-wide preparation lock.

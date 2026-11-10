@@ -12,7 +12,7 @@ use super::{
         PREPARED_FILE_SUFFIX,
         compose,
         escape,
-        fingerprint,
+        fingerprint_with,
         is_fingerprint_variable,
     },
     environment,
@@ -22,15 +22,36 @@ use super::{
 };
 use crate::nested_cargo::{count_compiling, input_hash};
 
+/// A fixed toolchain identity for cases that are not about the toolchain.
+///
+/// These tests ask whether an environment variable changes the fingerprint, so
+/// the identity has to be held constant or a change in the real host toolchain
+/// would be indistinguishable from the variable's effect. Resolving the real
+/// identity would also spawn `cargo -vV` in every case.
+///
+/// The `io::Result` is never `Err`; it is the shape the gate's probe takes, so
+/// that a probe which can fail — the production one does — shares the same
+/// parameter.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the gate's toolchain probe is fallible by contract"
+)]
+fn recorded_toolchain() -> std::io::Result<String> {
+    Ok(String::from("release: 1.88.0 commit-hash: a host: x"))
+}
+
 #[test]
 fn fingerprint_excludes_runner_and_coverage_variables() {
     let environment = environment();
-    let text = fingerprint(&preparation(
-        Path::new("/tmp/target"),
-        &environment,
-        "all-features",
-        "abc",
-    ))
+    let text = fingerprint_with(
+        &preparation(
+            Path::new("/tmp/target"),
+            &environment,
+            "all-features",
+            "abc",
+        ),
+        recorded_toolchain,
+    )
     .expect("the fingerprint must name the toolchain");
     let text = text.as_str();
     // The fingerprint records whatever the child receives, and the environment
@@ -65,26 +86,35 @@ fn fingerprint_excludes_runner_and_coverage_variables() {
 #[test]
 fn fingerprint_changes_with_variant_and_inputs() {
     let environment = environment();
-    let one = fingerprint(&preparation(
-        Path::new("/tmp/target"),
-        &environment,
-        "all-features",
-        "abc",
-    ))
+    let one = fingerprint_with(
+        &preparation(
+            Path::new("/tmp/target"),
+            &environment,
+            "all-features",
+            "abc",
+        ),
+        recorded_toolchain,
+    )
     .expect("fingerprint");
-    let other = fingerprint(&preparation(
-        Path::new("/tmp/target"),
-        &environment,
-        "no-default-features",
-        "abc",
-    ))
+    let other = fingerprint_with(
+        &preparation(
+            Path::new("/tmp/target"),
+            &environment,
+            "no-default-features",
+            "abc",
+        ),
+        recorded_toolchain,
+    )
     .expect("fingerprint");
-    let third = fingerprint(&preparation(
-        Path::new("/tmp/target"),
-        &environment,
-        "all-features",
-        "def",
-    ))
+    let third = fingerprint_with(
+        &preparation(
+            Path::new("/tmp/target"),
+            &environment,
+            "all-features",
+            "def",
+        ),
+        recorded_toolchain,
+    )
     .expect("fingerprint");
     assert_ne!(one, other);
     assert_ne!(one, third);
@@ -168,7 +198,11 @@ fn every_build_relevant_variable_changes_the_fingerprint() {
     // cannot tell "recorded" from "recorded by coincidence of that one name".
     let target = std::env::temp_dir().join("target");
     let base = environment_in(&target);
-    let baseline = fingerprint(&preparation(&target, &base, "v", "hash")).expect("baseline");
+    let baseline = fingerprint_with(
+        &preparation(&target, &base, "v", "hash"),
+        recorded_toolchain,
+    )
+    .expect("baseline");
 
     let variables = build_relevant_variables();
     // The explicit list above and the production constants are two independent
@@ -197,8 +231,11 @@ fn every_build_relevant_variable_changes_the_fingerprint() {
             Some(&target),
             crate::nested_cargo::ProfileDestination::Caller,
         );
-        let changed = fingerprint(&preparation(&target, &with_variable, "v", "hash"))
-            .expect("fingerprint with an extra variable");
+        let changed = fingerprint_with(
+            &preparation(&target, &with_variable, "v", "hash"),
+            recorded_toolchain,
+        )
+        .expect("fingerprint with an extra variable");
         assert_ne!(
             baseline, changed,
             "setting `{name}` must change the fingerprint, or a stamp would survive a change that \
@@ -214,7 +251,11 @@ fn variables_outside_the_build_relevant_set_do_not_change_the_fingerprint() {
     // invalidate every stamp and nothing would ever stay prepared.
     let target = std::env::temp_dir().join("target");
     let base = environment_in(&target);
-    let baseline = fingerprint(&preparation(&target, &base, "v", "hash")).expect("baseline");
+    let baseline = fingerprint_with(
+        &preparation(&target, &base, "v", "hash"),
+        recorded_toolchain,
+    )
+    .expect("baseline");
 
     for (name, value) in [
         ("NEXTEST_RUN_ID", "run-2"),
@@ -229,8 +270,11 @@ fn variables_outside_the_build_relevant_set_do_not_change_the_fingerprint() {
             Some(&target),
             crate::nested_cargo::ProfileDestination::Caller,
         );
-        let changed = fingerprint(&preparation(&target, &with_variable, "v", "hash"))
-            .expect("fingerprint with an extra variable");
+        let changed = fingerprint_with(
+            &preparation(&target, &with_variable, "v", "hash"),
+            recorded_toolchain,
+        )
+        .expect("fingerprint with an extra variable");
         assert_eq!(
             baseline, changed,
             "`{name}` must not change the fingerprint, or unrelated runner state would invalidate \

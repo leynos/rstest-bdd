@@ -247,16 +247,22 @@ pub(super) fn write_stamp(stamp: &Path, stamp_text: &StampText) -> io::Result<()
 /// query — is what lets the composition be exercised against a chosen identity
 /// and the probe's failure be exercised independently.
 ///
+/// There is no infallible [`fingerprint`](self) wrapper: production callers
+/// reach [`fingerprint_with`] through `lifecycle`, which supplies the real
+/// probe, so a second entry point that also resolved the toolchain would be a
+/// second place for the probe's error to be swallowed.
+///
 /// # Errors
 ///
-/// Returns the toolchain probe's error when the toolchain cannot be identified.
-/// A fingerprint that could not name the toolchain would be the *same* text on
-/// a host where identification fails as on the run before, so a stamp would
-/// survive a toolchain change — exactly the invalidation the field exists to
-/// force. Reporting the failure is the only answer that fails closed without
-/// re-preparing on every single run.
-pub(super) fn fingerprint(preparation: &Preparation) -> io::Result<Fingerprint> {
-    let toolchain = super::toolchain::toolchain_identity()?;
+/// Returns the probe's error unchanged. The caller decides what a missing
+/// identity means; swallowing it here is the one thing this function must not
+/// do, because the moment an unidentifiable toolchain composes the same text
+/// as the run before, the stamp outlives the compiler it describes.
+pub(super) fn fingerprint_with<P>(preparation: &Preparation, probe: P) -> io::Result<Fingerprint>
+where
+    P: FnOnce() -> io::Result<String>,
+{
+    let toolchain = probe()?;
     Ok(compose(preparation, &toolchain))
 }
 

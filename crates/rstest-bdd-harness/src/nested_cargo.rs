@@ -54,8 +54,10 @@ pub use preparation::{
     cargo_config_inputs,
     ensure_prepared,
     ensure_prepared_with,
+    ensure_prepared_with_probe,
     input_hash,
     prepare_now,
+    prepare_now_with_probe,
 };
 pub use profile::ProfileDestination;
 

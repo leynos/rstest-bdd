@@ -131,6 +131,44 @@ Choose the exact lookup, `lookup_step_with_metadata`, when the call already
 holds a registered pattern. Choose the fuzzy lookup, `find_step_with_metadata`,
 when the call holds step text and placeholder matching is wanted.
 
+## Nested fixture preparation is a separate pass
+
+`rstest_bdd_harness::nested_cargo` gained a preparation gate for suites that
+shell out to a nested `cargo`. It is additive — nothing that compiled before
+stops compiling — but a suite that adopts it changes how it is run.
+
+### Timed tests no longer prepare their own nested builds
+
+`ensure_prepared` returns `Ok(())` when the family's stamp matches and every
+directory in `Preparation::artefacts` still holds its outputs. Otherwise it
+behaves differently per runner:
+
+- under `cargo nextest`, whose every test runs in its own process, it returns
+  `io::ErrorKind::NotFound` naming the command that prepares the family;
+- under plain `cargo test` it runs the closure lazily behind a process-wide
+  lock.
+
+A suite that used to build its fixture inside a timed test therefore needs a
+named preparation test — run before the timed suite, and matched by
+`.config/nextest.toml` so it gets the longer `slow-timeout` — plus a
+`make prepare-nested-fixtures`-style target. `prepare_now` is the unconditional
+entry point that target reaches; it is idempotent, so a warm target directory
+costs one stamp read.
+
+No assertion deadline needs to change. The point of the split is that the cold
+work leaves the timed test rather than that the timed test waits longer.
+
+### `CARGO_TARGET_DIR` is resolved once, before the child sees it
+
+`env_for_directory` and `env_from_vars` resolve a relative `CARGO_TARGET_DIR`
+against the current directory and drop any inherited value, because the nested
+build does not run in this process's directory. A caller that previously passed
+a relative `CARGO_TARGET_DIR` through its own environment now has an absolute
+path in the child, and `Preparation::new` derives its `artefacts` list from
+that resolved value. Pass the path the build will really use; supplying it
+through the child environment instead is what keeps the stamp and the artefacts
+it vouches for describing the same directory.
+
 ## Migration checklist
 
 - [ ] Add ambiguity handling wherever a lookup result is consumed:
@@ -150,6 +188,10 @@ when the call holds step text and placeholder matching is wanted.
   field whose Rust name does not equal its pattern placeholder.
 - [ ] Use `trim` and `parse_with` only for capture-specific normalization and
   conversion; retain `#[datatable(...)]` policies for table fields.
+- [ ] If a suite shells out to a nested `cargo`, move the cold build into a
+      named preparation test reached by `prepare_now` and gate the timed tests
+      on `ensure_prepared`; run that preparation pass under Nextest before the
+      timed suite.
 
 ## Common errors
 
@@ -162,6 +204,11 @@ when the call holds step text and placeholder matching is wanted.
 - **Error:** a derived `StepArgs` field requires a placeholder.
   - **Fix:** align the field and placeholder names or add
     `#[step_args(placeholder = "...")]`.
+- **Error:** under Nextest a timed test reports that a nested fixture family is
+  not prepared and names `make prepare-nested-fixtures`.
+  - **Fix:** run the preparation pass first. The stamp also covers `RUSTFLAGS`
+    and the feature selection, so prepare under the same environment as the run
+    that reads it.
 
 ## Further reading
 

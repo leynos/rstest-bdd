@@ -848,7 +848,95 @@ rather than by reading this branch's comments.
          file now reads as the rule and its two layers, with no fixture code
          interleaved.
 
+- [ ] Close the six pre-merge rows CodeRabbit reported on `f3d05061`. Five are
+      now implemented and not yet committed; the sixth (the Makefile-driven
+      end-to-end test) is answered by the harness-level sequence instead, with
+      the reasoning recorded below.
+      1. **The toolchain probe is injectable, and the boundary is tested
+         through it.** `fingerprint` composed a fingerprint from a probe that
+         production always supplied, so every existing test exercised only
+         `compose` and a boundary that discarded the probe's error would have
+         passed all of them. `fingerprint_with` takes the probe as a
+         parameter, `ensure_prepared_with_probe` and `prepare_now_with_probe`
+         expose it at the gate, and the non-injectable `fingerprint` is gone
+         rather than left as a second place to swallow the error. Two new tests
+         drive it: `a_changed_toolchain_invalidates_the_stamp_through_the_gate`
+         prepares under one identity, then requires the next call under another
+         identity to prepare again and the one after to be accepted; and
+         `an_uncertain_toolchain_refuses_to_stamp_or_reuse_a_stamp` requires
+         both entry points to propagate a failing probe without writing a
+         stamp or running the closure.
+      2. **`prepare_locked` logs a stamp it had to prepare over.** The previous
+         `.ok().flatten()` was indistinguishable from a warm stamp that had
+         merely missed, so a rebuild behind a corrupt stamp happened with no
+         explanation. It now logs the post-lock read failure by name. It still
+         prepares rather than propagating, and the comment says why: both
+         callers have already decided to build, so refusing would leave a
+         corrupt stamp with no remedy.
+      3. **Property tests over the fingerprint's two relations.** The named
+         cases pin one identity and one forged line break; the properties hold
+         them over arbitrary values. `distinct_field_values_compose_distinct_
+         fingerprints` draws both a variable name from the module's own lists
+         and two values from an alphabet containing `\`, both line breaks, `:`
+         and `=`, and requires different values to compose different text.
+         `no_recorded_value_can_add_a_line_to_the_fingerprint` requires the
+         line count to stay at one per recorded field however hostile the
+         values are. Both were checked non-vacuous by replacing `escape`'s
+         guard with `if true { return value.to_owned(); }`: the second then
+         fails with `left: 7, right: 6` on a value of `"\n"`, and the first
+         still passes — which is the point of having both.
+      4. **The developers' guide claim about `cargo clean -p` was wrong and is
+         replaced with the actual rule.** It said the per-package clean "does
+         not trip the pairing". It does: the gate requires every name recorded
+         from a dep-info stem to still be in `deps`, and a per-package clean
+         removes exactly those. The replacement states the two rules, notes
+         that `.fingerprint` is checked only for non-emptiness, and explains
+         why the rebuild harness still works — it consults the gate once per
+         process through `ensure_rebuild_prepared`, before its experiment's own
+         `clean_fixture_units` evicts the units it is about to measure.
+      5. **User-facing docs: the runner limits differ, and the migration guide
+         now says so.** The users' guide previously implied the per-command
+         bound was the whole story; it now states that Nextest gives the
+         preparation tests a 30-minute `slow-timeout` while plain `cargo test`
+         imposes no per-test timeout at all. The v0.7.0 migration guide gains a
+         "Nested fixture preparation is a separate pass" section covering
+         `ensure_prepared` versus `prepare_now`, the fail-fast behaviour under
+         Nextest, the resolved-`CARGO_TARGET_DIR` rule, a checklist item, and
+         the fail-fast error with its remedy.
+      6. **The filtered-Nextest end-to-end row is answered at the harness
+         level, not with a Makefile-driven test.**
+         `a_family_prepared_by_the_preparation_test_satisfies_the_nextest_gate`
+         already runs the sequence the row asks for — unprepared timed test
+         refused, `prepare_now` builds, reopened timed test accepted — against
+         a real temporary tree. A Makefile-driven variant would spawn a second
+         Cargo build of this workspace inside the suite, which is the exact
+         cold-work-inside-a-timed-test shape issue 910 exists to remove, and it
+         would assert on `make` rather than on the gate. The harness-level test
+         covers the same three steps without either cost.
+
+- [x] Split `preparation.rs` when it crossed the length gate: the lifecycle
+      (`ensure_prepared`, both probe-injectable forms, `prepare_now`,
+      `prepare_locked`, `lock`) moved to `preparation/lifecycle.rs`, leaving
+      the description types, the constants and the re-exports behind. The file
+      went from 446 lines to 265; `lifecycle.rs` is 232. `fingerprint_props.rs`
+      is a separate test module for the same reason.
+
 ## Surprises & Discoveries
+
+- **A test that passes the two halves separately can still leave the seam
+  untested.** 2026-11-10. Two existing tests covered the toolchain field:
+  `distinct_toolchain_identities_produce_distinct_fingerprints` compared two
+  `compose` calls, and `the_recorded_toolchain_reaches_the_fingerprint`
+  asserted the identity appeared in the text. Neither touched `fingerprint`,
+  the function that actually resolved the probe, and both would have passed if
+  that function had discarded the probe's error and composed an empty identity
+  — which is a stamp that outlives the compiler it describes. The general
+  shape: when a boundary is "resolve a fallible thing, then compose from it",
+  testing the composition is not testing the boundary, and the resolution has
+  to be injectable or the failure is unreachable from a test. Making `probe` a
+  parameter is what closed it, and the same parameter then had to be threaded
+  through `ensure_prepared` and `prepare_now` or the gate would still have been
+  the untested part.
 
 - **"Final head" is a snapshot, not a property.** 2026-11-10. Several entries
   below name a commit as the final head and cite the run that measured it. Each

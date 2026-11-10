@@ -2870,6 +2870,16 @@ a timed test running in its own process cannot prepare without paying the cost
 it is meant to avoid. Under plain `cargo test` it prepares lazily behind a
 process-wide lock.
 
+The runner limits differ, and a suite that relies on preparing lazily should
+expect that. `.config/nextest.toml` gives the preparation tests a 30-minute
+`slow-timeout` — the budget `PREPARATION_COMMAND_TIMEOUT` and
+`MAX_SEQUENTIAL_COMMANDS` are sized to stay inside. Plain `cargo test` imposes
+no such bound: it has no per-test timeout at all, so a lazy preparation there
+is limited only by the per-command bound and by whatever outer limit the
+invocation supplies. That is a difference in the runner, not in this module,
+and it is why the named preparation test exists as a separate Nextest pass
+rather than being left to the timed tests.
+
 The artefact check requires each vouched-for profile to contain non-empty
 `deps` and `.fingerprint` directories (`DEPENDENCY_ARTEFACT_DIRS`), and then
 requires every output the preparation recorded to still be present. It proves
