@@ -1,11 +1,11 @@
 //! Property-based tests for the registry usage-marking invariant.
 //!
-//! Every public lookup variant funnels through the canonical
-//! `mark_and_project` helper, so a lookup that returns `Some` must mark
-//! exactly the resolved step as used, and a lookup that returns `None` must
-//! mark nothing. This suite drives all six lookup variants (plus
-//! `find_step_with_metadata`) against a pool of registered steps and asserts
-//! the invariant via `unused_steps`.
+//! Every public lookup delegates to the metadata pair, whose `ResolvedStep`
+//! records usage in its constructor. A lookup that resolves a step must
+//! therefore mark exactly that step as used, and a lookup that resolves
+//! nothing must mark nothing. This suite drives all six projection variants
+//! (plus `find_step_with_metadata`) against a pool of registered steps and
+//! asserts the invariant via `unused_steps`.
 
 use std::collections::BTreeSet;
 
@@ -139,13 +139,13 @@ fn is_unused(pattern: &str) -> bool {
 /// Invoke one lookup variant, returning whether it resolved a step.
 fn run_variant(variant: usize, keyword: StepKeyword, text: &str) -> bool {
     match variant {
-        0 => lookup_step(keyword, text.into()).is_some(),
-        1 => find_step(keyword, text.into()).is_some(),
-        2 => lookup_step_async(keyword, text.into()).is_some(),
-        3 => find_step_async(keyword, text.into()).is_some(),
-        4 => lookup_step_async_with_mode(keyword, text.into()).is_some(),
-        5 => find_step_async_with_mode(keyword, text.into()).is_some(),
-        _ => find_step_with_metadata(keyword, text.into()).is_some(),
+        0 => lookup_step(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        1 => find_step(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        2 => lookup_step_async(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        3 => find_step_async(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        4 => lookup_step_async_with_mode(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        5 => find_step_async_with_mode(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        _ => find_step_with_metadata(keyword, text.into()).is_ok_and(|step| step.is_some()),
     }
 }
 

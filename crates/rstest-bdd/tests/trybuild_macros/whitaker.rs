@@ -100,6 +100,45 @@ fn write_whitaker_fixture(crate_dir: &Utf8Path, lib_rs: &str) -> Utf8PathBuf {
     manifest_path
 }
 
+/// Variables `cargo llvm-cov` exports to its test processes.
+///
+/// A nested nightly build that inherits them is instrumented by the nightly's
+/// LLVM, so it writes raw profiles in a newer or older format than the stable
+/// `llvm-profdata` merging them, and the whole coverage merge fails
+/// ("no profile can be merged"). The lint gate fixture needs none of them.
+const COVERAGE_ENV: [&str; 5] = [
+    "LLVM_PROFILE_FILE",
+    "CARGO_ENCODED_RUSTFLAGS",
+    "CARGO_LLVM_COV",
+    "CARGO_LLVM_COV_SHOW_ENV",
+    "CARGO_LLVM_COV_TARGET_DIR",
+];
+
+/// Builds the `make lint-whitaker` command with coverage instrumentation removed.
+fn whitaker_lint_command(repo_root: &Utf8Path) -> Command {
+    let mut command = Command::new("make");
+    command.current_dir(repo_root.as_std_path());
+    for name in COVERAGE_ENV {
+        command.env_remove(name);
+    }
+    command
+}
+
+#[test]
+fn the_whitaker_fixture_command_inherits_no_coverage_instrumentation() {
+    let command = whitaker_lint_command(Utf8Path::new("."));
+    // The two variables that make a child build write profiles into the
+    // parent's merge directory, named here rather than read from the list the
+    // command is built from, so dropping one from that list fails this test.
+    let required = ["LLVM_PROFILE_FILE", "CARGO_ENCODED_RUSTFLAGS"];
+    for name in required.into_iter().chain(COVERAGE_ENV) {
+        let removed = command
+            .get_envs()
+            .any(|(key, value)| key == name && value.is_none());
+        assert!(removed, "{name} must be removed from the fixture command");
+    }
+}
+
 fn run_whitaker_lint_fixture(manifest_path: &Utf8Path) -> Output {
     let repo_root = repo_root();
     let Some(fixture_dir) = manifest_path.parent() else {
@@ -109,8 +148,7 @@ fn run_whitaker_lint_fixture(manifest_path: &Utf8Path) -> Output {
         panic!("Whitaker fixture directory should include a name");
     };
     let target_dir = repo_root.join(format!("target/tests/whitaker_ui/{fixture_name}"));
-    match Command::new("make")
-        .current_dir(repo_root.as_std_path())
+    match whitaker_lint_command(&repo_root)
         .env("CARGO_TARGET_DIR", target_dir.as_str())
         .arg("--no-print-directory")
         .arg("lint-whitaker")

@@ -598,7 +598,7 @@ jobs:
         if: >-
           ${{ runner.os == 'Linux'
           && github.event_name == 'pull_request' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
         env:
           # The cargo watchdog, one of four tiers that can end a run. It
           # must cover the 90 m nextest global-timeout in
@@ -618,6 +618,7 @@ jobs:
           cache-provider: external
           output-path: coverage.xml
           format: cobertura
+          python-version: '3.14'
           all-features: 'true'
           all-targets: 'true'
           doctests: 'true'
@@ -646,7 +647,7 @@ jobs:
           ${{ runner.os == 'Windows' && matrix.features == ''
           && github.event_name == 'pull_request' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -661,6 +662,7 @@ jobs:
           cache-provider: external
           output-path: coverage.xml
           format: cobertura
+          python-version: '3.14'
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
@@ -679,7 +681,7 @@ jobs:
           ${{ runner.os == 'Windows' && matrix.features != ''
           && github.event_name == 'pull_request' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -694,6 +696,7 @@ jobs:
           cache-provider: external
           output-path: coverage.xml
           format: cobertura
+          python-version: '3.14'
           features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}

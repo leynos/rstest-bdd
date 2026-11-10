@@ -289,6 +289,7 @@ fn passes(
 const _: () = {
     submit! {
         rstest_bdd::Step {
+            module_path: module_path!(),
             keyword: StepKeyword::Given,
             pattern: &PARKING_PATTERN,
             run: sync_arm_was_called,
@@ -301,6 +302,7 @@ const _: () = {
     }
     submit! {
         rstest_bdd::Step {
+            module_path: module_path!(),
             keyword: StepKeyword::When,
             pattern: &RETURNING_PATTERN,
             run: returns_marker,
@@ -313,6 +315,7 @@ const _: () = {
     }
     submit! {
         rstest_bdd::Step {
+            module_path: module_path!(),
             keyword: StepKeyword::Then,
             pattern: &PASSING_PATTERN,
             run: passes,

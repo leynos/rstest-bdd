@@ -50,7 +50,7 @@ UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 # The CV-005 CodeScene contracts live in shared-actions and run from a full
 # commit, so a fix is a pin bump. `.github/cv005.toml` holds this repository's
 # only parameters.
-CV005_CONTRACTS_REF ?= 3754876bc4e94dc65c83af3def37828934f8f65e
+CV005_CONTRACTS_REF ?= f84a7def5646a6fc7ba77c1f486906f66a0fed96
 CV005_CONTRACTS = $(UV_ENV) $(UV) tool run --python 3.14 \
 	--from 'git+https://github.com/leynos/shared-actions@$(CV005_CONTRACTS_REF)\#subdirectory=packages/cv005-contracts' \
 	cv005-contracts
@@ -117,6 +117,9 @@ clean: ## Remove build artefacts
 	rm -rf .uv-cache .uv-tools
 
 test: build-python ## Run tests with warnings treated as errors
+	# Warm the package cache first, failing the target if it cannot be warmed, so
+	# nested builds in the tests resolve nothing under the shared cache lock.
+	$(CARGO) fetch --locked
 	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) build --bin $(APP) --bin todo-cli $(BUILD_JOBS)
 	if command -v cargo-nextest >/dev/null 2>&1; then \
 		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS); \

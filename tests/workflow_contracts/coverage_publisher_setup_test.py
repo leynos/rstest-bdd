@@ -45,8 +45,13 @@ REQUIRED_SETUP = frozenset({
     "Compute cache keys",
     "Restore Cargo registry",
     "Restore CI tool binaries",
-    "Restore compiler cache",
     "Setup Rust",
+})
+#: Setup only a job that writes a compiler cache must repeat. A job whose
+#: cache store no lane reads, such as the hosted Linux measuring job, compiles
+#: without one and owes none of it.
+CACHE_WRITER_SETUP = frozenset({
+    "Restore compiler cache",
     "Install prebuilt sccache",
 })
 #: Keys that legitimately differ between a gate step and its publisher copy:
@@ -60,7 +65,7 @@ PUBLISH_SCCACHE_KEY = "${{ env.SCCACHE_PUBLISH_CACHE_KEY }}"
 #: publish dry run's belongs to the gate, the one job that runs that build on
 #: the trunk (rstest-bdd#803).
 FAMILY_WRITERS = {
-    SCCACHE_KEY: sorted((PUBLISHER, pair.publisher_job) for pair in PAIRS),
+    SCCACHE_KEY: sorted((PUBLISHER, pair.writer) for pair in PAIRS),
     PUBLISH_SCCACHE_KEY: [(PR_WORKFLOW, GATE_JOB)],
 }
 
@@ -105,8 +110,21 @@ def _normalized(value: object, scopes: dict) -> object:
 
 
 def _publisher_jobs() -> list[tuple[str, dict[str, str]]]:
-    """Return each publisher job with the gate row it mirrors."""
-    return [(pair.publisher_job, gate_row(pair.gate_step)) for pair in PAIRS]
+    """Return each publisher-side job with the gate row it mirrors.
+
+    A lane's compiler-cache writer is listed beside its publisher job when the
+    two differ, because the writer repeats the gate's setup too.
+
+    Returns
+    -------
+    list[tuple[str, dict[str, str]]]
+        Each job name with the gate matrix row it mirrors.
+    """
+    return [
+        (name, gate_row(pair.gate_step))
+        for pair in PAIRS
+        for name in dict.fromkeys((pair.publisher_job, pair.writer))
+    ]
 
 
 def _counterpart(name: str, platform: str) -> dict[str, object] | None:
@@ -158,9 +176,12 @@ def test_each_publisher_job_repeats_the_required_setup(
 ) -> None:
     """Refuse a publisher job that dropped a setup step rather than drifted."""
     declared = {str(step.get("name")) for step in steps(job(PUBLISHER, job_name))}
+    required = REQUIRED_SETUP
+    if job_name in {pair.writer for pair in PAIRS}:
+        required |= CACHE_WRITER_SETUP
 
-    assert declared >= REQUIRED_SETUP, (
-        f"{PUBLISHER}:{job_name} must repeat {sorted(REQUIRED_SETUP - declared)}"
+    assert declared >= required, (
+        f"{PUBLISHER}:{job_name} must repeat {sorted(required - declared)}"
     )
 
 

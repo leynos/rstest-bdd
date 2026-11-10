@@ -32,6 +32,7 @@ fn wrapper_handles_text_capture_without_shadowing() {
 
     let step_text = "message arrives";
     let step_fn = find_step(StepKeyword::Given, step_text.into())
+        .expect("lookup should be unambiguous")
         .expect("step should be registered for '{text} arrives'");
     *CAPTURED_TEXT.lock().expect("capture mutex poisoned") = None;
 
@@ -48,6 +49,7 @@ fn wrapper_handles_text_capture_without_shadowing() {
 fn placeholder_mismatch_reports_original_step_text() {
     let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "{text} arrives".into())
+        .expect("lookup should be unambiguous")
         .expect("step should be registered for '{text} arrives'");
 
     let err = assert_step_err!(step_fn(&mut ctx, "arrives", None, None));

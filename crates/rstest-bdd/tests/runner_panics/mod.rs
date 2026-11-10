@@ -91,6 +91,7 @@ use rstest_bdd::{
     StepFuture,
     StepKeyword,
     StepPattern,
+    StepScope,
     execution::{StepExecutionRequest, execute_step_async},
     submit,
 };
@@ -148,6 +149,7 @@ macro_rules! unwrapped_step {
             static PATTERN: StepPattern = StepPattern::new($pattern);
             submit! {
                 rstest_bdd::Step {
+                    module_path: module_path!(),
                     keyword: $keyword,
                     pattern: &PATTERN,
                     run: $handler,
@@ -217,6 +219,7 @@ const _: () = {
     static PATTERN: StepPattern = StepPattern::new("an unwrapped async step panics");
     submit! {
         rstest_bdd::Step {
+            module_path: module_path!(),
             keyword: StepKeyword::Given,
             pattern: &PATTERN,
             run: panicking,
@@ -260,6 +263,7 @@ const _: () = {
     static PATTERN: StepPattern = StepPattern::new("an unwrapped step panics while building");
     submit! {
         rstest_bdd::Step {
+            module_path: module_path!(),
             keyword: StepKeyword::Given,
             pattern: &PATTERN,
             run: panicking,
@@ -336,6 +340,9 @@ fn run_async_catching(text: &'static str) -> AsyncRun {
         };
         let mut ctx = StepContext::default();
         let request = StepExecutionRequest {
+            // The raw `submit!` blocks above declare no `#[step_library]`, so
+            // the registry assigns their steps the global library.
+            scope: StepScope::global(),
             index: 0,
             keyword: StepKeyword::Given,
             text,

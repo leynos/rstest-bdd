@@ -129,9 +129,10 @@ enum ExecutorType {
 
 impl ExecutorType {
     fn generate(self) -> proc_macro2::TokenStream {
+        let scope = quote::quote!(::rstest_bdd::StepScope::global());
         match self {
-            Self::Sync => generate_step_executor(),
-            Self::Async => generate_async_step_executor(),
+            Self::Sync => generate_step_executor(&scope),
+            Self::Async => generate_async_step_executor(&scope),
         }
     }
 

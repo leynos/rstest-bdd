@@ -59,11 +59,11 @@ wrappers normalize results into `StepExecution`.
 
 ## The three amigos
 
-| Role ("amigo")                     | Primary concerns                                                                                                                  | Features provided by `rstest‑bdd`                                                                                                                                                                                                                                                                                                                                                                         |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Business analyst/product owner** | Writing and reviewing business-readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When`, and `Then` ([syntax][gherkin-syntax]), producing living documentation that can be read by non-technical stakeholders.                                                                                                     |
-| **Developer**                      | Implementing step definitions in Rust and wiring them to the business specifications; using existing fixtures for setup/teardown. | Attribute macros `#[given]`, `#[when]` and `#[then]` register step functions and their pattern strings in a global step registry. A `#[scenario]` macro reads a feature file at compile time and generates a test that drives the registered steps. Fixtures whose parameter names match are injected automatically; use `#[from(name)]` only when a parameter name differs from the fixture.             |
-| **Tester/QA**                      | Executing behaviour tests, ensuring correct sequencing of steps and verifying outcomes observable by the user.                    | Scenarios are executed via the standard `cargo test` runner; test functions annotated with `#[scenario]` run each step in order and panic if a step is missing. Assertions belong in `Then` steps; guidelines discourage inspecting internal state and encourage verifying observable outcomes. Testers can use `cargo test` filters and parallelism because the generated tests are ordinary Rust tests. |
+| Role ("amigo")                     | Primary concerns                                                                                                                  | Features provided by `rstest‑bdd`                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Business analyst/product owner** | Writing and reviewing business-readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When`, and `Then` ([syntax][gherkin-syntax]), producing living documentation that can be read by non-technical stakeholders.                                                                                                                                                                                     |
+| **Developer**                      | Implementing step definitions in Rust and wiring them to the business specifications; using existing fixtures for setup/teardown. | Attribute macros `#[given]`, `#[when]` and `#[then]` register step functions and their pattern strings in a global step registry. A `#[scenario]` macro reads a feature file at compile time and generates a test that drives the registered steps. Fixtures are injected implicitly by parameter name after stripping one leading underscore, so `_world` requests the `world` fixture. `#[from(name)]` selects the exact fixture name and cannot be overridden by underscore stripping. |
+| **Tester/QA**                      | Executing behaviour tests, ensuring correct sequencing of steps and verifying outcomes observable by the user.                    | Scenarios are executed via the standard `cargo test` runner; test functions annotated with `#[scenario]` run each step in order and panic if a step is missing. Assertions belong in `Then` steps; guidelines discourage inspecting internal state and encourage verifying observable outcomes. Testers can use `cargo test` filters and parallelism because the generated tests are ordinary Rust tests.                                                                                 |
 
 The following sections expand on these responsibilities and show how to use the
 current API effectively.
@@ -154,9 +154,142 @@ For cucumber-rs migration compatibility notes, see
 
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in
-a global registry. The wrapper captures the step keyword, pattern string and
-associated fixtures and uses the `inventory` crate to publish them for later
-lookup.
+the built-in global library. The wrapper captures the step keyword, pattern
+string and associated fixtures and uses the `inventory` crate to publish them
+for later lookup.
+
+### Step libraries
+
+Use `#[step_library]` on a module to declare a named vocabulary. A scenario
+selects an exact, closed list through `libraries = [...]`; an omitted list
+selects only `rstest_bdd::global`, which contains unannotated definitions.
+
+```rust,no_run
+use rstest_bdd_macros::{given, scenario, step_library};
+
+#[step_library]
+mod accounts {
+    use super::given;
+
+    #[given("the domain is empty")]
+    fn account_is_empty() {}
+}
+
+#[scenario(path = "tests/features/accounts.feature", libraries = [accounts])]
+fn account_scenarios() {}
+```
+
+Library order never supplies precedence. If selected libraries provide equally
+specific matches, execution fails with every candidate's library, pattern, and
+source location. Add `rstest_bdd::global` explicitly when a scoped scenario
+also needs compatibility definitions.
+
+### Registry lookups
+
+The public registry API provides metadata lookups for code that needs to
+inspect or invoke a registered step. Use `lookup_step_with_metadata` for an
+exact keyword and pattern match, or `find_step_with_metadata` when matching
+step text against registered patterns. Both functions return
+`Result<Option<ResolvedStep>, StepLookupError>`:
+
+```rust,no_run
+use rstest_bdd::{find_step_with_metadata, StepKeyword, StepText};
+
+let step = find_step_with_metadata(
+    StepKeyword::Given,
+    StepText::from("the balance is 10"),
+)
+.expect("the scenario's step library is unambiguous")
+.expect("a matching step exists");
+
+let synchronous_handler = step.run;
+let asynchronous_handler = step.run_async;
+let execution_mode = step.execution_mode;
+let step_ref = step.as_step();
+```
+
+`ResolvedStep` dereferences to `Step`, so its metadata and synchronous (`run`)
+or asynchronous (`run_async`) handler can be accessed directly. The `as_step()`
+method provides the underlying `&'static Step` when an explicit reference is
+required. Constructing a `ResolvedStep` records the step as used for the
+`cargo bdd unused` diagnostic; a lookup that finds no step records nothing.
+
+The `Result` reports ambiguity: `StepLookupError` carries every equally
+specific candidate when the scenario's selected libraries cannot decide between
+them. `Ok(None)` is a separate outcome meaning no definition matched. So a step
+with two matches is an error rather than an arbitrary pick, and pattern
+precedence still resolves a genuinely more specific match.
+
+`find_step_with_metadata_in_scope` is the pure query beneath both of them. It
+takes an explicit `StepScope`, returns only
+`Result<Option<&'static Step>, StepLookupError>`, and does not mark a step as
+used. Scenario execution calls it, then marks the step itself, so inspecting a
+step cannot make it look executed.
+
+The projection functions (`find_step`, `find_step_async`,
+`find_step_async_with_mode`, `find_step_with_mode`, `lookup_step`,
+`lookup_step_async`, and `lookup_step_async_with_mode`) remain supported. Each
+one delegates to the metadata pair and projects the field its name promises, so
+it returns `Result<Option<_>, StepLookupError>` for the same reason. New code
+that needs more than one field, or that needs `execution_mode` while choosing
+between synchronous and asynchronous execution, should use the metadata pair
+directly.
+
+#### Migrating registry lookups (v0.7.0)
+
+`find_step_with_metadata` now returns
+`Result<Option<ResolvedStep>, StepLookupError>` rather than
+`Option<&'static Step>`. Handle the ambiguity before the optional result, and
+call `.as_step()` when a `&'static Step` is required. In the mapping below,
+`keyword` is a `StepKeyword`, `pattern` is a `PatternStr`, and `text` is a
+`StepText`:
+
+```text
+lookup_step(keyword, pattern)
+    -> lookup_step_with_metadata(keyword, pattern)
+        .map(|step| step.map(|found| found.run))
+lookup_step_async(keyword, pattern)
+    -> lookup_step_with_metadata(keyword, pattern)
+        .map(|step| step.map(|found| found.run_async))
+lookup_step_async_with_mode(keyword, pattern)
+    -> lookup_step_with_metadata(keyword, pattern)
+        .map(|step| step.map(|found| (found.run_async, found.execution_mode)))
+find_step(keyword, text)
+    -> find_step_with_metadata(keyword, text)
+        .map(|step| step.map(|found| found.run))
+find_step_async(keyword, text)
+    -> find_step_with_metadata(keyword, text)
+        .map(|step| step.map(|found| found.run_async))
+find_step_async_with_mode(keyword, text)
+    -> find_step_with_metadata(keyword, text)
+        .map(|step| step.map(|found| (found.run_async, found.execution_mode)))
+find_step_with_mode(keyword, text)
+    -> find_step_with_metadata(keyword, text)
+        .map(|step| step.map(|found| found.as_step()))
+```
+
+For example, a synchronous lookup that previously used the projection helper
+began like this:
+
+```rust,no_run
+use rstest_bdd::{StepKeyword, StepText, find_step};
+
+let handler = find_step(StepKeyword::When, StepText::from("the balance is 10"));
+```
+
+The metadata lookup replaces it directly:
+
+```rust,no_run
+use rstest_bdd::{StepKeyword, StepText, find_step_with_metadata};
+
+let handler = find_step_with_metadata(StepKeyword::When, StepText::from("the balance is 10"))
+    .expect("the selected vocabulary is unambiguous")
+    .map(|step| step.run);
+```
+
+Each replacement preserves the usage-tracking behaviour of the helper it
+replaces: the metadata lookup records the step as used when it resolves. The
+[v0.7.0 migration guide][v0-7-0-migration-guide] covers this change in full.
 
 ### Fixtures and implicit injection
 
@@ -456,11 +589,12 @@ whose fields mirror the placeholders and annotate the relevant parameter with
 to consume every placeholder for that parameter, while fixtures and other
 special arguments (`datatable`/`docstring`) continue to work as usual.
 
-Fields must implement `FromStr`, and the derive macro enforces the bounds
-automatically. Placeholders and struct fields must appear in the same order.
-During expansion the macro inserts a compile-time check to ensure the field
-count matches the pattern, producing a trait-bound error if the struct does not
-implement `StepArgs`.
+Fields bind by placeholder name rather than declaration order. A field uses its
+Rust name by default; use `#[step_args(placeholder = "...")]` for a business
+name that differs. `#[step_args(rename_all = "camelCase")]` applies the same
+rename rules as named `DataTableRow` fields. Fields normally implement
+`FromStr`; `trim` and `parse_with = parser` normalize and convert one capture
+without affecting table-row policies.
 
 ```rust,no_run
 use rstest::fixture;
@@ -866,16 +1000,17 @@ For migrations from a cucumber `World`, map the concepts as follows:
 ## Binding tests to scenarios
 
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
-scenario defined in a `.feature` file. It accepts six arguments:
+scenario defined in a `.feature` file. It accepts seven arguments:
 
-| Argument           | Purpose                                                                | Status                                                                                                  |
-| ------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `path: &str`       | Relative path to the feature file (required).                          | **Implemented**: resolved and parsed at macro-expansion time.                                           |
-| `index: usize`     | Optional zero-based scenario index (defaults to `0`).                  | **Implemented**: selects the scenario by position.                                                      |
-| `name: &str`       | Optional scenario title; resolves when unique.                         | **Implemented**: errors when missing and directs duplicates to `index`.                                 |
-| `tags: &str`       | Optional tag-expression filter applied at expansion.                   | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.               |
-| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter + Default`. | **Implemented**: emits trait-bound assertions and delegates execution when specified.                   |
-| `attributes: Path` | Optional attribute policy type implementing `AttributePolicy`.         | **Implemented**: emits a compile-time trait-bound assertion and resolves policy-backed test attributes. |
+| Argument                 | Purpose                                                                    | Status                                                                                                  |
+| ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `path: &str`             | Relative path to the feature file (required).                              | **Implemented**: resolved and parsed at macro-expansion time.                                           |
+| `index: usize`           | Optional zero-based scenario index (defaults to `0`).                      | **Implemented**: selects the scenario by position.                                                      |
+| `name: &str`             | Optional scenario title; resolves when unique.                             | **Implemented**: errors when missing and directs duplicates to `index`.                                 |
+| `tags: &str`             | Optional tag-expression filter applied at expansion.                       | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.               |
+| `harness: Path`          | Optional harness adapter type implementing `HarnessAdapter + Default`.     | **Implemented**: emits trait-bound assertions and delegates execution when specified.                   |
+| `attributes: Path`       | Optional attribute policy type implementing `AttributePolicy`.             | **Implemented**: emits a compile-time trait-bound assertion and resolves policy-backed test attributes. |
+| `libraries: [path, ...]` | Optional list of step-library module paths to search for step definitions. | **Implemented**: adds the listed libraries to the scenario's resolution scope.                          |
 
 Tag filters run at macro-expansion time against the union of tags on the
 feature, the matched scenario, and—when dealing with `Scenario Outline`—the
@@ -2197,6 +2332,35 @@ union of feature, scenario, and example tags described above. Scenarios that do
 not match simply do not generate a test, and outline examples drop unmatched
 rows.
 
+Use `libraries = [path, ...]` to select the step vocabularies for every
+scenario generated by one invocation. The list is closed: only the named
+libraries participate in lookup, and its order does not provide precedence.
+When the argument is omitted, `scenarios!` selects only the built-in
+`rstest_bdd::global` library. Include that path explicitly when a scoped
+invocation also needs unannotated steps.
+
+```rust,no_run
+use rstest_bdd_macros::{given, scenarios, step_library};
+
+#[step_library]
+mod accounts {
+    use super::given;
+
+    #[given("the account is empty")]
+    fn account_is_empty() {}
+}
+
+scenarios!(
+    "tests/features/accounts",
+    libraries = [rstest_bdd::global, accounts],
+);
+```
+
+If two selected libraries contain equally specific definitions, execution and
+preflight validation report an ambiguity instead of choosing the first entry.
+Definitions in an unselected library are not used and are identified in
+missing-step diagnostics when they match the feature text.
+
 ### Fixture injection with `scenarios!`
 
 The `fixtures = [name: Type, ...]` parameter injects fixtures into all
@@ -3111,15 +3275,17 @@ Examples
 
 The tool inspects the runtime step registry and offers four commands:
 
-- `cargo bdd steps` prints every registered step with its source location and
-  appends any skipped scenario outcomes using lowercase status labels whilst
-  preserving long messages.
+- `cargo bdd steps` prints every registered step with its library and source
+  location, then appends any skipped scenario outcomes using lowercase status
+  labels whilst preserving long messages.
 - `cargo bdd steps --skipped` limits the listing to step definitions that were
   bypassed after a scenario requested a skip, preserving the scenario context.
 - `cargo bdd unused` lists steps that were never executed in the current
   process.
-- `cargo bdd duplicates` groups step definitions that share the same keyword
-  and pattern, helping to identify accidental copies.
+- `cargo bdd duplicates` groups step definitions that share the same library,
+  keyword, and pattern, helping to identify accidental copies without treating
+  the same phrase in separate libraries as a duplicate. Groups are ordered
+  deterministically by library, keyword, and pattern.
 - `cargo bdd skipped` lists skipped scenarios and supports `--reasons` to show
   file and line numbers alongside the explanatory message.
 
@@ -3137,10 +3303,17 @@ fallback result to the command output. Other execution failures still return an
 error, so a broken test binary is not silently hidden.
 
 `steps --skipped` and `skipped` accept `--json` and emit objects that always
-include `feature`, `scenario`, `line`, `tags`, and `reason` fields. The former
-adds an embedded `step` object describing each bypassed definition (keyword,
-pattern, file, and line) to help trace which definitions were sidelined by a
-runtime skip.
+include `feature`, `scenario`, `line`, `tags`, `libraries`, and `reason`
+fields. The former adds an embedded `step` object describing each bypassed
+definition (library, keyword, pattern, file, and line) to help trace which
+definitions were sidelined by a runtime skip. The scenario-level `libraries`
+array records the closed vocabulary selected by the scenario, while
+`step.library` identifies the library that owns the bypassed definition.
+
+The runtime registry dump consumed by `cargo bdd` uses the same identities:
+each step and bypassed-step entry has a `library` field, and each scenario and
+bypassed-step entry has a `libraries` array. When these fields are absent from
+an older dump, the CLI treats the entry as belonging to `rstest_bdd::global`.
 
 ### Scenario report writers
 
@@ -3313,6 +3486,21 @@ binary via Zed's `settings.json`:
 ```
 
 Diagnostics and navigation require saving files to trigger indexing.
+
+### Language-server step-library scopes
+
+The language server reads the library selection from Rust bindings that use
+`#[scenario]` or `scenarios!`. When `libraries = [...]` is omitted, the binding
+selects only `rstest_bdd::global`. An explicit list is closed, so completion,
+navigation, and feature-step diagnostics consider definitions only from the
+listed libraries; definitions in other libraries do not satisfy a missing step.
+
+The selection is associated with the feature binding rather than inferred from
+the order of library entries. Equally specific definitions in selected
+libraries produce an ambiguity diagnostic, while a matching definition in an
+unselected library remains outside the active vocabulary. If bindings for the
+same feature select different library sets, the server reports the conflicting
+scopes and does not guess which vocabulary should apply.
 
 ### Current capabilities
 
@@ -3518,6 +3706,7 @@ three amigos in the specification process.
 [adr-013]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
+[v0-7-0-migration-guide]: https://github.com/leynos/rstest-bdd/blob/main/docs/v0-7-0-migration-guide.md
 [rstest-bdd-design]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md
 [design-runner-parallelism]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#2767-test-runner-parallelism-and-scenario-state
 [developers-guide-adapter-fallback]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#adapter-fallback-diagnostics

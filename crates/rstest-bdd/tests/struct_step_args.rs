@@ -1,6 +1,6 @@
 //! Behavioural test covering struct-based step arguments.
 
-use rstest::fixture;
+use rstest::{fixture, rstest};
 use rstest_bdd::Slot;
 use rstest_bdd_macros::{ScenarioState, StepArgs, given, scenario, then, when};
 
@@ -21,6 +21,61 @@ struct CartInput {
 struct ProductInput {
     name: String,
     price: f32,
+}
+
+#[derive(Debug, PartialEq, StepArgs)]
+struct ReorderedTransfer {
+    recipient: String,
+    #[step_args(placeholder = "sender")]
+    from: String,
+    amount: u64,
+}
+
+#[derive(Debug, PartialEq, StepArgs)]
+struct NormalizedAmount {
+    #[step_args(trim, parse_with = parse_cents)]
+    amount: u64,
+}
+
+#[derive(Debug, PartialEq, StepArgs)]
+#[step_args(rename_all = "camelCase")]
+struct RenamedAccounts {
+    source_account: String,
+    destination_account: String,
+}
+
+/// Regression fixture for generated bindings that reserve internal identifiers.
+#[derive(Debug, PartialEq, StepArgs)]
+struct ReservedFieldNames {
+    captures: String,
+    raw: String,
+}
+
+fn parse_cents(raw: &str) -> Result<u64, std::num::ParseIntError> {
+    raw.strip_suffix(" cents").unwrap_or(raw).parse()
+}
+
+#[given("{sender} transfers {amount:u64} to {recipient}")]
+fn capture_reordered_transfer(#[step_args] transfer: ReorderedTransfer) {
+    assert_eq!(
+        transfer,
+        ReorderedTransfer {
+            recipient: String::from("Bob"),
+            from: String::from("Alice"),
+            amount: 42,
+        }
+    );
+}
+
+#[given("{sourceAccount} sends to {destinationAccount}")]
+fn capture_renamed_accounts(#[step_args] accounts: RenamedAccounts) {
+    assert_eq!(
+        accounts,
+        RenamedAccounts {
+            source_account: String::from("checking"),
+            destination_account: String::from("savings"),
+        }
+    );
 }
 
 #[derive(Default, ScenarioState)]
@@ -108,6 +163,18 @@ fn struct_step_args(#[from(cart_state)] _cart_state: CartState) {}
 )]
 fn struct_step_args_with_string_hint(#[from(product_state)] _product_state: ProductState) {}
 
+#[scenario(
+    path = "tests/features/struct_step_args.feature",
+    name = "Reordered struct fields bind through the generated wrapper"
+)]
+fn reordered_struct_step_args() {}
+
+#[scenario(
+    path = "tests/features/struct_step_args.feature",
+    name = "Struct rename rules bind through the generated wrapper"
+)]
+fn renamed_struct_step_args() {}
+
 #[test]
 fn struct_step_args_reports_parse_failure() {
     let Err(err) = <CartInput as rstest_bdd::step_args::StepArgs>::from_captures(vec![
@@ -119,4 +186,170 @@ fn struct_step_args_reports_parse_failure() {
     };
     let expected = rstest_bdd::step_args::StepArgsError::parse_failure("quantity", "invalid");
     assert_eq!(err.to_string(), expected.to_string());
+}
+
+#[rstest]
+#[case(vec![String::from("2"), String::from("pumpkins")])]
+#[case(vec![
+    String::from("2"),
+    String::from("pumpkins"),
+    String::from("4.50"),
+    String::from("surplus"),
+])]
+fn struct_step_args_rejects_missing_or_surplus_positional_captures(#[case] captures: Vec<String>) {
+    let actual = captures.len();
+    let error = <CartInput as rstest_bdd::StepArgs>::from_captures(captures)
+        .expect_err("capture count mismatches must fail before pairing values");
+
+    assert_eq!(error, rstest_bdd::StepArgsError::count_mismatch(3, actual));
+}
+
+#[test]
+fn step_args_bind_named_captures_independently_of_field_order() {
+    let transfer = <ReorderedTransfer as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::step_args::StepCapture {
+            name: "sender",
+            value: String::from("Alice"),
+        },
+        rstest_bdd::step_args::StepCapture {
+            name: "amount",
+            value: String::from("42"),
+        },
+        rstest_bdd::step_args::StepCapture {
+            name: "recipient",
+            value: String::from("Bob"),
+        },
+    ])
+    .expect("named captures should populate the transfer");
+    assert_eq!(
+        transfer,
+        ReorderedTransfer {
+            recipient: String::from("Bob"),
+            from: String::from("Alice"),
+            amount: 42,
+        }
+    );
+}
+
+#[rstest]
+#[case([("sender", "Alice"), ("amount", "42"), ("recipient", "Bob")])]
+#[case([("sender", "Alice"), ("recipient", "Bob"), ("amount", "42")])]
+#[case([("amount", "42"), ("sender", "Alice"), ("recipient", "Bob")])]
+#[case([("amount", "42"), ("recipient", "Bob"), ("sender", "Alice")])]
+#[case([("recipient", "Bob"), ("sender", "Alice"), ("amount", "42")])]
+#[case([("recipient", "Bob"), ("amount", "42"), ("sender", "Alice")])]
+fn named_capture_order_does_not_change_step_args_binding(
+    #[case] captures: [(&'static str, &'static str); 3],
+) {
+    let captures = captures
+        .into_iter()
+        .map(|(name, value)| rstest_bdd::StepCapture {
+            name,
+            value: String::from(value),
+        })
+        .collect();
+    let transfer = <ReorderedTransfer as rstest_bdd::StepArgs>::from_named_captures(captures)
+        .expect("every capture permutation should populate the transfer");
+
+    assert_eq!(
+        transfer,
+        ReorderedTransfer {
+            recipient: String::from("Bob"),
+            from: String::from("Alice"),
+            amount: 42,
+        },
+    );
+}
+
+#[test]
+fn generated_step_args_bindings_do_not_shadow_user_field_names() {
+    let value = <ReservedFieldNames as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::StepCapture {
+            name: "raw",
+            value: String::from("raw value"),
+        },
+        rstest_bdd::StepCapture {
+            name: "captures",
+            value: String::from("capture value"),
+        },
+    ])
+    .expect("reserved generated names must not shadow user fields");
+
+    assert_eq!(
+        value,
+        ReservedFieldNames {
+            captures: String::from("capture value"),
+            raw: String::from("raw value"),
+        }
+    );
+}
+
+#[test]
+fn step_args_trim_before_custom_parsing() {
+    let amount = <NormalizedAmount as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::step_args::StepCapture {
+            name: "amount",
+            value: String::from(" 42 cents "),
+        },
+    ])
+    .expect("trimmed capture should parse through the custom parser");
+    assert_eq!(amount, NormalizedAmount { amount: 42 });
+}
+
+#[test]
+fn step_args_reports_duplicate_named_captures() {
+    let error = <ReorderedTransfer as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::StepCapture {
+            name: "sender",
+            value: String::from("Alice"),
+        },
+        rstest_bdd::StepCapture {
+            name: "sender",
+            value: String::from("Bob"),
+        },
+        rstest_bdd::StepCapture {
+            name: "amount",
+            value: String::from("42"),
+        },
+    ])
+    .expect_err("duplicate captures should be rejected");
+    assert_eq!(
+        error.to_string(),
+        "duplicate placeholder capture '{sender}'"
+    );
+}
+
+#[test]
+fn step_args_rename_all_does_not_fall_back_to_rust_field_names() {
+    let error = <RenamedAccounts as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::StepCapture {
+            name: "source_account",
+            value: String::from("checking"),
+        },
+        rstest_bdd::StepCapture {
+            name: "destination_account",
+            value: String::from("savings"),
+        },
+    ])
+    .expect_err("Rust field names must not bypass rename_all");
+
+    assert_eq!(
+        error,
+        rstest_bdd::StepArgsError::unconsumed_capture("source_account")
+    );
+}
+
+#[test]
+fn step_args_preserves_custom_parser_failure() {
+    let error = <NormalizedAmount as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::StepCapture {
+            name: "amount",
+            value: String::from("not cents"),
+        },
+    ])
+    .expect_err("custom parser should reject invalid input");
+    assert!(
+        error.to_string().contains("invalid digit found in string"),
+        "custom parser diagnostic should be preserved: {error}"
+    );
 }

@@ -56,7 +56,7 @@ HIT_OUTPUTS: typ.Final = tuple(
 #: Every run that writes a compiler-cache archive, and the family it writes.
 EXPECTED_WRITERS: typ.Final = frozenset({
     (PR_WORKFLOW, GATE_JOB, PUBLISH_KEY),
-    (PUBLISHER, "coverage-upload", INSTRUMENTED_KEY),
+    (PUBLISHER, "coverage-warmup", INSTRUMENTED_KEY),
     (PUBLISHER, "coverage-baseline-windows", INSTRUMENTED_KEY),
 })
 _ENV_REFERENCE = re.compile(r"^\$\{\{\s*env\.(?P<name>\w+)\s*\}\}$")
@@ -131,7 +131,7 @@ def _runs(workflow_name: str, job_name: str) -> list[dict[str, str]]:
 def _writer_runs() -> list[tuple[str, str, str, dict[str, str]]]:
     """Return each directory save with every run context that admits it."""
     jobs = [(PR_WORKFLOW, GATE_JOB)] + [
-        (PUBLISHER, name) for name in ("coverage-upload", "coverage-baseline-windows")
+        (PUBLISHER, name) for name in ("coverage-warmup", "coverage-baseline-windows")
     ]
     return [
         (workflow_name, job_name, _key(save), context)
