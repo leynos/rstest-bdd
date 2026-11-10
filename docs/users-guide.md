@@ -3011,6 +3011,9 @@ text the step receives: an annotated doc string yields exactly the same string
 as the same doc string with a bare delimiter, including its leading and
 trailing newlines. A doc string whose first line is a single media-type token
 (ASCII letters and digits, plus `.`, `+`, `-`, `_` and `/`) loses that line.
+Media-type parameters are not supported: after
+`"""application/json; charset=utf-8`, the annotation is not a single token, so
+it stays in the text as the first line.
 
 ## Limitations and roadmap
 

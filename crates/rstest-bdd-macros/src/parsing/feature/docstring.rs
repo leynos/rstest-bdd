@@ -16,20 +16,24 @@
 ///
 /// A docstring is only rewritten when its first line, which can only be
 /// non-empty when text follows the opening delimiter, is a single media-type
-/// token such as `json`, `text/plain`, or `application/vnd.api+json`.
+/// token such as `json`, `text/plain`, or `application/vnd.api+json`. Media
+/// type parameters are not supported: `"""application/json; charset=utf-8`
+/// is not a single token, so that line is kept as docstring content.
 ///
 /// # Examples
 ///
 /// ```rust,ignore
 /// let parsed = "json\n      {\"a\": 1}\n";
 /// assert_eq!(strip_media_type(parsed), "\n{\"a\": 1}\n");
+/// assert_eq!(strip_media_type("json\n"), "\n"); // same as a bare, empty docstring
 /// assert_eq!(strip_media_type("\nplain\n"), "\nplain\n");
 /// ```
 pub(crate) fn strip_media_type(docstring: &str) -> String {
-    match docstring.split_once('\n') {
-        Some((first, rest)) if is_media_type(first) => format!("\n{}", dedent(rest)),
-        None if is_media_type(docstring) => String::new(),
-        _ => docstring.to_owned(),
+    let (first, rest) = docstring.split_once('\n').unwrap_or((docstring, ""));
+    if is_media_type(first) {
+        format!("\n{}", dedent(rest))
+    } else {
+        docstring.to_owned()
     }
 }
 
@@ -87,16 +91,31 @@ mod tests {
     //! Unit tests for docstring media-type stripping.
 
     use gherkin::{Feature, GherkinEnv};
-    use rstest::rstest;
+    use rstest::{fixture, rstest};
 
     use super::*;
 
+    /// The body of the test docstring, as indented in the feature source.
+    const BODY: &str = concat!("        {\n", "          \"a\": 1\n", "        }\n", "\n",);
+
     /// Parse a one-step feature and return the step's raw `gherkin` docstring.
-    fn parsed_docstring(delimiter_line: &str) -> String {
+    #[fixture]
+    fn parsed_docstring(
+        #[default("\"\"\"")] delimiter_line: &str,
+        #[default(BODY)] body: &str,
+    ) -> String {
         let source = format!(
-                "Feature: f\n  Scenario: s\n    Given a step\n      {delimiter_line}\n        \
-                 {{\n          \"a\": 1\n        }}\n\n      \"\"\"\n"
-            );
+            concat!(
+                "Feature: f\n",
+                "  Scenario: s\n",
+                "    Given a step\n",
+                "      {delimiter_line}\n",
+                "{body}",
+                "      \"\"\"\n",
+            ),
+            delimiter_line = delimiter_line,
+            body = body,
+        );
         let feature = Feature::parse(&source, GherkinEnv::default()).expect("feature should parse");
         feature
             .scenarios
@@ -107,30 +126,32 @@ mod tests {
     }
 
     #[rstest]
-    #[case::json("\"\"\"json")]
-    #[case::mime("\"\"\"application/vnd.api+json")]
-    fn annotated_docstrings_match_bare_ones(#[case] delimiter_line: &str) {
-        let bare = parsed_docstring("\"\"\"");
+    #[case::json("\"\"\"json", BODY)]
+    #[case::mime("\"\"\"application/vnd.api+json", BODY)]
+    #[case::json_without_body("\"\"\"json", "")]
+    fn annotated_docstrings_match_bare_ones(#[case] delimiter_line: &str, #[case] body: &str) {
+        let bare = parsed_docstring::get("\"\"\"", body);
+        let annotated = parsed_docstring::get(delimiter_line, body);
         assert!(bare.starts_with('\n') && bare.ends_with('\n'), "{bare:?}");
-        assert_eq!(strip_media_type(&parsed_docstring(delimiter_line)), bare);
+        assert_eq!(strip_media_type(&annotated), bare);
     }
 
-    #[test]
-    fn bare_docstrings_are_unchanged() {
-        let bare = parsed_docstring("\"\"\"");
-        assert_eq!(strip_media_type(&bare), bare);
+    #[rstest]
+    fn bare_docstrings_are_unchanged(parsed_docstring: String) {
+        assert_eq!(strip_media_type(&parsed_docstring), parsed_docstring);
     }
 
     #[rstest]
     #[case::prose("not a token\n  body\n")]
     #[case::punctuated("{\"inline\": true}\n")]
+    #[case::media_type_parameters("application/json; charset=utf-8\n  body\n")]
     fn other_first_lines_are_kept(#[case] docstring: &str) {
         assert_eq!(strip_media_type(docstring), docstring);
     }
 
     #[test]
-    fn annotation_without_body_becomes_empty() {
-        assert_eq!(strip_media_type("json"), "");
+    fn annotation_without_newline_matches_an_empty_bare_docstring() {
+        assert_eq!(strip_media_type("json"), "\n");
     }
 
     #[test]
