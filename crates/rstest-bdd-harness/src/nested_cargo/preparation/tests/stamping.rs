@@ -198,6 +198,43 @@ fn cargo_test_prepares_again_behind_an_unreadable_stamp() {
 }
 
 #[test]
+fn a_family_prepared_by_the_preparation_test_satisfies_the_nextest_gate() {
+    // The whole point of the split is that two different test processes reach
+    // the same verdict from the same directory: the preparation test builds,
+    // and every timed test afterwards only reads. Each half is covered above
+    // in isolation; this runs the sequence, because the halves agree only if
+    // the stamp the preparation wrote is the stamp the gate then accepts. A
+    // mismatch would show up as every timed test paying for a cold build —
+    // exactly the failure the issue is about.
+    let (directory, family, environment) = scratch_preparation();
+    let mut builds = 0_u32;
+
+    // First: the timed test, which must refuse rather than build.
+    let refused = ensure_prepared_with(&family, true, || {
+        panic!("a timed test must not prepare its own family")
+    })
+    .expect_err("an unprepared family must fail the nextest gate");
+    assert_eq!(refused.kind(), io::ErrorKind::NotFound);
+
+    // Second: the named preparation test, run under nextest, which builds.
+    prepare_now(&family, || {
+        builds += 1;
+        Ok(PreparationSummary { compiled_units: 2 })
+    })
+    .expect("the preparation test should build the family");
+    assert_eq!(builds, 1);
+
+    // Third: the timed test again, now over a freshly stamped family. It is
+    // reopened from the same description so the check does not lean on any
+    // in-process state the failed attempt left behind.
+    let reopened = preparation(directory.path(), &environment, "v", "hash");
+    ensure_prepared_with(&reopened, true, || {
+        panic!("the gate must accept the family the preparation test stamped")
+    })
+    .expect("a family prepared by the preparation test must pass the nextest gate");
+}
+
+#[test]
 fn a_relative_target_directory_is_resolved_once_before_it_reaches_the_child() {
     // Cargo resolves a relative `CARGO_TARGET_DIR` against the working
     // directory of the command that reads it. Every nested build here runs in
