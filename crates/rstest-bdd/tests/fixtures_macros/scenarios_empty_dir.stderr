@@ -1,0 +1,5 @@
+error: no scenarios found in `scenarios_empty_dir`
+ --> tests/fixtures_macros/scenarios_empty_dir.rs:6:12
+  |
+6 | scenarios!("scenarios_empty_dir");
+  |            ^^^^^^^^^^^^^^^^^^^^^
