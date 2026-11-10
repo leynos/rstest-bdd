@@ -26,6 +26,15 @@ pub(super) struct CaptureValidationErrors<'a> {
     pub(super) capture_mismatch: &'a TokenStream2,
 }
 
+/// Error token streams for a step call that returns an error or panics.
+#[derive(Clone, Copy)]
+pub(super) struct StepOutcomeErrors<'a> {
+    /// The error built when the step returns `Err(message)`.
+    pub(super) execution: &'a TokenStream2,
+    /// The error built when the step panics with a non-skip payload.
+    pub(super) panic: &'a TokenStream2,
+}
+
 /// Generate placeholder capture extraction and count validation tokens.
 pub(super) fn generate_capture_validation(
     path: &TokenStream2,
@@ -57,9 +66,12 @@ pub(super) fn generate_unwind_handling(
     path: &TokenStream2,
     call_expr: &TokenStream2,
     fixture_guards: &[syn::Ident],
-    exec_err: &TokenStream2,
-    panic_err: &TokenStream2,
+    errors: StepOutcomeErrors<'_>,
 ) -> TokenStream2 {
+    let StepOutcomeErrors {
+        execution: exec_err,
+        panic: panic_err,
+    } = errors;
     quote! {
         let __rstest_bdd_step_outcome = #path::__rstest_bdd_catch_unwind_future(async move { #call_expr }).await;
         #(::core::mem::drop(#fixture_guards);)*

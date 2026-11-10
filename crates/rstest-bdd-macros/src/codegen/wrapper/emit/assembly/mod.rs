@@ -95,9 +95,12 @@ fn generate_sync_unwind_handling(
     path: &TokenStream2,
     call_expr: &TokenStream2,
     fixture_guards: &[syn::Ident],
-    exec_err: &TokenStream2,
-    panic_err: &TokenStream2,
+    errors: async_wrapper::StepOutcomeErrors<'_>,
 ) -> TokenStream2 {
+    let async_wrapper::StepOutcomeErrors {
+        execution: exec_err,
+        panic: panic_err,
+    } = errors;
     quote! {
         let __rstest_bdd_step_outcome = catch_unwind(AssertUnwindSafe(|| { #call_expr }));
         #(::core::mem::drop(#fixture_guards);)*
@@ -250,39 +253,28 @@ fn render_wrapper_function(
         },
     );
 
-    match wrapper_kind {
+    let outcome_errors = async_wrapper::StepOutcomeErrors {
+        execution: &exec_err,
+        panic: &panic_err,
+    };
+    let guards = &prepared.fixture_guards;
+    let unwind_handling = match wrapper_kind {
         WrapperKind::Sync => {
-            let unwind_handling = generate_sync_unwind_handling(
-                &path,
-                call_expr,
-                &prepared.fixture_guards,
-                &exec_err,
-                &panic_err,
-            );
-            let fragments = WrapperCodeFragments {
-                path: &path,
-                expect_attr: &expect_attr,
-                capture_validation: &capture_validation,
-                unwind_handling: &unwind_handling,
-            };
-            generate_sync_wrapper_quote(identifiers, prepared, fragments)
+            generate_sync_unwind_handling(&path, call_expr, guards, outcome_errors)
         }
         WrapperKind::Async => {
-            let unwind_handling = async_wrapper::generate_unwind_handling(
-                &path,
-                call_expr,
-                &prepared.fixture_guards,
-                &exec_err,
-                &panic_err,
-            );
-            let fragments = WrapperCodeFragments {
-                path: &path,
-                expect_attr: &expect_attr,
-                capture_validation: &capture_validation,
-                unwind_handling: &unwind_handling,
-            };
-            generate_async_wrapper_quote(identifiers, prepared, fragments)
+            async_wrapper::generate_unwind_handling(&path, call_expr, guards, outcome_errors)
         }
+    };
+    let fragments = WrapperCodeFragments {
+        path: &path,
+        expect_attr: &expect_attr,
+        capture_validation: &capture_validation,
+        unwind_handling: &unwind_handling,
+    };
+    match wrapper_kind {
+        WrapperKind::Sync => generate_sync_wrapper_quote(identifiers, prepared, fragments),
+        WrapperKind::Async => generate_async_wrapper_quote(identifiers, prepared, fragments),
     }
 }
 
