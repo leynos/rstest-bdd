@@ -62,7 +62,7 @@ pub(super) fn generate_unwind_handling(
 ) -> TokenStream2 {
     quote! {
         let __rstest_bdd_step_outcome = #path::__rstest_bdd_catch_unwind_future(async move { #call_expr }).await;
-        #(drop(#fixture_guards);)*
+        #(::core::mem::drop(#fixture_guards);)*
         match __rstest_bdd_step_outcome {
             Ok(res) => res
                 .map(|value| #path::StepExecution::from_value(value))
