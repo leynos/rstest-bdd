@@ -850,6 +850,17 @@ rather than by reading this branch's comments.
 
 ## Surprises & Discoveries
 
+- **"Final head" is a snapshot, not a property.** 2026-11-10. Several entries
+  below name a commit as the final head and cite the run that measured it. Each
+  was accurate when written and none of them is the branch tip now: a review
+  round added the boundary tests and ran the gates on the merged tree, and
+  `main` advanced far enough to conflict on `docs/CHANGELOG.md`, which required
+  a merge commit. Read those entries as *the head at the time of measurement* —
+  the numbers they report are valid for the tree they name, and a later head
+  must be measured again rather than inheriting the verdict. The same rule
+  applies to any "all gates green" claim: it belongs to a commit, not to the
+  branch.
+
 - **A `#[cfg(unix)]` test can break the Windows *build* through its import
   alone.** 2026-11-09. Two cycle tests were marked `#[cfg(unix)]` because
   creating a link on Windows needs a privilege the runner lacks, but their
