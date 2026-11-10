@@ -2686,7 +2686,17 @@ entry, when a configuration path exists but cannot be inspected. A later run
 trusts the stamp only when the fingerprint matches and every directory in
 `Preparation::artefacts` still holds its outputs. Each preparation command is
 bounded by `PREPARATION_COMMAND_TIMEOUT`, which is deliberately separate from
-every assertion deadline.
+every assertion deadline. That constant is a value, not a wrapper: it does not
+bound anything by itself. A caller that spawns a preparation command must pass
+it to `run_bounded_with_timeout`, or the command runs unbounded.
+
+One preparation path cannot be bounded this way. `trybuild` spawns its own
+nested `cargo` and offers no hook to bound or capture that child, so a trybuild
+preparation is bounded only by the test runner's own slow-timeout — in this
+repository, the 20-minute period `.config/nextest.toml` gives the compile-test
+binaries. That exception is deliberate: the alternative would be re-implementing
+`trybuild`'s spawn, and a wedged trybuild build is reported as a runner
+slow-timeout without captured output.
 
 `prepare_now` is idempotent: when the stamp and artefact checks both pass it
 does not run the build closure, so a warm target directory costs one stamp

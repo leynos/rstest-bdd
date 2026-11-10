@@ -126,6 +126,77 @@ fn nextest_refuses_to_prepare_and_names_the_command() {
     assert!(message.contains("nested_fixture_preparation"), "{message}");
 }
 
+/// Write a stamp that exists but cannot be read as text.
+///
+/// Invalid UTF-8 makes `read_to_string` fail with `InvalidData`, which is the
+/// same "present but unreadable" state a permission bit would produce, without
+/// depending on the permission model — a suite running as root can read a file
+/// whose mode is zero. The file is left in place rather than made a directory
+/// so a later preparation can replace it, which is what the `cargo test` case
+/// below needs to reach its successful end.
+fn write_unreadable_stamp(preparation: &Preparation) {
+    fs::write(stamp_path(preparation), [0xff, 0xfe]).expect("unreadable stamp");
+}
+
+#[test]
+fn nextest_reports_an_unreadable_stamp_rather_than_calling_it_missing() {
+    // The two runners need opposite answers from an unreadable stamp, so the
+    // branch that fails fast exists only at this boundary: the query in
+    // `stamp` returns the error and decides nothing. Without this test the
+    // nextest branch is unexercised, and it would be possible to report
+    // "missing or stale" for a tree that is present but cannot be vouched
+    // for — which sends the reader looking for an evicted directory.
+    let (_directory, preparation, _environment) = scratch_preparation();
+    write_unreadable_stamp(&preparation);
+
+    let error = ensure_prepared_with(&preparation, true, || {
+        panic!("an unreadable stamp under nextest must not prepare")
+    })
+    .expect_err("an unreadable stamp must refuse the gate");
+    let message = error.to_string();
+    assert!(message.contains("exists but cannot be read"), "{message}");
+    assert!(
+        message.contains("make prepare-nested-fixtures"),
+        "the message must still name the remedy: {message}"
+    );
+    assert!(
+        !message.contains("missing or stale"),
+        "an unreadable stamp must not be reported as a missing one: {message}"
+    );
+}
+
+#[test]
+fn cargo_test_prepares_again_behind_an_unreadable_stamp() {
+    // The complement of the case above: under `cargo test` the same fact only
+    // costs a rebuild, so the boundary must choose to prepare rather than
+    // fail. Running the closure is what proves the branch was taken — had the
+    // boundary failed fast, it would not have run.
+    let (_directory, preparation, _environment) = scratch_preparation();
+    write_unreadable_stamp(&preparation);
+    let mut runs = 0_u32;
+
+    ensure_prepared_with(&preparation, false, || {
+        runs += 1;
+        Ok(PreparationSummary { compiled_units: 1 })
+    })
+    .expect("cargo test must recover from an unreadable stamp by preparing");
+
+    assert_eq!(
+        runs, 1,
+        "under cargo test an unreadable stamp must lead to preparation, not a refusal"
+    );
+    // The replacement stamp is readable, so the next gate reuses it rather
+    // than paying for the build again. An unreadable stamp that survived the
+    // preparation would cost a rebuild on every single run.
+    let mut runs_after = runs;
+    ensure_prepared_with(&preparation, false, || {
+        runs_after += 1;
+        Ok(PreparationSummary::default())
+    })
+    .expect("the stamp written by the recovery must be reusable");
+    assert_eq!(runs_after, runs, "the recovered stamp must be honoured");
+}
+
 #[test]
 fn a_relative_target_directory_is_resolved_once_before_it_reaches_the_child() {
     // Cargo resolves a relative `CARGO_TARGET_DIR` against the working

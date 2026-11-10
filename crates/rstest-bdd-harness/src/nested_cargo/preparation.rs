@@ -56,7 +56,7 @@ use stamp::{
     Fingerprint,
     Stamp,
     fingerprint,
-    matching_stamp_or_note,
+    matching_stamp,
     missing_stamp_message,
     note,
     render,
@@ -306,7 +306,7 @@ where
     // fail-fast evidence — the tree is present but cannot be vouched for, which
     // a "missing or stale" message would misreport. Under `cargo test` the
     // caller prepares again, so the read failure only costs a rebuild.
-    let matching = match matching_stamp_or_note(&stamp, &fingerprint) {
+    let matching = match matching_stamp(&stamp, &fingerprint) {
         Ok(matching) => matching,
         Err(error) if !under_nextest => {
             note(&format!("stamp {} unreadable ({error})", stamp.display()));
@@ -367,7 +367,7 @@ where
     // waited for the lock. The artefacts are re-checked on the same terms as
     // the gate: a stamp whose tree was evicted while this process waited is
     // not a prepared family.
-    let matching: Option<Stamp> = matching_stamp_or_note(stamp, fingerprint).ok().flatten();
+    let matching: Option<Stamp> = matching_stamp(stamp, fingerprint).ok().flatten();
     if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
         return Ok(());
     }

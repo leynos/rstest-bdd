@@ -897,12 +897,15 @@ selection to the generated crate, so a different set of features is a different
 dependency graph. Both feed the stamp's fingerprint, which also covers the
 build-relevant environment, the toolchain identity and the workspace inputs.
 
-The toolchain identity is resolved by running `cargo -vV` once per process and
-keeping its `release:`, `commit-hash:` and `host:` lines. A toolchain that
-cannot be identified is a preparation error rather than an `"unknown"`
-fingerprint field: that placeholder is identical on every host where
-identification fails, so a stamp written under it would survive a toolchain
-change, which is exactly the invalidation the field exists to force.
+The toolchain identity is resolved by running `cargo -vV` and keeping its
+`release:`, `commit-hash:` and `host:` lines. The probe runs on each
+fingerprint computation rather than being cached: it is cheap beside the stamp
+read it accompanies, and a cached value would survive a toolchain change within
+the same process. A toolchain that cannot be identified is a preparation error
+rather than an `"unknown"` fingerprint field: that placeholder is identical on
+every host where identification fails, so a stamp written under it would
+survive a toolchain change, which is exactly the invalidation the field exists
+to force.
 
 The inputs hashed are the workspace manifest and lockfile, the `crates/` tree,
 `vendor/`, and the workspace's Cargo configuration. Hashing `crates/` walks

@@ -130,7 +130,13 @@ pub(super) fn stamp_path(preparation: &Preparation) -> PathBuf {
 /// force the `nextest` case to report a missing stamp for a tree that is
 /// present but unreadable — a diagnosis the reader cannot act on. Returning the
 /// error keeps the choice, and the cause, at the boundary that owns the runner
-/// policy. The note records the read attempt for the log.
+/// policy.
+///
+/// This query is silent by design. It reports what it found and nothing else,
+/// so the boundary that applies the runner policy is also the one place that
+/// decides what to log. Logging here as well would write the same failure twice
+/// on the `cargo test` path, and would put a side effect on a function whose
+/// contract is otherwise just a read.
 ///
 /// # Errors
 ///
@@ -138,20 +144,11 @@ pub(super) fn stamp_path(preparation: &Preparation) -> PathBuf {
 /// that as "not prepared" would silently discard a stamp that may well
 /// describe a warm tree, and the caller would pay for the rebuild with no
 /// indication of why.
-pub(super) fn matching_stamp_or_note(
-    stamp: &Path,
-    fingerprint: &Fingerprint,
-) -> io::Result<Option<Stamp>> {
+pub(super) fn matching_stamp(stamp: &Path, fingerprint: &Fingerprint) -> io::Result<Option<Stamp>> {
     let text = match fs::read_to_string(stamp) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            note(&format!(
-                "could not read stamp {}: {error}",
-                stamp.display()
-            ));
-            return Err(error);
-        }
+        Err(error) => return Err(error),
     };
     Ok(parse(&text, fingerprint))
 }

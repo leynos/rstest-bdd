@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use super::{Fingerprint, Stamp, matching_stamp_or_note, parse, render, write_stamp};
+use super::{Fingerprint, Stamp, matching_stamp, parse, render, write_stamp};
 
 /// The fingerprint text the round-trip cases compare against.
 fn fingerprint_of(text: &str) -> Fingerprint { Fingerprint(text.to_owned()) }
@@ -56,7 +56,7 @@ fn a_written_stamp_is_found_and_a_missing_one_is_not() {
     let directory = tempfile::tempdir().expect("temp dir");
     let stamp = directory.path().join(".unit.rstest-bdd-prepared");
     assert!(
-        matching_stamp_or_note(&stamp, &fingerprint_of("version: 2\n"))
+        matching_stamp(&stamp, &fingerprint_of("version: 2\n"))
             .expect("an absent stamp is not a read failure")
             .is_none(),
         "an absent stamp is not a match"
@@ -69,12 +69,12 @@ fn a_written_stamp_is_found_and_a_missing_one_is_not() {
     )
     .expect("write the stamp");
 
-    let found: Stamp = matching_stamp_or_note(&stamp, &fingerprint)
+    let found: Stamp = matching_stamp(&stamp, &fingerprint)
         .expect("the stamp is readable")
         .expect("the stamp must match");
     assert_eq!(found.recorded, vec![vec!["liba.rlib".to_owned()]]);
     assert!(
-        matching_stamp_or_note(
+        matching_stamp(
             &stamp,
             &fingerprint_of("version: 2\ntoolchain: release: 1.89.0\n")
         )
@@ -100,7 +100,7 @@ fn an_unreadable_stamp_is_reported_rather_than_treated_as_absent() {
     let stamp = directory.path().join(".unit.rstest-bdd-prepared");
     std::os::unix::fs::symlink(&stamp, &stamp).expect("symlink loop");
 
-    let error = match matching_stamp_or_note(&stamp, &fingerprint_of("version: 2\n")) {
+    let error = match matching_stamp(&stamp, &fingerprint_of("version: 2\n")) {
         Err(error) => error,
         Ok(matching) => panic!(
             "a loop must be reported as a read failure, not as {}",

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- `rstest-bdd-harness::nested_cargo` gained the preparation API that keeps a
+  nested Cargo build out of a timed assertion's deadline. A caller describes a
+  `Preparation` (family, variant, artefact directories and input hash), and
+  `ensure_prepared` gates a test on a stamp recording the build-relevant
+  environment, the toolchain identity and the fixture inputs. Under `nextest`
+  the gate fails fast and names the command that prepares the family, because a
+  test in its own process cannot prepare without paying the cost it is meant to
+  avoid; under `cargo test` it prepares lazily. `env_from_vars` resolves a
+  relative `CARGO_TARGET_DIR` to an absolute path once, before the child
+  inherits it, and `cargo_config_inputs` folds the workspace Cargo
+  configuration into the input hash. This is additive: the existing
+  `ProfileDestination` API is unchanged.
+
 - Raised the nextest compile budget for the trybuild-based tests from ten to
   twenty minutes, and the default profile's global timeout from twenty to forty
   minutes so the larger per-test budget can be spent. A CI run with a cold
