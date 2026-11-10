@@ -91,6 +91,11 @@ pub fn substitute_placeholders(
 
 /// Looks up the row value for the Examples column named `placeholder`.
 ///
+/// Scope: private to this module and called only by
+/// [`substitute_placeholders`]. It assumes `row` is aligned with `headers`, an
+/// invariant the outline parser guarantees, so other callers should go
+/// through `substitute_placeholders` rather than reuse it directly.
+///
 /// # Examples
 ///
 /// ```ignore
