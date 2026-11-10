@@ -144,6 +144,7 @@ fn assert_wrapper_expect_lints(config: WrapperTestConfig, expected_lint_names: &
     } = config;
     let prepared = PreparedArgs {
         declares: Vec::new(),
+        fixture_guards: Vec::new(),
         step_arg_parses: Vec::new(),
         step_struct_decl,
         datatable_decl: None,

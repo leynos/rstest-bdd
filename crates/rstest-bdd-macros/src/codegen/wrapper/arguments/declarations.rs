@@ -15,6 +15,8 @@ pub(in super::super) struct StepMeta<'a> {
 pub(in super::super) struct PreparedArgs {
     /// Fixture declarations evaluated before invoking the step.
     pub(in super::super) declares: Vec<TokenStream2>,
+    /// Fixture borrow guards released immediately after the step invocation.
+    pub(in super::super) fixture_guards: Vec<syn::Ident>,
     /// Capture parsing expressions for ordinary step arguments.
     pub(in super::super) step_arg_parses: Vec<TokenStream2>,
     /// The optional generated step-struct declaration.
