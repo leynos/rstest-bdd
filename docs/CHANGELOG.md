@@ -6,9 +6,9 @@
   row has only empty cells. Such rows were skipped when building the
   substituted steps but still counted when numbering the cases, so every later
   case ran the next row's steps, and a trailing empty row indexed past the end
-  of the table. Every Examples row is now a case, as in Cucumber: an all-empty
-  row runs with each placeholder replaced by an empty string. Outlines with
-  such a row gain a test case.
+  of the table. Every Examples row that survives tag filtering is now a case,
+  as in Cucumber: an all-empty row runs with each placeholder replaced by an
+  empty string. Outlines with such a row gain a test case.
 
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and

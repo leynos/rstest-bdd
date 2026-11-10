@@ -104,7 +104,8 @@ code.
 
 ### Scenario outline rows
 
-Every Examples row becomes one generated test case, in table order. A row whose
+Every Examples row that survives tag filtering becomes one generated test case,
+in table order; rows a `tags` filter removes generate nothing. A row whose
 cells are all empty is a case too: empty strings are legitimate boundary
 inputs, so the row runs with each placeholder replaced by an empty string.
 
