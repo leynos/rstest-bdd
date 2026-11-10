@@ -59,6 +59,7 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("step_macros.rs"),
         MacroFixtureCase::from("step_macros_unicode.rs"),
         MacroFixtureCase::from("scenario_single_match.rs"),
+        MacroFixtureCase::from("scenario_outline_datatable.rs"),
         MacroFixtureCase::from("scenario_state_default.rs"),
         MacroFixtureCase::from("scenarios_fixtures.rs"),
         MacroFixtureCase::from("scenarios_autodiscovery.rs"),

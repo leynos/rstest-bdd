@@ -144,8 +144,13 @@ fn generate_case_attrs_internal(
         .collect()
 }
 
-/// Provides the internal `generate_table_tokens` operation.
-fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
+/// Render a step's data table as a `&[&[&str]]` literal.
+///
+/// The literal must be valid inside the `const` that holds every outline
+/// row's steps, so rows are unsized with `as` coercions rather than range
+/// indexing, which calls the non-const `Index` impl. For example, the rows
+/// `[["a", "b"]]` render as `Some(&[&["a", "b"] as &[&str]] as &[&[&str]])`.
+pub(super) fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
     table.map_or_else(
         || quote! { None },
         |rows| {
