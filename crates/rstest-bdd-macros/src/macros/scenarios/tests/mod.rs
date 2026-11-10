@@ -49,51 +49,74 @@ mod empty_results {
 
     use proc_macro2::{Span, TokenStream as TokenStream2};
     use quote::quote;
+    use rstest::{fixture, rstest};
 
-    use super::super::{TagFilter, check_empty_results};
+    use super::super::{
+        TagFilter,
+        empty_results::{ExpansionOutput, check_empty_results},
+    };
     use crate::parsing::tags::TagExpression;
 
-    fn dir() -> syn::LitStr { syn::LitStr::new("tests/features/empty", Span::call_site()) }
-
-    #[test]
-    fn errors_naming_the_path_when_no_scenarios_exist() {
-        let mut errors = Vec::new();
-        check_empty_results(&[], &mut errors, None, &dir());
-        let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
-        let [message] = rendered.as_slice() else {
-            panic!("expected one diagnostic, got {rendered:?}");
-        };
-        assert!(
-            message.contains("no scenarios found in `tests/features/empty`"),
-            "{message}"
-        );
+    #[fixture]
+    fn dir() -> syn::LitStr {
+        let path = "tests/features/empty";
+        syn::LitStr::new(path, Span::call_site())
     }
 
-    #[test]
-    fn errors_naming_the_expression_when_a_filter_matches_nothing() {
-        let filter = TagFilter {
+    fn fast_filter() -> TagFilter {
+        TagFilter {
             expr: TagExpression::parse("@fast").expect("tag expression should parse"),
             span: Span::call_site(),
             raw: "@fast".to_owned(),
-        };
-        let mut errors = Vec::new();
-        check_empty_results(&[], &mut errors, Some(&filter), &dir());
-        let message = errors.first().map(ToString::to_string).unwrap_or_default();
-        assert!(
-            message.contains("no scenarios matched tag expression `@fast`"),
-            "{message}"
-        );
+        }
     }
 
-    #[test]
-    fn stays_silent_when_tests_or_errors_exist() {
-        let generated: Vec<TokenStream2> = vec![quote! { fn generated() {} }];
-        let mut errors = Vec::new();
-        check_empty_results(&generated, &mut errors, None, &dir());
-        assert!(errors.is_empty());
+    fn render(errors: &[TokenStream2]) -> Vec<String> {
+        errors.iter().map(ToString::to_string).collect()
+    }
 
-        let mut errors = vec![quote! { compile_error!("earlier") }];
-        check_empty_results(&[], &mut errors, None, &dir());
-        assert_eq!(errors.len(), 1);
+    #[rstest]
+    #[case::no_filter(None, "no scenarios found in `tests/features/empty`")]
+    #[case::unmatched_filter(Some(fast_filter()), "no scenarios matched tag expression `@fast`")]
+    fn errors_when_nothing_is_emitted(
+        dir: syn::LitStr,
+        #[case] filter: Option<TagFilter>,
+        #[case] expected: &str,
+    ) {
+        let mut errors = Vec::new();
+        let output = ExpansionOutput {
+            tests: &[],
+            fallback_diagnostics: &TokenStream2::new(),
+        };
+        check_empty_results(output, &mut errors, filter.as_ref(), &dir);
+        let rendered = render(&errors);
+        let [message] = rendered.as_slice() else {
+            panic!("expected one diagnostic, got {rendered:?}");
+        };
+        assert!(message.contains(expected), "{message}");
+    }
+
+    #[rstest]
+    #[case::tests_generated(vec![quote! { fn generated() {} }], Vec::new(), TokenStream2::new())]
+    #[case::earlier_error(Vec::new(), vec![quote! { compile_error!("earlier") }], TokenStream2::new())]
+    #[case::adapter_diagnostic(
+        Vec::new(),
+        Vec::new(),
+        quote! { compile_error!("invalid harness adapter") }
+    )]
+    fn stays_silent_when_something_was_emitted(
+        dir: syn::LitStr,
+        #[case] tests: Vec<TokenStream2>,
+        #[case] errors: Vec<TokenStream2>,
+        #[case] fallback_diagnostics: TokenStream2,
+    ) {
+        let before = render(&errors);
+        let mut errors = errors;
+        let output = ExpansionOutput {
+            tests: &tests,
+            fallback_diagnostics: &fallback_diagnostics,
+        };
+        check_empty_results(output, &mut errors, None, &dir);
+        assert_eq!(render(&errors), before);
     }
 }
