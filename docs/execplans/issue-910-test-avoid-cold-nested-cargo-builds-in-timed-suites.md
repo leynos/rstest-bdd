@@ -179,6 +179,22 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       CodeScene agrees on the pushed commit `8c97c2f7`: the check that had
       failed on every earlier head reports `completed/success`, "Quality Gate
       Passed", 6 gates, no findings.
+- [x] Clear the CodeScene regression the grandchild test introduced on
+      `ac22bd22`. The check reported "Enforce advisory code health rules (1
+      file with Large Assertion Blocks)" for
+      `crates/rstest-bdd-harness/tests/nested_cargo_env.rs`, 10.00 → 9.39;
+      `cs review` named four functions, and only the last
+      (`run_bounded_returns_when_a_successful_child_leaves_a_pipe_holding_descendant`,
+      line 345) is this branch's. `cs delta origin/main HEAD` supplied the
+      mechanism the per-file score hides: the rule's threshold is three
+      assertion *blocks* per file, the file already had three on `main`, and
+      the new test's four consecutive asserts made a fourth. Merging the two
+      stream assertions into one claim about `captured` — both streams are
+      drained by the same collection, and the message still prints each — took
+      the file back to 10.00 with `cs delta` reporting "Fixed issue". Verified
+      the merged assertion is not vacuous: mutating the success-path window
+      from `DRAIN_GRACE` to 60 s still fails the test at 30.01 s against its
+      20 s bound, and the restored source passes 20/20 in 4.20 s.
 - **"Pre-existing" is a claim to verify, not a safe default.** Both the
   execplan and a commit message described the `Preparation::new` argument count
   as pre-existing at 9.69 on `main`.
@@ -775,8 +791,18 @@ rather than by reading this branch's comments.
          recorded. The existing test proves the *call* returns in bounded time
          and deliberately does not assert the grandchild is gone. Tracked for a
          separate issue rather than folded in at the last gate.
-- [ ] Answer the review of `6905d6c3`: three inline findings and six pre-merge
-      rows.
+- [x] Answer the review of `6905d6c3`: three inline findings and six pre-merge
+      rows. Committed as `ac22bd22`, pushed, and every finding disposed with a
+      reply: three inline threads, and a top-level reconciliation naming each
+      row's outcome. Two rows are declined with reasoning recorded here rather
+      than silently skipped.
+      Gate sequence on the candidate: all twelve green — `make fmt`,
+      `make check-fmt`, clippy (`-D warnings`), `cargo doc` (`-D warnings`),
+      `make lint-whitaker`, `make lint-python`, the six lint scripts,
+      `make spelling`, `make markdownlint` (127 files, 0 errors), the harness
+      lib tests (109) and `nested_cargo_env` (20), and the Windows cross-target
+      check. The first pass failed spelling on five of my own `-ise` forms,
+      which is the en-GB-oxendict `-ize` rule the gate enforces.
       1. **A real stamp-validity bug, and the most valuable finding of the
          round.** `parse` compared `head.trim_end()` against
          `fingerprint.trim_end()`, and `render` wrote `trim_end`ed text, while
@@ -982,6 +1008,26 @@ rather than by reading this branch's comments.
       is a separate test module for the same reason.
 
 ## Surprises & Discoveries
+
+- **A per-file code-health score is a budget, and the budget is already
+  spent.** 2026-11-10. Adding one ordinary four-assert test to
+  `nested_cargo_env.rs` failed the CodeScene gate, and none of the four
+  functions it named was the one that crossed a line: the rule's threshold is
+  three assertion *blocks* per file, `main` already had three, and the fourth
+  made the file unhealthy however good the new test was. Reading `cs review`'s
+  per-function list therefore answers "which functions are blocks?" but never
+  "which addition spent the last slot?", so it invites fixing the wrong
+  function — three of the four were pre-existing and untouched.
+  `cs delta origin/main HEAD` is what exposes the budget, because it reports
+  `value-before: 3, value: 4` alongside the threshold. The fix was not to touch
+  the old functions or suppress the rule, but to make the new test's claim
+  smaller: two asserts about two pipes became one assert about their
+  concatenation, which is also the more honest statement of what the code does,
+  since one collection drains both. The general lesson is that a file-level
+  health rule makes an addition cost depend on what the file already contains,
+  so a clean diff can still regress the file, and the cheapest remedy is
+  usually to make the new claim tighter rather than to rework code nobody asked
+  about.
 
 - **A property can hold the boundary still and still be unable to reach it.**
   2026-11-10. The stamp's read-back contract is "a written fingerprint admits

@@ -361,15 +361,18 @@ fn run_bounded_returns_when_a_successful_child_leaves_a_pipe_holding_descendant(
         "the direct child's status must survive: {:?}",
         output.status
     );
-    assert!(
-        String::from_utf8_lossy(&output.stdout).contains("finished"),
-        "output written before the exit must be captured: {:?}",
-        String::from_utf8_lossy(&output.stdout)
+    // Both pipes are drained by the same collection, so "the child's output
+    // survived" is one claim about it rather than two: a drain that gave up on
+    // either stream at the exit would lose that stream's text. The message
+    // prints both so a failure still says which one went missing.
+    let captured = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
     );
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("err"),
-        "stderr written before the exit must be captured: {:?}",
-        String::from_utf8_lossy(&output.stderr)
+        captured.contains("finished") && captured.contains("err"),
+        "output written before the exit must be captured: {captured:?}"
     );
     assert!(
         elapsed < Duration::from_secs(20),
