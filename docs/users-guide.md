@@ -2766,12 +2766,13 @@ feature-gated.
 
 Construct the child environment with `build_child_env`, which captures the
 current environment, removes the outer build and coverage variables, and
-resolves the child's target directory to an absolute path, using the fallback
-you supply when the parent names none. `env_from_vars` builds the same
-environment from an explicit variable snapshot, which is intended for tests
-that check the filtering rules without mutating the process environment. Then
-run the command through `run_bounded`, which applies a 300 s default bound, or
-`run_bounded_with_timeout` to size the bound yourself:
+resolves the child's target directory to an absolute path, using the
+caller-supplied fallback when the parent names none. `env_from_vars` builds
+the same environment from an explicit variable snapshot, which is intended for
+tests that check the filtering rules without mutating the process
+environment. Then run the command through `run_bounded`, which applies a
+300 s default bound, or `run_bounded_with_timeout` to size the bound
+yourself:
 
 ```rust,no_run
 use std::path::Path;

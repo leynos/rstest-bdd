@@ -825,17 +825,18 @@ rather than by reading this branch's comments.
       4. **Deferred, with evidence, the process-tree finding on
          `bounded.rs:83`.** `child.kill()` leaves a `rustc` that `cargo`
          started running, and that orphan can hold the build-directory lock.
-         The finding is correct and its proposed fix is implementable — I had
-         nearly deferred it on a false premise, that `unsafe_code = "deny"`
-         blocks `process_group`, when `CommandExt::process_group` is a safe
-         API. What makes it a follow-up is scope and risk: it is a behavioural
-         change to the timeout path, outside issue 910; it needs a Unix path
-         and a Windows job object, and the Windows lanes are the ones that
-         already caught two under-specified predicates on this branch; and the
-         lock-contention premise is unmeasured, which CodeRabbit itself
-         recorded. The existing test proves the *call* returns in bounded time
-         and deliberately does not assert the grandchild is gone. Tracked for a
-         separate issue rather than folded in at the last gate.
+         The finding is correct and its proposed fix is implementable. The
+         initial deferral rested on a false premise: that
+         `unsafe_code = "deny"` blocks `process_group`, when
+         `CommandExt::process_group` is a safe API. What makes it a follow-up
+         is scope and risk: it is a behavioural change to the timeout path,
+         outside issue 910; it needs a Unix path and a Windows job object, and
+         the Windows lanes are the ones that already caught two
+         under-specified predicates on this branch; and the lock-contention
+         premise is unmeasured, which CodeRabbit itself recorded. The existing
+         test proves the *call* returns in bounded time and deliberately does
+         not assert the grandchild is gone. Tracked for a separate issue rather
+         than folded in at the last gate.
 - [x] Answer the review of `6905d6c3`: three inline findings and six pre-merge
       rows. Committed as `ac22bd22`, pushed, and every finding disposed with a
       reply: three inline threads, and a top-level reconciliation naming each
@@ -1051,6 +1052,25 @@ rather than by reading this branch's comments.
       the description types, the constants and the re-exports behind. The file
       went from 446 lines to 265; `lifecycle.rs` is 232. `fingerprint_props.rs`
       is a separate test module for the same reason.
+
+- [x] Replace a test that could not fail, after review found the coverage
+      claim false. `a_stamp_reads_back_whether_or_not_the_fingerprint_ends_its_own_break`
+      hand-built a bare stamp and offered it to the break-terminated text
+      `compose` had produced. `parse` removes the *expectation's* own break, so
+      the comparison took the ordinary path and the bare case was never
+      reached: deleting the `render` newline guard left the test green.
+      `Fingerprint`'s field is private to the stamp module, so that module
+      cannot spell a bare expectation at all. The bare case moved to
+      `stamp::tests`, where `fingerprint_of` builds one directly, and the
+      remaining test here was narrowed to the claim it can actually make.
+      Verified by mutation: removing the guard fails the new test with
+      `"inputs: h@@ recorded-artefacts\n…"`. Committed as `a2be2d35`.
+
+- [x] Answer the two documentation findings on the same round: a first-person
+      clause in this plan and a second-person clause in the users guide
+      (`build_child_env`'s fallback paragraph, line 2770). Both rewritten in
+      the impersonal voice and rewrapped to the 80-column limit;
+      `make markdownlint` reported 127 files and 0 errors afterwards.
 
 ## Surprises & Discoveries
 
