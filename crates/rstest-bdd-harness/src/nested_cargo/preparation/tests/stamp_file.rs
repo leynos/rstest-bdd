@@ -85,39 +85,34 @@ fn a_stamp_admits_a_fingerprint_that_spells_the_separator() {
 }
 
 #[test]
-fn a_stamp_reads_back_whether_or_not_the_fingerprint_ends_its_own_break() {
-    // `compose` ends every field with a newline, so the terminating-break form
-    // is the ordinary one and `render` relies on it. The other form is
-    // defensive: `strip_line_break` falls back to the text unchanged when
-    // there is no break to remove, and `render` supplies the separating newline
-    // either way, so a fingerprint that does not end its own line must still
-    // read back. Both sides of this pair must hold, because requiring the break
-    // unconditionally and making it optional are each wrong in one direction.
+fn a_composed_fingerprint_ends_its_own_break_and_reads_back() {
+    // `compose` writes every field with `writeln!`, so the text it produces
+    // always ends in `\n`, and that is the only form `render` ever receives in
+    // production: `compose` and `fingerprint_with` are its only callers.
+    //
+    // The complementary case — a fingerprint that does *not* terminate its own
+    // break — cannot be stated here. `Fingerprint`'s field is private to the
+    // stamp module, so this module cannot spell one, and offering a bare
+    // *stamp* to a break-terminated expectation proves nothing: the
+    // expectation's own `\n` is exactly the character `strip_line_break`
+    // removes, so such a comparison is the ordinary case and passes even when
+    // the fallback is broken. `a_fingerprint_without_a_terminating_break_reads_back`
+    // in `stamp::tests` covers it, where `fingerprint_of` can build one.
     let target = std::env::temp_dir().join("target");
     let environment = environment_in(&target);
     let preparation = preparation(&target, &environment, "v", "hash");
-    let toolchain = "release: 1.88.0 host: x";
-    let terminated = compose(&preparation, toolchain);
+    let fingerprint = compose(&preparation, "release: 1.88.0 host: x");
     assert!(
-        terminated.as_str().ends_with('\n'),
+        fingerprint.as_str().ends_with('\n'),
         "compose is expected to end the fingerprint with a break: {:?}",
-        terminated.as_str()
+        fingerprint.as_str()
     );
 
-    let written = render(&terminated, &[]);
+    let written = render(&fingerprint, &[]);
     assert!(
-        parse(written.as_str(), &terminated).is_some(),
+        parse(written.as_str(), &fingerprint).is_some(),
         "a fingerprint ending its own break must read back: {:?}",
         written.as_str()
-    );
-
-    // The same fingerprint with the break removed, rendered by hand, because
-    // `render` is the only writer and it always emits a break-terminated text.
-    let bare = terminated.as_str().trim_end_matches('\n');
-    let handwritten = format!("{bare}\n@@ recorded-artefacts\n");
-    assert!(
-        parse(&handwritten, &terminated).is_some(),
-        "a fingerprint with no terminating break must still read back: {handwritten:?}"
     );
 }
 

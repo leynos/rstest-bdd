@@ -27,6 +27,41 @@ fn a_rendered_stamp_parses_back_to_what_was_written() {
     );
 }
 
+/// A fingerprint that does not terminate its own break still reads back.
+///
+/// `compose` always ends its text with `\n`, so in production every
+/// `Fingerprint` is break-terminated and this case does not arise through the
+/// caller path. It is reachable from the parser's own contract, though:
+/// [`render`] supplies the separating newline when the text lacks one, and
+/// [`super::strip_line_break`] falls back to the text unchanged when there is
+/// no break to remove. That fallback is what makes the pair total, and this is
+/// the only module that can test it — `fingerprint_of` builds the text
+/// directly, whereas the sibling module's helpers go through `compose`.
+///
+/// Both sides have to be bare for the test to mean anything. A bare stamp
+/// offered to a break-terminated expectation matches via the ordinary path,
+/// because the expectation's own `\n` is the character `strip_line_break`
+/// removes, so that comparison cannot fail however the fallback behaves.
+#[test]
+fn a_fingerprint_without_a_terminating_break_reads_back() {
+    let fingerprint = fingerprint_of("inputs: h");
+
+    let text = render(&fingerprint, &[vec!["liba.rlib".to_owned()]]);
+    assert!(
+        text.as_str()
+            .starts_with("inputs: h\n@@ recorded-artefacts\n"),
+        "render must supply the separating break itself: {:?}",
+        text.as_str()
+    );
+    let stamp = parse(text.as_str(), &fingerprint).expect("a bare fingerprint must read back");
+
+    assert_eq!(
+        stamp.recorded,
+        vec![vec!["liba.rlib".to_owned()]],
+        "the fallback must not cost the recorded names"
+    );
+}
+
 /// A different fingerprint does not match, even with the same names.
 #[test]
 fn a_changed_fingerprint_is_not_a_match() {
