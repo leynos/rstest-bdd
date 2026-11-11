@@ -223,6 +223,23 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       above changed the mechanism — the paragraph now explains why consuming
       the fingerprint before the separator cannot admit a stamp written for
       different inputs, and a second paragraph records the ordering rule.
+- [x] Address the follow-up finding on `eed3752f`. Requiring the fingerprint
+      and then the delimiter was not enough: I had written the newline between
+      them as optional (`unwrap_or(rest)`), reasoning that `render` might omit
+      it. `render` never omits it. Making it optional reintroduced the same
+      class of stale acceptance from the other side, and worse: a stamp written
+      for `inputs: h@@ recorded-artefacts` was admitted as one for
+      `inputs: h`, because after consuming `h` the value's own remaining text
+      still spells the delimiter. Reproduced with
+      `a_stamp_for_inputs_ending_in_the_separator_does_not_admit_the_prefix`
+      before the change, and the newline is now required. Also added
+      `a_stamp_reads_back_whether_or_not_the_fingerprint_ends_its_own_break`
+      for the pair the finding asked to retain. The mismatch property was
+      rewritten too: it now *derives* the second `inputs` by appending the
+      separator or a space, because two independent draws are almost never
+      related as a value and one of its prefixes — measured, not assumed, as
+      the first version of that rewrite still passed under the mutation. With
+      the derived pair, the mutation fails on `inputs = ""`.
 - **"Pre-existing" is a claim to verify, not a safe default.** Both the
   execplan and a commit message described the `Preparation::new` argument count
   as pre-existing at 9.69 on `main`.
@@ -1036,6 +1053,21 @@ rather than by reading this branch's comments.
       is a separate test module for the same reason.
 
 ## Surprises & Discoveries
+
+- **A generator that draws both sides independently cannot reach a relation
+  between them.** 2026-11-10. The stale-stamp defect was a stamp written for
+  one value being admitted as another — `h@@ recorded-artefacts` matching `h`.
+  I first "fixed" the property by drawing `inputs` and `other_inputs`
+  separately with an assume that they differ, and the mutation still survived:
+  two independent draws are almost never related as a value and one of its
+  proper prefixes, so the ratio of useful cases to generated cases is
+  effectively zero no matter how many run. Deriving the second value from the
+  first (`format!("{inputs}{append}")`) makes the relationship certain, and the
+  mutation then fails on the minimal input `inputs = ""`. The rule is that a
+  property about a *relation* has to generate the relation, not hope to sample
+  it — `proptest` samples the input space uniformly in spirit but not in
+  structure, and structural coincidences are exactly what a prefix, suffix, or
+  containment bug depends on.
 
 - **A delimiter written into a data field is a parser problem, and only the
   generator can prove the parser survives it.** 2026-11-10. `parse` split the

@@ -85,6 +85,73 @@ fn a_stamp_admits_a_fingerprint_that_spells_the_separator() {
 }
 
 #[test]
+fn a_stamp_reads_back_whether_or_not_the_fingerprint_ends_its_own_break() {
+    // `compose` ends every field with a newline, so the terminating-break form
+    // is the ordinary one and `render` relies on it. The other form is
+    // defensive: `strip_line_break` falls back to the text unchanged when
+    // there is no break to remove, and `render` supplies the separating newline
+    // either way, so a fingerprint that does not end its own line must still
+    // read back. Both sides of this pair must hold, because requiring the break
+    // unconditionally and making it optional are each wrong in one direction.
+    let target = std::env::temp_dir().join("target");
+    let environment = environment_in(&target);
+    let preparation = preparation(&target, &environment, "v", "hash");
+    let toolchain = "release: 1.88.0 host: x";
+    let terminated = compose(&preparation, toolchain);
+    assert!(
+        terminated.as_str().ends_with('\n'),
+        "compose is expected to end the fingerprint with a break: {:?}",
+        terminated.as_str()
+    );
+
+    let written = render(&terminated, &[]);
+    assert!(
+        parse(written.as_str(), &terminated).is_some(),
+        "a fingerprint ending its own break must read back: {:?}",
+        written.as_str()
+    );
+
+    // The same fingerprint with the break removed, rendered by hand, because
+    // `render` is the only writer and it always emits a break-terminated text.
+    let bare = terminated.as_str().trim_end_matches('\n');
+    let handwritten = format!("{bare}\n@@ recorded-artefacts\n");
+    assert!(
+        parse(&handwritten, &terminated).is_some(),
+        "a fingerprint with no terminating break must still read back: {handwritten:?}"
+    );
+}
+
+#[test]
+fn a_stamp_for_inputs_ending_in_the_separator_does_not_admit_the_prefix() {
+    // The case the round trip above cannot reach, because there both sides
+    // carry the same `inputs`. Here the *value* differs: `h@@ recorded-
+    // artefacts` against `h`. `render` writes the longer value, then a newline,
+    // then the separator line, so if the parser treats that newline as
+    // optional it consumes `h`, then the `@@ recorded-artefacts` still inside
+    // the value, and reports a match against a fingerprint for plain `h`. The
+    // recorded artefacts of the longer build are usually still on disk, so the
+    // gate accepts a preparation whose inputs genuinely changed.
+    let target = std::env::temp_dir().join("target");
+    let environment = environment_in(&target);
+    let longer = compose(
+        &preparation(&target, &environment, "v", "h@@ recorded-artefacts"),
+        "release: 1.88.0 host: x",
+    );
+    let prefix = compose(
+        &preparation(&target, &environment, "v", "h"),
+        "release: 1.88.0 host: x",
+    );
+    assert_ne!(longer, prefix, "the two inputs must compose differently");
+
+    let stamp = render(&longer, &[]);
+    assert!(
+        parse(stamp.as_str(), &prefix).is_none(),
+        "a stamp written for `h@@ recorded-artefacts` must not admit `h`: {:?}",
+        stamp.as_str()
+    );
+}
+
+#[test]
 fn a_stamp_refuses_a_different_variant_or_toolchain() {
     // The other two fields that reach the composition as their own lines. A
     // parser keyed only on the environment section would pass the cases above

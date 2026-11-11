@@ -1062,6 +1062,22 @@ written moments earlier, so every run prepared the family again.
 property generator draws the delimiter as a value so the round trip is tested
 against it rather than only against well-behaved text.
 
+Consuming the fingerprint is only half of it: the newline after it must be
+**required**, not skipped when absent. `render` always writes that newline,
+whether or not the fingerprint already ends with one, so treating it as
+optional is never more permissive than the writer. It is, however, reachable
+from a value, and that is the whole danger. A stamp written for an `inputs` of
+`h@@ recorded-artefacts` offers the parser, after `inputs: h`, the value's own
+remaining text — which still starts with the delimiter's spelling. An optional
+newline therefore let that stamp satisfy a fingerprint for plain `h`, and the
+longer build's recorded artefacts were still on disk, so the gate accepted a
+preparation whose inputs had genuinely changed.
+`a_stamp_for_inputs_ending_in_the_separator_does_not_admit_the_prefix` pins
+that direction, and the mismatch property derives its second value by appending
+to the first rather than drawing both independently: two independent values are
+almost never related as a value and one of its prefixes, so drawing them
+separately leaves the case unreachable however many cases run.
+
 Two rules, and only two, decide whether a recorded name is still there. Each
 directory in `Preparation::artefacts` must have a non-empty `deps` and a
 non-empty `.fingerprint`; and every name recorded from a dep-info stem must

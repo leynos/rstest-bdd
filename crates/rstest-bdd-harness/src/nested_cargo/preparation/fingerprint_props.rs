@@ -221,23 +221,55 @@ proptest! {
     /// lenient: a *different* fingerprint must not be admitted by the stamp
     /// written for this one. Together the two properties say the gate compares
     /// the texts `compose` produced, not some normalization of them.
+    ///
+    /// The two sides differ in `inputs` rather than in an environment variable
+    /// on purpose. `inputs` is the *last* field `compose` writes, so it is the
+    /// only one whose trailing characters sit against the separator: a parser
+    /// that made the newline before the separator optional accepted a stamp
+    /// written for `h@@ recorded-artefacts` as one for `h`. Varying an
+    /// environment variable hides that, because the field under test is then
+    /// followed by `variant:` and `inputs:` rather than by the delimiter.
+    ///
+    /// The second value is *derived* from the first rather than drawn beside
+    /// it. Two independent draws are almost never related as a value and one
+    /// of its proper prefixes, so an independently drawn pair cannot reach the
+    /// case at all — measured, not assumed: with both drawn, this property
+    /// still passed under the optional-newline mutation. Appending to a drawn
+    /// value makes the relationship certain, and the two alternatives below
+    /// cover both ways the last field can run into the delimiter.
     #[test]
     fn a_written_fingerprint_rejects_a_different_one(
         name in fingerprint_name(),
-        left in fingerprint_value(),
-        right in fingerprint_value(),
+        value in fingerprint_value(),
+        inputs in fingerprint_value(),
         toolchain in fingerprint_value(),
+        append in prop_oneof![
+            Just(String::from(OUTPUTS_SEPARATOR)),
+            Just(String::from(" ")),
+        ],
     ) {
-        prop_assume!(left != right);
-        let first = preparation_over(vec![variable(&name, &left)], "v", "hash");
-        let second = preparation_over(vec![variable(&name, &right)], "v", "hash");
+        let longer = format!("{inputs}{append}");
+        prop_assume!(inputs != longer);
+        // The stamp is written for the *longer* value and offered the shorter
+        // one. Both directions matter, and this is the one that fails: after
+        // consuming `inputs`, only the longer text still has the delimiter's
+        // spelling inside the fingerprint, so an optional newline lets the
+        // longer value's own text supply what the parser is looking for next.
+        let first = preparation_over(vec![variable(&name, &value)], "v", &longer);
+        let second = preparation_over(vec![variable(&name, &value)], "v", &inputs);
         let fingerprint = compose(&first, &toolchain);
         let other = compose(&second, &toolchain);
         prop_assume!(fingerprint != other);
         let written = render(&fingerprint, &[]);
         prop_assert!(
             parse(written.as_str(), &other).is_none(),
-            "a stamp must not admit a different fingerprint: {:?}", written.as_str()
+            "a stamp written for {longer:?} must not admit {inputs:?}: {:?}",
+            written.as_str()
+        );
+        prop_assert!(
+            parse(written.as_str(), &fingerprint).is_some(),
+            "the same stamp must still admit the fingerprint it recorded: {:?}",
+            written.as_str()
         );
     }
 

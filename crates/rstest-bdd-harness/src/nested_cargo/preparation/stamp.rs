@@ -195,15 +195,21 @@ pub(super) fn parse(text: &str, fingerprint: &Fingerprint) -> Option<Stamp> {
     // also why this cannot accept a stamp written for different inputs at all:
     // a mismatch fails at the first `strip_prefix`.
     //
-    // `render` writes `<fingerprint>\n<separator>\n<sections>`. The one
-    // whitespace the two are allowed to lose is the line break terminating the
-    // fingerprint, and a fingerprint that ends its own break is accepted too,
-    // so the newline is consumed only when it is still there. Trimming all
-    // trailing whitespace instead would make `inputs: h` and `inputs: h `
-    // compare equal, and a stamp written for the shorter value would admit a
-    // build whose inputs genuinely differ.
+    // `render` writes `<fingerprint>\n<separator>\n<sections>` and supplies
+    // that first newline whether or not the fingerprint already ends with one,
+    // so this must *require* it. Treating it as optional is what let a stamp
+    // written for `inputs: h@@ recorded-artefacts` match a fingerprint for
+    // `inputs: h`: the parse consumed `h`, still inside the value, then the
+    // separator text that the value itself contained, and reported a match.
+    // The recorded artefacts of the longer build are ordinarily still on disk,
+    // so the gate accepted a preparation whose inputs had genuinely changed.
+    //
+    // The one whitespace the two are allowed to lose is the line break
+    // terminating the fingerprint, which `strip_line_break` removes. Trimming
+    // all trailing whitespace instead would make `inputs: h` and `inputs: h `
+    // compare equal, the same stale acceptance one character over.
     let rest = text.strip_prefix(strip_line_break(fingerprint.as_str()))?;
-    let rest = rest.strip_prefix('\n').unwrap_or(rest);
+    let rest = rest.strip_prefix('\n')?;
     let tail = rest.strip_prefix(OUTPUTS_SEPARATOR)?;
     Some(Stamp {
         recorded: recorded_sections(tail),
