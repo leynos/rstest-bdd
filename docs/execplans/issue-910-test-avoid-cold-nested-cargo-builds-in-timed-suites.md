@@ -1074,6 +1074,20 @@ rather than by reading this branch's comments.
 
 ## Surprises & Discoveries
 
+- **`markdownlint`'s MD013 is not `mdtablefix`'s wrapper, and only the hosted
+  gate catches the difference.** 2026-11-11. Rewrapping a paragraph by hand to
+  80 columns satisfied `make markdownlint` with 0 errors and looked correct, but
+  `4870b2c4` failed the hosted `build-test (linux, default features)` lane at
+  "Check formatting" — a step this branch had passed on every earlier head. The
+  local `make fmt` had run `mdtablefix --in-place` and rewritten the paragraph
+  afterwards, so the working tree never held the hand-wrapped form while a gate
+  was reading it. `mdtablefix` fills each line greedily to the limit rather
+  than honouring sentence boundaries, so a hand wrap can be 80 columns and
+  still wrong: the difference was `builds` belonging one line earlier. The
+  lesson is ordering, not content. `make fmt` before `make check-fmt` is the
+  required sequence, and after any hand edit to Markdown prose the fixer has to
+  run again before the checker means anything.
+
 - **A generator that draws both sides independently cannot reach a relation
   between them.** 2026-11-10. The stale-stamp defect was a stamp written for
   one value being admitted as another — `h@@ recorded-artefacts` matching `h`.
