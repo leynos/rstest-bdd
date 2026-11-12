@@ -167,8 +167,10 @@ fn build_placeholder_mismatch_diagnostic(
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: format!(
-            "Placeholder count mismatch: pattern has {} placeholder occurrence(s) but function \
-             has {} step argument(s) - #[{}(\"{}\")]",
+            concat!(
+                "Placeholder count mismatch: pattern has {} placeholder occurrence(s) but function ",
+                "has {} step argument(s) - #[{}(\"{}\")]",
+            ),
             placeholder_count,
             step_arg_count,
             step_type_to_attribute(step_def.keyword),

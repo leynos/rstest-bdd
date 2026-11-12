@@ -147,8 +147,7 @@ pub fn documented_example(id: &str) -> Result<DocumentedExample> {
         .into_iter()
         .find(|example| example.id.as_str() == id)
         .wrap_err_with(|| {
-            "no tested-example marker named `{id}` is loaded; the enforced documents may not yet \
-             carry it"
+            "no tested-example marker named `{id}` is loaded; the enforced documents may not yet carry it"
         })
 }
 

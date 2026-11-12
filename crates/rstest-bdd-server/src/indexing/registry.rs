@@ -59,8 +59,7 @@ pub struct CompiledStepDefinition {
 /// Error raised when a step pattern cannot be compiled.
 #[derive(Debug, thiserror::Error)]
 #[error(
-    "failed to compile step pattern '{pattern}' for {keyword:?} step '{function}' in {path}: \
-     {source}"
+    "failed to compile step pattern '{pattern}' for {keyword:?} step '{function}' in {path}: {source}"
 )]
 pub struct StepPatternCompileError {
     /// Absolute path to the Rust source file containing the step.

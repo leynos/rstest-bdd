@@ -271,8 +271,7 @@ fn validate_registry_state(
                 emit_warning(
                     proc_macro2::Span::call_site(),
                     format!(
-                        "step registry has no definitions for crate ID '{crate_id_str}'. This may \
-                         indicate a registry issue."
+                        "step registry has no definitions for crate ID '{crate_id_str}'. This may indicate a registry issue."
                     ),
                     None,
                 );

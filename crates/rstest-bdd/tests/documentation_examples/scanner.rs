@@ -88,8 +88,10 @@ fn collect_fenced_example(
 ) -> Result<usize> {
     let (id, _) = pending_marker.take().ok_or_else(|| {
         eyre::eyre!(
-            "unmarked fenced block at line {} in the enforced `{}` region: every fence there \
-             needs a `<!-- tested-example: id -->` marker immediately before it",
+            concat!(
+                "unmarked fenced block at line {} in the enforced `{}` region: every fence there ",
+                "needs a `<!-- tested-example: id -->` marker immediately before it",
+            ),
             idx + 1,
             region.document.as_str(),
         )
