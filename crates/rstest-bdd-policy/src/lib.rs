@@ -113,28 +113,41 @@ pub const GPUI_HARNESS_PATH: &[&str] = &["rstest_bdd_harness_gpui", "GpuiHarness
 /// ```
 pub const HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context";
 
-/// Maps known attribute-policy paths to the test-attribute hints they require.
-const KNOWN_ATTRIBUTE_POLICY_HINTS: [(&[&str], TestAttributeHint); 3] = [
-    (DEFAULT_ATTRIBUTE_POLICY_PATH, TestAttributeHint::RstestOnly),
+/// Harness and policy paths paired with the test attribute they require.
+type FirstPartyAdapterHint = (
+    &'static [&'static str],
+    &'static [&'static str],
+    TestAttributeHint,
+);
+
+/// Single source of truth for first-party harness and attribute-policy hints.
+const FIRST_PARTY_ADAPTER_HINTS: [FirstPartyAdapterHint; 3] = [
     (
+        STD_HARNESS_PATH,
+        DEFAULT_ATTRIBUTE_POLICY_PATH,
+        TestAttributeHint::RstestOnly,
+    ),
+    (
+        TOKIO_HARNESS_PATH,
         TOKIO_ATTRIBUTE_POLICY_PATH,
         TestAttributeHint::RstestWithTokioCurrentThread,
     ),
     (
+        GPUI_HARNESS_PATH,
         GPUI_ATTRIBUTE_POLICY_PATH,
         TestAttributeHint::RstestWithGpuiTest,
     ),
 ];
 
-/// Maps known harness paths to the test-attribute hints they require.
-const KNOWN_HARNESS_HINTS: [(&[&str], TestAttributeHint); 3] = [
-    (STD_HARNESS_PATH, TestAttributeHint::RstestOnly),
-    (
-        TOKIO_HARNESS_PATH,
-        TestAttributeHint::RstestWithTokioCurrentThread,
-    ),
-    (GPUI_HARNESS_PATH, TestAttributeHint::RstestWithGpuiTest),
-];
+/// Resolves a path using one column from the first-party adapter hint table.
+fn resolve_test_attribute_hint(
+    path_segments: &[&str],
+    select_path: impl Fn(&FirstPartyAdapterHint) -> &[&str],
+) -> Option<TestAttributeHint> {
+    FIRST_PARTY_ADAPTER_HINTS
+        .iter()
+        .find_map(|entry| (path_segments == select_path(entry)).then_some(entry.2))
+}
 
 /// Resolves a canonical attribute policy path into a test-attribute hint.
 ///
@@ -161,9 +174,7 @@ const KNOWN_HARNESS_HINTS: [(&[&str], TestAttributeHint); 3] = [
 pub fn resolve_test_attribute_hint_for_policy_path(
     path_segments: &[&str],
 ) -> Option<TestAttributeHint> {
-    KNOWN_ATTRIBUTE_POLICY_HINTS
-        .iter()
-        .find_map(|(known_path, hint)| (path_segments == *known_path).then_some(*hint))
+    resolve_test_attribute_hint(path_segments, |(_, policy_path, _)| policy_path)
 }
 
 /// Resolves a canonical harness path into a test-attribute hint.
@@ -190,9 +201,7 @@ pub fn resolve_test_attribute_hint_for_policy_path(
 pub fn resolve_test_attribute_hint_for_harness_path(
     path_segments: &[&str],
 ) -> Option<TestAttributeHint> {
-    KNOWN_HARNESS_HINTS
-        .iter()
-        .find_map(|(known_path, hint)| (path_segments == *known_path).then_some(*hint))
+    resolve_test_attribute_hint(path_segments, |(harness_path, ..)| harness_path)
 }
 
 #[cfg(test)]
@@ -286,19 +295,5 @@ mod tests {
     #[case(&["rstest_bdd_harness_tokio", "TokioHarness", "Extra"], None)]
     fn resolves_harness_paths(#[case] path: &[&str], #[case] expected: Option<TestAttributeHint>) {
         assert_eq!(resolve_test_attribute_hint_for_harness_path(path), expected);
-    }
-
-    #[rstest]
-    #[case(DEFAULT_ATTRIBUTE_POLICY_PATH, STD_HARNESS_PATH)]
-    #[case(TOKIO_ATTRIBUTE_POLICY_PATH, TOKIO_HARNESS_PATH)]
-    #[case(GPUI_ATTRIBUTE_POLICY_PATH, GPUI_HARNESS_PATH)]
-    fn first_party_harness_paths_match_their_attribute_policy_hints(
-        #[case] policy_path: &[&str],
-        #[case] harness_path: &[&str],
-    ) {
-        assert_eq!(
-            resolve_test_attribute_hint_for_harness_path(harness_path),
-            resolve_test_attribute_hint_for_policy_path(policy_path)
-        );
     }
 }
