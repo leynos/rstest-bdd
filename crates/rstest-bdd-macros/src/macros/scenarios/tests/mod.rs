@@ -37,9 +37,3 @@ mod symlink_discovery {
         assert_eq!(files, expected);
     }
 }
-
-#[cfg(not(unix))]
-#[test]
-fn collects_symlinked_feature_files_without_following_directory_loops() {
-    assert!(cfg!(not(unix)));
-}
