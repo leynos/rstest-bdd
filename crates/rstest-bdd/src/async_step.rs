@@ -43,8 +43,7 @@ use crate::{StepContext, StepFn, StepFuture};
 /// ```
 #[expect(
     clippy::type_complexity,
-    reason = "currying captures StepFn, so this helper cannot return the AsyncStepFn fn-pointer \
-              alias"
+    reason = "currying captures StepFn, so this helper cannot return the AsyncStepFn fn-pointer alias"
 )]
 pub fn sync_to_async(
     sync_fn: StepFn,

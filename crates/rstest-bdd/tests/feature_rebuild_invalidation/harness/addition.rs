@@ -198,8 +198,10 @@ fn added_file_path() -> std::path::PathBuf {
 /// filesystem timestamp is never ambiguous.
 fn add_new_feature_file() -> Result<(), String> {
     let path = added_file_path();
-    let content = "Feature: The added feature\n\n  Scenario: The added scenario\n    Given a \
-                   directory-bound step\n";
+    let content = concat!(
+        "Feature: The added feature\n\n  Scenario: The added scenario\n    Given a ",
+        "directory-bound step\n",
+    );
     std::fs::write(&path, content)
         .map_err(|err| format!("cannot write {}: {err}", path.display()))?;
     // On Windows, drop the write handle before reopening to set the time.

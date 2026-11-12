@@ -168,8 +168,10 @@ fn an_inherited_target_takes_precedence_over_the_workspace_fallback() -> Result<
 
     assert!(
         names_same_directory(&resolved, &caller_target),
-        "a caller-supplied `CARGO_TARGET_DIR` must take precedence over the workspace fallback \
-         `{}`; cargo resolved `{}`",
+        concat!(
+            "a caller-supplied `CARGO_TARGET_DIR` must take precedence over the workspace fallback ",
+            "`{}`; cargo resolved `{}`",
+        ),
         workspace_target().display(),
         resolved.display()
     );
@@ -203,8 +205,10 @@ fn an_inherited_target_reaches_the_cli_process_that_runs_the_nested_build() -> R
     assert_eq!(
         applied.as_deref(),
         Some(caller_target.as_os_str()),
-        "the `cargo-bdd` process must be started with the caller's `CARGO_TARGET_DIR`, so its \
-         nested build inherits that directory rather than the workspace fallback `{}`",
+        concat!(
+            "the `cargo-bdd` process must be started with the caller's `CARGO_TARGET_DIR`, so its ",
+            "nested build inherits that directory rather than the workspace fallback `{}`",
+        ),
         workspace_target().display()
     );
     Ok(())
@@ -240,13 +244,14 @@ fn an_absent_target_falls_back_to_the_workspace_target() -> Result<()> {
     );
     assert!(
         !output.stdout.is_empty(),
-        "a successful run must report steps, which requires the nested build to have produced the \
-         fixture's test binaries"
+        concat!(
+            "a successful run must report steps, which requires the nested build to have produced the ",
+            "fixture's test binaries",
+        )
     );
     assert!(
         !fixture_target.exists(),
-        "the nested build must not write to the fixture's own `{}`; that is the directory an \
-         absent `CARGO_TARGET_DIR` selects without the workspace fallback. stderr was: {stderr}",
+        "the nested build must not write to the fixture's own `{}`; that is the directory an absent `CARGO_TARGET_DIR` selects without the workspace fallback. stderr was: {stderr}",
         fixture_target.display()
     );
     Ok(())

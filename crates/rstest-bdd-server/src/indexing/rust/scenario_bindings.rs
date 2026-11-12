@@ -111,8 +111,10 @@ impl Parse for BindingArgument {
             }
             _ => Err(syn::Error::new(
                 name.span(),
-                "unknown scenario-binding argument; expected `path`, `dir`, `libraries`, \
-                 `fixtures`, `index`, `name`, `tags`, `runtime`, `harness`, or `attributes`",
+                concat!(
+                    "unknown scenario-binding argument; expected `path`, `dir`, `libraries`, ",
+                    "`fixtures`, `index`, `name`, `tags`, `runtime`, `harness`, or `attributes`",
+                ),
             )),
         }
     }

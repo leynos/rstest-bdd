@@ -105,8 +105,10 @@ fn every_status_records_the_supplied_location(
     assert_ne!(
         record.source().map(SourceLocation::path),
         Some(DECOY_PATH),
-        "the error's feature_path must not be the source; reading it back is the shortcut INV-7 \
-         forbids",
+        concat!(
+            "the error's feature_path must not be the source; reading it back is the shortcut INV-7 ",
+            "forbids",
+        ),
     );
 }
 
@@ -181,8 +183,10 @@ fn a_runtime_built_source_round_trips_through_the_outcome() {
     assert_eq!(
         record.value_insertion(),
         Some(ValueFate::NoMatch),
-        "the control: the record is otherwise ordinary, so the assertions above are about the \
-         source rather than about a record that lost everything",
+        concat!(
+            "the control: the record is otherwise ordinary, so the assertions above are about the ",
+            "source rather than about a record that lost everything",
+        ),
     );
 }
 
@@ -341,13 +345,17 @@ fn a_failure_with_no_step_has_no_terminal_source() {
     );
     assert!(
         phantom.terminal_source().is_none(),
-        "an index past the end of the step list is not a location; the accessor must not index \
-         into the list with it",
+        concat!(
+            "an index past the end of the step list is not a location; the accessor must not index ",
+            "into the list with it",
+        ),
     );
     assert_eq!(
         phantom.failure().map(ScenarioFailure::site),
         Some(FailureSite::Step(3)),
-        "the control: the failure is still reported with its site, so the `None` above is about \
-         the source lookup rather than about a lost failure",
+        concat!(
+            "the control: the failure is still reported with its site, so the `None` above is about ",
+            "the source lookup rather than about a lost failure",
+        ),
     );
 }

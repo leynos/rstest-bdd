@@ -297,9 +297,7 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
     let global_timeout = default_global_timeout(&configuration)?;
     assert!(
         duration_seconds(global_timeout)? > duration_seconds(period)?,
-        "the default profile's global timeout ({global_timeout}) must exceed the trybuild slow \
-         timeout ({period}); otherwise nextest kills the run before the test the budget exists \
-         for can finish, and raising the budget alone rescues nothing",
+        "the default profile's global timeout ({global_timeout}) must exceed the trybuild slow timeout ({period}); otherwise nextest kills the run before the test the budget exists for can finish, and raising the budget alone rescues nothing",
     );
     Ok(())
 }

@@ -613,6 +613,28 @@ Hard invariants. Violation requires escalation, not a workaround.
       describes the settings the handlers receive and forward, and ADR-013's
       status section marks the 2026-07-20 invocation as historical.
 
+- [x] (2026-11-08) The required Linux check on `74f066af` failed in the `Lint`
+      step, not in this branch's code: naming the aggregated suite now selects
+      the rolling suite's `string_continuation_style` lint, and 162 string
+      literals across 81 files used the backslash continuation it rejects. The
+      fix is adoption, not suppression. The continued literals now either use
+      `concat!` with one argument per line or stay on a single source line, the
+      latter where a macro attribute accepts only a literal or an implicitly
+      captured format argument would not resolve through `concat!`.
+      `.rustfmt.toml` no longer sets `format_strings`, because that option
+      rewrapped long literals with the same continuation, including inside
+      `concat!` arguments, so the formatter manufactured what the lint
+      rejects. `make lint-whitaker` now exits 0 locally. Recorded in a second
+      ADR-013 addendum and in the developers' guide.
+
+- [x] (2026-11-12) Rebased onto `origin/main` at `009012b2`, which carries
+      #938's repin of `install-whitaker` to the `0.2.12` installer. That
+      installer prunes by staged file name, so the duplicate-specification
+      failure recorded above no longer occurs in CI. The rebase took main's
+      workflow files without conflict, because the branch touches none of
+      them. The named-suite invocation is kept, and ADR-013's addendum now
+      records why it is a design choice rather than only a workaround.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -931,8 +953,7 @@ doc-test, no-default-features and `scripts/tests` legs all passed in one run at
 the tree published as `74f066af`, with `step_macros_compile` and the
 feature-rebuild test completing inside their existing budgets. Nothing was
 raised, ignored or skipped to reach that result. Cold nested compilation and
-child-Cargo network isolation remain tracked separately by issues #910 and
-#911.
+child-Cargo network isolation remain tracked separately by issues #910 and #911.
 
 Validation is therefore complete for the published tree. The remaining step is
 acquiring the required review approval and merging pull request #912, not

@@ -173,9 +173,11 @@ fn reject_async_harness(config: &ScenarioConfig<'_>) -> Option<TokenStream2> {
 
     let err = syn::Error::new(
         proc_macro2::Span::call_site(),
-        "combining `harness` with `async fn` scenarios is not supported; use a synchronous \
-         scenario function with `TokioHarness` instead (the harness provides the Tokio runtime \
-         for step functions)",
+        concat!(
+            "combining `harness` with `async fn` scenarios is not supported; use a synchronous ",
+            "scenario function with `TokioHarness` instead (the harness provides the Tokio runtime ",
+            "for step functions)",
+        ),
     );
     Some(err.into_compile_error())
 }

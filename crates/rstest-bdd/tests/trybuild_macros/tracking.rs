@@ -55,9 +55,7 @@ pub(crate) fn assert_trybuild_tracking_registered_in_dep_info(run_started: Syste
     );
     assert!(
         listed > 0,
-        "no trybuild dep-info below {target_directory} written during this run lists the staged \
-         `{needle}`; the macro-emitted tracking binding is not reaching dep-info, or the fixture \
-         that registers it was not recompiled"
+        "no trybuild dep-info below {target_directory} written during this run lists the staged `{needle}`; the macro-emitted tracking binding is not reaching dep-info, or the fixture that registers it was not recompiled"
     );
 }
 
@@ -276,8 +274,7 @@ mod tests {
 
         assert_eq!(
             listed, 0,
-            "an earlier run's dep-info must not satisfy the assertion merely because its content \
-             matches: that is the stale-artefact case the freshness rule exists for"
+            "an earlier run's dep-info must not satisfy the assertion merely because its content matches: that is the stale-artefact case the freshness rule exists for"
         );
     }
 
@@ -322,8 +319,7 @@ mod tests {
         assert_eq!(
             freshness_threshold(now),
             now.checked_sub(DEP_INFO_CLOCK_SLACK).expect("within range"),
-            "the comparison the matcher uses must be the documented one, not merely any value \
-             that happens to classify the files above correctly"
+            "the comparison the matcher uses must be the documented one, not merely any value that happens to classify the files above correctly"
         );
     }
 }

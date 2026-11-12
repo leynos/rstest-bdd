@@ -22,8 +22,10 @@ fn whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures() {
     };
     let clean_manifest = write_whitaker_fixture(
         &temp_dir.join("clean"),
-        "//! Clean Whitaker fixture crate.\npub fn clean_value(value: Option<u32>) -> u32 {\nlet \
-         Some(number) = value else {\npanic!(\"missing value\");\n};\nnumber\n}\n",
+        concat!(
+            "//! Clean Whitaker fixture crate.\npub fn clean_value(value: Option<u32>) -> u32 {\nlet ",
+            "Some(number) = value else {\npanic!(\"missing value\");\n};\nnumber\n}\n",
+        ),
     );
     let rejected_manifest = write_whitaker_fixture(
         &temp_dir.join("rejected"),
@@ -88,8 +90,7 @@ fn write_whitaker_fixture(crate_dir: &Utf8Path, lib_rs: &str) -> Utf8PathBuf {
     if let Err(err) = fs::write(
         manifest_path.as_std_path(),
         format!(
-            "[package]\nname = \"whitaker-rust-fixture-{fixture_name}\"\nversion = \
-             \"0.0.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n"
+            "[package]\nname = \"whitaker-rust-fixture-{fixture_name}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n"
         ),
     ) {
         panic!("failed to write Whitaker fixture manifest: {err}");
