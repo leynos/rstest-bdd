@@ -70,7 +70,7 @@ jobs:
       RUFF_VERSION: '0.16.4'
       SCCACHE_VERSION: '0.12.0'
       TY_VERSION: '0.0.74'
-      WHITAKER_INSTALLER_VERSION: '0.2.11'
+      WHITAKER_INSTALLER_VERSION: '0.2.12'
       # Named vCPU constants for the two deployed runner shapes. Build and
       # test parallelism is derived from these, never from `-j auto`.
       # The recipe's starting shape. The ceiling shape was tried once and
@@ -267,7 +267,7 @@ jobs:
         # Merged shared-actions PR #432: installs the official release
         # archive against a pinned digest manifest, hashing the archive from
         # stdin so Git Bash on Windows cannot mangle the file name.
-        uses: leynos/shared-actions/.github/actions/install-whitaker@5a99aed78ce68dcebd3052b75c31e6f173162b1e
+        uses: leynos/shared-actions/.github/actions/install-whitaker@0eabb6bc07148981de5da395e30cd78d83f5c7c2
         with:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
           cache-provider: external
@@ -429,7 +429,7 @@ jobs:
       RUFF_VERSION: '0.16.4'
       SCCACHE_VERSION: '0.12.0'
       TY_VERSION: '0.0.74'
-      WHITAKER_INSTALLER_VERSION: '0.2.11'
+      WHITAKER_INSTALLER_VERSION: '0.2.12'
       UBICLOUD_LINUX_VCPUS: '2'
       GITHUB_WINDOWS_VCPUS: '4'
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
@@ -666,7 +666,7 @@ jobs:
       RUFF_VERSION: '0.16.4'
       SCCACHE_VERSION: '0.12.0'
       TY_VERSION: '0.0.74'
-      WHITAKER_INSTALLER_VERSION: '0.2.11'
+      WHITAKER_INSTALLER_VERSION: '0.2.12'
       # Named vCPU constants for the two deployed runner shapes. Build and
       # test parallelism is derived from these, never from `-j auto`.
       # The recipe's starting shape. The ceiling shape was tried once and
