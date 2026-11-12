@@ -103,14 +103,31 @@ fn skipped_handler_uses_configured_reasons(#[case] case: ReasonsCase) -> Result<
 /// These cases build a scenario fixture underneath `cargo bdd`, so the shared
 /// compiler wrapper and the nested Cargo add their own progress lines to the
 /// child's stderr. An empty-stream assertion would therefore depend on the
-/// host. Application diagnostics keep stable prefixes, so their absence is the
-/// property these cases can actually pin.
+/// host. Application diagnostics keep stable prefixes at the start of a line,
+/// so their absence is the property these cases can actually pin.
+///
+/// The probe is anchored rather than a substring search: the compiler wrapper
+/// prints `<crate>: waiting for a compile slot`, and a crate named `thiserror`
+/// would otherwise match `error:` and fail a case whose run was healthy.
 fn assert_no_application_diagnostic(stderr: &str) {
+    fn without_cause_index(line: &str) -> &str {
+        let line = line.trim_start();
+        let Some((index, rest)) = line.split_once(": ") else {
+            return line;
+        };
+        if index.chars().all(|digit| digit.is_ascii_digit()) {
+            rest
+        } else {
+            line
+        }
+    }
+
     for marker in ["failed to load configuration", "Error:", "error:"] {
-        assert!(
-            !stderr.contains(marker),
-            "unexpected `{marker}` diagnostic: {stderr}"
-        );
+        let found = stderr
+            .lines()
+            .map(without_cause_index)
+            .any(|line| line.starts_with(marker));
+        assert!(!found, "unexpected `{marker}` diagnostic: {stderr}");
     }
 }
 
