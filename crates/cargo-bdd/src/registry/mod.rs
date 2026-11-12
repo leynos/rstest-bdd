@@ -210,8 +210,7 @@ fn parse_cargo_messages(
                 let _ = child.wait();
                 return Err(eyre!(err)).wrap_err_with(|| {
                     format!(
-                        "failed to parse cargo metadata message for target {target_name} in \
-                         package {package_name}",
+                        "failed to parse cargo metadata message for target {target_name} in package {package_name}",
                     )
                 });
             }

@@ -379,8 +379,7 @@ pub(super) fn async_panic_identity(text: &'static str) -> (String, String) {
     let result = match run_async_catching(text) {
         AsyncRun::Returned(result) => result,
         AsyncRun::Escaped(escaped) => panic!(
-            "execute_step_async must return rather than unwind, including when the panic happens \
-             while the future is built rather than while it is polled; it escaped with {escaped:?}"
+            "execute_step_async must return rather than unwind, including when the panic happens while the future is built rather than while it is polled; it escaped with {escaped:?}"
         ),
     };
 

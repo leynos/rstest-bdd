@@ -165,8 +165,7 @@ fn policy_resolution_is_announced_with_its_inputs() {
     ] {
         assert!(
             found == "true" || found == "false",
-            "the resolution event must record `{field}` as a resolved boolean; it recorded \
-             `{found}`",
+            "the resolution event must record `{field}` as a resolved boolean; it recorded `{found}`",
         );
     }
     // The plan is `allow_skipped(false)` by default, so the effective permission
@@ -178,8 +177,7 @@ fn policy_resolution_is_announced_with_its_inputs() {
         } else {
             "true"
         },
-        "a plan that does not allow skipping takes its permission from `fail_on_skipped` alone \
-         (D10); resolved to allow_skipped={allow_skipped} with fail_on_skipped={fail_on_skipped}",
+        "a plan that does not allow skipping takes its permission from `fail_on_skipped` alone (D10); resolved to allow_skipped={allow_skipped} with fail_on_skipped={fail_on_skipped}",
     );
     assert_eq!(
         forced_failure,
@@ -189,9 +187,8 @@ fn policy_resolution_is_announced_with_its_inputs() {
             "false"
         },
         concat!(
-            "`forced_failure` must be `!allow_skipped && fail_on_skipped` (D10), so it cannot be \
-             true ",
-            "for a run that permits skipping"
+            "`forced_failure` must be `!allow_skipped && fail_on_skipped` (D10), so it cannot be true ",
+            "for a run that permits skipping",
         ),
     );
 }
@@ -303,8 +300,7 @@ fn the_terminal_skip_is_warned_with_its_location() {
     for (field, captured) in &warning.values {
         assert!(
             !captured.contains("instrumentation wanted a skip"),
-            "the skip's own reason text must never reach the log; field `{field}` carried \
-             `{captured}`, and the full capture was {:?}",
+            "the skip's own reason text must never reach the log; field `{field}` carried `{captured}`, and the full capture was {:?}",
             warning.values,
         );
     }

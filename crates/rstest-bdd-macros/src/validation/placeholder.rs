@@ -123,8 +123,7 @@ fn validate_text_placeholders(
             return Err(syn::Error::new(
                 span,
                 format!(
-                    "Placeholder '<{placeholder}>' in {} not found in Examples table. Available \
-                     columns: [{}]",
+                    "Placeholder '<{placeholder}>' in {} not found in Examples table. Available columns: [{}]",
                     context.as_str(),
                     headers.join(", ")
                 ),

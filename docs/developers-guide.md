@@ -3673,6 +3673,24 @@ findings, so exclusions are the only sanctioned escape hatch for
 legitimately-ambient code such as test-support crates and integration test
 crates.
 
+#### String continuation style
+
+The suite enforces `string_continuation_style`, which rejects a string literal
+continued onto the next source line with a trailing backslash. Write such a
+literal as `concat!` arguments, one per source line: the call keeps the joined
+value and gives each line its own literal.
+
+`.rustfmt.toml` deliberately leaves `format_strings` unset. While it was
+enabled, `cargo fmt` rewrapped any literal past the maximum width with that
+same trailing backslash, including inside a `concat!` argument, so the
+formatter produced what the lint rejects.
+
+Two classes stay on one source line. An attribute argument — `#[error("...")]`,
+`#[expect(reason = "...")]` or `#[should_panic(expected = "...")]` — accepts
+only a literal, never a macro call. A literal that relies on implicitly
+captured format arguments also stays whole, because implicit capture reads only
+a literal.
+
 #### Fixture-expansion lint allowance
 
 `crates/rstest-bdd-test-macros` owns the narrow `unused_braces` allowance

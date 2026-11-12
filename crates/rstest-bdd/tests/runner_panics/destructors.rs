@@ -191,8 +191,10 @@ fn run_drop_catching(arrangement: Arrangement) -> Result<ScenarioOutcome, Box<dy
         let seeded = ctx.insert_value(Box::new(PanicOnDrop { panics: true }));
         assert!(
             matches!(seeded, InsertOutcome::Inserted(None)),
-            "the seeded override must be recorded, with nothing displaced yet; a fixture of its \
-             type is registered above, so anything else means the scaffolding is wrong",
+            concat!(
+                "the seeded override must be recorded, with nothing displaced yet; a fixture of its ",
+                "type is registered above, so anything else means the scaffolding is wrong",
+            ),
         );
     }
 
@@ -244,15 +246,16 @@ fn a_panicking_destructor_does_not_escape_run_scenario(
 
     let Ok(outcome) = escaped else {
         panic!(
-            "a step-returned value's destructor panic must reach the caller as an outcome, not an \
-             unwind; it escaped with {escaped:?}",
+            "a step-returned value's destructor panic must reach the caller as an outcome, not an unwind; it escaped with {escaped:?}",
         );
     };
     assert_eq!(
         ARMED_DROPS.with(Cell::get) - before,
         1,
-        "the runner must drop exactly the one armed value this run displaced or refused; a count \
-         of 0 means it retained the value, and 2 means the drop happened twice",
+        concat!(
+            "the runner must drop exactly the one armed value this run displaced or refused; a count ",
+            "of 0 means it retained the value, and 2 means the drop happened twice",
+        ),
     );
     let Some(first) = outcome.steps().first() else {
         panic!("the plan has one invocation, so a record must exist");

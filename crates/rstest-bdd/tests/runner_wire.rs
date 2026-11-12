@@ -313,7 +313,6 @@ fn a_plans_data_table_reaches_the_step_intact() {
     assert_eq!(
         outcome.status(),
         ScenarioStatus::Passed,
-        "the table step resolved and its own cell assertion held; a failed status here means the \
-         step saw a different table than the plan carried: {outcome:?}",
+        "the table step resolved and its own cell assertion held; a failed status here means the step saw a different table than the plan carried: {outcome:?}",
     );
 }

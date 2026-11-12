@@ -139,8 +139,10 @@ fn run_cleanup_catching() -> Result<ScenarioOutcome, Box<dyn std::any::Any + Sen
     }));
     assert!(
         matches!(payload, InsertOutcome::Inserted(None)),
-        "the payload override must be recorded, with nothing displaced yet; its fixture is the \
-         only one of its type, so anything else means the scaffolding is wrong",
+        concat!(
+            "the payload override must be recorded, with nothing displaced yet; its fixture is the ",
+            "only one of its type, so anything else means the scaffolding is wrong",
+        ),
     );
 
     let counter = ctx.insert_value(Box::new(ArmedDrop::<Counter> {
@@ -149,8 +151,10 @@ fn run_cleanup_catching() -> Result<ScenarioOutcome, Box<dyn std::any::Any + Sen
     }));
     assert!(
         matches!(counter, InsertOutcome::Inserted(None)),
-        "the counter override must be recorded too; two overrides of one type cannot both be \
-         live, which is why these are two distinct types rather than two values of one",
+        concat!(
+            "the counter override must be recorded too; two overrides of one type cannot both be ",
+            "live, which is why these are two distinct types rather than two values of one",
+        ),
     );
 
     let plan = ScenarioPlanBuilder::new("Cleanup", "notes/panics.md").build();
@@ -193,22 +197,25 @@ fn cleanup_drops_every_armed_override() {
 
     let Ok(outcome) = escaped else {
         panic!(
-            "run-end cleanup must reach the caller as a returned outcome, not an unwind; it \
-             escaped with {escaped:?}",
+            "run-end cleanup must reach the caller as a returned outcome, not an unwind; it escaped with {escaped:?}",
         );
     };
     let dropped = ARMED_CLEANUP_DROPS.with(Cell::get) - before;
 
     assert!(
         outcome.steps().is_empty(),
-        "the plan has no steps, so no step can have dropped an override; every armed drop counted \
-         below must therefore have come from cleanup",
+        concat!(
+            "the plan has no steps, so no step can have dropped an override; every armed drop counted ",
+            "below must therefore have come from cleanup",
+        ),
     );
     assert_eq!(
         dropped, 2,
-        "cleanup must drop both armed overrides. A count of 1 is the defect this pins: \
-         `HashMap::clear` empties the map before dropping, so the first destructor to panic \
-         unwinds out of the rest and the untouched values are then unreachable and never dropped \
-         again. A count of 0 means cleanup dropped nothing at all.",
+        concat!(
+            "cleanup must drop both armed overrides. A count of 1 is the defect this pins: ",
+            "`HashMap::clear` empties the map before dropping, so the first destructor to panic ",
+            "unwinds out of the rest and the untouched values are then unreachable and never dropped ",
+            "again. A count of 0 means cleanup dropped nothing at all.",
+        ),
     );
 }

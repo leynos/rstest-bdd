@@ -46,8 +46,7 @@ pub enum FixtureBorrowError {
     /// The fixture was inserted by shared reference and cannot be borrowed
     /// mutably; insert it with `insert_owned` to enable mutation.
     #[error(
-        "fixture '{name}' was inserted by shared reference and cannot be borrowed mutably; insert \
-         it with `insert_owned` to enable mutation"
+        "fixture '{name}' was inserted by shared reference and cannot be borrowed mutably; insert it with `insert_owned` to enable mutation"
     )]
     NotMutable {
         /// The requested fixture name.

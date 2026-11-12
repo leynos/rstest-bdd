@@ -112,8 +112,7 @@ impl Run {
             let seen = reading.value?;
             (seen != SENTINEL && seen >= reading.observer).then(|| {
                 format!(
-                    "observer {} read producer {seen}, so a value reached an invocation at or \
-                     before its producer",
+                    "observer {} read producer {seen}, so a value reached an invocation at or before its producer",
                     reading.observer
                 )
             })
@@ -203,8 +202,7 @@ impl Run {
             |failure| format!("{:?} {:?}", failure.site(), failure.error()),
         );
         format!(
-            "status={:?} failure={failure} recorded={statuses:?} executed={:?} readings={:?} \
-             plan={texts:?}",
+            "status={:?} failure={failure} recorded={statuses:?} executed={:?} readings={:?} plan={texts:?}",
             self.outcome.status(),
             self.executed,
             self.readings,
@@ -307,8 +305,7 @@ pub(crate) fn run_case_async(steps: &[Step], arrangement: Arrangement) -> Run {
     });
     let Some(outcome) = resolved else {
         panic!(
-            "the asynchronous runner stayed pending for {MAX_POLLS} polls on a plan whose steps \
-             all resolve without parking, so it is not the runner INV-5 is about"
+            "the asynchronous runner stayed pending for {MAX_POLLS} polls on a plan whose steps all resolve without parking, so it is not the runner INV-5 is about"
         );
     };
 

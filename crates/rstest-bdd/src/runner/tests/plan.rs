@@ -93,10 +93,10 @@ fn parses_and_outlives_its_buffer() {
     // The document is built, consumed by the parser, and then *dropped* before
     // the plan is used, so a plan borrowing from it could not compile.
     let plan = {
-        let document = String::from(
-            "name Buffer demo\nline 12\ntag @smoke\nallow_skipped true\ngiven a plan sourced from \
-             a buffer\nwhen the buffer goes away\nthen the plan still works\n",
-        );
+        let document = String::from(concat!(
+            "name Buffer demo\nline 12\ntag @smoke\nallow_skipped true\ngiven a plan sourced from ",
+            "a buffer\nwhen the buffer goes away\nthen the plan still works\n",
+        ));
         let plan = parse(&document);
         drop(document);
         plan

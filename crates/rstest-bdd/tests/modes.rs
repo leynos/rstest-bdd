@@ -140,34 +140,35 @@ fn a_suspending_async_step_diverges_on_runtime_position(#[case] inside_a_runtime
         assert_eq!(
             outcome.status(),
             ScenarioStatus::Failed,
-            "a runtime is already current, so the wrapper polls once; the step suspends and the \
-             run fails rather than blocking: {outcome:?}",
+            "a runtime is already current, so the wrapper polls once; the step suspends and the run fails rather than blocking: {outcome:?}",
         );
         assert_eq!(
             resumes, 0,
-            "the step must not have been resumed even once — if it were, the wrapper would have \
-             polled it more than once",
+            concat!(
+                "the step must not have been resumed even once — if it were, the wrapper would have ",
+                "polled it more than once",
+            ),
         );
         let Some(message) = failure_message(&outcome) else {
             panic!("the failure must be a handler error: {outcome:?}");
         };
         assert!(
             message.contains("multi-poll async steps are not supported under a harness"),
-            "the diagnostic is the whole value of this case: a frontend seeing `Failed` must be \
-             able to learn *why* from the message. Got: {message}",
+            "the diagnostic is the whole value of this case: a frontend seeing `Failed` must be able to learn *why* from the message. Got: {message}",
         );
     } else {
         assert_eq!(
             outcome.status(),
             ScenarioStatus::Passed,
-            "with no runtime current the wrapper builds one and drives the step to completion: \
-             {outcome:?}",
+            "with no runtime current the wrapper builds one and drives the step to completion: {outcome:?}",
         );
         assert_eq!(
             resumes, 3,
-            "the step must have been resumed exactly as many times as it asked to yield; a lower \
-             count would mean the run finished without suspending, and this case would no longer \
-             witness multi-poll",
+            concat!(
+                "the step must have been resumed exactly as many times as it asked to yield; a lower ",
+                "count would mean the run finished without suspending, and this case would no longer ",
+                "witness multi-poll",
+            ),
         );
     }
 }

@@ -79,8 +79,7 @@ fn next_typed_argument(
             return Err(syn::Error::new(
                 span_for_pattern(other),
                 format!(
-                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., \
-                     `arg: T`)"
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
                 ),
             ));
         }
@@ -120,8 +119,7 @@ fn classify_step_or_fixture(
             return Err(syn::Error::new(
                 span_for_pattern(other),
                 format!(
-                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., \
-                     `arg: T`)"
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
                 ),
             ));
         }

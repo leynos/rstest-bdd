@@ -191,9 +191,7 @@ impl fmt::Display for ScopeError {
                 let (scope, name, line) = metadata.describe();
                 write!(
                     f,
-                    "rstest_bdd::skip! may only run on the thread executing the {scope} \
-                     '{}'(defined at {}:{}). Expected thread id {:?} but {:?} attempted to invoke \
-                     it.",
+                    "rstest_bdd::skip! may only run on the thread executing the {scope} '{}'(defined at {}:{}). Expected thread id {:?} but {:?} attempted to invoke it.",
                     name, metadata.file, line, expected, actual,
                 )
             }

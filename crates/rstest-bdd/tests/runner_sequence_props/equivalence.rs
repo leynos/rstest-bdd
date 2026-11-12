@@ -114,8 +114,7 @@ fn difference(steps: &[Step], arrangement: Arrangement, sync: &Run, asynchronous
         )
     };
     format!(
-        "plan={:?} arrangement={arrangement:?}\n{outcome}\nexecuted: sync={:?} \
-         async={:?}\nreadings: sync={:?} async={:?}",
+        "plan={:?} arrangement={arrangement:?}\n{outcome}\nexecuted: sync={:?} async={:?}\nreadings: sync={:?} async={:?}",
         kinds(steps),
         sync.executed,
         asynchronous.executed,
@@ -160,8 +159,10 @@ fn the_comparison_rejects_a_mutated_outcome() {
 
     assert!(
         sync != moved,
-        "two runs whose plans differ in a recorded source line compared equal, so the comparison \
-         INV-5 rests on is not comparing the whole value. sync={} moved={}",
+        concat!(
+            "two runs whose plans differ in a recorded source line compared equal, so the comparison ",
+            "INV-5 rests on is not comparing the whole value. sync={} moved={}",
+        ),
         sync.describe(&steps),
         moved.describe(&shifted),
     );
@@ -216,8 +217,7 @@ fn both_runners_record_every_invocation() {
         assert_eq!(
             run.executed,
             vec![0, 1, 2],
-            "({label}) every invocation's handler must have run, in order, or there is nothing \
-             for the two runners to agree or disagree about; {}",
+            "({label}) every invocation's handler must have run, in order, or there is nothing for the two runners to agree or disagree about; {}",
             run.describe(&steps),
         );
     }

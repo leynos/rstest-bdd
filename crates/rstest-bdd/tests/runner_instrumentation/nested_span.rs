@@ -64,15 +64,14 @@ fn a_nested_scenario_span_records_its_enclosing_span() {
     let scenario = carrying(&all, "name");
     assert!(
         scenario.carries(CURRENT_SPAN_FIELD),
-        "the `scenario` span was opened inside `outer`, so the enclosing span must have been \
-         recorded; captured {scenario:?}",
+        "the `scenario` span was opened inside `outer`, so the enclosing span must have been recorded; captured {scenario:?}",
     );
     assert_eq!(
         value(&scenario.values, CURRENT_SPAN_FIELD),
         "outer",
         concat!(
             "the recorded enclosing span must be the one that was current, and the parent test's ",
-            "empty-field assertion is only meaningful once this branch is known to be live"
+            "empty-field assertion is only meaningful once this branch is known to be live",
         ),
     );
 }

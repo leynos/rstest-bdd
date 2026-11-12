@@ -82,26 +82,23 @@ fn cancelling_during_a_step_drops_it_and_still_cleans_the_scope() {
         assert_eq!(
             gate_polls(),
             1,
-            "the gate must have been polled exactly once after {polls} run polls, or the run \
-             reached it more than once",
+            "the gate must have been polled exactly once after {polls} run polls, or the run reached it more than once",
         );
         assert_eq!(
             observed_before_cancel(),
             Some(7),
             concat!(
                 "the gate must have seen the returned override, not the fixture's own value: ",
-                "otherwise this run had nothing for cleanup to clear and the assertion below \
-                 would ",
-                "hold under a driver that never cleaned up"
+                "otherwise this run had nothing for cleanup to clear and the assertion below would ",
+                "hold under a driver that never cleaned up",
             ),
         );
         assert_eq!(
             gate_drops(),
             0,
             concat!(
-                "the gate's drop probe fired before the run was dropped, so it cannot evidence \
-                 that ",
-                "the drop propagated"
+                "the gate's drop probe fired before the run was dropped, so it cannot evidence that ",
+                "the drop propagated",
             ),
         );
 
@@ -120,7 +117,7 @@ fn cancelling_during_a_step_drops_it_and_still_cleans_the_scope() {
         Some(0),
         concat!(
             "cancellation must still clear the step-returned override. Reading the fixture's own ",
-            "value back means the override map was cleared; a `7` here would mean it survived"
+            "value back means the override map was cleared; a `7` here would mean it survived",
         ),
     );
 }
@@ -155,8 +152,7 @@ fn a_run_left_alone_completes_and_produces_an_outcome() {
     });
     let Some(outcome) = outcome else {
         panic!(
-            "the control's plan has one always-resolving step, so it must complete rather than \
-             staying pending for {MAX_POLLS} polls",
+            "the control's plan has one always-resolving step, so it must complete rather than staying pending for {MAX_POLLS} polls",
         );
     };
 
@@ -165,7 +161,7 @@ fn a_run_left_alone_completes_and_produces_an_outcome() {
         ScenarioStatus::Passed,
         concat!(
             "the control must complete normally; otherwise the cancellation cases describe a plan ",
-            "that was never runnable"
+            "that was never runnable",
         ),
     );
     assert_eq!(outcome.steps().len(), 1, "one invocation, one record");

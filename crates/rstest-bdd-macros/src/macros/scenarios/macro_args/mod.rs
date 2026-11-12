@@ -115,10 +115,10 @@ fn parse_named_arg(ident: &syn::Ident, input: ParseStream<'_>) -> syn::Result<Sc
         "harness" => Ok(ScenariosArg::Harness(input.parse()?)),
         "attributes" => Ok(ScenariosArg::Attributes(input.parse()?)),
         "libraries" => parse_libraries_arg(input),
-        _ => Err(input.error(
-            "expected `dir`, `path`, `tags`, `fixtures`, `runtime`, `harness`, `attributes`, or \
-             `libraries`",
-        )),
+        _ => Err(input.error(concat!(
+            "expected `dir`, `path`, `tags`, `fixtures`, `runtime`, `harness`, `attributes`, or ",
+            "`libraries`",
+        ))),
     }
 }
 

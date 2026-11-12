@@ -7,10 +7,12 @@ use super::WrapperKind;
 use crate::return_classifier::StepReturnStrategy;
 
 /// Explains why generated wrapper functions need their expected lint list.
-pub(super) const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these \
-                                                patterns for \\
+pub(super) const WRAPPER_EXPECT_REASON: &str = concat!(
+    "rstest-bdd step wrapper pattern requires these ",
+    "patterns for \\
      parameter extraction, Result normalization, and \\
-     closure-based error handling";
+     closure-based error handling",
+);
 /// Names the shadowing lint expected when string quotes are stripped.
 pub(super) const LINT_SHADOW_REUSE: &str = "clippy::shadow_reuse";
 /// Names the wrapper return lint expected for non-result step functions.

@@ -63,8 +63,10 @@ fn dep_info_lists_feature_file() {
     assert_that!(
         outcome.dep_info_entry_count,
         eq(1),
-        "dep-info for the fixture test binary must list the bound feature file exactly once; \
-         rustc dep-info follows\n{}",
+        concat!(
+            "dep-info for the fixture test binary must list the bound feature file exactly once; ",
+            "rustc dep-info follows\n{}",
+        ),
         outcome.dep_info_sample
     );
 }
@@ -80,8 +82,10 @@ fn a_passing_bound_crate() {
     assert_that!(
         outcome.baseline_passed,
         is_true(),
-        "the pre-edit fixture `cargo test` must pass; the experiment is only meaningful when the \
-         bound scenario passes before the edit.\nbaseline output:\n{}",
+        concat!(
+            "the pre-edit fixture `cargo test` must pass; the experiment is only meaningful when the ",
+            "bound scenario passes before the edit.\nbaseline output:\n{}",
+        ),
         outcome.baseline_output
     );
 }
@@ -100,8 +104,10 @@ fn next_run_recompiles() {
     assert_that!(
         outcome.second.recompiled,
         is_true(),
-        "the second run must recompile the fixture; its stderr should contain a `Compiling \
-         rstest-bdd-rebuild-invalidation-fixture` line.\noutput:\n{}",
+        concat!(
+            "the second run must recompile the fixture; its stderr should contain a `Compiling ",
+            "rstest-bdd-rebuild-invalidation-fixture` line.\noutput:\n{}",
+        ),
         outcome.second.output
     );
 }
@@ -112,8 +118,10 @@ fn test_fails_against_new_expectation() {
     assert_that!(
         outcome.second.failed,
         is_true(),
-        "the second run must FAIL — before the fix it succeeds against the stale binary compiled \
-         from the old Gherkin text.\noutput:\n{}",
+        concat!(
+            "the second run must FAIL — before the fix it succeeds against the stale binary compiled ",
+            "from the old Gherkin text.\noutput:\n{}",
+        ),
         outcome.second.output
     );
     // The load-bearing proof: the new expectation string exists only in the
@@ -177,8 +185,10 @@ fn next_run_recompiles_and_runs_new_scenario() {
     assert_that!(
         outcome.new_scenario_ran,
         is_true(),
-        "the second run must execute the test generated from the added `.feature` file (its name \
-         contains `zzz_added_the_added_scenario`).\noutput:\n{}",
+        concat!(
+            "the second run must execute the test generated from the added `.feature` file (its name ",
+            "contains `zzz_added_the_added_scenario`).\noutput:\n{}",
+        ),
         outcome.second_run_output
     );
 }
@@ -231,8 +241,10 @@ fn scenarios_directory_filtered_file_is_tracked() {
     assert_that!(
         outcome.scenarios_no_match_tracked,
         is_true(),
-        "the filtered .feature file must still appear in the dep-info primary rule; rustc \
-         dep-info follows\n{}",
+        concat!(
+            "the filtered .feature file must still appear in the dep-info primary rule; rustc ",
+            "dep-info follows\n{}",
+        ),
         outcome.dep_info_sample
     );
 }

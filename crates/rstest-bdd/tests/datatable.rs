@@ -78,8 +78,10 @@ fn typed_users_invalid(datatable: Vec<Vec<String>>) {
     };
     assert_eq!(
         err.to_string(),
-        "row 2, column 3 (active): unrecognised boolean value 'maybe' (expected yes/y/true/1 or \
-         no/n/false/0)"
+        concat!(
+            "row 2, column 3 (active): unrecognised boolean value 'maybe' (expected yes/y/true/1 or ",
+            "no/n/false/0)",
+        )
     );
 }
 

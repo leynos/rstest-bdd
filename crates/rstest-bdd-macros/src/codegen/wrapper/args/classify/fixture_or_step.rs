@@ -161,8 +161,7 @@ fn resolve_fixture_name(
         syn::Error::new(
             pat.span(),
             format!(
-                "normalized fixture name `{normalized}` is not a valid identifier; use \
-                 #[from(...)] to specify the fixture name explicitly"
+                "normalized fixture name `{normalized}` is not a valid identifier; use #[from(...)] to specify the fixture name explicitly"
             ),
         )
     })?;
