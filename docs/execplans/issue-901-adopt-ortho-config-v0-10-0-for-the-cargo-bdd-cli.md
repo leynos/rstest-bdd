@@ -635,6 +635,18 @@ Hard invariants. Violation requires escalation, not a workaround.
       them. The named-suite invocation is kept, and ADR-013's addendum now
       records why it is a design choice rather than only a workaround.
 
+- [x] (2026-11-13) Gates were run in order on the rebased tree `3e94e1b6`:
+      `make check-fmt`, `make lint` and `make typecheck` exited zero, and
+      `make test` lost one nested-Cargo test to its own wall-clock bound in
+      each of two runs. Admission reported capacity four with more than 200
+      compiler requests queued from other repositories throughout, so the
+      remaining recipe steps were run directly: the doc tests, the fixture
+      lockfiles and `scripts/tests` (291 passed) all exited zero. The
+      no-default-features leg was re-run with `--no-fail-fast` to give all 784
+      tests a verdict; its two failures are the same class of nested-Cargo
+      bound, and both tests pass in the all-features run at this revision. The
+      exception that remains is recorded in `Outcomes & retrospective`.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -934,31 +946,52 @@ in that precedence order through `OrthoConfig`, and both invocation forms
 dispatch to the same behaviour. ADR 025 records the decision, and the
 developers' guide points at it.
 
-Gate evidence at revision `96e38df8`, the rebased candidate this commit carries:
+Gate evidence at revision `3e94e1b6`, the rebased candidate this section
+describes:
 
-- `make check-fmt`, `make lint`, `make typecheck`, `make markdownlint`,
-  `make nixie` and `make test-workflow-contracts` (373 tests) exited zero.
-- The workspace suite passed: 2,178 tests passed with seven skipped in a
-  Nextest run that excluded only `rstest-bdd::trybuild_macros`. That binary's
-  38 helper tests passed with one skip, and its `step_macros_compile`
-  entrypoint passed separately in 1,530.29 seconds.
-- The no-default-features leg passed: 783 tests passed with eight skipped, and
-  its `step_macros_compile` entrypoint passed separately in 2,470.76 seconds.
-- Sixteen doc-test suites passed, `make check-fixture-lockfiles` passed, and
-  `scripts/tests` passed 290 tests.
+- `make check-fmt`, `make lint` and `make typecheck` each exited zero, run in
+  that order on the rebased tree.
+- `make test` did not produce a single green invocation. Two runs of its
+  Nextest step passed every test that reached a verdict and lost one test to
+  that test's own wall-clock bound while the shared compiler pool was
+  saturated. Run one reported 2,220 passed, seven skipped, one timed out and 14
+  cancelled; run two reported 2,150 passed, seven skipped, one timed out and 91
+  not run. The timeouts are different tests, and each test that timed out in
+  one run passed in the other apart from `step_macros_compile`.
+- The remaining `make test` steps were run directly at this revision and
+  exited zero: `cargo test --doc --workspace --all-features` (seven doc tests),
+  `make check-fixture-lockfiles` (five fixture lockfiles up to date) and
+  `uv run pytest scripts/tests` (291 passed in 3,729.53 seconds).
+- The no-default-features leg was run twice. The second run used
+  `--no-fail-fast`, so all 784 tests received a verdict: 780 passed, seven
+  skipped, two failed and two timed out. Both failures report
+  `nested cargo exceeded its 300 s wall-clock bound; the child was killed`
+  after repeated `Blocking waiting for file lock on package cache` lines, and
+  both tests pass in the all-features run at this same revision, in 2.56 and
+  1.91 seconds.
+- The 14 tests cancelled in run one were re-run focused and passed: 37 passed
+  with two skipped in the `trybuild_macros` binary.
 
-The validation exception recorded at `96e38df8` has been withdrawn. A single
-`make test` invocation now reaches `EXIT=0` on this host: the workspace,
-doc-test, no-default-features and `scripts/tests` legs all passed in one run at
-the tree published as `74f066af`, with `step_macros_compile` and the
-feature-rebuild test completing inside their existing budgets. Nothing was
-raised, ignored or skipped to reach that result. Cold nested compilation and
-child-Cargo network isolation remain tracked separately by issues #910 and #911.
+The retained exception is two tests, both in `rstest-bdd::trybuild_macros`.
+`runner::step_macros_compile` compiles 56 fixture crates and did not finish
+inside its 1,200-second bound in any run; a focused re-run compiled 13 fixtures
+cleanly before reaching the same bound.
+`whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`
+shells out to `make lint-whitaker` and timed out on that bound in the
+no-default-features run, and was cancelled before starting in both all-features
+runs. Admission reported capacity four, healthy, with more than 200 compiler
+requests queued from other repositories on this host across these runs. The
+budgets in `.config/nextest.toml` are sized for a quiet runner, and raising
+them changes the project's hang detection rather than this branch's behaviour.
+Cold nested compilation and child-Cargo network isolation remain tracked by
+issues #910 and #911.
 
-Validation is therefore complete for the published tree. The remaining step is
-acquiring the required review approval and merging pull request #912, not
-completing test evidence. This plan cites the gated revision rather than its
-own commit. Review follow-ups after that revision are recorded in the progress
+The complete test result for this revision is therefore the hosted runs rather
+than a local one. Formatting, lint, type checking, the doc tests, the
+fixture-lockfile gate and the Python suite have local green verdicts; the
+workspace suite and the no-default-features leg each have one nested-Cargo test
+without a local verdict. This plan cites the gated revision rather than its own
+commit, and review follow-ups after that revision are recorded in the progress
 log and surprises below.
 
 ## Context and orientation
@@ -1462,3 +1495,12 @@ the revisions leading to `63b01c4d1cb7e333d6039357daace37d1e435185`, which was
 the head at that point in the cycle rather than the head under review now.
 Finish the validation and merge cycle described above against whatever head the
 pull request currently carries.
+
+The rebase onto `origin/main` at `009012b2`, the gate results at `3e94e1b6` and
+the retained validation exception are recorded in `Outcomes & retrospective`.
+In summary: `make check-fmt`, `make lint` and `make typecheck` exited zero; the
+doc-test, fixture-lockfile and `scripts/tests` steps of `make test` exited zero
+when run directly; and two nested-Cargo tests, `runner::step_macros_compile` and
+`whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`,
+have no local verdict because compile admission was saturated for the whole
+run. The hosted runs carry the completing evidence for those two.
