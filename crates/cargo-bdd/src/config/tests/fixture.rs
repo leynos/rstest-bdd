@@ -15,6 +15,7 @@ use std::sync::Arc;
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 use clap::{CommandFactory, FromArgMatches};
+use eyre::{WrapErr, eyre};
 use ortho_config::MapEnv;
 use rstest::fixture;
 use tempfile::TempDir;
@@ -117,17 +118,16 @@ impl BooleanOptions {
 
 impl ConfigFixture {
     /// Create the isolated directory tree and discovery environment.
-    pub(super) fn new() -> Self {
-        let Ok(temporary_directory) = tempfile::tempdir() else {
-            panic!("test setup should create a temporary directory");
-        };
-        let Some(temporary_root) = Utf8Path::from_path(temporary_directory.path()) else {
-            panic!("test directory should be representable as UTF-8");
-        };
-        let Ok(root) = Dir::open_ambient_dir(temporary_root.as_std_path(), ambient_authority())
-        else {
-            panic!("test setup should open the temporary directory capability");
-        };
+    ///
+    /// Fallible so a temporary-directory, permission or write failure keeps
+    /// its original diagnostic instead of becoming a fixed panic message.
+    pub(super) fn new() -> eyre::Result<Self> {
+        let temporary_directory =
+            tempfile::tempdir().wrap_err("test setup should create a temporary directory")?;
+        let temporary_root = Utf8Path::from_path(temporary_directory.path())
+            .ok_or_else(|| eyre!("test directory should be representable as UTF-8"))?;
+        let root = Dir::open_ambient_dir(temporary_root.as_std_path(), ambient_authority())
+            .wrap_err("test setup should open the temporary directory capability")?;
         for directory in [
             "home",
             "home/.config",
@@ -136,9 +136,8 @@ impl ConfigFixture {
             "xdg-config-dirs",
             "local",
         ] {
-            let Ok(()) = root.create_dir_all(directory) else {
-                panic!("test setup should create isolated discovery roots");
-            };
+            root.create_dir_all(directory)
+                .wrap_err("test setup should create isolated discovery roots")?;
         }
         let home = temporary_root.join("home");
         let xdg_config_home = temporary_root.join("xdg-config-home");
@@ -151,32 +150,31 @@ impl ConfigFixture {
             .with_var("XDG_CONFIG_DIRS", &xdg_config_dirs)
             .with_var("APPDATA", &xdg_config_home);
 
-        Self {
+        Ok(Self {
             _temporary_directory: temporary_directory,
             root,
             local_base,
             discovery,
-        }
+        })
     }
 
     /// Write the local `.cargo_bdd.toml` the loader discovers first.
-    pub(super) fn write_local_config(&self, contents: &str) {
-        let Ok(local) = self.root.open_dir("local") else {
-            panic!("test setup should open the local configuration directory");
-        };
-        assert!(
-            local.write(".cargo_bdd.toml", contents).is_ok(),
-            "test setup should write the local configuration file"
-        );
+    pub(super) fn write_local_config(&self, contents: &str) -> eyre::Result<()> {
+        let local = self
+            .root
+            .open_dir("local")
+            .wrap_err("test setup should open the local configuration directory")?;
+        local
+            .write(".cargo_bdd.toml", contents)
+            .wrap_err("test setup should write the local configuration file")
     }
 
     /// Open the local configuration directory for permission experiments.
     #[cfg(unix)]
-    pub(super) fn local_directory(&self) -> Dir {
-        let Ok(local) = self.root.open_dir("local") else {
-            panic!("test setup should open the local configuration directory");
-        };
-        local
+    pub(super) fn local_directory(&self) -> eyre::Result<Dir> {
+        self.root
+            .open_dir("local")
+            .wrap_err("test setup should open the local configuration directory")
     }
 
     /// Merge `steps` settings through the production resolver.
@@ -185,7 +183,7 @@ impl ConfigFixture {
         args: &[&str],
         environment: MapEnv,
     ) -> eyre::Result<StepsConfig> {
-        let (config, matches) = parse_steps(args);
+        let (config, matches) = parse_steps(args)?;
         merge_steps(&config, &matches, &self.sources(environment))
     }
 
@@ -195,14 +193,14 @@ impl ConfigFixture {
         args: &[&str],
         environment: MapEnv,
     ) -> eyre::Result<SkippedSettings> {
-        let (config, matches) = parse_skipped(args);
+        let (config, matches) = parse_skipped(args)?;
         resolve_skipped(&config, &matches, &self.sources(environment))
     }
 
     /// Build the isolated sources one merge reads.
     pub(super) fn sources(&self, environment: MapEnv) -> ConfigSources {
         ConfigSources::isolated(
-            self.local_base.as_std_path().to_path_buf(),
+            self.local_base.clone(),
             self.discovery.clone(),
             Arc::new(environment),
         )
@@ -212,26 +210,24 @@ impl ConfigFixture {
 /// Create the isolated configuration fixture.
 #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-pub(super) fn fixture() -> ConfigFixture { ConfigFixture::new() }
+pub(super) fn fixture() -> eyre::Result<ConfigFixture> { ConfigFixture::new() }
 
 /// Parse `steps` arguments into a config value and its matches.
-fn parse_steps(args: &[&str]) -> (StepsConfig, clap::ArgMatches) {
-    let Ok(matches) = StepsConfig::command().try_get_matches_from(args) else {
-        panic!("steps test arguments should parse");
-    };
-    let Ok(config) = StepsConfig::from_arg_matches(&matches) else {
-        panic!("steps arguments should decode");
-    };
-    (config, matches)
+fn parse_steps(args: &[&str]) -> eyre::Result<(StepsConfig, clap::ArgMatches)> {
+    let matches = StepsConfig::command()
+        .try_get_matches_from(args)
+        .wrap_err("steps test arguments should parse")?;
+    let config =
+        StepsConfig::from_arg_matches(&matches).wrap_err("steps arguments should decode")?;
+    Ok((config, matches))
 }
 
 /// Parse `skipped` arguments into a config value and its matches.
-fn parse_skipped(args: &[&str]) -> (SkippedConfig, clap::ArgMatches) {
-    let Ok(matches) = SkippedConfig::command().try_get_matches_from(args) else {
-        panic!("skipped test arguments should parse");
-    };
-    let Ok(config) = SkippedConfig::from_arg_matches(&matches) else {
-        panic!("skipped arguments should decode");
-    };
-    (config, matches)
+fn parse_skipped(args: &[&str]) -> eyre::Result<(SkippedConfig, clap::ArgMatches)> {
+    let matches = SkippedConfig::command()
+        .try_get_matches_from(args)
+        .wrap_err("skipped test arguments should parse")?;
+    let config =
+        SkippedConfig::from_arg_matches(&matches).wrap_err("skipped arguments should decode")?;
+    Ok((config, matches))
 }

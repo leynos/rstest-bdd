@@ -89,11 +89,13 @@ proptest! {
         other_environment_primary in optional_boolean(),
         other_environment_json in optional_boolean(),
     ) {
-        let fixture = ConfigFixture::new();
+        let fixture = ConfigFixture::new().expect("test setup should create the isolated fixture");
         let other = other_subcommand(options);
         let mut contents = file_table(options, file_primary, file_json);
         contents.push_str(&file_table(other, other_file_primary, other_file_json));
-        fixture.write_local_config(&contents);
+        fixture
+            .write_local_config(&contents)
+            .expect("test setup should write the local configuration file");
 
         let mut environment = MapEnv::new();
         let variables = environment_variables(options, environment_primary, environment_json)
@@ -126,12 +128,10 @@ proptest! {
         skipped in any::<bool>(),
         json in any::<bool>(),
     ) {
-        let fixture = ConfigFixture::new();
-        fixture.write_local_config(&file_table(
-            BooleanOptions::Steps,
-            Some(skipped),
-            Some(json),
-        ));
+        let fixture = ConfigFixture::new().expect("test setup should create the isolated fixture");
+        fixture
+            .write_local_config(&file_table(BooleanOptions::Steps, Some(skipped), Some(json)))
+            .expect("test setup should write the local configuration file");
         let merged = fixture
             .merge_steps(&["steps"], MapEnv::new())
             .expect("generated steps settings should merge");

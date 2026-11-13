@@ -98,7 +98,7 @@ fn both_loaders_emit_one_bounded_configuration_span() {
     let subscriber = registry().with(capture.clone());
     let steps_matches = subcommand_matches("steps");
     let skipped_matches = subcommand_matches("skipped");
-    let fixture = ConfigFixture::new();
+    let fixture = ConfigFixture::new().expect("test setup should create the isolated fixture");
     let sources = fixture.sources(MapEnv::new());
 
     tracing::subscriber::with_default(subscriber, || {

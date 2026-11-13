@@ -12,8 +12,9 @@
 //! when `CARGO_BDD_LOG` is set, so the default command output and exit
 //! statuses are unchanged.
 
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
+use camino::Utf8PathBuf;
 use clap::{ArgMatches, CommandFactory, Parser};
 use eyre::{Context, Result, bail};
 use ortho_config::{
@@ -86,7 +87,12 @@ pub(crate) struct SkippedSettings {
 /// re-implementation of the merge call.
 pub(crate) struct ConfigSources {
     /// Directory the loader treats as the local configuration base.
-    base: PathBuf,
+    ///
+    /// Held as UTF-8 because every other path this crate handles is, and a
+    /// lossy conversion here would silently address a different directory.
+    /// `ortho_config` takes `&Path`, so the conversion happens at that
+    /// boundary and nowhere else.
+    base: Utf8PathBuf,
     /// Named lookups used to locate the discovery directories.
     discovery: Box<dyn EnvSource>,
     /// Environment values merged over the file layers.
@@ -97,7 +103,7 @@ impl ConfigSources {
     /// Read the live process environment, rooted at the working directory.
     pub(crate) fn process() -> Self {
         Self {
-            base: PathBuf::from("."),
+            base: Utf8PathBuf::from("."),
             discovery: Box::new(ProcessEnv),
             environment: process_scan_env_source(),
         }
@@ -109,7 +115,7 @@ impl ConfigSources {
     /// configuration files or environment.
     #[cfg(test)]
     pub(crate) fn isolated(
-        base: PathBuf,
+        base: Utf8PathBuf,
         discovery: impl EnvSource + 'static,
         environment: SharedScanEnvSource,
     ) -> Self {
@@ -122,7 +128,7 @@ impl ConfigSources {
 
     /// Borrow the file-search context for one merge.
     fn files(&self) -> SubcommandFileContext<'_> {
-        SubcommandFileContext::new(&self.base, self.discovery.as_ref())
+        SubcommandFileContext::new(self.base.as_std_path(), self.discovery.as_ref())
     }
 }
 

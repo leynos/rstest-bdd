@@ -32,7 +32,13 @@
 //! map's precedence is asserted separately by
 //! `cli_child_environment_reuses_target`.
 
-use std::{env, ffi::OsString, path::PathBuf, process::ExitStatus, str};
+use std::{
+    env,
+    ffi::{OsStr, OsString},
+    path::PathBuf,
+    process::ExitStatus,
+    str,
+};
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
@@ -141,6 +147,12 @@ mod configuration;
 /// Only CLI smoke-test setup owns this fallback; explicit coverage and caller
 /// target directories continue to take precedence.
 ///
+/// Inherited `CARGO_BDD_*` variables are dropped before the shared policy runs.
+/// The binary reads that prefix as a configuration tier, so a developer's own
+/// export would otherwise outrank the file under test and make a file-tier case
+/// assert against somebody else's setting. Cargo assigns no meaning to the
+/// prefix, so nothing Cargo needs is lost.
+///
 /// For example, `cli_child_environment(Vec::new())` selects the workspace
 /// `target/`; a snapshot containing `CARGO_TARGET_DIR` retains that value.
 ///
@@ -150,8 +162,9 @@ mod configuration;
 /// be resolved against this process's working directory is reported rather than
 /// handed to a child that would resolve it somewhere else.
 fn cli_child_environment(
-    vars: Vec<(OsString, OsString)>,
+    mut vars: Vec<(OsString, OsString)>,
 ) -> std::io::Result<nested_cargo::NestedCargoEnv> {
+    vars.retain(|(key, _)| !key.to_string_lossy().starts_with("CARGO_BDD_"));
     nested_cargo::env_from_vars(
         vars,
         Some(&workspace_root().join("target")),
@@ -187,6 +200,36 @@ fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io:
         "the resolved target directory must be the absolute one the child receives"
     );
     Ok(())
+}
+
+/// A developer's own `CARGO_BDD_*` export never reaches the child.
+///
+/// Without the filter the child would merge that value over the file a case is
+/// testing, so the file-tier assertions could pass or fail for the wrong
+/// reason. Both a real setting name and an unrelated name in the same prefix
+/// are checked, because the binary reads the whole prefix as configuration.
+#[test]
+fn cli_child_environment_drops_inherited_configuration_variables() {
+    let vars = vec![
+        (
+            OsString::from("CARGO_BDD_CMDS_STEPS_SKIPPED"),
+            OsString::from("true"),
+        ),
+        (OsString::from("CARGO_BDD_LOG"), OsString::from("info")),
+        (
+            OsString::from("CARGO_TARGET_DIR"),
+            OsString::from("kept-target"),
+        ),
+    ];
+
+    let child = cli_child_environment(vars);
+
+    assert_eq!(child.get("CARGO_BDD_CMDS_STEPS_SKIPPED"), None);
+    assert_eq!(child.get("CARGO_BDD_LOG"), None);
+    assert_eq!(
+        child.get("CARGO_TARGET_DIR"),
+        Some(OsStr::new("kept-target"))
+    );
 }
 
 /// Execute `cargo bdd` and capture its status and streams as text.
