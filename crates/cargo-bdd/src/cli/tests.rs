@@ -177,23 +177,38 @@ fn duplicate_groups_are_ordered_by_library_keyword_and_pattern() {
     );
 }
 
-/// The unused listing keeps only steps no scenario executed.
-#[test]
-fn unused_listing_keeps_only_unexecuted_steps() {
-    let step = |pattern: &str, used: bool| Step {
+/// Build a `Step` in the `accounts` library at `line`.
+fn accounts_step(pattern: &str, line: u32, used: bool) -> Step {
+    Step {
         library: "accounts".to_owned(),
         keyword: "Given".to_owned(),
         pattern: pattern.to_owned(),
         file: "steps.rs".to_owned(),
-        line: 1,
+        line,
         used,
-    };
-    let steps = [step("executed", true), step("dormant", false)];
+    }
+}
+
+/// Render `steps` through `listing` and return the text it wrote.
+fn render_listing(
+    listing: fn(&mut dyn std::io::Write, &[Step]) -> eyre::Result<()>,
+    steps: &[Step],
+) -> String {
     let mut rendered = Vec::new();
+    listing(&mut rendered, steps).expect("writing to a buffer cannot fail");
+    String::from_utf8(rendered).expect("the listing is UTF-8")
+}
 
-    write_unused_steps(&mut rendered, &steps).expect("writing to a buffer cannot fail");
+/// The unused listing keeps only steps no scenario executed.
+#[test]
+fn unused_listing_keeps_only_unexecuted_steps() {
+    let steps = [
+        accounts_step("executed", 1, true),
+        accounts_step("dormant", 2, false),
+    ];
 
-    let rendered = String::from_utf8(rendered).expect("the listing is UTF-8");
+    let rendered = render_listing(write_unused_steps, &steps);
+
     assert!(
         rendered.contains("dormant"),
         "the unexecuted step should be listed"
@@ -207,20 +222,14 @@ fn unused_listing_keeps_only_unexecuted_steps() {
 /// The duplicate listing separates each group with the documented marker.
 #[test]
 fn duplicate_listing_writes_a_separator_after_each_group() {
-    let step = |pattern: &str, line: u32| Step {
-        library: "accounts".to_owned(),
-        keyword: "Given".to_owned(),
-        pattern: pattern.to_owned(),
-        file: "steps.rs".to_owned(),
-        line,
-        used: false,
-    };
-    let steps = [step("repeated", 1), step("repeated", 2), step("unique", 3)];
-    let mut rendered = Vec::new();
+    let steps = [
+        accounts_step("repeated", 1, false),
+        accounts_step("repeated", 2, false),
+        accounts_step("unique", 3, false),
+    ];
 
-    write_duplicate_groups(&mut rendered, &steps).expect("writing to a buffer cannot fail");
+    let rendered = render_listing(write_duplicate_groups, &steps);
 
-    let rendered = String::from_utf8(rendered).expect("the listing is UTF-8");
     assert_eq!(
         rendered.matches("---\n").count(),
         1,
