@@ -256,7 +256,7 @@ jobs:
       - name: Setup Rust
         # Merged shared-actions PR #421 cache-provider revision. No compiler
         # cache on this job: see the job comment.
-        uses: leynos/shared-actions/.github/actions/setup-rust@0606ca899ce2995a0c4bc78e660e80832e6e8855
+        uses: leynos/shared-actions/.github/actions/setup-rust@203eedc136c14c28041e92c06a929383807b3a3f
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           cache-provider: external
@@ -267,7 +267,7 @@ jobs:
         # Merged shared-actions PR #432: installs the official release
         # archive against a pinned digest manifest, hashing the archive from
         # stdin so Git Bash on Windows cannot mangle the file name.
-        uses: leynos/shared-actions/.github/actions/install-whitaker@0eabb6bc07148981de5da395e30cd78d83f5c7c2
+        uses: leynos/shared-actions/.github/actions/install-whitaker@203eedc136c14c28041e92c06a929383807b3a3f
         with:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
           cache-provider: external
@@ -280,7 +280,7 @@ jobs:
       # with the same feature selection after the instrumented run, because
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage
-        uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
+        uses: leynos/shared-actions/.github/actions/generate-coverage@203eedc136c14c28041e92c06a929383807b3a3f
         env:
           # The cargo watchdog, one of four tiers that can end a run. It
           # must cover the 90 m nextest global-timeout in
@@ -354,7 +354,7 @@ jobs:
         # f68e8e2e the action rejects a non-empty value and pins `cs-coverage`
         # through its own manifest, which is what fixed the parse break.
         if: steps.codescene_token.outputs.available == 'true' && github.ref == 'refs/heads/main'
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@203eedc136c14c28041e92c06a929383807b3a3f
         with:
           path: coverage.xml
           format: cobertura
@@ -402,7 +402,7 @@ jobs:
       contents: read
     steps:
       - name: Publish the ratchet baseline
-        uses: leynos/shared-actions/.github/actions/publish-coverage-baseline@f84a7def5646a6fc7ba77c1f486906f66a0fed96
+        uses: leynos/shared-actions/.github/actions/publish-coverage-baseline@203eedc136c14c28041e92c06a929383807b3a3f
         with:
           artefact-name: coverage-baseline-handover
 
@@ -549,7 +549,7 @@ jobs:
         # gate: the action's sccache wiring clobbers the Actions cache
         # credential re-export below, so every sccache write fails on
         # Ubicloud. Do not set this to 'true'.
-        uses: leynos/shared-actions/.github/actions/setup-rust@0606ca899ce2995a0c4bc78e660e80832e6e8855
+        uses: leynos/shared-actions/.github/actions/setup-rust@203eedc136c14c28041e92c06a929383807b3a3f
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           cache-provider: external
@@ -612,7 +612,7 @@ jobs:
       # environment, so the compiler-cache entries it writes are the ones that
       # lane reads. Nothing runs, so no test result can keep the cache cold.
       - name: Compile the instrumented tests
-        uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
+        uses: leynos/shared-actions/.github/actions/generate-coverage@203eedc136c14c28041e92c06a929383807b3a3f
         with:
           cache-provider: external
           output-path: coverage.xml
@@ -820,7 +820,7 @@ jobs:
         # re-export for every later step; the server then addresses GitHub's
         # results service and every write fails. Measured on
         # ubicloud-standard-2. Do not set this to 'true'.
-        uses: leynos/shared-actions/.github/actions/setup-rust@0606ca899ce2995a0c4bc78e660e80832e6e8855
+        uses: leynos/shared-actions/.github/actions/setup-rust@203eedc136c14c28041e92c06a929383807b3a3f
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           cache-provider: external
@@ -866,7 +866,7 @@ jobs:
       # lane this baseline is written for.
       - name: Test and Measure Coverage
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
+        uses: leynos/shared-actions/.github/actions/generate-coverage@203eedc136c14c28041e92c06a929383807b3a3f
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
