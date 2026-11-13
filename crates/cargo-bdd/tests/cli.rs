@@ -35,6 +35,7 @@
 use std::{env, ffi::OsString, path::PathBuf, process::ExitStatus, str};
 
 use assert_cmd::Command;
+use discovery::empty_configuration_home_variables;
 use eyre::{Context, Result};
 use rstest_bdd_harness::{
     binary_test_support::{BinaryName, locate_or_build_binary},
@@ -147,6 +148,14 @@ mod configuration;
 /// assert against somebody else's setting. Cargo assigns no meaning to the
 /// prefix, so nothing Cargo needs is lost.
 ///
+/// The file tier needs the same treatment, and the prefix filter cannot give
+/// it: discovery reads `$HOME/.cargo_bdd.toml`, the XDG bases and, on Windows,
+/// the home dotfile, so an inherited `HOME` or `XDG_CONFIG_DIRS` lets a
+/// developer's own file change what these smoke tests observe. Measured with a
+/// `HOME` dotfile setting `cmds.skipped.json = true`,
+/// `skipped_subcommand_includes_reasons_and_lines` fails on a run that
+/// otherwise passes. Those roots are therefore pointed at an empty directory.
+///
 /// For example, `cli_child_environment(Vec::new())` selects the workspace
 /// `target/`; a snapshot containing `CARGO_TARGET_DIR` retains that value.
 ///
@@ -159,12 +168,20 @@ fn cli_child_environment(
     mut vars: Vec<(OsString, OsString)>,
 ) -> std::io::Result<nested_cargo::NestedCargoEnv> {
     vars.retain(|(key, _)| !key.to_string_lossy().starts_with("CARGO_BDD_"));
+    vars.extend(empty_configuration_home_variables());
     nested_cargo::env_from_vars(
         vars,
         Some(&workspace_root().join("target")),
         nested_cargo::ProfileDestination::Caller,
     )
 }
+
+// The discovery-root redirection is a cohesion split: it owns the file tier's
+// environment policy, and the sibling `environment` module asserts the map this
+// helper produces. It lives beside this target for the same reason as the
+// modules above, so Cargo does not also compile it as a test target.
+#[path = "cli/discovery.rs"]
+mod discovery;
 
 // The child-environment policy has behavioural coverage of its own; it lives
 // beside this target so Cargo does not also discover it as a test target.

@@ -903,6 +903,91 @@ Hard invariants. Violation requires escalation, not a workaround.
       scripts/tests` ran 291 passing tests, and the log holds no `FAILED`,
       `error[` or `make: ***` line.
 
+- [x] (2026-11-13) The fourth review round on `155487af` reported two minor
+      findings and both are real. First, the previous round fixed discovery
+      isolation only inside `cli/configuration.rs`; `crates/cargo-bdd/tests/cli.rs`
+      drives the same binary through `cli_child_environment`, which dropped
+      inherited `CARGO_BDD_*` variables but still passed `HOME` and the XDG
+      roots through. Measured with a `HOME` holding
+      `[cmds.skipped] json = true`, `skipped_subcommand_includes_reasons_and_lines`
+      failed on a run that otherwise passes, exactly as the review predicted.
+      Redirecting one root would repeat the previous mistake, so
+      `empty_configuration_home_variables` now overrides `HOME`,
+      `USERPROFILE`, `XDG_CONFIG_HOME` and `XDG_CONFIG_DIRS` with three empty
+      sibling directories under one process-keyed parent, while
+      `ambient_cargo_home_variables` carries `CARGO_HOME` and `RUSTUP_HOME`
+      from the ambient user home so the nested build keeps its registry. The
+      same poisoned `HOME` now passes, and two new tests in
+      `cli/environment.rs` assert that every root exists, is empty, and is not
+      where Cargo's homes point. Writing them caught a flaw in the first
+      attempt: the home root held the two XDG directories, so it was not empty.
+      Second, the plan's Table 1 listed `bdd steps` at exit 2 as a `V1` case
+      while `V3` requires that form to succeed, which makes the two
+      obligations contradictory. The checked-in fixture
+      `tests/fixtures/baseline-cli.json` already held exactly the seven
+      flat-form rows and omitted `bdd steps`, so only the plan text was wrong;
+      the row is now labelled pre-change evidence for `V3`, and `V1` says so.
+
+- [x] (2026-11-13) Those helpers took `crates/cargo-bdd/tests/cli.rs` to 433
+      lines, past the 400-line gate
+      (`python3 scripts/check_rs_file_lengths.py`, `LEN_RC=1`). Rather than add
+      a temporary allowlist entry, the redirection moved to a new
+      `crates/cargo-bdd/tests/cli/discovery.rs`, attached to the target with
+      `#[path = "cli/discovery.rs"] mod discovery;` beside `configuration` and
+      `environment` so Cargo does not compile it as a second test target. The
+      split is by cohesion: the module owns the file tier's environment policy
+      and the sibling `environment` module asserts the map it produces.
+      `cli.rs` is now 383 lines and the gate reports `LEN_RC=0`. Behaviour is
+      unchanged: `cargo test -p cargo-bdd --test cli` ran 21 tests with 21
+      passed, the four `configuration::` cases among them, and the poisoned
+      `HOME` control recorded in the entry above still passes.
+
+- [x] (2026-11-13) The first gate cycle on the split tree caught two defects
+      of the new code, both in what this round added rather than in the split.
+      `make check-fmt` rejected the import order in `cli.rs` (nightly rustfmt
+      wants `use discovery::…` after `use assert_cmd::Command;`). `make lint`
+      rejected `assert_ne!(roots[0], roots[1], …)` in
+      `cli/environment.rs` with `-D clippy::indexing-slicing` twice, because
+      `roots` is a `Vec` the helper builds at run time. The replacement asserts
+      that all three roots are pairwise distinct rather than only the first
+      two, using a `HashSet` of references; that is both slice-free and a
+      stronger claim, since `XDG_CONFIG_DIRS` shadowing `XDG_CONFIG_HOME` would
+      otherwise pass. `make check-fmt` and `make lint` then exited zero.
+
+- [x] (2026-11-13) Final deterministic gates on the split tree, `REV_START`
+      `155487afc95b9a8278c491973beea1979b86ae40`. The gate inputs were hashed
+      rather than assumed. The Rust files' combined diff sha256 — the tracked
+      diffs of `cli.rs` and `cli/environment.rs` plus the object id of the new
+      `cli/discovery.rs` — is
+      `c7a1faa8d81a2d07403fd3bc968e0f98cb7052f486e10303b3772a6a39225127`,
+      and it was unchanged when `make lint`, `make typecheck` and `make test`
+      ran. A whole-arm hash cannot be recorded as a stable figure, because the
+      plan document is itself one of the inputs and every edit to this entry
+      changes it; the Markdown-reading gates were instead re-run last, after
+      the final edit, and each exited zero on that tree.
+      `make check-fmt` exited zero with `142 files left unchanged`;
+      `make markdownlint` exited zero over `141 file(s)` with
+      `Summary: 0 error(s)`; `make nixie` exited zero with
+      `All diagrams validated successfully`; `make lint` exited zero through
+      all nine steps, `lint-whitaker` and `check_serial_nextest_matrix.py`
+      among them; `make typecheck` exited zero with `All checks passed!`; and
+      `make test` exited zero. The workspace leg of `make test` ran 2,254
+      tests with 2,254 passed and 7 skipped, the `--no-default-features` leg
+      787 with 787 passed and 7 skipped, `runner::step_macros_compile` passed
+      in both, and `uv run pytest scripts/tests` ran 291 passing tests. The
+      workspace count is two above the 2,252 recorded at `ba90b5f8`: the two
+      new `cli/environment.rs` tests this round added. Each log was checked
+      for `FAILED`, `error[` and `make: ***` and holds none.
+
+- [x] (2026-11-13) The first attempt at writing up these results put a
+      multi-line list inside a list item, which `make markdownlint` rejects as
+      `MD046` indented code block, and it duplicated the
+      `## Surprises & discoveries` heading. Rewriting the entry as prose fixed
+      both. Check-fmt, markdownlint and nixie were then re-run on the changed
+      document and exited zero; lint, typecheck and test were not re-run
+      because none of them reads this document, and the Rust gate-input hash
+      above shows the files they do read were byte-identical.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -1400,6 +1485,15 @@ invocations.*
 | *(no arguments)* | 2    | 0 B    | 446 B  |
 | `bdd steps`      | 2    | 0 B    | 102 B  |
 
+Row `bdd steps` is pre-change evidence for `V3`, not a `V1` case. Reproducing
+it would require the post-change binary to keep rejecting the invocation that
+`V3` requires to succeed, so the two obligations would contradict each other;
+the row records that the shipped binary rejected Cargo's own dispatch form
+before this work. Every other row is a `V1` no-configuration case, and the
+checked-in baseline fixture
+(`crates/cargo-bdd/tests/fixtures/baseline-cli.json`) holds exactly those seven
+and omits `bdd steps`.
+
 The exact captured text is in `/tmp/baseline-cli-errors-issue-901.out`. This
 scratch record is not durable; §5 must add checked-in assertions for the stable
 help and parser-failure cases. The failed successful-listing probe wrote 0
@@ -1448,13 +1542,15 @@ The change introduces five obligations worth stating.
 - Obligation: `V1 no-configuration-equivalence`. For the captured help and
   parser cases in Table 1, the post-change binary produces the same exit
   status, stdout bytes and stderr bytes as the baseline when no configuration
-  is present. Method: checked-in byte assertions generated from the captured
-  pre-change binary output. Successful listing behaviour is covered by the
-  existing integration tests, which must remain unmodified, and by source
-  snapshots for output formatting; the baseline probe could not produce a
-  successful fixture listing. Artefact: focused tests in
-  `crates/cargo-bdd/tests/`. Discharge condition: all applicable cases pass in
-  the full test run.
+  is present. The `bdd steps` row is excluded: it is pre-change evidence for
+  `V3`, which requires that form to succeed afterwards, so pinning its exit 2
+  would make the two obligations contradictory. Method: checked-in byte
+  assertions generated from the captured pre-change binary output. Successful
+  listing behaviour is covered by the existing integration tests, which must
+  remain unmodified, and by source snapshots for output formatting; the
+  baseline probe could not produce a successful fixture listing. Artefact:
+  focused tests in `crates/cargo-bdd/tests/`. Discharge condition: all
+  applicable cases pass in the full test run.
 
 - Obligation: `V2 precedence`. For each configurable field of each subcommand,
   a value set at a higher tier wins, and a value absent from every tier yields

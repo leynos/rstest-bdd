@@ -41,6 +41,70 @@ fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io:
     Ok(())
 }
 
+/// The child cannot see a host configuration file through a discovery root.
+///
+/// Discovery merges `$HOME/.cargo_bdd.toml`, the XDG bases and, on Windows,
+/// the home dotfile. A root left inherited is enough for a developer's own
+/// file to change a smoke test's output; measured with a `HOME` dotfile
+/// setting `cmds.skipped.json = true`, a listing test fails. Each root must
+/// therefore name a directory that exists and holds nothing discovery looks
+/// for, and `XDG_CONFIG_DIRS` must be set rather than absent because absent
+/// means `/etc/xdg`.
+#[cfg(unix)]
+#[test]
+fn cli_child_environment_redirects_every_discovery_root() {
+    let child = cli_child_environment(Vec::new());
+
+    let mut roots = Vec::new();
+    for variable in ["HOME", "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS"] {
+        let Some(value) = child.get(variable) else {
+            panic!("{variable} must be redirected, not inherited");
+        };
+        let path = std::path::Path::new(value);
+        assert!(path.is_dir(), "{variable} must name an existing directory");
+        roots.push(path.to_path_buf());
+    }
+
+    for path in &roots {
+        let entries = std::fs::read_dir(path).expect("the redirected root should be readable");
+        assert_eq!(
+            entries.count(),
+            0,
+            "{} must stay empty so no configuration can be discovered",
+            path.display()
+        );
+    }
+    let distinct: std::collections::HashSet<_> = roots.iter().collect();
+    assert_eq!(
+        distinct.len(),
+        roots.len(),
+        "each root must name its own directory, or one redirect would shadow another"
+    );
+}
+
+/// Redirection keeps the nested build's registry and toolchain resolvable.
+///
+/// Cargo derives `CARGO_HOME` and `RUSTUP_HOME` from the home directory this
+/// policy overrides, so both must still be present and must still name the
+/// ambient locations rather than the empty directory.
+#[test]
+fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() {
+    let child = cli_child_environment(Vec::new());
+    let home = child.get("HOME").expect("HOME is redirected");
+
+    for (variable, directory) in [("CARGO_HOME", ".cargo"), ("RUSTUP_HOME", ".rustup")] {
+        let value = child
+            .get(variable)
+            .unwrap_or_else(|| panic!("{variable} must be carried into the child"));
+        let path = std::path::Path::new(value);
+        assert!(
+            !path.starts_with(std::path::Path::new(home)),
+            "{variable} must not point inside the empty redirect directory"
+        );
+        assert_eq!(path.file_name(), Some(OsStr::new(directory)));
+    }
+}
+
 /// A developer's own `CARGO_BDD_*` export never reaches the child.
 ///
 /// Without the filter the child would merge that value over the file a case is
