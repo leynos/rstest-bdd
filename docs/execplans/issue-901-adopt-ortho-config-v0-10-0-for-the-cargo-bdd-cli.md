@@ -5,8 +5,9 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IMPLEMENTATION COMPLETE (hosted validation complete at `e28a927a`;
-merge pending)
+Status: IMPLEMENTATION COMPLETE (hosted validation complete at `e28a927a`; one
+named test and the single-invocation `make test` form are retained as recorded
+exceptions; merge pending)
 
 ## Purpose / big picture
 
@@ -707,8 +708,22 @@ Hard invariants. Violation requires escalation, not a workaround.
       `staging::tests::target_directory_uses_running_test_executable` and
       `staging::tests::unrecognized_executable_layout_has_no_target_root`
       report `ok` under `cargo test` and `PASS` under nextest in the job logs.
-      The validation exception recorded in `Outcomes & retrospective` is
-      therefore discharged by a complete hosted result, not waived.
+      The hosted result covers both nested-Cargo tests; it does not cover the
+      recipe's `--no-default-features` leg, and the single-invocation form of
+      `make test` was still without a local green verdict.
+
+- [x] (2026-11-13) Ran the `--no-default-features` leg that the hosted lanes do
+      not run, at `cf7f7945`, using the filtered command recorded in
+      `Outcomes & retrospective` and the recipe's `RUSTFLAGS`. It exited zero
+      after 754.3 s, with 786 tests passed and 8 skipped.
+      `whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`
+      passed in 266.1 s, which the earlier no-default-features runs had timed
+      out. `runner::step_macros_compile` is excluded: an unfiltered attempt at
+      the same head was stopped by its invoking command's own time limit after
+      1,136 s of compiling, short of its 1,200-second bound, and no local run
+      here has ever finished it. `Outcomes & retrospective` and the acceptance
+      section now record the exception as one requirement and one test rather
+      than as discharged.
 
 ## Surprises & discoveries
 
@@ -1076,10 +1091,30 @@ At `e28a927a` the hosted Linux coverage lane produced the complete result the
 local runs could not: 2,245 tests run, 2,245 passed, 7 skipped, including
 `runner::step_macros_compile` (631.5 s) and
 `whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`
-(0.9 s), and both Windows lanes passed at that head. The exception therefore no
-longer stands against this branch. It is retained above as the record of why
-the local single-invocation `make test` was never green on this host, and #910
-still owns the budget that made it so.
+(0.9 s), and both Windows lanes passed at that head. The hosted result covers
+`runner::step_macros_compile`, the one test no local run here has finished, but
+it does not cover the recipe's `--no-default-features` leg, which hosted lanes
+do not run.
+
+That leg was therefore run on the final tree, `cf7f7945`, on 2026-11-13:
+
+```sh
+cargo nextest run -p rstest-bdd --all-targets --no-default-features \
+  --no-fail-fast -E 'not test(~step_macros_compile)'
+```
+
+With the recipe's `RUSTFLAGS` it exited zero after 754.3 s with 786 tests
+passed and 8 skipped. The Whitaker lint-gate test in the same binary passed in
+266.1 s, which the earlier no-default-features runs had timed out. An
+unfiltered attempt at the same head was stopped by its invoking command's own
+time limit while `runner::step_macros_compile` was still compiling, 1,136 s
+into the test and short of its 1,200-second bound; that test is excluded from
+the filtered run rather than reported as a failure.
+
+The exception is therefore retained, narrowed to two things: the
+single-invocation form of the `make test` row, and a local verdict for
+`runner::step_macros_compile`. Both are covered by the hosted run above, and
+issue #910 still owns the budgets that make the local form unreachable here.
 
 ## Context and orientation
 
@@ -1405,20 +1440,41 @@ Acceptance means all of the following, in one gate run against the final tree:
   checks `cargo-bdd` with OrthoConfig. These commands test the package-level
   MSRV split directly.
 
-The `make test` row is met for the final tree. Hosted run `43386083081` on
-`e28a927a` passed the Linux coverage lane's full workspace suite — 2,245 tests
-run, 2,245 passed, 7 skipped — including both nested-Cargo tests
-(`runner::step_macros_compile` in 631.5 s and
-`whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures` in
-0.9 s), and both Windows lanes passed at the same head. The locally run doc
-tests, `make check-fixture-lockfiles` and `uv run pytest scripts/tests` cover
-the recipe's other steps. A single local `make test` invocation never produced
-this row on this host, because compile admission was saturated for the whole
-attempt; that history, its counts and the 1,200-second budget question under
-[#910](https://github.com/leynos/rstest-bdd/issues/910) stay recorded in
-`Outcomes & retrospective` rather than being claimed as a local pass. On the
-same tree, `make check-fmt`, `make markdownlint`, `make spelling`, `make nixie`,
-`make lint` (all nine steps) and `make typecheck` exited zero.
+The `make test` row is **not met as worded, and is not claimed as met**: it
+asks for one gate run against the final tree, and no single local invocation of
+`make test` has ever gone green on this host. What the final tree does have is
+a complete hosted result plus a local verdict for every test that can finish
+here.
+
+- Hosted run `43386083081` on `e28a927a` passed all three `build-test` jobs.
+  The Linux coverage lane ran the full workspace suite with `--all-features` —
+  2,245 tests run, 2,245 passed, 7 skipped — including both nested-Cargo tests
+  (`runner::step_macros_compile` in 631.5 s and
+  `whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`
+  in 0.9 s). Both Windows lanes passed at the same head.
+- The recipe's `--no-default-features` leg, which no hosted lane runs, was
+  executed at `cf7f7945` with the recipe's `RUSTFLAGS`:
+
+  ```sh
+  cargo nextest run -p rstest-bdd --all-targets --no-default-features \
+    --no-fail-fast -E 'not test(~step_macros_compile)'
+  ```
+
+  It exited zero after 754.3 s with 786 tests passed and 8 skipped, and the
+  Whitaker lint-gate test in the same binary passed in 266.1 s. The filter
+  excludes exactly one test, `runner::step_macros_compile`, whose 56-crate cold
+  compile has never finished inside its budget on this host.
+- The doc tests, `make check-fixture-lockfiles` and
+  `uv run pytest scripts/tests` cover the recipe's other steps. On the same
+  tree, `make check-fmt`, `make markdownlint`, `make spelling`, `make nixie`,
+  `make lint` (all nine steps) and `make typecheck` exited zero.
+
+The retained exception is therefore one requirement and one test: the
+single-invocation form of the row, and a local verdict for
+`runner::step_macros_compile`. The hosted run above covers the test, and
+[#910](https://github.com/leynos/rstest-bdd/issues/910) owns the budgets that
+make the local form unreachable here. This is recorded rather than waived, and
+the pull request's validation section states the same.
 
 There is no dedicated MSRV CI job in this repository. Report the direct local
 MSRV checks above and do not imply a pipeline covers them.
