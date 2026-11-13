@@ -34,7 +34,7 @@
 //! tags, no declared line. All four are plan-side. The signature is therefore
 //! itself the record of one of D5's obligations — `reporting` needs a name and
 //! tags the outcome does not carry, and cannot be given them without widening
-//! the outcome surface that ADR-018 keeps reporter-free.
+//! the outcome surface that ADR-0018 keeps reporter-free.
 
 use crate::{
     reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario},

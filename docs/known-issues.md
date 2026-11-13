@@ -2,7 +2,7 @@
 
 ## Result-containing wrapper returns remain payloads
 
-- **Status:** Open by design; tracked by ADR-019.
+- **Status:** Open by design; tracked by ADR-0019.
 - **Affected usage:** Steps returning `Box<Result<..>>`, `Option<Result<..>>`,
   `&Result<..>`, or a type with `Deref<Target = Result<..>>`.
 - **Symptom:** The outer type is treated as a value. An `Err` inside it is not

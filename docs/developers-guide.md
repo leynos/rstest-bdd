@@ -97,7 +97,7 @@ after collapsing folding whitespace, and refuses any step whose condition reads
 what is refused rather than the comparison, because a rule matching
 `matrix.os ==` admits `matrix.os != 'ubuntu-latest'` and the same comparison
 written the other way round. A runner reassignment must therefore move the
-arms, the `runner.os` guards, and those contracts together. ADR 013's
+arms, the `runner.os` guards, and those contracts together. ADR 0013's
 2026-09-16 addendum records the same constraint.
 
 The Linux lane sits on `ubicloud-standard-2`, the recipe's starting shape. The
@@ -273,7 +273,8 @@ pairings described below. `tests/workflow_contracts/cv005_wiring_test.py` fails
 if the pin is not a full commit, the target stops running the pinned checker,
 the repository parameter is wrong, `make all` drops the target, or CI stops
 running it (on the matrix cell that installs the tools). The decision is
-recorded in [ADR-023](adr-023-adopt-the-shared-cv005-contract-library.md).
+recorded in
+[ADR-0023](adrs/adr-0023-adopt-the-shared-cv005-contract-library.md).
 
 This reverses an earlier decision recorded here, and the reason is worth
 keeping. `coverage-main.yml` was removed once because it duplicated the Linux
@@ -482,7 +483,7 @@ instrumented one:
 
 Two owners therefore share one path, the single exception
 `runner_cache_test.py` records;
-[ADR-022](adr-022-separate-compiler-cache-family-for-the-publish-dry-run.md)
+[ADR-0022](adrs/adr-0022-separate-compiler-cache-family-for-the-publish-dry-run.md)
 records the alternatives and why this one was chosen.
 `coverage_publisher_setup_test.py` holds each family to one writer per
 platform, and `publish_dry_run_cache_test.py` evaluates the guards for every
@@ -1327,7 +1328,7 @@ and promotes every Rustdoc warning to an error. `--workspace` checks every
 member crate, while `--no-deps` keeps the gate focused on documentation owned
 by this repository.
 
-## Rust formatting and workspace lints (ADR-016)
+## Rust formatting and workspace lints (ADR-0016)
 
 The repository's formatter configuration is the root
 [`.rustfmt.toml`](../.rustfmt.toml). It enables unstable options, including
@@ -1351,7 +1352,7 @@ selected by `rust-toolchain.toml`.
 CI installs this toolchain explicitly and runs `make check-fmt` in the tools
 lane. Keep the installation command, `FMT_TOOLCHAIN`, and editor configuration
 in sync when changing the pinned date. This policy is recorded in
-[ADR-016](adr-016-pinned-nightly-rustfmt.md).
+[ADR-0016](adrs/adr-0016-pinned-nightly-rustfmt.md).
 
 The root `Cargo.toml` owns the workspace Clippy, Rust, and Rustdoc lint policy.
 Every workspace member, including each example, must inherit it by declaring
@@ -1450,11 +1451,11 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 90 m `global-timeout`
-  to the whole run. This gives the cargo-spawning group room for cold nested
-  builds without relaxing any per-test limit. The global timeout must stay
-  above the largest per-test budget below, or the run is killed before a test
-  with that budget can finish;
+  (`terminate-after = 1`, 5 s grace period) and applies a 90 m
+  `global-timeout` to the whole run. This gives the cargo-spawning group room
+  for nested builds without relaxing any per-test limit. The global timeout
+  must stay above the largest per-test budget below, or the run is killed
+  before a test with that budget can finish;
   `trybuild_nextest_override_preserves_timeout_contract` enforces the ordering.
 - The first `[[profile.default.overrides]]` entry gives the named
   `nested_fixture_preparation` tests a 30 m `slow-timeout` and the highest
@@ -1531,8 +1532,8 @@ The file sets the timeout policy for the test suite:
   other. The 90 m `global-timeout` is an operational ceiling sized for the
   nested-fixture lane. R-6 uses `180 + 600 × 4 + 600 × 3 = 4,380 s` as its
   reference scenario; the projected cold-cache increase is about 19 s for each
-  of roughly ten nested invocations, or 4,570 s total. A 5,400 s ceiling
-  therefore leaves 830 s above that projection, exceeding the required 600 s
+  of roughly ten nested invocations, or 4,570 s total. An 8,700 s ceiling
+  therefore leaves 4,130 s above that projection, exceeding the required 600 s
   reserve.
 
   Milestone 1 of that risk measured a cold nested-fixture build before and
@@ -1579,13 +1580,13 @@ different test, and it sits below the global timeout rather than above the
 assertion budget. It is listed so that a reader who meets the 30 m period in
 `.config/nextest.toml` can see that no assertion inherited it.
 
-| Tier                     | What it bounds                     | Where it is set                                                 | Current value                                          |
-| ------------------------ | ---------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------ |
-| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                          | 60 s default; 20 m, 600 s or 180 s under the overrides |
-| Preparation budget       | one preparation test               | `.config/nextest.toml`                                          | 30 m                                                   |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 90 m                                                   |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                                        |
-| Job `timeout-minutes`    | the whole job                      | `ci.yml`, job level                                             | 190 m                                                  |
+| Tier                     | What it bounds                     | Where it is set                                                                         | Current value                                          |
+| ------------------------ | ---------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                                                  | 60 s default; 20 m, 600 s or 180 s under the overrides |
+| Preparation budget       | one preparation test               | `.config/nextest.toml`                                                                  | 30 m                                                   |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                                                  | 90 m                                                   |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` and `coverage-main.yml` | 9,900 s (165 m)                                        |
+| Job `timeout-minutes`    | the whole job                      | the coverage jobs in `ci.yml` and `coverage-main.yml`                                   | 240 m                                                  |
 
 Each tier must sit above the one before it. If the watchdog sits below the
 nextest global timeout, as it did until this was written, the run is killed
@@ -1612,8 +1613,11 @@ reads it from the configuration so a profile that raises it raises the
 requirement too.
 
 The watchdog is therefore sized as the global timeout, plus a termination
-allowance, plus a cold-build allowance: 90 m + 65 s + 15 m = 6,365 s, taken up
-to 6,600 s (110 m). This leaves 235 s after the stated allowances. The
+allowance, plus a cold-build allowance: 90 m + 65 s + 15 m = 6,365 s. Both
+coverage workflows declare 9,900 s (165 m) instead, because the shared
+compile-admission pool can stretch a cold instrumented build far beyond the
+measured 15 minutes and the watchdog is the tier that must never fire first.
+The
 termination allowance is derived, not fixed: the largest configured grace
 period, five seconds here, or nextest's ten-second default when none is named,
 plus a sixty-second margin for the teardown and report writing that follow. The
@@ -1621,12 +1625,12 @@ build phase inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly
 cold cache, so the 15 minutes is generous on purpose, and the extra minutes of
 rounding cost nothing because the watchdog only fires on an overrun.
 
-This paragraph previously claimed that a test already running when the global
-timeout expires is allowed to finish, and sized the middle term at the 20
-minute trybuild allowance. That was wrong, and it is recorded here rather than
-quietly replaced because the other repositories adopting this contract copy
-this section. The numbers did not change: the value chosen from the wrong
-premise is larger than the corrected rule requires.
+An earlier version of this section claimed that a test already running when the
+global timeout expires is allowed to finish, and sized the middle term at the
+20-minute trybuild allowance. That was wrong: nextest terminates the run when
+the global timeout expires. The correction originally left the configured
+numbers unchanged; later shared-cache runs required the larger current budgets
+documented above.
 
 The job timer starts when the job starts, long before coverage and long after
 it finishes. On the Linux lane, formatting, linting, type checking and the
@@ -1636,9 +1640,9 @@ after on run 33971821695, against 37 m 34 s before and 30 m 59 s after on the
 cold run that carried this change, where the published-GPUI fixture check and
 end-to-end scenario took 8 m 19 s and 13 m 07 s rather than about three minutes
 each. Just over 68 minutes of that job lay outside the watchdog's window. The
-ceiling is therefore 110 m + 75 m = 185 m, rounded to 190. A job ceiling merely
-above the watchdog would cancel the run before the watchdog could report it,
-and a cancellation discards the log that would have explained the overrun.
+ceiling is therefore 165 m + 75 m = 240 m. A job ceiling merely above the
+watchdog would cancel the run before the watchdog could report it, and a
+cancellation discards the log that would have explained the overrun.
 
 ### The cargo watchdog is the tier nobody expects
 
@@ -1650,7 +1654,7 @@ to forget, because nothing in `.config/nextest.toml` mentions it.
 When it fires the step prints:
 
 ```text
-::error::cargo did not exit within 6600s; killing. This is a budget, not a
+::error::cargo did not exit within 9900s; killing. This is a budget, not a
 detected hang: raise the cargo-wait-timeout input, or
 RUN_RUST_CARGO_WAIT_TIMEOUT, if the build is legitimately slower. A cold
 sccache store makes the first run on a branch compile everything inside this
@@ -1929,10 +1933,10 @@ absolute link can ship downstream undetected; manual review does not give
 deterministic drift detection. Its scope is limited to repository-reference
 link definitions in `docs/users-guide.md`, rather than expanding to every
 documentation cross-reference in the repository. See
-[ADR-014](adr-014-retain-users-guide-link-validator.md) for the decision to
-retain it, and
-[ADR-021](adr-021-single-source-base-url-for-users-guide-links.md) for the
-decision to generate the reference block from one recorded base URL.
+[ADR-0014](adrs/adr-0014-retain-users-guide-link-validator.md) for the decision
+to retain it, and
+[ADR-0021](adrs/adr-0021-single-source-base-url-for-users-guide-links.md) for
+the decision to generate the reference block from one recorded base URL.
 
 ## GPUI mapping-table validation (`scripts/check_gpui_mapping_table.py`)
 
@@ -2980,7 +2984,7 @@ The architectural rationale explains this decision and its consequences.[^6]
 [^3]: ../crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs
 [^4]: ../crates/rstest-bdd/src/execution/tests.rs
 [^5]: ../crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs
-[^6]: adr-004-policy-crate.md
+[^6]: adrs/adr-0004-policy-crate.md
 
 ## Internal test infrastructure
 
@@ -3243,7 +3247,7 @@ attribute-policy type path.
 #### Adapter fallback diagnostics
 
 The accepted toolchain and ownership contract for this boundary is recorded in
-[ADR-017](adr-017-toolchain-aware-adapter-fallback-diagnostics.md).
+[ADR-0017](adrs/adr-0017-toolchain-aware-adapter-fallback-diagnostics.md).
 
 The macro code-generation layer owns first-party adapter fallback diagnostics in
 `codegen::adapter_fallback`. An unresolved path qualifies only when the
@@ -3293,7 +3297,7 @@ no-op on stable toolchains and in tests. Keep those call sites behind this
 wrapper; adapter fallback diagnostics retain their separate generated
 deprecated-item path on stable toolchains. `proc-macro-error3` supports other
 fatal macro errors through `abort!`, `entry_point`, and `proc_macro_error`; it
-does not emit adapter fallback warnings. ADR-017 records why
+does not emit adapter fallback warnings. ADR-0017 records why
 `proc-macro-error2` is not reintroduced: review identified it as unmaintained,
 and it cannot provide the stable warning channel that the generated deprecation
 diagnostic supplies.
@@ -3311,7 +3315,7 @@ decoupled from `rstest-bdd` and `rstest-bdd-macros`.
 ### Observability guidance
 
 Every crate in this workspace emits diagnostics through `tracing`; see
-[ADR 020](adr-020-consolidate-on-the-tracing-logging-facade.md). Do not
+[ADR 0020](adrs/adr-0020-consolidate-on-the-tracing-logging-facade.md). Do not
 introduce `log::` emission sites. `rstest-bdd` depends on `log` only to detect
 whether a `log` listener is installed, and enables tracing's `log` feature so a
 consumer running `env_logger` still receives warnings while no `tracing`
@@ -3531,8 +3535,8 @@ Keep OrthoConfig within `crates/cargo-bdd`. Reusable library crates stay free
 of the dependency and retain the workspace Rust 1.88 MSRV; only the binary
 crate requires Rust 1.89. When adding a configurable option, first record its
 scope, file and environment names, precedence, and domain validation in
-[design §3.6a](rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-026)
-and [ADR 026](adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md). Keep
+[design §3.6a](rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-0026)
+and [ADR 0026](adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md). Keep
 configuration types in the application crate and pass validated values into
 existing handlers.
 
@@ -3691,22 +3695,22 @@ parameterized lookup visits only the selected library buckets. Never add a
 first-match or declaration-order fallback: equally specific candidates must
 return `StepLookupError` with the scope and source locations intact.
 
-## Internal APIs and tooling (ADR-010 to ADR-013)
+## Internal APIs and tooling (ADR-0010 to ADR-0013)
 
-ADR-010 is accepted and implemented build-tooling work. ADR-011 records
-historical scenario-state work that did not ship. ADR-012 is accepted and
-implemented in v0.7.0, while ADR-013 is accepted and governs the current
+ADR-0010 is accepted and implemented build-tooling work. ADR-0011 records
+historical scenario-state work that did not ship. ADR-0012 is accepted and
+implemented in v0.7.0, while ADR-0013 is accepted and governs the current
 Whitaker lint gate. They are summarized here so the decisions are discoverable
 from the developer guide; the ADRs remain the authoritative source, and the
 planning rationale lives in
 [`docs/execplans/adopt-v0-6-0-beta2-feedback.md`](execplans/adopt-v0-6-0-beta2-feedback.md).
 
-### Historical scenario-state helper proposal (ADR-011)
+### Historical scenario-state helper proposal (ADR-0011)
 
-[ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) proposed a
+[ADR-0011](adrs/adr-0011-first-party-scenario-state-and-cleanup.md) proposed a
 first-party replacement for the hand-rolled thread-local `RefCell` plus `Drop`
 cleanup guard used by stateful GPUI scenarios under v0.6.x. The proposal did
-not ship and was superseded by ADR-012 before implementation:
+not ship and was superseded by ADR-0012 before implementation:
 
 - A generic `ScenarioStore<T>` core would have lived in `rstest-bdd`, exposing
   `set`/`with`/`with_mut`/`take`/`reset` and wrapping the two-sided reset
@@ -3727,11 +3731,11 @@ Roadmap items 10.3.1 and 10.3.2 retain this proposal as an explicitly
 superseded historical record; design coverage is in `rstest-bdd-design.md`
 §2.7.6.4.
 
-### Guard-based `StepContext` borrowing and `FixtureBorrowError` (ADR-012)
+### Guard-based `StepContext` borrowing and `FixtureBorrowError` (ADR-0012)
 
-[ADR-012](adr-012-guard-based-stepcontext-borrowing.md) records the accepted
-and implemented v0.7.0 redesign. Contributors touching the borrow machinery
-should preserve these contracts:
+[ADR-0012](adrs/adr-0012-guard-based-stepcontext-borrowing.md) records the
+accepted and implemented v0.7.0 redesign. Contributors touching the borrow
+machinery should preserve these contracts:
 
 - `StepContext::try_borrow` and `try_borrow_mut` take `&self` and return opaque
   `FixtureRef` and `FixtureRefMut` guards. Guards for distinct mutable fixtures
@@ -3755,13 +3759,14 @@ should preserve these contracts:
 Tracked by roadmap items 12.1.1–12.1.3; design coverage is in
 `rstest-bdd-design.md` §2.7.6.5.
 
-### Feature-file rebuild invalidation (ADR-010)
+### Feature-file rebuild invalidation (ADR-0010)
 
-[ADR-010](adr-010-feature-file-change-detection.md) closes a build-tooling
-foot-gun: `#[scenario(path = …)]` and `scenarios!` read `.feature` files with
-`std::fs` at macro-expansion time, so Cargo never sees them as inputs and a
-`.feature`-only edit would otherwise leave a stale binary. The implemented
-mechanism emits an item-scope anonymous binding for every bound feature file:
+[ADR-0010](adrs/adr-0010-feature-file-change-detection.md) closes a
+build-tooling foot-gun: `#[scenario(path = …)]` and `scenarios!` read
+`.feature` files with `std::fs` at macro-expansion time, so Cargo never sees
+them as inputs and a `.feature`-only edit would otherwise leave a stale binary.
+The implemented mechanism emits an item-scope anonymous binding for every bound
+feature file:
 
 ```rust
 const _: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", REL));
@@ -3782,11 +3787,11 @@ described in [Feature-file rebuild invalidation conventions]
 is in `rstest-bdd-design.md` §2.7.6.6 and migration guidance is in
 `v0-6-0-migration-guide.md`.
 
-### Whitaker Dylint suite lint gate (ADR-013)
+### Whitaker Dylint suite lint gate (ADR-0013)
 
-[ADR-013](adr-013-adopt-whitaker-no-unwrap-or-else-panic.md) introduced the
-first Whitaker lint; the repository now runs the full Whitaker Dylint suite as
-part of `make lint`, matching the estate-wide rollout that began with
+[ADR-0013](adrs/adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md) introduced
+the first Whitaker lint; the repository now runs the full Whitaker Dylint suite
+as part of `make lint`, matching the estate-wide rollout that began with
 leynos/netsuke#410.
 
 Local setup installs the `whitaker` wrapper and its pinned Dylint driver
@@ -3861,7 +3866,7 @@ When maintaining the pin:
    SHA-pinned shared `install-whitaker` action consumes that value. The suite
    itself is rolling and updated by rerunning `whitaker-installer`.
 2. Re-run `make lint-whitaker`, then the full `make lint` gate.
-3. Update ADR-013 only if the mechanism or adopted lint set changes.
+3. Update ADR-0013 only if the mechanism or adopted lint set changes.
 
 The root `clippy.toml` sets `allow-expect-in-tests = true` and
 `allow-panic-in-tests = true`. These keys are narrowly scoped: recognized
@@ -3874,7 +3879,7 @@ copyable invariant check such as
 `let Some(value) = value else { panic!("expected value to be present"); };`, or
 return `Result` and use `?` when an operation is fallible. Recognized built-in
 `#[test]` and `rstest` cases may use `.expect(...)` or `panic!(...)` for
-unexpected setup failures, aligned with ADR-013; `.unwrap()` and
+unexpected setup failures, aligned with ADR-0013; `.unwrap()` and
 `unwrap_or_else(|| panic!(...))` remain disallowed. Their signatures need not
 return `Result` simply to propagate fixture errors. Reusable fixture functions
 and shared helpers should still return `Result` rather than panic. Shared
@@ -3890,10 +3895,10 @@ profiles in the nightly's format, which the stable toolchain's `llvm-profdata`
 rejects, and `Coverage (main)` then fails with `no profile can be merged`. The
 fixture needs no coverage, so it inherits none.
 
-## Step-return overrides and `InsertOutcome` (ADR-015)
+## Step-return overrides and `InsertOutcome` (ADR-0015)
 
-[ADR-015](adr-015-insert-outcome-for-step-return-overrides.md) records why
-`StepContext::insert_value` returns `InsertOutcome` rather than
+[ADR-0015](adrs/adr-0015-insert-outcome-for-step-return-overrides.md) records
+why `StepContext::insert_value` returns `InsertOutcome` rather than
 `Option<Box<dyn Any>>`. When a step function returns a value, the runner offers
 it as an override for the fixture of the same type; `insert_value` reports what
 became of it:
@@ -4320,8 +4325,8 @@ unbounded values to any metric label.
 
 `crates/rstest-bdd/src/runner/` executes a scenario that a caller has already
 parsed, so a frontend other than Gherkin can reuse the step registry, skip
-policy, and outcome types. The module and its invariants are ADR-018's subject;
-this section records the conventions a change to it must follow.
+policy, and outcome types. The module and its invariants are ADR-0018's
+subject; this section records the conventions a change to it must follow.
 
 ### The engine split, and the rule it exists to enforce
 

@@ -21,7 +21,12 @@ consistent, and easy to maintain across projects.
   - and so forth.
 - The words **"outwith"** and **"caveat"** are acceptable.
 - Keep United States (US) spelling when used in an API, for example, `color`.
+  Wrap such API names in backticks: the spelling gate ignores backticked spans,
+  so quoting an identifier both documents its origin and exempts it from the
+  Oxford-spelling check.
 - The project uses the filename `LICENSE` for community consistency.
+- Markdown prose is checked against this spelling policy with
+  [`typos`](https://github.com/crate-ci/typos).
 
 ## Punctuation and grammar
 
@@ -34,7 +39,19 @@ consistent, and easy to maintain across projects.
 
 ## Headings
 
-- Write headings in sentence case.
+- Write headings in sentence case: capitalize only the first word and any
+  proper nouns, acronyms, or other words that are always capitalized, for
+  example `Context and problem statement` and `RFC number`.
+- Treat a bold label in a list of required or conditional sections as a
+  heading for this rule because readers write it as the section heading. Spell
+  it in sentence case and match the corresponding template heading.
+- Where such a label offers alternatives separated by a slash, for example
+  `Proposed design / proposed change`, treat the whole label as one heading.
+  Capitalize only its first word and any proper nouns or acronyms, and use one
+  alternative consistently within the document.
+- Labels that describe a metadata field or give guidance rather than name a
+  heading, such as `Title` or `Opening section`, are prose and are exempt from
+  this rule.
 - Use Markdown headings (`#`, `##`, `###`, and so on) in order without skipping
   levels.
 
@@ -62,6 +79,9 @@ consistent, and easy to maintain across projects.
 - Do not wrap tables.
 - Use GitHub-flavoured numeric footnotes referenced as `[^1]`.
 - Footnotes must be numbered in order of appearance in the document.
+- Exception: roadmap-shaped Markdown processed by the `mapsplice` tool must
+  cite references with inline links instead of footnotes, because the
+  `mapsplice` roadmap grammar rejects footnote references.
 - Caption every table, and caption every diagram.
 
 ## Standard document types
@@ -70,14 +90,15 @@ Repositories that adopt this documentation style should keep a small set of
 high-value documents with clearly separated audiences and responsibilities.
 These document types are complementary: the contents file helps readers find
 material, the user's guide explains how to use the project, the developer's
-guide explains how to work on the project, the design document explains why the
-system is shaped the way it is, and the repository layout document explains
-where important things live. For discoverability, use canonical filenames
-unless a stronger repository-specific constraint applies. A minimal canonical
-set looks like
-`docs/{contents,users-guide,developers-guide,repository-layout}.md` plus a
-primary design document under `docs/*-design.md`, for example
-`docs/theoremc-design.md` or `docs/query-planner-design.md`.
+guide explains how to work on the project, the migration guide carries a reader
+across one release boundary, the design document explains why the system is
+shaped the way it is, and the repository layout document explains where
+important things live. For discoverability, use canonical filenames unless a
+stronger repository-specific constraint applies: `docs/contents.md`,
+`docs/users-guide.md`, `docs/developers-guide.md`, `docs/repository-layout.md`,
+and `docs/documentation-style-guide.md`, plus a primary design document under
+`docs/*-design.md`, for example `docs/query-planner-design.md`, and one
+migration guide per release that changes observable behaviour.
 
 ### Contents file
 
@@ -127,6 +148,129 @@ this means operators, end users, or integrators.
   otherwise overload the guide.
 - Exclude maintainer-only concerns such as internal layering debates, future
   refactor plans, or enforcement tooling unless they directly affect users.
+- **Empathy.** Follow the example set by the Netsuke user's guide: open by
+  naming the exact release and stating plainly when it is an early-adopter
+  release whose interfaces may change, so a reader can decide whether to pin
+  the version. Phrase headings as imperative statements of the reader's task,
+  for example "Run the first build", "Author a manifest", and "Interpret
+  failures". Answer the question a reader is about to ask at the point they ask
+  it, cover a complete setup for every supported platform rather than assuming
+  one, and state honestly where a feature is unimplemented in the current
+  release.
+- **Accessibility.** Treat accessibility as two related concerns. Document the
+  project's accessible behaviour as a first-class topic: how accessible output
+  is selected, by flag and by environment variable; that meaning is never
+  carried by colour or glyph alone, so semantic text labels are always present;
+  and how output streams are separated so redirection and assistive technology
+  behave predictably. Apply the same care to the document itself: expand
+  acronyms, use descriptive link text, give tables headers, and describe
+  diagrams.
+- **Comprehensiveness.** Cover the whole user-facing surface in one place, in
+  the order a reader meets it: install, first run, the model, authoring, the
+  command-line interface, configuration, diagnostics, output control, network
+  access, failure interpretation, the safety boundary, complete worked
+  examples, and where to look next. Place reference material beside the feature
+  it governs. State the safety and privacy boundary explicitly, including what
+  the project deliberately does not record.
+- **Tested correctness.** Make every fenced example in a user-facing document
+  executable and exercised by the test suite. Precede each fence immediately
+  with a marker comment carrying a stable identifier, written
+  `<!-- tested-example: <identifier> -->`. Load the examples from the published
+  document with a shared loader, rather than a copied fixture, so the tests
+  exercise the shipped text; fail the build on an unmarked fence, an
+  unterminated fence, a missing identifier, or a duplicate identifier. Share
+  that loader between integration tests and behaviour-driven scenarios, so a
+  documented example becomes a contract the implementation must satisfy and
+  cannot drift from the behaviour it claims.
+
+### Migration guide
+
+Use a migration guide, named `docs/v<major>-<minor>-<patch>-migration-guide.md`
+with dots written as dashes, for a release that changes observable behaviour. A
+repository vendoring a library's guide prefixes the filename with the library
+name, for example `docs/rstest-bdd-v0-5-0-migration-guide.md`.
+
+- Cover exactly one step, from the previous release to the named release. A
+  guide is never a cumulative "upgrade from any earlier version" document. A
+  reader crossing several releases follows the guides in sequence, one per
+  release. Keep each guide small enough to review against a single changelog
+  and correct forever; a cumulative document decays as later releases change
+  the ground it already described.
+- Skip the guide only when a release changes nothing observable. A tiny
+  release that does change observable behaviour still gets its own guide,
+  however short.
+- Title the guide with both endpoints, for example
+  `# Migration guide: v0.8.0 to v0.9.0`.
+- Sequence the guide's sections in this order:
+  - **Who should read this:** state which callers are affected and
+    summarize what changes.
+  - **Impact at a glance:** a table classifying every item by obligation.
+  - **Numbered task sections:** one section per required or recommended
+    change, in the order the reader should perform them.
+  - **What does not need to change:** an explicit statement of unaffected
+    behaviour, even when short.
+  - **Migration checklist:** a Markdown task list so a reader can track
+    progress.
+  - **Common errors and fixes:** the exact diagnostic text a reader will
+    encounter, paired with its fix.
+- Classify every impact-table item by obligation, using this vocabulary:
+  Required, Required if called, Review if enabled, Recommended, Optional. Do
+  not interleave required work with optional adoption in the same list.
+- Show a mechanical change as a Before and After pair of fenced code blocks,
+  not as a prose description.
+- Quote the exact diagnostic text a reader will encounter, so pasting a
+  compiler or runtime error into a search finds the fix.
+- Write the checklist with Markdown task-list syntax (`- [ ]`) so a reader can
+  track progress.
+- Link rationale to the accepted ADR or RFC that decided it rather than
+  restating the reasoning.
+- Hold the guide's examples to the same tested-correctness rule the user's
+  guide follows, rather than restating that rule here.
+
+#### Migration guide skeleton
+
+````markdown
+# Migration guide: v0.8.0 to v0.9.0
+
+## Who should read this
+
+<Which callers are affected and what changes.>
+
+## Impact at a glance
+
+| Priority | Area   | What to do |
+| -------- | ------ | ---------- |
+| Required | <Area> | <Action>   |
+
+_Table 1: Obligations when moving from v0.8.0 to v0.9.0._
+
+## 1. <First required change>
+
+### Before
+
+```rust,no_run
+<old code>
+```
+
+### After
+
+```rust,no_run
+<new code>
+```
+
+## What does not need to change
+
+<Explicit statement of unaffected behaviour.>
+
+## Migration checklist
+
+- [ ] <Checklist item>
+
+## Common errors and fixes
+
+- **Error:** `<exact diagnostic text>`
+  - **Fix:** <remedy>
+````
 
 ### Developer's guide
 
@@ -217,16 +361,26 @@ user's guide or developer's guide.
 Use RFCs for proposed changes that need technical review before they become
 binding. Store them under `docs/rfcs/`.
 
-### RFC naming convention
+#### RFC naming convention
 
-Name RFC files using the pattern `0001-short-topic.md`, where `0001` is a
-zero-padded sequence number. Place RFCs in the `docs/rfcs/` directory.
+Name RFC files using the pattern `rfcs/rfc-nnnn-title-slug.md`, relative to the
+`docs/` directory, for example `docs/rfcs/rfc-0007-streaming-step-results.md`.
 
+- `nnnn` is a four-digit, zero-padded serial number, unique among the RFCs in
+  the repository. RFC and ADR numbers are allocated independently, so
+  `rfc-0003` and `adr-0003` may both exist.
+- `title-slug` is a kebab-case American Standard Code for Information
+  Interchange (ASCII) rendering of the RFC title, without the `RFC nnnn:`
+  prefix: lowercase letters, digits, and single hyphens only, with no leading
+  or trailing hyphen. Transliterate accented letters to their ASCII base
+  letters, and drop other punctuation and symbols.
 - Number RFCs sequentially in allocation order rather than by date.
 - Do not renumber existing RFCs after publication. Gaps are acceptable when
   numbers are reserved, drafted on another branch, or intentionally skipped.
+- Keep the slug stable once the RFC is published. If the title changes
+  materially, rename the file, keep the number, and update every inbound link.
 
-### RFC required sections
+#### RFC required sections
 
 Every RFC must include the following sections in order:
 
@@ -241,31 +395,31 @@ Every RFC must include the following sections in order:
   `## Summary`, `## Executive summary`, or `## Problem` are all acceptable if
   used consistently within the document.
 
-### RFC conditional sections
+#### RFC conditional sections
 
 Include these sections as appropriate to the scope and complexity of the
 proposal:
 
 - **Problem:** Describe the deficiency, risk, or missing capability that
   motivates the RFC.
-- **Current State:** Explain the relevant current behaviour or architecture when
+- **Current state:** Explain the relevant current behaviour or architecture when
   the proposal depends on existing constraints.
-- **Goals and Non-goals:** Clarify what the RFC intends to change and what it
+- **Goals and non-goals:** Clarify what the RFC intends to change and what it
   deliberately leaves out of scope.
-- **Proposed Design / Proposed Change:** Describe the recommended design with
+- **Proposed design / proposed change:** Describe the recommended design with
   enough detail to support implementation review.
 - **Requirements:** Separate functional, technical, safety, or operational
   requirements when the proposal has multiple kinds of constraints.
-- **Compatibility and Migration:** Explain rollout expectations, compatibility
+- **Compatibility and migration:** Explain rollout expectations, compatibility
   impact, and migration sequencing when adoption is not trivial.
-- **Alternatives Considered:** Record rejected options and the reasons they
+- **Alternatives considered:** Record rejected options and the reasons they
   were not chosen.
-- **Open Questions / Outstanding Decisions:** Identify unresolved issues that
+- **Open questions / outstanding decisions:** Identify unresolved issues that
   still need reviewing before the proposal can be treated as settled.
 - **Recommendation:** End with a clear statement of the preferred direction
   when the preceding analysis presents multiple viable choices.
 
-### RFC formatting guidance
+#### RFC formatting guidance
 
 - Use second-level headings (`##`) for major sections.
 - Use third-level headings (`###`) for subsections such as phases, options,
@@ -280,7 +434,7 @@ proposal:
 - Update links when RFC filenames change, especially cross-references from one
   RFC to another.
 
-### RFC template
+#### RFC template
 
 ```markdown
 # RFC 0001: <title>
@@ -342,6 +496,12 @@ proposal:
 
 <Description, consequences, and trade-offs.>
 
+| Topic     | Option A | Option B |
+| --------- | -------- | -------- |
+| <Factor>  | <Value>  | <Value>  |
+
+_Table 1: Comparison of options._
+
 ## Open questions
 
 - <Open question 1>
@@ -360,11 +520,16 @@ providing a historical record for future maintainers.
 
 ### Naming convention
 
-Name ADR files using the pattern `adr-NNN-short-description.md`, where `NNN` is
-a zero-padded sequence number (e.g. `adr-001-async-fixtures-and-tests.md`). An
-ADR documenting a sub-decision that shares a number with an earlier record may
-use a letter suffix (e.g. `adr-005a-harness-adapters.md`). Place ADRs in the
-`docs/` directory.
+Name ADR files using the pattern `adrs/adr-nnnn-title-slug.md`, relative to the
+`docs/` directory, for example `docs/adrs/adr-0001-async-fixtures-and-tests.md`.
+
+- `nnnn` is a four-digit, zero-padded serial number, unique among the ADRs in
+  the repository and allocated independently of RFC numbers.
+- `title-slug` is a kebab-case ASCII rendering of the ADR title, without the
+  `Architectural decision record (ADR) nnnn:` prefix, following the same slug
+  rules as RFC filenames.
+- Number ADRs sequentially in allocation order rather than by date, and do not
+  renumber an ADR after publication.
 
 ### Required sections
 
@@ -373,36 +538,36 @@ Every ADR must include the following sections in order:
 - **Status:** One of `Proposed`, `Accepted`, `Superseded`, or `Deprecated`. For
   `Accepted` status, include the date and a brief summary of what was decided.
 - **Date:** The date the ADR was created or last updated (format: YYYY-MM-DD).
-- **Context and Problem Statement:** Describe the situation, constraints, and
+- **Context and problem statement:** Describe the situation, constraints, and
   the problem or question that prompted the decision. Include enough background
   for readers unfamiliar with the history.
 
 When an accepted ADR needs a targeted correction rather than replacement, add an
-`Amended by ADR-NNN (YYYY-MM-DD)` banner to its Status section and an
+`Amended by ADR-nnnn (YYYY-MM-DD)` banner to its Status section and an
 `## Amendments` section that preserves the original decision as history.
 
 ### Conditional sections
 
 Include these sections as appropriate to the decision's complexity:
 
-- **Decision Drivers:** Key factors, requirements, or constraints that
+- **Decision drivers:** Key factors, requirements, or constraints that
   influenced the decision. Use bullet points.
 - **Requirements:** For complex decisions, separate functional and technical
   requirements into subsections.
-- **Options Considered:** Describe the alternatives evaluated. Use a comparison
+- **Options considered:** Describe the alternatives evaluated. Use a comparison
   table when contrasting multiple options across several dimensions.
-- **Decision Outcome / Proposed Direction:** State the chosen approach and
+- **Decision outcome / proposed direction:** State the chosen approach and
   summarize the rationale. For `Proposed` ADRs, describe the recommended
   direction.
-- **Goals and Non-Goals:** Clarify what the decision aims to achieve and what
+- **Goals and non-goals:** Clarify what the decision aims to achieve and what
   is explicitly out of scope.
-- **Migration Plan:** For decisions requiring phased implementation, break the
+- **Migration plan:** For decisions requiring phased implementation, break the
   work into numbered phases with clear goals and deliverables.
-- **Known Risks and Limitations:** Document trade-offs, potential issues, and
+- **Known risks and limitations:** Document trade-offs, potential issues, and
   constraints of the chosen approach.
-- **Outstanding Decisions:** For `Proposed` ADRs, list open questions that must
+- **Outstanding decisions:** For `Proposed` ADRs, list open questions that must
   be resolved before acceptance.
-- **Architectural Rationale:** Explain how the decision aligns with broader
+- **Architectural rationale:** Explain how the decision aligns with broader
   architectural principles and project goals.
 
 ### Formatting guidance
@@ -412,15 +577,18 @@ Include these sections as appropriate to the decision's complexity:
 - Use tables to compare options when multiple dimensions are relevant. Include
   a caption below the table (e.g. “_Table 1: Trade-offs between X and Y._”).
 - Include code snippets with language identifiers when illustrating technical
-  approaches. Use `no_run` for illustrative Rust code that should not be
-  executed.
+  approaches. In Rustdoc, `no_run` still compiles the snippet, so reserve it
+  for complete Rust code that compiles but does not execute, for example
+  because it needs external resources, environment-specific setup, or a
+  long-running service. Use `ignore` for an incomplete snippet or one that
+  cannot compile: `ignore` skips both compilation and execution.
 - Add screen reader descriptions before complex diagrams or code blocks.
 - Reference external sources using inline links or footnotes.
 
 ### ADR template
 
-```plaintext
-# Architectural decision record (ADR) NNN: <title>
+```markdown
+# Architectural decision record (ADR) nnnn: <title>
 
 ## Status
 
@@ -434,7 +602,7 @@ YYYY-MM-DD.
 
 <Describe the situation, constraints, and the question being addressed.>
 
-## Decision Drivers
+## Decision drivers
 
 - <Driver 1>
 - <Driver 2>
@@ -494,9 +662,14 @@ implementation is required.>
 
 - <Open question 1>
 - <Open question 2>
+
+## Architectural rationale
+
+<Explain how the decision aligns with broader architectural principles
+and project goals.>
 ```
 
-### Repository layout document
+## Repository layout document
 
 Use a repository layout document, canonically `docs/repository-layout.md`, to
 explain the shape of the tree and the responsibilities of its major paths. Use
@@ -540,8 +713,15 @@ contents of the manual.
   argument.
 - Document the return value with `# Returns`.
 - Document any panics or errors with `# Panics` or `# Errors` as appropriate.
-- Place examples under `# Examples` and mark the code block with `no_run`, so
-  they do not execute during documentation tests.
+- Place examples under `# Examples`. Let examples run as documentation tests
+  when they can execute correctly, so the compiler verifies that they compile
+  and behave as documented.
+- Use `no_run` for complete examples that must compile but must not execute,
+  such as examples that require external resources, environment-specific setup,
+  or a long-running service.
+- Use `ignore` for examples that are incomplete or otherwise cannot compile.
+  `no_run` only suppresses execution, so it cannot carry uncompilable code;
+  `ignore` skips both compilation and execution.
 - Put function attributes after the doc comment.
 
 ```rust,no_run
@@ -556,7 +736,7 @@ contents of the manual.
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// assert_eq!(add(2, 3), 5);
 /// ```
 #[inline]
@@ -635,7 +815,7 @@ This hierarchy should align with the GIST framework:
   - Phases: 1, 2, 3, …
   - Steps: 1.1, 1.2, 1.3, …
   - Headline tasks: 1.1.1, 1.1.2, 1.1.3, …
-- **Checkboxes:** Precede task and sub-task items with a GitHub Flavoured
+- **Checkboxes:** Precede task and sub-task items with a GitHub Flavored
   Markdown (GFM) checkbox (`[ ]`) to track completion status.
 - **Dependencies:** Note non-linear dependencies explicitly. Where a task
   depends on another task outside its immediate sequence, cite the dependency
@@ -647,7 +827,7 @@ This hierarchy should align with the GIST framework:
 
 ### Roadmap example
 
-```plaintext
+```markdown
 ## 1. Core infrastructure
 
 ### 1.1. Logging subsystem

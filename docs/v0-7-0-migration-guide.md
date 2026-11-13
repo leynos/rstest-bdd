@@ -42,7 +42,7 @@ it resolves successfully.
 differ from placeholders must add
 `#[step_args(placeholder = "placeholder_name")]`; positional coincidence is no
 longer accepted by derived bindings. See
-[RFC 0002](rfcs/0002-named-step-argument-binding.md).
+[RFC 0002](rfcs/rfc-0002-named-step-argument-binding.md).
 
 ### `StepExecutionRequest` carries a scope
 
@@ -72,7 +72,7 @@ Unannotated definitions and scenarios remain compatible through the built-in
 `rstest_bdd::global` library. A scenario that supplies `libraries = [...]`
 selects exactly those libraries; it does not add global definitions implicitly.
 Add `rstest_bdd::global` explicitly when a scoped scenario needs compatibility
-steps. See [RFC 0001](rfcs/0001-explicit-step-library-scopes.md).
+steps. See [RFC 0001](rfcs/rfc-0001-explicit-step-library-scopes.md).
 
 ### Projection helpers are fallible too
 
@@ -279,7 +279,7 @@ holds for a dependency resolution that keeps the libraries' own requirements
 satisfied — in this repository, a lockfile pinning `cargo-platform` v0.3.2. An
 independent consumer lockfile may instead resolve a newer `cargo-platform`,
 whose higher floor applies to that consumer. See
-[ADR 026](adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md).
+[ADR 0026](adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md).
 
 ## Migration checklist
 
@@ -370,12 +370,12 @@ whose higher floor applies to that consumer. See
 
 - [Users' guide: registry lookups][users-guide-lookups]
 - [Users' guide: configuration files and environment][users-guide-configuration]
-- [RFC 0001: explicit step library scopes](rfcs/0001-explicit-step-library-scopes.md)
-- [RFC 0002: named step argument binding](rfcs/0002-named-step-argument-binding.md)
+- [RFC 0001: explicit step library scopes](rfcs/rfc-0001-explicit-step-library-scopes.md)
+- [RFC 0002: named step argument binding](rfcs/rfc-0002-named-step-argument-binding.md)
 - [Developer's guide](developers-guide.md)
 - [rstest-bdd design](rstest-bdd-design.md)
-- [ADR 024: structural usage tracking in registry lookups][adr-024]
+- [ADR 0024: structural usage tracking in registry lookups][adr-0024]
 
 [users-guide-lookups]: users-guide.md#registry-lookups
 [users-guide-configuration]: users-guide.md#configuration-files-and-environment
-[adr-024]: adr-024-structural-usage-tracking-in-registry-lookups.md
+[adr-0024]: adrs/adr-0024-structural-usage-tracking-in-registry-lookups.md

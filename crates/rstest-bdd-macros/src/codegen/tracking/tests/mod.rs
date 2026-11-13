@@ -26,7 +26,7 @@ use super::{TrackedFeaturePath, Untrackable, feature_tracking_item};
 /// `concat!` too so the exact-equality assertion cannot be vacuous while
 /// remaining independent of the implementation's wording.
 const EXPECTED_BINDING_DOC: &str = concat!(
-    "Registers the bound `.feature` file as a Cargo rebuild dependency (ADR-010). ",
+    "Registers the bound `.feature` file as a Cargo rebuild dependency (ADR-0010). ",
     "Deleting this makes `.feature`-only edits silently skip recompilation; see ",
     "rstest-bdd::feature_rebuild_invalidation.",
 );

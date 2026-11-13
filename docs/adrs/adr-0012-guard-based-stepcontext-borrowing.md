@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 012: guard-based `StepContext` borrowing
+# Architectural decision record (ADR) 0012: guard-based `StepContext` borrowing
 
 ## Status
 
@@ -124,8 +124,8 @@ The framework — not caller discipline — guarantees scenario-boundary reset:
 
 ### 2026-09-14: cross-reference the superseded interim pattern
 
-[ADR 011: first-party scenario-state helpers][adr-011] documents the
+[ADR 0011: first-party scenario-state helpers][adr-0011] documents the
 thread-local interim pattern that this borrowing redesign supersedes.
 
-[adr-011]: adr-011-first-party-scenario-state-and-cleanup.md
-[design-2761]: rstest-bdd-design.md
+[adr-0011]: adr-0011-first-party-scenario-state-and-cleanup.md
+[design-2761]: ../rstest-bdd-design.md
