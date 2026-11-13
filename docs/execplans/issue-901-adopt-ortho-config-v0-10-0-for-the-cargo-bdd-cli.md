@@ -1405,20 +1405,20 @@ Acceptance means all of the following, in one gate run against the final tree:
   checks `cargo-bdd` with OrthoConfig. These commands test the package-level
   MSRV split directly.
 
-The `make test` row is met for the final tree by evidence assembled from more
-than one place, because no single local invocation produces it under this
-host's compile admission: the Linux pull-request coverage lane runs the
-workspace suite on a dedicated runner, and the locally run doc tests,
-`make check-fixture-lockfiles` and `uv run pytest scripts/tests` cover the
-recipe's other steps. The local single-invocation `make test` exception is
-retained rather than claimed green. It is two nested-Cargo tests in
-`rstest-bdd::trybuild_macros` — `runner::step_macros_compile` and
-`whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures` —
-whose 1,200-second budgets are sized for a quiet runner; raising them is
-[#910](https://github.com/leynos/rstest-bdd/issues/910)'s subject. The
-exception is recorded here, in `Outcomes & retrospective` and in the pull
-request's validation section, and the pull request does not merge until the
-hosted checks on its final head are green.
+The `make test` row is met for the final tree. Hosted run `43386083081` on
+`e28a927a` passed the Linux coverage lane's full workspace suite — 2,245 tests
+run, 2,245 passed, 7 skipped — including both nested-Cargo tests
+(`runner::step_macros_compile` in 631.5 s and
+`whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures` in
+0.9 s), and both Windows lanes passed at the same head. The locally run doc
+tests, `make check-fixture-lockfiles` and `uv run pytest scripts/tests` cover
+the recipe's other steps. A single local `make test` invocation never produced
+this row on this host, because compile admission was saturated for the whole
+attempt; that history, its counts and the 1,200-second budget question under
+[#910](https://github.com/leynos/rstest-bdd/issues/910) stay recorded in
+`Outcomes & retrospective` rather than being claimed as a local pass. On the
+same tree, `make check-fmt`, `make markdownlint`, `make spelling`, `make nixie`,
+`make lint` (all nine steps) and `make typecheck` exited zero.
 
 There is no dedicated MSRV CI job in this repository. Report the direct local
 MSRV checks above and do not imply a pipeline covers them.
