@@ -164,6 +164,64 @@ fn the_scopes_ambient_resolution_reads_the_global_once() {
     );
 }
 
+/// INV-9, ambiently: a flip from *inside* a step cannot change the in-flight
+/// run's answer when the scope took its policy from the global.
+///
+/// The explicit-policy row below shows that a flip cannot reach a run whose
+/// answer was overridden. It cannot show the same for the ambient path,
+/// because `with_skip_policy` replaces the value `ScenarioScope::new` read and
+/// the override is then the only input. Without this row a driver that
+/// re-read the global only when the policy was ambient would pass every other
+/// test in this module.
+///
+/// The scope is constructed under an armed `false`, and the handler flips the
+/// global to `true` before skipping. A driver that resolved lazily at skip time
+/// would therefore report a forced failure, while the value the scope stored at
+/// construction says it must not.
+#[test]
+#[serial]
+fn an_ambient_policy_flip_inside_a_step_cannot_change_its_own_run() {
+    let _policy = FailOnSkippedOverride::armed(false);
+    let mut ctx = StepContext::default();
+    let scope = ScenarioScope::new(&mut ctx);
+
+    let outcome = run_scenario(&flipping_plan(), scope);
+    let flipped_global = config::fail_on_skipped();
+
+    assert!(
+        flipped_global,
+        concat!(
+            "the handler must have actually flipped the global, or this test proves nothing about ",
+            "mid-run mutation of the ambient source",
+        ),
+    );
+
+    assert_eq!(
+        outcome.status(),
+        ScenarioStatus::Skipped,
+        "the run still ends in a skip rather than a failure",
+    );
+    let Some(skip) = outcome.skip() else {
+        panic!("the run must carry a skip record: {outcome:?}");
+    };
+    assert!(
+        !skip.forced_failure(),
+        concat!(
+            "the scope resolved `fail_on_skipped = false` from the global before the handler ran, ",
+            "so a driver that re-read the global while building this record would be observable ",
+            "here and only here",
+        ),
+    );
+    assert!(
+        skip.allow_skipped(),
+        concat!(
+            "the record's `allow_skipped` must still be the effective value computed from the ",
+            "scope's resolved policy; a driver that re-read the flipped global would compute ",
+            "`false || !true` and report false here",
+        ),
+    );
+}
+
 /// INV-9's literal claim: a flip from *inside* a step cannot change the
 /// in-flight run's answer.
 ///
