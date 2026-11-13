@@ -5,9 +5,10 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IMPLEMENTATION COMPLETE (hosted validation complete at `e28a927a`; the
-single-invocation `make test` form now has a local green verdict at `8a5cb67f`,
-clearing the previously retained exception; merge pending)
+Status: IMPLEMENTATION COMPLETE (hosted CI green on the current head
+`76f8f63e`, run `43453087168`, with all three required jobs and both coverage
+ratchets passing; the single-invocation `make test` form has a local green
+verdict at `8a5cb67f`; merge pending)
 
 ## Purpose / big picture
 
@@ -521,13 +522,26 @@ Hard invariants. Violation requires escalation, not a workaround.
       `list_steps_runs` in 2.800 seconds; no package downloads occurred. Keep
       this explicit validation exception tracked under #910 and child-Cargo
       network isolation under #911. Do not claim the workspace suite passed.
+- [x] (2026-11-13) Hosted CI run `43453087168` validated `76f8f63e`, the
+      current head of pull request #912, and finished `success`. All three
+      required `build-test` jobs passed: Linux in 30m33s and both Windows
+      lanes in 43m15s and 40m48s. Both coverage ratchets passed with the
+      `+/-1.00` percentage-point tolerance — Linux 91.17% against a 91.93%
+      baseline, Windows 89.27% against 90.13%, and the Python lanes 85.02%
+      against 84.97% and 81.03% against 81.23% — so the earlier Windows
+      shortfall of 0.01 pp is cleared with 0.86 pp of headroom. CodeScene now
+      passes as well: it had failed the previous head on an advisory
+      `Code Duplication` finding in `crates/cargo-bdd/src/cli/tests.rs`, and
+      two tests that repeated their fixture setup now share `accounts_step`
+      and `render_listing`. The recorded `cs delta origin/main` comparison
+      reported the finding on the parent commit and nothing with the fix.
+      Gecko Security passed. CodeRabbit, Sourcery and automerge were skipped.
 - [ ] §6: documentation, gates, follow-up review, commit, push, hosted CI,
       review reconciliation, and merge. Merge is still pending: this box stays
-      unchecked until the pull request lands on `main`. Everything in this
-      section before merge is done apart from the validation exception this
-      plan retains rather than claims passed; the exception and its evidence
-      are recorded in `Outcomes & retrospective`, and merge waits on the hosted
-      checks for the final head. The candidate was rebased onto `origin/main`
+      unchecked until the pull request lands on `main`. The hosted checks for
+      the current head are green and the local `make test` exception has been
+      cleared, so the work this section names is done; only the merge remains.
+      The candidate was rebased onto `origin/main`
       (`693bba91`) and gated at revision `96e38df8`; the rebase described in
       `Outcomes & retrospective` is the later one.
       `make check-fmt`, `make lint`, `make typecheck`, `make markdownlint`,
