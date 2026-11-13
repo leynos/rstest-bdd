@@ -5,7 +5,8 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: COMPLETE (merge pending)
+Status: IMPLEMENTATION COMPLETE (validation exception retained; merge pending
+the hosted checks on the final head)
 
 ## Purpose / big picture
 
@@ -521,15 +522,20 @@ Hard invariants. Violation requires escalation, not a workaround.
       network isolation under #911. Do not claim the workspace suite passed.
 - [ ] §6: documentation, gates, follow-up review, commit, push, hosted CI,
       review reconciliation, and merge. Merge is still pending: this box stays
-      unchecked until the pull request lands on `main`. Everything before the
-      merge in this section is done. The candidate was rebased onto
-      `origin/main` (`693bba91`) and gated at revision `96e38df8`.
+      unchecked until the pull request lands on `main`. Everything in this
+      section before merge is done apart from the validation exception this
+      plan retains rather than claims passed; the exception and its evidence
+      are recorded in `Outcomes & retrospective`, and merge waits on the hosted
+      checks for the final head. The candidate was rebased onto `origin/main`
+      (`693bba91`) and gated at revision `96e38df8`; the rebase described in
+      `Outcomes & retrospective` is the later one.
       `make check-fmt`, `make lint`, `make typecheck`, `make markdownlint`,
       `make nixie` and `make test-workflow-contracts` (373 tests) all exited
       zero there, as did the workspace doc tests, `make check-fixture-lockfiles`
-      and `scripts/tests` (290 tests). The full suite passed with the
-      single-invocation `make test` exception recorded in Outcomes &
-      retrospective. The earlier delivery history follows. Its first hosted
+      and `scripts/tests` (290 tests). The full suite passed every test that
+      reached a verdict; the single-invocation `make test` exception is
+      recorded in Outcomes & retrospective. The earlier delivery history
+      follows. Its first hosted
       run #41673314102 failed before tests started on Windows because the
       Unix-only `ConfigFixture::local_directory` helper triggered `dead_code`
       under `-D warnings`; the helper now has a `#[cfg(unix)]` guard. Linux also
@@ -646,6 +652,19 @@ Hard invariants. Violation requires escalation, not a workaround.
       tests a verdict; its two failures are the same class of nested-Cargo
       bound, and both tests pass in the all-features run at this revision. The
       exception that remains is recorded in `Outcomes & retrospective`.
+
+- [x] (2026-11-13) Rust 1.100.0 reached the hosted `stable` channel, and its
+      Clippy reports `used_underscore_binding` for a write-only use of an
+      underscore-prefixed binding, which the 1.99.1 toolchain does not. The
+      Linux lane failed this branch's required lint step on
+      `crates/rstest-bdd/tests/underscore_fixture.rs:20` and `:23`, a file this
+      branch does not otherwise change. The two steps now read their `_world`
+      binding before mutating it, so the file's existing `#[expect]` idiom is
+      fulfilled on both toolchains, and each step also asserts the value the
+      previous step left behind — evidence that both steps share one fixture
+      instance. Verified with
+      `cargo +1.100.0 clippy --workspace --all-targets --all-features -- -D warnings`
+      and with the local 1.99.1 toolchain, and `make check-fmt` passes.
 
 ## Surprises & discoveries
 
@@ -989,10 +1008,13 @@ issues #910 and #911.
 The complete test result for this revision is therefore the hosted runs rather
 than a local one. Formatting, lint, type checking, the doc tests, the
 fixture-lockfile gate and the Python suite have local green verdicts; the
-workspace suite and the no-default-features leg each have one nested-Cargo test
-without a local verdict. This plan cites the gated revision rather than its own
-commit, and review follow-ups after that revision are recorded in the progress
-log and surprises below.
+workspace suite and the no-default-features leg each leave the nested-Cargo
+tests named above without a passing local verdict. That exception is retained
+and recorded here, not waived: `make test` is not claimed to have passed
+locally, the pull request's validation section states the same, and the
+exception is tracked by #910. This plan cites the gated revision rather than
+its own commit, and review follow-ups after that revision are recorded in the
+progress log and surprises below.
 
 ## Context and orientation
 
@@ -1317,6 +1339,21 @@ Acceptance means all of the following, in one gate run against the final tree:
 - Rust 1.88.0 checks the library packages without `ortho_config`; Rust 1.89.0
   checks `cargo-bdd` with OrthoConfig. These commands test the package-level
   MSRV split directly.
+
+The `make test` row is met for the final tree by evidence assembled from more
+than one place, because no single local invocation produces it under this
+host's compile admission: the Linux pull-request coverage lane runs the
+workspace suite on a dedicated runner, and the locally run doc tests,
+`make check-fixture-lockfiles` and `uv run pytest scripts/tests` cover the
+recipe's other steps. The local single-invocation `make test` exception is
+retained rather than claimed green. It is two nested-Cargo tests in
+`rstest-bdd::trybuild_macros` — `runner::step_macros_compile` and
+`whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures` —
+whose 1,200-second budgets are sized for a quiet runner; raising them is
+[#910](https://github.com/leynos/rstest-bdd/issues/910)'s subject. The
+exception is recorded here, in `Outcomes & retrospective` and in the pull
+request's validation section, and the pull request does not merge until the
+hosted checks on its final head are green.
 
 There is no dedicated MSRV CI job in this repository. Report the direct local
 MSRV checks above and do not imply a pipeline covers them.
