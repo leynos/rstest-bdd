@@ -5,8 +5,8 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IMPLEMENTATION COMPLETE (validation exception retained; merge pending
-the hosted checks on the final head)
+Status: IMPLEMENTATION COMPLETE (hosted validation complete at `e28a927a`;
+merge pending)
 
 ## Purpose / big picture
 
@@ -697,6 +697,19 @@ Hard invariants. Violation requires escalation, not a workaround.
       `trybuild_target_directory` lives there and stays crate-visible because
       `runner.rs` and `tracking.rs` call it, and `staging.rs` is 354 lines.
 
+- [x] (2026-11-13) Hosted run `43386083081` validated `e28a927a` and all three
+      `build-test` jobs passed. The Linux coverage lane ran the full workspace
+      suite: 2,245 tests run, 2,245 passed, 7 skipped, including the two
+      nested-Cargo tests this host could not finish
+      (`runner::step_macros_compile` in 631.5 s and
+      `whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`
+      in 0.9 s). Both Windows lanes passed with the build-dir fix, and both
+      `staging::tests::target_directory_uses_running_test_executable` and
+      `staging::tests::unrecognized_executable_layout_has_no_target_root`
+      report `ok` under `cargo test` and `PASS` under nextest in the job logs.
+      The validation exception recorded in `Outcomes & retrospective` is
+      therefore discharged by a complete hosted result, not waived.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -1058,6 +1071,15 @@ locally, the pull request's validation section states the same, and the
 exception is tracked by #910. This plan cites the gated revision rather than
 its own commit, and review follow-ups after that revision are recorded in the
 progress log and surprises below.
+
+At `e28a927a` the hosted Linux coverage lane produced the complete result the
+local runs could not: 2,245 tests run, 2,245 passed, 7 skipped, including
+`runner::step_macros_compile` (631.5 s) and
+`whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`
+(0.9 s), and both Windows lanes passed at that head. The exception therefore no
+longer stands against this branch. It is retained above as the record of why
+the local single-invocation `make test` was never green on this host, and #910
+still owns the budget that made it so.
 
 ## Context and orientation
 
@@ -1583,7 +1605,8 @@ doc-test, fixture-lockfile and `scripts/tests` steps of `make test` exited zero
 when run directly; and two nested-Cargo tests, `runner::step_macros_compile` and
 `whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`,
 have no local verdict because compile admission was saturated for the whole
-run. The hosted runs carry the completing evidence for those two. The Windows
-lanes also needed a repair for Cargo 1.100.0's build-dir layout before they
-could produce theirs; that repair, its evidence and its verified toolchains are
-recorded in the progress log.
+run. The hosted runs now carry that evidence: run `43386083081` at `e28a927a`
+passed all three `build-test` jobs, and its Linux coverage lane passed 2,245 of
+2,245 tests. The Windows lanes needed a repair for Cargo 1.100.0's build-dir
+layout before they could produce theirs; that repair, its evidence and its
+verified toolchains are recorded in the progress log.
