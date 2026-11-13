@@ -666,6 +666,37 @@ Hard invariants. Violation requires escalation, not a workaround.
       `cargo +1.100.0 clippy --workspace --all-targets --all-features -- -D warnings`
       and with the local 1.99.1 toolchain, and `make check-fmt` passes.
 
+- [x] (2026-11-13) Cargo 1.100.0's build-dir layout broke both Windows
+      coverage lanes at `e8fbd8ab`. Test executables moved from
+      `<target>/<profile>/deps` into
+      `<target>/<profile>/build/<package>/<unit>/out`, so the helper that read
+      the root as "two levels above the executable" returned `None` and
+      `staging::tests::target_directory_uses_running_test_executable` panicked
+      with "integration tests should run from Cargo's `deps` directory" in
+      jobs 131673923291 and 131673923282. On the original base the repair
+      recognized the build-dir shape explicitly, kept `None` for an
+      unrecognized layout so `cargo metadata` stayed the fallback, and pinned
+      all of it with `rstest` cases plus a rejection case.
+      Reconciled during the rebase onto the #910 branch: that branch resolves
+      the root by walking ancestors for Cargo's `CACHEDIR.TAG`
+      (`rstest_bdd_harness::binary_test_support::target_directory_of`), which
+      is layout-agnostic and so already covered the build-dir shape. Its
+      `staging/target_root.rs` and `staging/target_root/tests.rs` carry the
+      four-layout table and the untagged-tree rejection case, so the
+      branch-local helper and its `staging/target_directory.rs` module were
+      dropped rather than duplicated.
+
+- [x] (2026-11-13) Teaching the helper the build-dir shape pushed
+      `crates/rstest-bdd/tests/trybuild_macros/staging.rs` past Whitaker's
+      400-line module limit, so `make lint` failed at `lint-whitaker` with
+      "Module staging spans 419 lines, exceeding the allowed 400". On the
+      original base the target-directory concern moved out to
+      `crates/rstest-bdd/tests/trybuild_macros/staging/target_directory.rs`,
+      leaving `staging.rs` at 356 lines. The #910 branch had already made the
+      same split into `staging/target_root.rs`, so the rebase keeps that one:
+      `trybuild_target_directory` lives there and stays crate-visible because
+      `runner.rs` and `tracking.rs` call it, and `staging.rs` is 354 lines.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -851,6 +882,18 @@ Hard invariants. Violation requires escalation, not a workaround.
   Impact: `install()` now enables colour only when stderr is a terminal
   (`io::stderr().is_terminal()`), and the observability cases assert that a
   captured log contains no `ESC` byte.
+
+- Observation: the Rust 1.100.0 rollout changed two of this workspace's
+  assumptions at once. Besides the new Clippy finding, Cargo 1.100.0 moved test
+  executables into its build-dir layout, so a helper that climbed out of the
+  executable's `deps` parent found no target root. Evidence: the Windows
+  coverage logs for jobs 131673923291 and 131673923282 at `e8fbd8ab` show the
+  test binary running from
+  `target\llvm-cov-target\debug\build\rstest-bdd\b3732e51d0359c5e\out\`, and
+  the same lanes passed at `74f066af` on Cargo 1.99.1 with `deps\` paths.
+  Impact: the layout is now a covered contract rather than an assumption; a
+  later layout change returns `None` and defers to `cargo metadata` instead of
+  guessing.
 
 ## Decision log
 
@@ -1540,4 +1583,7 @@ doc-test, fixture-lockfile and `scripts/tests` steps of `make test` exited zero
 when run directly; and two nested-Cargo tests, `runner::step_macros_compile` and
 `whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`,
 have no local verdict because compile admission was saturated for the whole
-run. The hosted runs carry the completing evidence for those two.
+run. The hosted runs carry the completing evidence for those two. The Windows
+lanes also needed a repair for Cargo 1.100.0's build-dir layout before they
+could produce theirs; that repair, its evidence and its verified toolchains are
+recorded in the progress log.
