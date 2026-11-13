@@ -7,12 +7,18 @@
 //! diagnostic, so a working `reasons` setting cannot hide a failure reported
 //! alongside it.
 //!
-//! The two platforms discover the file differently. Unix reads
-//! `$XDG_CONFIG_HOME/cargo_bdd/config.toml`, so the temporary directory is
-//! exposed as `XDG_CONFIG_HOME`. Windows reads `$HOME/.cargo_bdd.toml` before
-//! the platform configuration directory, and that directory comes from the
-//! Windows API rather than `APPDATA`, so only `HOME` can redirect it. `HOME`
-//! is left alone on Unix because Cargo derives its own home from it.
+//! Both platforms redirect `HOME` to the temporary directory, and Unix also
+//! exposes it as `XDG_CONFIG_HOME`. Redirecting `HOME` on Unix as well is not
+//! decoration: `ortho_config` merges *every* existing candidate, and its Unix
+//! list starts with `$HOME/.cargo_bdd.toml` and `$HOME/.config/cargo_bdd/`
+//! before the XDG bases. Leaving the real `HOME` inherited therefore lets a
+//! developer's own dotfile load alongside the fixture's file — a malformed one
+//! fails the case, and a well-formed one can satisfy a case that intended to
+//! prove the file tier. Cargo derives its own home from `HOME`, so the
+//! redirected run carries `CARGO_HOME` and `RUSTUP_HOME` explicitly to keep
+//! the nested registry and toolchain resolvable.
+
+use std::env;
 
 use cap_std::{ambient_authority, fs::Dir};
 use eyre::{Result, eyre};
@@ -78,9 +84,17 @@ fn skipped_handler_uses_configured_reasons(#[case] case: ReasonsCase) -> Result<
         write_discovered_file(&root, contents)
             .map_err(|error| eyre!("failed to write the discovered configuration: {error}"))?;
     }
-    variables.extend_from_slice(case.variables);
+    variables.extend(
+        case.variables
+            .iter()
+            .map(|(key, value)| ((*key).to_owned(), (*value).to_owned())),
+    );
 
-    let (status, stdout, stderr) = run_cargo_bdd_captured_with_env(case.arguments, &variables)?;
+    let borrowed = variables
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()))
+        .collect::<Vec<_>>();
+    let (status, stdout, stderr) = run_cargo_bdd_captured_with_env(case.arguments, &borrowed)?;
 
     assert!(
         status.success(),
@@ -131,19 +145,43 @@ fn assert_no_application_diagnostic(stderr: &str) {
     }
 }
 
-/// Build the platform-specific variable that redirects configuration discovery.
+/// Build the variables that redirect configuration discovery.
 ///
-/// The caller owns the temporary directory, so the variable points at a path
-/// that is valid for the whole run; the file itself is optional.
-fn discovery_variables<'a>(
-    root: &Dir,
-    configuration_home: &'a str,
-) -> Result<Vec<(&'static str, &'a str)>> {
-    if cfg!(windows) {
-        return Ok(vec![("HOME", configuration_home)]);
+/// The caller owns the temporary directory, so every path points at a location
+/// valid for the whole run; the file itself is optional. `HOME` is redirected
+/// on both platforms because both discover `$HOME/.cargo_bdd.toml`. The
+/// returned values are owned `String`s so the caller can hand out references
+/// that outlive this function.
+fn discovery_variables(root: &Dir, configuration_home: &str) -> Result<Vec<(String, String)>> {
+    let mut variables = vec![("HOME".to_owned(), configuration_home.to_owned())];
+    if !cfg!(windows) {
+        root.create_dir_all("cargo_bdd")?;
+        variables.push(("XDG_CONFIG_HOME".to_owned(), configuration_home.to_owned()));
     }
-    root.create_dir_all("cargo_bdd")?;
-    Ok(vec![("XDG_CONFIG_HOME", configuration_home)])
+    variables.extend(cargo_home_variables());
+    Ok(variables)
+}
+
+/// Carry the ambient Cargo and Rustup homes into the redirected child.
+///
+/// Cargo locates its registry through `CARGO_HOME`, defaulting to
+/// `$HOME/.cargo`, so redirecting `HOME` alone would point the nested build at
+/// an empty registry. `RUSTUP_HOME` is carried for the same reason: the child
+/// resolves `cargo` through the ambient toolchain. A variable the developer
+/// has already set wins over the `$HOME`-derived default, matching Cargo's own
+/// precedence.
+fn cargo_home_variables() -> Vec<(String, String)> {
+    let home = env::var("HOME").ok();
+    [("CARGO_HOME", ".cargo"), ("RUSTUP_HOME", ".rustup")]
+        .into_iter()
+        .filter_map(|(key, directory)| {
+            let derived = home.as_ref().map(|home| format!("{home}/{directory}"));
+            env::var(key)
+                .ok()
+                .or(derived)
+                .map(|value| (key.to_owned(), value))
+        })
+        .collect()
 }
 
 /// Write the platform's highest-precedence discovered configuration file.

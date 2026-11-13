@@ -4,6 +4,13 @@
 //! `bin` and XDG configuration roots, plus a copy of the `cargo-bdd` binary.
 //! Children run with a cleared environment, so a developer's real
 //! configuration cannot change what these tests observe.
+//!
+//! The one inherited variable is `LLVM_PROFILE_FILE`. The copied binary is the
+//! process under test, so `cargo llvm-cov` merges its profile only if the child
+//! writes to the pattern the coverage driver exported. Clearing it does not
+//! fail anything — the run stays green and the lines the binary executed report
+//! as never covered — so the passthrough is the difference between a measured
+//! binary and an unmeasured one.
 
 use std::{ffi::OsStr, io, process::Command};
 
@@ -136,6 +143,12 @@ impl IsolatedWorkspace {
         }
         if let Some(system_root) = std::env::var_os("SystemRoot") {
             command.env("SystemRoot", system_root);
+        }
+        // The child is the process under test, so it keeps the coverage
+        // driver's profile pattern; redirecting it would drop this binary's
+        // exercised lines from the run that measures them.
+        if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
+            command.env("LLVM_PROFILE_FILE", profile);
         }
         Ok(command)
     }

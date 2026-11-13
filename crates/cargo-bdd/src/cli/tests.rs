@@ -210,11 +210,15 @@ fn unused_listing_keeps_only_unexecuted_steps() {
     let rendered = render_listing(write_unused_steps, &steps);
 
     assert!(
-        rendered.contains("dormant"),
-        "the unexecuted step should be listed"
+        rendered.contains("'dormant' [accounts]"),
+        "the unexecuted step should be listed as a rendered step line"
     );
+    // Anchor on `write_step`'s own shape, `'{pattern}' [{library}]`: a
+    // bare `executed` substring would be missing from an empty listing too,
+    // so only the rendered shape fails when the filter starts letting
+    // executed steps through.
     assert!(
-        !rendered.contains("executed '"),
+        !rendered.contains("'executed' [accounts]"),
         "an executed step must not be listed"
     );
 }

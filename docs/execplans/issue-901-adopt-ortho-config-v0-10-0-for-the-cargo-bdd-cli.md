@@ -758,6 +758,81 @@ Hard invariants. Violation requires escalation, not a workaround.
       it owns still make the nested-Cargo tests slow here, but they no longer
       prevent the recipe from finishing.
 
+- [x] (2026-11-13) A `coderabbit review --agent` pass over the branch reported
+      five findings. Three were real and are fixed; one was not a defect; one
+      was a documentation overstatement corrected in this plan. Each verdict
+      was established by reading the cited code and, for the two test-scope
+      findings, by a mutation that the old assertion or the old helper failed
+      to reject. First, `crates/cargo-bdd/src/cli/tests.rs` asserted
+      `!rendered.contains("executed '")`, but `write_step` renders
+      `{keyword} '{pattern}' [...]`, so that substring cannot appear in a
+      rendered line at all and the assertion could never fail. It now anchors
+      on `'executed' [accounts]`. Restoring the filter mutation
+      (`.filter(|_step| true)`) fails the new assertion and, measured, passed
+      the old one, so the fix discriminates rather than restating the code.
+      Second, `crates/cargo-bdd/tests/cli/configuration.rs` redirected only
+      `XDG_CONFIG_HOME` on Unix. `ortho_config` 0.10.0's Unix discovery
+      (`src/subcommand/paths.rs`, `collect_unix_paths`) pushes
+      `$HOME/.cargo_bdd.toml` and `$HOME/.config/cargo_bdd/` before the XDG
+      bases, and `load_from_files` merges every existing candidate, so the
+      real `HOME` stayed reachable. `HOME` is now redirected on both platforms,
+      with `CARGO_HOME` and `RUSTUP_HOME` carried so the nested registry and
+      toolchain still resolve. With a malformed `~/.cargo_bdd.toml` planted in
+      the parent's `HOME` the four cases pass on the new helper and all four
+      failed on the old one. Third,
+      `crates/cargo-bdd/tests/invocation/workspace.rs` cleared the child
+      environment without passing `LLVM_PROFILE_FILE` through. The copied
+      binary is the process under test, so its exercised lines were dropped
+      from the coverage run silently, exactly as the `Caller` profile
+      destination exists to prevent elsewhere. It is now inherited when set.
+
+- [x] (2026-11-13) One of the five findings was declined. It asked for
+      `cargo-bdd.exe` in `expected_flat_stderr` on Windows. That message is
+      not produced from the real argv: `missing_required_skipped_error`
+      re-parses a fixed `["cargo-bdd", "steps", "--json"]` vector, and Clap
+      renders the echoed argv[0], which is the literal `cargo-bdd` on every
+      platform. Measured locally with argv[0] set to `cargo-bdd`,
+      `/tmp/…/cargo-bdd.exe` and a Windows-style path: all three render
+      `Usage: cargo-bdd steps --skipped --json`. Adding the `.exe` suffix
+      would *break* the byte-for-byte assertion on Windows, so the finding is
+      declined. The fifth finding was documentation: the two acceptance
+      passages that said the `make test` row was unmet and its exception
+      retained are now marked as superseded by the `8a5cb67f` record above.
+
+- [x] (2026-11-13) The review fixes were gated at `e153116b`, after
+      `mdtablefix` reflowed the passages above. `make check-fmt`,
+      `make markdownlint` (spelling included), `make nixie`, `make lint` (all
+      nine steps), `make typecheck` and the whole `make test` recipe each
+      exited zero. The workspace leg ran 2,251 tests with 2,251 passed and 7
+      skipped in 594.4 s, the no-default-features leg 787 with 787 passed and
+      7 skipped in 330.8 s, and `runner::step_macros_compile` passed in both
+      (426.6 s and 320.5 s). The doc-test leg, `make check-fixture-lockfiles`
+      (5 lockfiles up to date) and `uv run pytest scripts/tests` (291 passed)
+      finished behind them, and no `FAILED`, `error[` or `make: ***` line
+      appears in the log.
+
+- [x] (2026-11-13) A `/simplify` pass over the same files produced the final
+      pre-commit tree. Its first attempt narrowed the discovery helper's keys
+      to `&'static str`, which made `key.as_str()` at the call site resolve to
+      the unstable inherent `str_as_str` (`E0658`) rather than
+      `String::as_str`; `make lint`, `make typecheck` and `make test` all
+      stopped at that one compile error. The key type is restored: the
+      allocation is immaterial in a test helper, and a `&'static str` key that
+      silently changes which `as_str` a later edit resolves to is a trap worth
+      more than the allocation it saves. Only the `filter_map` cleanup
+      survived, so the gate verdict below supersedes `e153116b`. Gates were
+      run in order on the tree whose diff against `e153116b` hashes to
+      `5aed98256d0f0df2f54fb5f920e98f60368156036772c2255718eb4d115eb258`:
+      `make check-fmt`, `make markdownlint` (0 errors, spelling included),
+      `make nixie`, `make lint` (all nine steps), `make typecheck` and the
+      whole `make test` recipe each exited zero. The workspace leg ran 2,251
+      tests with 2,251 passed and 7 skipped in 847.6 s, the
+      no-default-features leg 787 with 787 passed and 7 skipped in 464.8 s,
+      and `runner::step_macros_compile` passed in both (696.3 s and 444.2 s).
+      The doc-test leg, `make check-fixture-lockfiles` and
+      `uv run pytest scripts/tests` (291 passed in 24.0 s) finished behind
+      them, and the log holds no `FAILED`, `error[` or `make: ***` line.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -1061,6 +1136,20 @@ Hard invariants. Violation requires escalation, not a workaround.
   follow-ups. No library test harness changes are included in this branch.
   Date/Author: 2026-11-03, user direction.
 
+- Decision: decline the review's request to expect `cargo-bdd.exe` in the flat
+  `steps --json` parse failure on Windows, and do not add a platform branch
+  there. Rationale: that message is not rendered from the process's argv.
+  `resolve_steps_settings` calls `missing_required_skipped_error`, which
+  re-parses a fixed `["cargo-bdd", "steps", "--json"]` vector, so the echoed
+  argv[0] is the literal `cargo-bdd` on every platform and the existing
+  byte-for-byte expectation is already correct. Measured locally with argv[0]
+  spelled `cargo-bdd`, as an absolute `…/cargo-bdd.exe`, and as a Windows-style
+  path: all three print `Usage: cargo-bdd steps --skipped --json`. Deferring to
+  the finding would fail the assertion on Windows, so the platform-dependent
+  spelling stays confined to the real `--help` output, which does read argv[0]
+  and which `flat_injected_and_real_cargo_forms_share_ the_same_command_help`
+  already branches. Date/Author: 2026-11-13, implementing agent.
+
 ## Outcomes & retrospective
 
 Delivered as specified. `cargo-bdd` resolves settings from `.cargo_bdd.toml`,
@@ -1161,10 +1250,14 @@ time limit while `runner::step_macros_compile` was still compiling, 1,136 s
 into the test and short of its 1,200-second bound; that test is excluded from
 the filtered run rather than reported as a failure.
 
-The exception is therefore retained, narrowed to two things: the
-single-invocation form of the `make test` row, and a local verdict for
-`runner::step_macros_compile`. Both are covered by the hosted run above, and
-issue #910 still owns the budgets that make the local form unreachable here.
+The exception was therefore narrowed to two things: the single-invocation form
+of the `make test` row, and a local verdict for `runner::step_macros_compile`.
+Both are covered by the hosted run above.
+
+That exception is superseded by the later record in `Outcomes & retrospective`:
+the whole recipe was run once at `8a5cb67f` with no filter and exited zero, so
+its two conditions are now met locally. Issue #910 still owns the budgets that
+make the nested-Cargo tests slow here, but it no longer gates the row.
 
 ## Context and orientation
 
@@ -1490,11 +1583,12 @@ Acceptance means all of the following, in one gate run against the final tree:
   checks `cargo-bdd` with OrthoConfig. These commands test the package-level
   MSRV split directly.
 
-The `make test` row is **not met as worded, and is not claimed as met**: it
-asks for one gate run against the final tree, and no single local invocation of
-`make test` has ever gone green on this host. What the final tree does have is
-a complete hosted result plus a local verdict for every test that can finish
-here.
+The `make test` row asks for one gate run against the final tree. It is now met
+locally: the whole recipe ran once at `8a5cb67f`, unfiltered, and exited zero
+with every test finished. Every remaining statement in this subsection is the
+earlier evidence that the row accumulated before that run; where it says the
+row is unmet or an exception is retained, the later record in
+`Outcomes & retrospective` supersedes it.
 
 - Hosted run `43386083081` on `e28a927a` passed all three `build-test` jobs.
   The Linux coverage lane ran the full workspace suite with `--all-features` —
