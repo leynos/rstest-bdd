@@ -870,6 +870,39 @@ Hard invariants. Violation requires escalation, not a workaround.
       `make typecheck` and the `cargo-bdd` `cli` target were re-run on the
       final tree and all exit zero.
 
+- [x] (2026-11-13) The third review round on `5d990774` reported one major
+      finding in
+      `crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly/lint_config.rs`,
+      a file this branch's `3e94e1b6` had already converted to `concat!`. Its
+      substantive half is right and was proven twice. `\\` at the end of a
+      literal is an escaped backslash, not a line continuation, so the
+      string's value was `...patterns for \` + newline + five spaces +
+      `parameter extraction...\`, and that value is emitted into the
+      `#[expect(reason = "...")]` of every generated wrapper. A standalone
+      reproduction printed the three source lines with `\\` and their
+      indentation intact, and the `insta` snapshot
+      `marker_spelling_generated_wrapper_snapshot` pinned the same corruption
+      inside the generated code a user can read. Each argument is now one
+      whole line, the snapshot was re-accepted, and a new
+      `wrapper_expect_reason_is_single_line_prose` test asserts the shape
+      rather than comparing the constant to itself; restoring the old literal
+      makes it fail with the backslash and newline it rejects. Its lint half
+      is not reproducible: it claims `make lint-whitaker` rejects this form,
+      but that target is the fourth step of the nine-step `make lint` recipe,
+      which passed on the tree that contained the old literal. The shape test
+      therefore stands in for a lint that does not currently fire, and the
+      conversion guidance in ADR 013's addendum still defers to the installed
+      suite. Gates ran on the tree whose diff against `5d990774` hashes to
+      `ba90b5f82c8dcf1f036e496c63b1cb62ae16dfd35442a2b518d53697cb76bef6`:
+      `make check-fmt`, `make markdownlint`, `make nixie`, `make lint` (all
+      nine steps, `lint-whitaker` among them), `make typecheck` and the whole
+      `make test` recipe each exited zero. The workspace leg ran 2,252 tests
+      with 2,252 passed and 7 skipped (one more than before, the new guard),
+      the no-default-features leg 787 with 787 passed and 7 skipped, and
+      `runner::step_macros_compile` passed in both. `uv run pytest
+      scripts/tests` ran 291 passing tests, and the log holds no `FAILED`,
+      `error[` or `make: ***` line.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
