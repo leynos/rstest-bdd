@@ -23,10 +23,11 @@ owner, the developer, and the tester.
 
 ## Toolchain requirements
 
-`rstest-bdd` targets Rust 1.88 or newer across every crate in the workspace.
-Each `Cargo.toml` declares `rust-version = "1.88"`, so `cargo` will refuse to
-compile the project on older compilers. The workspace uses the Rust 2024
-edition.
+The reusable `rstest-bdd` library crates target Rust 1.88 or newer. Building the
+`cargo-bdd` binary needs Rust 1.89, because its configuration dependency
+raises the floor. Each `Cargo.toml` declares its own `rust-version`, so `cargo`
+will refuse to compile a crate on a compiler older than that crate requires.
+The workspace uses the Rust 2024 edition.
 
 `rstest-bdd` builds, tests, and lints on stable Rust. The repository pins that
 toolchain through `rust-toolchain.toml`, so ordinary `cargo` and Clippy

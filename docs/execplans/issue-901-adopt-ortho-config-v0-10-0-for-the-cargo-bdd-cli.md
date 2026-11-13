@@ -988,6 +988,113 @@ Hard invariants. Violation requires escalation, not a workaround.
       because none of them reads this document, and the Rust gate-input hash
       above shows the files they do read were byte-identical.
 
+- [x] (2026-11-13) Review round 10: `coderabbit review --agent --base
+      origin/main` on `69b4aefc` returned seven findings, in
+      `/tmp/coderabbit-issue-901-adopt-ortho-config-v0-10-0-for-the-cargo-bdd-cli.out`.
+      Each was settled by measurement rather than by the review text; the
+      verdicts are recorded below, one entry each.
+
+- [x] (2026-11-13) Finding 1, `no_unwrap_or_else_panic` on
+      `environment.rs:81`, is **not confirmed**. Whitaker's `should_flag`
+      exempts a panic in a test that interpolates only variables
+      (`if summary.is_test && panic_info.is_interpolated_only()`), and the
+      full nine-step `make lint` had already passed on exactly this code.
+      Mutation control: replacing `panic!("{variable} …")` with a plain
+      `panic!("the home …")` made `make lint-whitaker` fail with
+      `no_unwrap_or_else_panic`; restoring it made it pass again. Log:
+      `/tmp/lint-whitaker-mutation-issue-901.out`. The file was restored and
+      `git status` confirmed clean. The lint is a conjunction, so
+      "`unwrap_or_else(|| panic!(…))` is rejected" holds only of the
+      non-interpolated form; the review quoted the rule without its condition.
+
+- [x] (2026-11-13) Finding 2, a custom `CARGO_HOME` or `RUSTUP_HOME`, is
+      **confirmed**. The old assertion required the value's last component to
+      be `.cargo` or `.rustup`, which a supported custom home need not
+      satisfy. The replacement recomputes the expected value with the helper's
+      own precedence — an explicit variable wins, otherwise the user-home
+      default — and additionally asserts the value does not fall inside the
+      redirect directory, which is the property the test exists for.
+
+- [x] (2026-11-13) Finding 3, an ambient-policy mutation test in
+      `skip_parity/resolution_once.rs`, is in branch scope but **not
+      expressible as described**. `ScenarioScope::new` reads
+      `config::fail_on_skipped()` once and stores the value; `run_scenario`
+      calls `SkipPolicy::resolve` on that stored value and never re-reads the
+      global. There is therefore no ambient mutation point after scope
+      construction to test, and adding one would change the design rather than
+      cover it. Recorded in the Decision log rather than acted on.
+
+- [x] (2026-11-13) Findings 4 and 5 are **confirmed** and were
+      self-inflicted: `V5` claimed the isolation check covered every discovery
+      root, and the acceptance criterion demanded a `bdd steps` baseline row
+      that is pre-change evidence for `V3`. `V5` now names the Windows native
+      directory as the one root a variable cannot redirect, and the criterion
+      reproduces every `V1` row except `bdd steps`.
+
+- [x] (2026-11-13) Finding 6, importing the MSRV guarantee without
+      qualification, is **confirmed** and branch-caused: `origin/main` had
+      `rust-version.workspace = true`, and this branch moved `cargo-bdd` to
+      `"1.89"`, so "every `Cargo.toml` declares `rust-version = 1.88`" became
+      false. The users' guide now states the split, and the migration guide
+      adds the dependency-resolution qualification — a consumer lockfile that
+      resolves a newer `cargo-platform` inherits its higher floor.
+
+- [x] (2026-11-13) Finding 7, `let _ = create_dir_all(…)` in the new
+      `discovery.rs`, is **confirmed**; the repository has no precedent for
+      discarding a directory-creation error. The module now creates its
+      directories through `cap_std::fs_utf8::Dir::create_ambient_dir_all` and
+      returns the error.
+
+- [x] (2026-11-13) Final gates on the review-round-10 tree, `REV_START` and
+      `REV_END` both `69b4aefcebb3e40c28e74b1ebcbf636f0e069340`. The Rust gate
+      inputs — the tracked diffs of `cli.rs`, `cli/discovery.rs` and
+      `cli/environment.rs` — hashed
+      `a487ad03b5c2e8f00c65daddce2e18c756f77d0bf91f7154c110825312ae00ad` at
+      the start of `make lint` and again at the end of `make test`, so every
+      Rust-reading gate saw the same bytes. `make check-fmt` exited zero with
+      `142 files left unchanged` and `93 files already formatted`;
+      `make markdownlint` exited zero with `Summary: 0 error(s)`; `make nixie`
+      exited zero with `All diagrams validated successfully`; `make lint`
+      exited zero through all nine steps, `cargo clippy` and
+      `whitaker --lib whitaker_suite` each reporting `Finished` for
+      `cargo-bdd`; `make typecheck` exited zero with `All checks passed!`; and
+      `make test` exited zero with 2,255 workspace tests passed and 7 skipped,
+      787 passed and 7 skipped on the `--no-default-features` leg,
+      `runner::step_macros_compile` passing in both, and 291 pytest tests
+      passing. The workspace count is one above the 2,254 recorded at
+      `69b4aefc`, which is
+      `cli_child_environment_carries_an_explicit_cargo_home`; every
+      `cargo-bdd::cli` test is `PASS` in the log, the four
+      `configuration::skipped_handler_uses_configured_reasons` cases and the
+      eight `environment::` and `nested_target::` cases included. No log
+      contains `FAILED`, `error[` or `make: ***`.
+
+- [x] (2026-11-13) Two defects were found and fixed in the gate cycle above
+      rather than carried. The first was `rustfmt` wanting
+      `ambient_cargo_home_variables` on one line after the signature had been
+      shortened. The second was a repeat of an earlier `MD046` failure: the
+      verdicts were written as one bullet with blank-line-separated
+      paragraphs indented six spaces, which `markdownlint` reads as an
+      indented code block. Rewriting them as one bullet per verdict, in the
+      section's existing style, cleared it. The Markdown gates were re-run
+      after that rewrite, and `check-fmt` was re-run last because
+      `mdtablefix` had reflowed two of the paragraphs.
+
+- [x] (2026-11-13) The `cap_std` rewrite of `discovery.rs` needed two rounds
+      to compile. `create_ambient_dir_all` takes camino paths, so the cached
+      `PathBuf` is converted per call through `Utf8PathBuf::from_path_buf`,
+      which reports a non-UTF-8 temporary directory instead of naming a
+      different one by lossy encoding. The converted value is deliberately not
+      cached: the conversion can fail, and caching a failure would remember it
+      for the whole test binary, the same argument the cache already makes
+      about `io::Result`. The shared `home_root` gained a `clone()` because
+      both `HOME` and `USERPROFILE` must carry the same path. `cargo check -p
+      cargo-bdd --tests` is clean, `cargo test -p cargo-bdd --test cli` ran 22
+      tests with 22 passed, and the poisoned-`HOME` control — a real
+      `$HOME/.cargo_bdd.toml` setting `cmds.skipped.json = true` — leaves
+      `skipped_subcommand_includes_reasons_and_lines` passing, which is the
+      behaviour the redirection exists to buy.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -1305,6 +1412,30 @@ Hard invariants. Violation requires escalation, not a workaround.
   and which `flat_injected_and_real_cargo_forms_share_ the_same_command_help`
   already branches. Date/Author: 2026-11-13, implementing agent.
 
+- Decision: keep the interpolated `unwrap_or_else(|| panic!("{variable} …"))`
+  in `cli/environment.rs` and defend it with a mutation control rather than
+  rewriting it as `.expect(…)`. Rationale: Whitaker's `no_unwrap_or_else_panic`
+  policy flags this shape only when the panic is *not* interpolated-only in a
+  test (`should_flag`:
+  `if summary.is_test && panic_info.is_interpolated_only() { return false; }`).
+  The nine-step `make lint` passes on the code, and the control proves the
+  exemption is load-bearing: a plain-`panic!` mutation of the same line fails
+  the gate. Switching to `.expect(…)` would satisfy the review while deleting
+  the interpolation the failure message needs, and would leave `expect_used`
+  strictness to be re-argued instead. Date/Author: 2026-11-13, implementing
+  agent.
+
+- Decision: do not add the review's proposed ambient-mutation test to
+  `crates/rstest-bdd/tests/skip_parity/resolution_once.rs`. Rationale: the test
+  would mutate `config::fail_on_skipped()` after `ScenarioScope::new`, but that
+  constructor is the only reader — it stores the resolved value and
+  `run_scenario` consults the stored value through `SkipPolicy::resolve`. There
+  is no later read to affect, so the test as described would assert a property
+  the design deliberately does not have. Covering the behaviour would require
+  re-reading ambient state per scenario, which is the design change the
+  stored-value decision exists to avoid. Date/Author: 2026-11-13, implementing
+  agent.
+
 ## Outcomes & retrospective
 
 Delivered as specified. `cargo-bdd` resolves settings from `.cargo_bdd.toml`,
@@ -1616,10 +1747,15 @@ The change introduces five obligations worth stating.
   `.cargo_bdd.toml`, and point `HOME`, `XDG_CONFIG_HOME`, `XDG_CONFIG_DIRS`,
   `USERPROFILE`, and `APPDATA` at empty temporary directories. Remove the four
   `CARGO_BDD_CMDS_*` setting variables from the child environment. This
-  confirms that neither platform discovery roots nor the environment tier
-  contributes a value. Rationale: verifying OrthoConfig's internals is out of
-  scope, but the repository's hermeticity depends on this boundary, so it is
-  exercised once rather than assumed. Residual gap: a developer with a real
+  confirms that none of the discovery roots settable from the environment, nor
+  the environment tier, contributes a value. It does **not** establish full
+  isolation: on Windows the native configuration directory is obtained through
+  the Windows API rather than from a variable, so `APPDATA` does not redirect
+  it and the check cannot speak for that root. The Unix roots — the home
+  dotfile, both XDG bases including the `/etc/xdg` fallback — are all covered.
+  Rationale: verifying OrthoConfig's internals is out of scope, but the
+  repository's hermeticity depends on this boundary, so it is exercised once
+  rather than assumed. Residual gap: a developer with a real
   `~/.cargo_bdd.toml` will see it affect local runs. The users' guide must say
   so.
 
@@ -1725,7 +1861,8 @@ Acceptance means all of the following, in one gate run against the final tree:
   added the environment-tier `reasons` test and an extra-environment parameter
   to the shared helpers. Check the surviving tests, not the file, for unchanged
   assertions.
-- Every row of Table 1 is reproduced by `V1`.
+- Every `V1` row of Table 1 is reproduced, that is every row except `bdd steps`,
+  which is pre-change evidence for `V3` and must succeed after the change.
 - `V2`, `V3`, and `V4` are green, and the pre-change Cargo-form rejection is
   recorded in this plan and `/tmp/baseline-cli-errors-issue-901.out`.
 - No crate other than `cargo-bdd` appears in the `ortho_config` dependency
