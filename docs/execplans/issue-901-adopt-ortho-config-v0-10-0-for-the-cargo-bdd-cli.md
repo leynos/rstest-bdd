@@ -5,9 +5,9 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IMPLEMENTATION COMPLETE (hosted validation complete at `e28a927a`; one
-named test and the single-invocation `make test` form are retained as recorded
-exceptions; merge pending)
+Status: IMPLEMENTATION COMPLETE (hosted validation complete at `e28a927a`; the
+single-invocation `make test` form now has a local green verdict at `8a5cb67f`,
+clearing the previously retained exception; merge pending)
 
 ## Purpose / big picture
 
@@ -725,6 +725,25 @@ Hard invariants. Violation requires escalation, not a workaround.
       section now record the exception as one requirement and one test rather
       than as discharged.
 
+- [x] (2026-11-13) The exception above is now cleared. The single-invocation
+      `make test` form was run whole at `8a5cb67f`, unfiltered, with no
+      `-E` and no test excluded, and every step of the recipe finished. It
+      exited zero. The workspace leg reported 2,251 tests run, 2,251 passed,
+      7 skipped, and the no-default-features leg 787 passed, 7 skipped.
+      `rstest-bdd::trybuild_macros::runner::step_macros_compile` passed in both
+      (275.0 s and 279.5 s), so the test that no earlier local run had finished
+      now has a local verdict.
+      `whitaker::whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures`
+      passed too, and `cargo test --doc --workspace --all-features`,
+      `make check-fixture-lockfiles` (5 lockfiles up to date) and
+      `uv run pytest scripts/tests` (291 passed) all completed behind them.
+      No `FAILED` line, no `^error`, and no `make: ***` appears in the log.
+      The earlier filtered no-default-features result is retained in
+      `Outcomes & retrospective` as history, not as the current verdict. This
+      also retires the `#910` reference as a blocker for the row: the budgets
+      it owns still make the nested-Cargo tests slow here, but they no longer
+      prevent the recipe from finishing.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -1078,12 +1097,29 @@ issues #910 and #911.
 
 The complete test result for this revision is therefore the hosted runs rather
 than a local one. Formatting, lint, type checking, the doc tests, the
-fixture-lockfile gate and the Python suite have local green verdicts; the
-workspace suite and the no-default-features leg each leave the nested-Cargo
-tests named above without a passing local verdict. That exception is retained
-and recorded here, not waived: `make test` is not claimed to have passed
-locally, the pull request's validation section states the same, and the
-exception is tracked by #910. This plan cites the gated revision rather than
+fixture-lockfile gate and the Python suite have local green verdicts.
+
+That exception is now cleared, on a later tree. The whole `make test` recipe
+was run once, sequentially, at `8a5cb67f`, with no test excluded and no `-E`
+filter, and every step finished with exit status zero. The workspace leg
+reported 2,251 tests run, 2,251 passed, 7 skipped, and the no-default-features
+leg 787 passed, 7 skipped. Both legs ran
+`rstest-bdd::trybuild_macros::runner::step_macros_compile` to completion (275.0
+s and 279.5 s), which no earlier local run here had managed.
+
+```plaintext
+Summary [ 373.014s] 2251 tests run: 2251 passed, 7 skipped
+Summary [ 289.014s]  787 tests run:  787 passed, 7 skipped
+PASS [ 275.026s] (2227/2251) rstest-bdd::trybuild_macros runner::step_macros_compile
+PASS [ 279.498s] (770/787) rstest-bdd::trybuild_macros runner::step_macros_compile
+5 fixture lockfile(s) up to date
+291 passed in 20.03s
+MAKE_TEST_EXIT=0
+```
+
+No `FAILED` line, no `^error`, and no `make: ***` appears in the log. `#910`
+still owns the budgets that make those nested-Cargo tests slow on this host,
+but it no longer gates this row. This plan cites the gated revision rather than
 its own commit, and review follow-ups after that revision are recorded in the
 progress log and surprises below.
 
@@ -1469,12 +1505,13 @@ here.
   tree, `make check-fmt`, `make markdownlint`, `make spelling`, `make nixie`,
   `make lint` (all nine steps) and `make typecheck` exited zero.
 
-The retained exception is therefore one requirement and one test: the
-single-invocation form of the row, and a local verdict for
-`runner::step_macros_compile`. The hosted run above covers the test, and
-[#910](https://github.com/leynos/rstest-bdd/issues/910) owns the budgets that
-make the local form unreachable here. This is recorded rather than waived, and
-the pull request's validation section states the same.
+That exception has since been cleared by running the whole recipe once at
+`8a5cb67f`, sequentially, with no `-E` filter and no test excluded. It exited
+zero. Both nextest legs ran `runner::step_macros_compile` to completion (275.0
+s and 279.5 s) and the recipe's remaining steps finished behind them.
+[#910](https://github.com/leynos/rstest-bdd/issues/910) still owns the budgets
+that make those nested-Cargo tests slow on this host, but the row is no longer
+blocked on it. This is recorded rather than waived.
 
 There is no dedicated MSRV CI job in this repository. Report the direct local
 MSRV checks above and do not imply a pipeline covers them.
