@@ -30,10 +30,11 @@ mod property;
 #[case::skipped_reasons(BooleanOptions::Skipped, false)]
 #[case::skipped_json(BooleanOptions::Skipped, true)]
 fn subcommand_configuration_uses_defaults_file_environment_then_cli(
-    fixture: ConfigFixture,
+    fixture: eyre::Result<ConfigFixture>,
     #[case] options: BooleanOptions,
     #[case] is_json: bool,
 ) {
+    let fixture = fixture.expect("test setup should create the isolated fixture");
     let command = options.command();
     let default_args = [command];
     let defaults = options
@@ -48,7 +49,9 @@ fn subcommand_configuration_uses_defaults_file_environment_then_cli(
         ""
     };
     let file_config = format!("[cmds.{command}]\n{support_setting}{setting} = true\n");
-    fixture.write_local_config(&file_config);
+    fixture
+        .write_local_config(&file_config)
+        .expect("test setup should write the local configuration file");
     let file = options
         .merge(&fixture, &default_args, MapEnv::new())
         .expect("valid local settings should load");
@@ -73,19 +76,26 @@ fn subcommand_configuration_uses_defaults_file_environment_then_cli(
 
 /// A subcommand ignores settings addressed to a different subcommand.
 #[rstest]
-fn settings_from_other_subcommand_namespaces_do_not_leak(fixture: ConfigFixture) {
-    fixture.write_local_config("[cmds.skipped]\njson = true\n");
+fn settings_from_other_subcommand_namespaces_do_not_leak(fixture: eyre::Result<ConfigFixture>) {
+    let fixture = fixture.expect("test setup should create the isolated fixture");
+    fixture
+        .write_local_config("[cmds.skipped]\njson = true\n")
+        .expect("test setup should write the local configuration file");
     let steps_from_other_file_namespace = fixture
         .merge_steps(&["steps"], MapEnv::new())
         .expect("unselected file namespaces should be ignored");
-    fixture.write_local_config("[cmds.steps]\nskipped = true\n");
+    fixture
+        .write_local_config("[cmds.steps]\nskipped = true\n")
+        .expect("test setup should write the local configuration file");
     let skipped_from_other_file_namespace = fixture
         .merge_skipped(&["skipped"], MapEnv::new())
         .expect("unselected file namespaces should be ignored");
     assert!(!steps_from_other_file_namespace.skipped && !steps_from_other_file_namespace.json);
     assert!(!skipped_from_other_file_namespace.reasons && !skipped_from_other_file_namespace.json);
 
-    fixture.write_local_config("");
+    fixture
+        .write_local_config("")
+        .expect("test setup should write the local configuration file");
     let steps = fixture
         .merge_steps(
             &["steps"],
@@ -104,26 +114,37 @@ fn settings_from_other_subcommand_namespaces_do_not_leak(fixture: ConfigFixture)
 
 /// Unknown keys are ignored, while malformed or mistyped values are reported.
 #[rstest]
-fn unknown_keys_are_ignored_and_malformed_or_invalid_values_fail(fixture: ConfigFixture) {
-    fixture.write_local_config("[cmds.steps]\nunknown = true\n");
+fn unknown_keys_are_ignored_and_malformed_or_invalid_values_fail(
+    fixture: eyre::Result<ConfigFixture>,
+) {
+    let fixture = fixture.expect("test setup should create the isolated fixture");
+    fixture
+        .write_local_config("[cmds.steps]\nunknown = true\n")
+        .expect("test setup should write the local configuration file");
     let unknown = fixture
         .merge_steps(&["steps"], MapEnv::new())
         .expect("OrthoConfig ignores unknown configuration fields");
     assert!(!unknown.skipped && !unknown.json);
 
-    fixture.write_local_config("[cmds.steps\nskipped = true\n");
+    fixture
+        .write_local_config("[cmds.steps\nskipped = true\n")
+        .expect("test setup should write the local configuration file");
     assert!(
         fixture.merge_steps(&["steps"], MapEnv::new()).is_err(),
         "malformed TOML should be reported"
     );
 
-    fixture.write_local_config("[cmds.steps]\nskipped = \"perhaps\"\n");
+    fixture
+        .write_local_config("[cmds.steps]\nskipped = \"perhaps\"\n")
+        .expect("test setup should write the local configuration file");
     assert!(
         fixture.merge_steps(&["steps"], MapEnv::new()).is_err(),
         "a value with the wrong type should be reported"
     );
 
-    fixture.write_local_config("[cmds.steps]\n");
+    fixture
+        .write_local_config("[cmds.steps]\n")
+        .expect("test setup should write the local configuration file");
     assert!(
         fixture
             .merge_steps(
@@ -137,8 +158,13 @@ fn unknown_keys_are_ignored_and_malformed_or_invalid_values_fail(fixture: Config
 
 /// The cross-field rule rejects JSON output that no merged source enables.
 #[rstest]
-fn configuration_cannot_enable_steps_json_without_skipped_steps(fixture: ConfigFixture) {
-    fixture.write_local_config("[cmds.steps]\njson = true\n");
+fn configuration_cannot_enable_steps_json_without_skipped_steps(
+    fixture: eyre::Result<ConfigFixture>,
+) {
+    let fixture = fixture.expect("test setup should create the isolated fixture");
+    fixture
+        .write_local_config("[cmds.steps]\njson = true\n")
+        .expect("test setup should write the local configuration file");
     let config = fixture
         .merge_steps(&["steps"], MapEnv::new())
         .expect("individual TOML values should deserialize");
@@ -154,14 +180,19 @@ fn configuration_cannot_enable_steps_json_without_skipped_steps(fixture: ConfigF
 #[case::file(true)]
 #[case::environment(false)]
 fn explicit_steps_json_uses_skipped_from_merged_sources(
-    fixture: ConfigFixture,
+    fixture: eyre::Result<ConfigFixture>,
     #[case] use_file: bool,
 ) {
+    let fixture = fixture.expect("test setup should create the isolated fixture");
     let environment = if use_file {
-        fixture.write_local_config("[cmds.steps]\nskipped = true\n");
+        fixture
+            .write_local_config("[cmds.steps]\nskipped = true\n")
+            .expect("test setup should write the local configuration file");
         MapEnv::new()
     } else {
-        fixture.write_local_config("");
+        fixture
+            .write_local_config("")
+            .expect("test setup should write the local configuration file");
         MapEnv::new().with_var("CARGO_BDD_CMDS_STEPS_SKIPPED", "true")
     };
     let merged = fixture
@@ -180,11 +211,18 @@ fn explicit_steps_json_uses_skipped_from_merged_sources(
 /// An unreadable discovered file is reported rather than skipped.
 #[cfg(unix)]
 #[rstest]
-fn unreadable_configuration_file_is_reported_when_permissions_are_enforced(fixture: ConfigFixture) {
+fn unreadable_configuration_file_is_reported_when_permissions_are_enforced(
+    fixture: eyre::Result<ConfigFixture>,
+) {
     use cap_std::fs::{Permissions, PermissionsExt};
 
-    fixture.write_local_config("[cmds.steps]\nskipped = true\n");
-    let local = fixture.local_directory();
+    let fixture = fixture.expect("test setup should create the isolated fixture");
+    fixture
+        .write_local_config("[cmds.steps]\nskipped = true\n")
+        .expect("test setup should write the local configuration file");
+    let local = fixture
+        .local_directory()
+        .expect("test setup should open the local configuration directory");
     local
         .set_permissions(".cargo_bdd.toml", Permissions::from_mode(0o000))
         .expect("test setup should remove file read permissions");
