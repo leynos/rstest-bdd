@@ -168,7 +168,17 @@ fn cli_child_environment(
     mut vars: Vec<(OsString, OsString)>,
 ) -> std::io::Result<nested_cargo::NestedCargoEnv> {
     vars.retain(|(key, _)| !key.to_string_lossy().starts_with("CARGO_BDD_"));
-    vars.extend(empty_configuration_home_variables());
+    // Built before extending so the helper can see what the caller asked for;
+    // it passes a caller-supplied `CARGO_HOME` or `RUSTUP_HOME` through rather
+    // than replacing it.
+    if let Ok(redirects) = empty_configuration_home_variables(&vars) {
+        vars.extend(redirects);
+    } else {
+        // A test that cannot build its environment must fail rather than run
+        // against the host's configuration roots, which is what this guard
+        // exists to prevent.
+        panic!("the discovery-root redirect could not be prepared");
+    }
     nested_cargo::env_from_vars(
         vars,
         Some(&workspace_root().join("target")),

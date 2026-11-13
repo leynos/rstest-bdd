@@ -87,6 +87,14 @@ fn cli_child_environment_redirects_every_discovery_root() {
 /// Cargo derives `CARGO_HOME` and `RUSTUP_HOME` from the home directory this
 /// policy overrides, so both must still be present and must still name the
 /// ambient locations rather than the empty directory.
+///
+/// The expected value is worked out independently of the helper rather than
+/// assumed to end in `.cargo` or `.rustup`: an explicit `CARGO_HOME` or
+/// `RUSTUP_HOME` wins over the home-derived default and may name any path, so
+/// asserting the default's last component would fail on a machine that sets
+/// one. This machine sets neither, so the default branch is the one exercised
+/// here; the explicit branch is covered by
+/// `cli_child_environment_carries_an_explicit_cargo_home` below.
 #[test]
 fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() {
     let child = cli_child_environment(Vec::new());
@@ -101,8 +109,41 @@ fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() {
             !path.starts_with(std::path::Path::new(home)),
             "{variable} must not point inside the empty redirect directory"
         );
-        assert_eq!(path.file_name(), Some(OsStr::new(directory)));
+        let expected = ambient_location(variable, directory);
+        assert_eq!(
+            path,
+            expected.as_path(),
+            "{variable} must name the ambient location, not a derived one"
+        );
     }
+}
+
+/// An explicit `CARGO_HOME` survives the redirect unchanged.
+///
+/// The helper prefers a variable the developer already set over the
+/// user-home default, which is what makes a custom registry cache usable at
+/// all. Asserting only the default's shape would let a rewrite of the explicit
+/// value pass unnoticed.
+#[test]
+fn cli_child_environment_carries_an_explicit_cargo_home() {
+    let custom = OsStr::new("/opt/cargo-cache");
+    let child = cli_child_environment(vec![(OsString::from("CARGO_HOME"), custom.to_owned())]);
+
+    assert_eq!(child.get("CARGO_HOME"), Some(custom));
+}
+
+/// The ambient value a Cargo home variable should carry into the child.
+///
+/// Mirrors the helper's precedence deliberately: an explicit variable wins,
+/// otherwise the location is derived under the ambient user home.
+fn ambient_location(variable: &str, directory: &str) -> std::path::PathBuf {
+    if let Some(explicit) = std::env::var_os(variable) {
+        return std::path::PathBuf::from(explicit);
+    }
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .unwrap_or_default();
+    std::path::Path::new(&home).join(directory)
 }
 
 /// A developer's own `CARGO_BDD_*` export never reaches the child.

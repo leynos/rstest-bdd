@@ -223,7 +223,11 @@ every location, variable and precedence rule.
 
 Building `cargo-bdd` now requires Rust 1.89 because its configuration
 dependency raises the floor. The reusable library crates keep the 1.88 minimum,
-so a workspace build needs 1.89 only when it builds the binary. See
+so a workspace build needs 1.89 only when it builds the binary. That 1.88 floor
+holds for a dependency resolution that keeps the libraries' own requirements
+satisfied — in this repository, a lockfile pinning `cargo-platform` v0.3.2. An
+independent consumer lockfile may instead resolve a newer `cargo-platform`,
+whose higher floor applies to that consumer. See
 [ADR 025](adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md).
 
 ## Migration checklist
@@ -255,7 +259,7 @@ so a workspace build needs 1.89 only when it builds the binary. See
       what the direct child wrote, not what its descendants wrote after it
       exited.
 - [ ] Install Rust 1.89 or newer to build `cargo-bdd`; the library crates still
-  build with Rust 1.88.
+  build with Rust 1.88 under a resolution that honours their own floors.
 - [ ] Review the `cargo_bdd` configuration files and `CARGO_BDD_` variables on
   any machine that runs `cargo bdd`, then remove local wrappers that emulated
   the Cargo-dispatched form.
