@@ -176,3 +176,180 @@ fn duplicate_groups_are_ordered_by_library_keyword_and_pattern() {
         ]
     );
 }
+
+/// The unused listing keeps only steps no scenario executed.
+#[test]
+fn unused_listing_keeps_only_unexecuted_steps() {
+    let step = |pattern: &str, used: bool| Step {
+        library: "accounts".to_owned(),
+        keyword: "Given".to_owned(),
+        pattern: pattern.to_owned(),
+        file: "steps.rs".to_owned(),
+        line: 1,
+        used,
+    };
+    let steps = [step("executed", true), step("dormant", false)];
+    let mut rendered = Vec::new();
+
+    write_unused_steps(&mut rendered, &steps).expect("writing to a buffer cannot fail");
+
+    let rendered = String::from_utf8(rendered).expect("the listing is UTF-8");
+    assert!(
+        rendered.contains("dormant"),
+        "the unexecuted step should be listed"
+    );
+    assert!(
+        !rendered.contains("executed '"),
+        "an executed step must not be listed"
+    );
+}
+
+/// The duplicate listing separates each group with the documented marker.
+#[test]
+fn duplicate_listing_writes_a_separator_after_each_group() {
+    let step = |pattern: &str, line: u32| Step {
+        library: "accounts".to_owned(),
+        keyword: "Given".to_owned(),
+        pattern: pattern.to_owned(),
+        file: "steps.rs".to_owned(),
+        line,
+        used: false,
+    };
+    let steps = [step("repeated", 1), step("repeated", 2), step("unique", 3)];
+    let mut rendered = Vec::new();
+
+    write_duplicate_groups(&mut rendered, &steps).expect("writing to a buffer cannot fail");
+
+    let rendered = String::from_utf8(rendered).expect("the listing is UTF-8");
+    assert_eq!(
+        rendered.matches("---\n").count(),
+        1,
+        "only the duplicated group should be separated"
+    );
+    assert!(
+        !rendered.contains("unique"),
+        "a step with no duplicate must not be listed"
+    );
+}
+
+/// The bypassed-step listing switches between JSON and text rendering.
+#[test]
+fn bypassed_listing_honours_the_json_switch() {
+    let steps = [BypassedStep {
+        library: "accounts".to_owned(),
+        keyword: "Given".to_owned(),
+        pattern: "x".to_owned(),
+        file: "steps.rs".to_owned(),
+        line: 4,
+        feature_path: "features/a.feature".to_owned(),
+        scenario_name: "scenario".to_owned(),
+        scenario_line: 2,
+        tags: Vec::new(),
+        libraries: Vec::new(),
+        reason: Some("why".to_owned()),
+    }];
+
+    let mut json = Vec::new();
+    write_bypassed_steps_listing(&mut json, &steps, true).expect("JSON rendering should succeed");
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&json).expect("the JSON listing should parse");
+    assert_eq!(
+        parsed
+            .as_array()
+            .and_then(|array| array.first())
+            .and_then(|entry| entry.get("scenario")),
+        Some(&serde_json::Value::String("scenario".into()))
+    );
+
+    let mut text = Vec::new();
+    write_bypassed_steps_listing(&mut text, &steps, false).expect("text rendering should succeed");
+    let text = String::from_utf8(text).expect("the listing is UTF-8");
+    assert!(
+        text.starts_with("Given 'x'"),
+        "text rendering starts with the step"
+    );
+    assert!(
+        !text.starts_with('['),
+        "text rendering must not be a JSON array"
+    );
+}
+
+/// The skipped listing reports only skipped scenarios, in JSON or text.
+#[test]
+fn skipped_listing_reports_only_skipped_scenarios() {
+    let scenario = |name: &str, status: ScenarioOutcome| Scenario {
+        feature_path: "features/a.feature".to_owned(),
+        name: name.to_owned(),
+        status,
+        message: None,
+        allow_skipped: true,
+        forced_failure: false,
+        line: 1,
+        tags: Vec::new(),
+        libraries: Vec::new(),
+    };
+    let scenarios = [
+        scenario("skipped one", ScenarioOutcome::Skipped),
+        scenario("passed one", ScenarioOutcome::Passed),
+    ];
+
+    let mut json = Vec::new();
+    write_skipped_listing(
+        &mut json,
+        &scenarios,
+        &SkippedSettings {
+            reasons: false,
+            json: true,
+        },
+    )
+    .expect("JSON rendering should succeed");
+    let rendered = String::from_utf8(json).expect("the listing is UTF-8");
+    assert!(
+        rendered.contains("skipped one"),
+        "the skipped scenario should be reported"
+    );
+    assert!(
+        !rendered.contains("passed one"),
+        "a passing scenario must not be reported"
+    );
+
+    let mut verbose = Vec::new();
+    write_skipped_listing(
+        &mut verbose,
+        &scenarios,
+        &SkippedSettings {
+            reasons: true,
+            json: false,
+        },
+    )
+    .expect("text rendering should succeed");
+    let verbose = String::from_utf8(verbose).expect("the listing is UTF-8");
+    assert!(
+        verbose.contains("skipped one") && !verbose.contains("passed one"),
+        "text rendering must apply the same filter"
+    );
+}
+
+/// The Cargo-dispatched form reports the frozen `--skipped` requirement.
+///
+/// Clap measured this message before OrthoConfig was adopted; the checked-in
+/// baseline fixture pins the direct form, and this covers the wrapper form
+/// that shares the wording.
+#[test]
+fn cargo_dispatched_missing_skipped_matches_the_frozen_message() {
+    let error = missing_required_skipped_error(InvocationForm::CargoDispatched);
+    let CliError::Clap(error) = error else {
+        panic!("the missing `--skipped` failure should be a Clap error");
+    };
+
+    assert_eq!(
+        error.kind(),
+        clap::error::ErrorKind::MissingRequiredArgument
+    );
+    assert_eq!(error.exit_code(), 2);
+    let rendered = error.render().to_string();
+    assert!(
+        rendered.contains("the following required arguments were not provided:\n  --skipped"),
+        "the wrapper form should keep Clap's wording, got: {rendered}"
+    );
+}
