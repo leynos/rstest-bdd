@@ -44,10 +44,10 @@ struct SpanCapture {
 impl SpanCapture {
     /// Take a copy of the spans captured so far.
     fn recorded(&self) -> Vec<CapturedSpan> {
-        self.spans
-            .lock()
-            .expect("the span capture mutex should not be poisoned")
-            .clone()
+        let Ok(spans) = self.spans.lock() else {
+            panic!("the span capture mutex should not be poisoned");
+        };
+        spans.clone()
     }
 }
 
@@ -60,10 +60,10 @@ impl<S: Subscriber> Layer<S> for SpanCapture {
             name: attributes.metadata().name().to_owned(),
             fields: visitor.names,
         };
-        self.spans
-            .lock()
-            .expect("the span capture mutex should not be poisoned")
-            .push(captured);
+        let Ok(mut spans) = self.spans.lock() else {
+            panic!("the span capture mutex should not be poisoned");
+        };
+        spans.push(captured);
     }
 }
 
@@ -82,12 +82,13 @@ impl Visit for FieldNames {
 
 /// Parse `cargo-bdd <name>` and return that subcommand's matches.
 fn subcommand_matches(name: &str) -> clap::ArgMatches {
-    Cli::command()
-        .try_get_matches_from(["cargo-bdd", name])
-        .expect("a supported subcommand should parse")
-        .subcommand_matches(name)
-        .expect("the parsed command should carry its own matches")
-        .clone()
+    let Ok(matches) = Cli::command().try_get_matches_from(["cargo-bdd", name]) else {
+        panic!("a supported subcommand should parse");
+    };
+    let Some(subcommand) = matches.subcommand_matches(name) else {
+        panic!("the parsed command should carry its own matches");
+    };
+    subcommand.clone()
 }
 
 /// Each loader opens one span carrying only the command label.
