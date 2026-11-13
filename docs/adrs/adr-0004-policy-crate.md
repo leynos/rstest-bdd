@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 004: shared policy crate
+# Architectural decision record (ADR) 0004: shared policy crate
 
 ## Status
 

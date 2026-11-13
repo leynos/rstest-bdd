@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 021: record the users-guide base URL once
+# Architectural decision record (ADR) 0021: record the users-guide base URL once
 
 ## Status
 
@@ -19,7 +19,7 @@ relative paths for cross-references into this repository. Issue
 [#499][issue-499] moved those cross-references to absolute GitHub URLs,
 collected as reference-style definitions at the bottom of the guide. Pull
 request [#521][pr-521] added `scripts/check_users_guide_links.py` to stop those
-absolute URLs rotting silently, and [ADR-014][adr-014] retained it as a
+absolute URLs rotting silently, and [ADR-0014][adr-0014] retained it as a
 proportionate gate.
 
 The checker detects drift, but it does not remove it. The base URL was written
@@ -153,7 +153,7 @@ a rewrite cannot disturb prose.
   repository prefix covers links this repository owns that name no document, so
   the exposure is a view URL on `github.com` whose last segment collides with a
   documentation file name.
-- The validator remains retained and narrowly scoped; see [ADR-014][adr-014].
+- The validator remains retained and narrowly scoped; see [ADR-0014][adr-0014].
   This decision changes how the block is maintained, not what is validated.
 
 ## References
@@ -164,12 +164,12 @@ a rewrite cannot disturb prose.
   GitHub URLs.
 - Issue [#540][issue-540]: evaluate proportionality of the validator.
 - Pull request [#521][pr-521]: add `scripts/check_users_guide_links.py`.
-- Pull request [#541][pr-541]: add CLI and property tests, and ADR-014.
+- Pull request [#541][pr-541]: add CLI and property tests, and ADR-0014.
 - Pull request [#747][pr-747]: generate the reference block from one recorded
   base URL, and record this decision.
-- [ADR-014][adr-014]: retain the users-guide link validator.
+- [ADR-0014][adr-0014]: retain the users-guide link validator.
 
-[adr-014]: adr-014-retain-users-guide-link-validator.md
+[adr-0014]: adr-0014-retain-users-guide-link-validator.md
 [issue-499]: https://github.com/leynos/rstest-bdd/issues/499
 [issue-537]: https://github.com/leynos/rstest-bdd/issues/537
 [issue-540]: https://github.com/leynos/rstest-bdd/issues/540

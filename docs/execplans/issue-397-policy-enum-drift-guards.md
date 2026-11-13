@@ -59,7 +59,7 @@ reintroduced locally in either crate.
   source inspection proves the existing tests cannot cover the requirement.
 - Update the documentation that currently describes the old duplicated-enum
   design, especially `docs/rstest-bdd-design.md` and
-  `docs/adr-004-policy-crate.md`.
+  `docs/adrs/adr-0004-policy-crate.md`.
 - Run all applicable gates with `set -o pipefail` and `tee`:
   `make fmt`, `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`,
   and `make test`.
@@ -76,7 +76,7 @@ reintroduced locally in either crate.
 - Validation model: if the proposed regression check cannot be expressed as a
   normal Rust test in an existing crate, stop and document why before adding a
   custom script.
-- Ambiguity: if issue 397, ADR-004, and the current source tree imply
+- Ambiguity: if issue 397, ADR-0004, and the current source tree imply
   different intended outcomes, stop and present the competing interpretations.
 - Iterations: if the same gate fails three consecutive fix attempts, stop and
   escalate with the captured log path.
@@ -102,7 +102,7 @@ reintroduced locally in either crate.
   `rstest_bdd_policy::RuntimeMode` type, and do the same for
   `TestAttributeHint`.
 
-- Risk: ADR-004 still says `Proposed`, which may conflict with the already
+- Risk: ADR-0004 still says `Proposed`, which may conflict with the already
   implemented policy crate. Severity: medium. Likelihood: high. Mitigation:
   confirm whether the repository treats the ADR as accepted and, if so, update
   the ADR status in the same change.
@@ -114,7 +114,7 @@ reintroduced locally in either crate.
 - [x] (2026-04-09 00:00Z) Verified the current source tree uses
       `rstest-bdd-policy` as the single source of truth for these enums.
 - [x] (2026-04-09 00:00Z) Identified stale documentation in
-      `docs/rstest-bdd-design.md` and `docs/adr-004-policy-crate.md`.
+      `docs/rstest-bdd-design.md` and `docs/adrs/adr-0004-policy-crate.md`.
 - [x] (2026-04-09 00:00Z) Drafted this ExecPlan.
 - [x] (2026-04-12 00:00Z) Stage A: baseline evidence confirmed that
       `RuntimeMode` and `TestAttributeHint` are defined only in
@@ -125,8 +125,8 @@ reintroduced locally in either crate.
       `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs`
       proving those surfaces still use the shared `rstest-bdd-policy` types.
 - [x] (2026-04-12 00:00Z) Stage C: updated `docs/rstest-bdd-design.md` and
-      `docs/adr-004-policy-crate.md` to describe the implemented shared policy
-      crate architecture and marked ADR-004 as accepted.
+      `docs/adrs/adr-0004-policy-crate.md` to describe the implemented shared policy
+      crate architecture and marked ADR-0004 as accepted.
 - [x] (2026-04-12 00:00Z) Stage D: ran `make fmt`,
       `make markdownlint`, `make nixie`, `make check-fmt`, `make lint`, and
       `make test`; all passed.
@@ -155,7 +155,7 @@ reintroduced locally in either crate.
   depend on runtime crates. Impact: the documentation is now misleading and
   must be corrected before the issue can be considered closed cleanly.
 
-- Observation: `docs/adr-004-policy-crate.md` still has status `Proposed`
+- Observation: `docs/adrs/adr-0004-policy-crate.md` still has status `Proposed`
   while the shared crate already exists and is wired into both crates.
   Evidence: the ADR file and the presence of `crates/rstest-bdd-policy`.
   Impact: the ADR should likely move to `Accepted` or another repository-valid
@@ -188,7 +188,7 @@ reintroduced locally in either crate.
   closed while the docs still describe the obsolete manual-sync architecture.
   Date/Author: 2026-04-09 / Codex.
 
-- Decision: mark ADR-004 as accepted in the same closure change. Rationale:
+- Decision: mark ADR-0004 as accepted in the same closure change. Rationale:
   the repository already ships the policy crate, so leaving the ADR in a
   proposed state would continue to misstate the architecture even after the
   code and design doc were corrected. Date/Author: 2026-04-12 / Codex.
@@ -204,7 +204,7 @@ new implementation feature. The delivered change does three things:
   from `rstest-bdd-policy`.
 - It updates the design document so section 2.6.2 no longer claims the
   proc-macro crate keeps local enum copies.
-- It updates ADR-004 to describe the architecture as accepted and implemented,
+- It updates ADR-0004 to describe the architecture as accepted and implemented,
   rather than proposed.
 
 Validation results recorded for this closure:
@@ -247,7 +247,7 @@ crate is the architectural guard against drift. Two docs still describe the old
 state:
 
 - `docs/rstest-bdd-design.md` section 2.6.2
-- `docs/adr-004-policy-crate.md`
+- `docs/adrs/adr-0004-policy-crate.md`
 
 This plan closes issue 397 by aligning those files with the implemented
 architecture and adding regression tests that prove both crates still use the
@@ -312,7 +312,7 @@ Implementation details:
 - Update `docs/rstest-bdd-design.md` section 2.6.2 so it states that
   `RuntimeMode` and `TestAttributeHint` live in `rstest-bdd-policy`, with the
   runtime crate re-exporting them and the macro crate importing them directly.
-- Update `docs/adr-004-policy-crate.md` so the status reflects the current
+- Update `docs/adrs/adr-0004-policy-crate.md` so the status reflects the current
   implemented state, and so the ADR explicitly records that this architecture
   resolves the drift risk that issue 397 originally identified.
 - If the implementation touches code comments, keep them limited to files that
@@ -423,7 +423,7 @@ Acceptance means all of the following are true:
   same policy crate.
 - `docs/rstest-bdd-design.md` no longer claims the macro crate maintains local
   copies of these enums.
-- `docs/adr-004-policy-crate.md` records the policy crate as the accepted
+- `docs/adrs/adr-0004-policy-crate.md` records the policy crate as the accepted
   architectural answer to the old drift risk.
 - `make fmt`, `make markdownlint`, `make nixie`, `make check-fmt`,
   `make lint`, and `make test` all succeed.
@@ -467,7 +467,7 @@ Useful source anchors while implementing:
 - `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs`
 - `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs`
 - `docs/rstest-bdd-design.md`
-- `docs/adr-004-policy-crate.md`
+- `docs/adrs/adr-0004-policy-crate.md`
 
 ## Interfaces and dependencies
 

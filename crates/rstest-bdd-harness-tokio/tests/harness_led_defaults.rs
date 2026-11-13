@@ -1,4 +1,4 @@
-//! Runtime integration tests for ADR-008 harness-led attribute-policy
+//! Runtime integration tests for ADR-0008 harness-led attribute-policy
 //! defaults and their error paths.
 //!
 //! Unlike the snapshot and `RSTEST_BDD_RUN_MACROTEST`-gated expansion tests,
@@ -119,7 +119,7 @@ fn aborted_local_task_join_handle_reports_cancellation() {
 }
 
 /// `harness = TokioHarness` with no `attributes = ...`: the macro infers
-/// `TokioAttributePolicy` (ADR-008) and the steps observe the live runtime.
+/// `TokioAttributePolicy` (ADR-0008) and the steps observe the live runtime.
 #[scenario(
     path = "tests/features/harness_led_defaults.feature",
     name = "Inferred Tokio policy provides the runtime",

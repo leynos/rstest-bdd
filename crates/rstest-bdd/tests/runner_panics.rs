@@ -2,13 +2,13 @@
 //!
 //! `run_scenario` is a public entry point with a documented contract: every
 //! step outcome reaches the caller through the returned `ScenarioOutcome`, and
-//! the function does not panic (Constraint 3, ADR-018-TR2). The macro-generated
+//! the function does not panic (Constraint 3, ADR-0018-TR2). The macro-generated
 //! step wrapper satisfies that for attribute-registered steps, because it
 //! installs its own `catch_unwind`
 //! (`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly/mod.rs`). It is
 //! *not* satisfied for steps registered through the raw `step!` form, which
 //! stores a bare function pointer and has no wrapper at all — and that form is
-//! ADR-018's own extension story. A driver that relies on the wrapper therefore
+//! ADR-0018's own extension story. A driver that relies on the wrapper therefore
 //! relies on something a legitimate registration path does not have.
 //!
 //! This file constructs exactly that case. The step is registered through the

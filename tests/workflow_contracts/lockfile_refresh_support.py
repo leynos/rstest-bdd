@@ -208,17 +208,21 @@ def run_with_recording_git(
         The finished fragment, with its output captured.
     """
     invocation_log = write_recording_git(working_dir)
+    process_environment = os.environ.copy()
+    process_environment.update(environment)
+    process_environment.update({
+        "PATH": f"{working_dir}{os.pathsep}{os.environ['PATH']}",
+        INVOCATION_LOG_VARIABLE: str(invocation_log),
+    })
+    # A caller's non-interactive Bash startup file can rewrite PATH and make
+    # this harness invoke a host Git wrapper instead of its recording stub.
+    process_environment.pop("BASH_ENV", None)
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - the script is this repository's own.
         argv,
         check=False,
         capture_output=True,
         text=True,
-        env={
-            **os.environ,
-            **environment,
-            "PATH": f"{working_dir}{os.pathsep}{os.environ['PATH']}",
-            INVOCATION_LOG_VARIABLE: str(invocation_log),
-        },
+        env=process_environment,
         cwd=working_dir,
         timeout=30,
     )

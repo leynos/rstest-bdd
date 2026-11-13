@@ -8,15 +8,15 @@ Status: COMPLETE
 
 This plan covers roadmap item 9.7.3 only. It must be approved before
 implementation begins. While
-`docs/adr-008-harness-led-attribute-policy-defaults.md` remains in `Proposed`
-status, implementation remains contingent unless a maintainer explicitly
-authorizes it.
+`docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` remains in
+`Proposed` status, implementation remains contingent unless a maintainer
+explicitly authorizes it.
 
 ## Purpose / big picture
 
 Roadmap item 9.7.3 adds comprehensive test coverage for the harness-led
 attribute-policy defaults delivered by the earlier 9.7.1 and 9.7.2 work. The
-behaviour under test is the Architecture Decision Record (ADR) 008 rule that
+behaviour under test is the Architecture Decision Record (ADR) 0008 rule that
 first-party harness choices can imply their matching first-party test
 attributes when `attributes = ...` is omitted.
 
@@ -41,16 +41,16 @@ uncovers an actual mismatch that would mislead an implementer.
 ## Constraints
 
 - Do not implement this plan until the maintainer explicitly approves it.
-- Treat implementation as contingent while ADR-008 remains `Proposed`, unless
+- Treat implementation as contingent while ADR-0008 remains `Proposed`, unless
   the maintainer explicitly authorizes contingent implementation.
 - Keep scope to roadmap item 9.7.3. Do not mark 9.7.4 done, and do not perform
   broad documentation rewrites that belong to 9.7.4.
-- Preserve the ADR-008 precedence order:
+- Preserve the ADR-0008 precedence order:
   1. explicit `attributes = ...`
   2. known first-party `harness = ...` mapping
   3. deprecated `runtime = "tokio-current-thread"` compatibility alias
   4. existing runtime-mode or synchronous fallback
-- Preserve ADR-005a's crate boundary. Tokio and Graphical Processing User
+- Preserve ADR-0025's crate boundary. Tokio and Graphical Processing User
   Interface (GPUI) test dependencies must remain in their first-party harness
   adapter crates, not in the core runtime or macro crates.
 - Preserve `attributes`-only configuration. A caller that supplies
@@ -87,7 +87,7 @@ uncovers an actual mismatch that would mislead an implementer.
 - Interface: if any public trait, macro argument name, or existing public
   function signature must change, stop and escalate before continuing.
 - Dependencies: if a new external crate is required, stop and escalate.
-- Governance: if ADR-008 remains `Proposed`, stop before implementation unless
+- Governance: if ADR-0008 remains `Proposed`, stop before implementation unless
   explicit maintainer authorization is recorded in this plan.
 - Validation: if `make check-fmt`, `make lint`, or `make test` fails for an
   unrelated reason, capture the log path and stop before marking roadmap 9.7.3
@@ -103,7 +103,7 @@ uncovers an actual mismatch that would mislead an implementer.
 
 ## Risks
 
-- Risk: the implementation already contains much of the ADR-008 resolver shape,
+- Risk: the implementation already contains much of the ADR-0008 resolver shape,
   so new tests could overfit internals instead of proving user-visible macro
   behaviour. Severity: medium. Likelihood: medium. Mitigation: combine focused
   unit tests with trybuild compile-pass fixtures and behavioural scenario tests
@@ -195,15 +195,15 @@ uncovers an actual mismatch that would mislead an implementer.
 
 ## Surprises & Discoveries
 
-- ADR-008 remains `Proposed`, while roadmap items 9.7.1 and 9.7.2 are already
+- ADR-0008 remains `Proposed`, while roadmap items 9.7.1 and 9.7.2 are already
   marked delivered under maintainer authorization. This plan therefore keeps
   the same governance caveat until the maintainer approves 9.7.3 implementation.
-- Existing code already contains the key ADR-008 implementation surfaces:
+- Existing code already contains the key ADR-0008 implementation surfaces:
   `TestAttrPolicy`, `resolve_attribute_policy`, shared first-party policy path
   constants, and harness-path hint resolution. The first implementation step
   should therefore be a coverage reconciliation rather than a rewrite.
 - Existing Tokio and GPUI adapter crates already own their trybuild and
-  behavioural integration suites. This matches ADR-005a's boundary and gives
+  behavioural integration suites. This matches ADR-0025's boundary and gives
   9.7.3 a natural place to add first-party coverage without pulling heavy
   dependencies into `rstest-bdd`.
 - Firecrawl confirmed trybuild's documented role as a compiler diagnostics test
@@ -256,7 +256,7 @@ uncovers an actual mismatch that would mislead an implementer.
   said the plan must be approved before implementation.
 - Decision: centre 9.7.3 on tests, not production resolver rewrites.
   Rationale: roadmap item 9.7.3's finish line is coverage evidence, and the
-  current code already contains the ADR-008 resolver and codegen shape from
+  current code already contains the ADR-0008 resolver and codegen shape from
   9.7.1 and 9.7.2.
 - Decision: keep 9.7.4 documentation rewrites out of scope.
   Rationale: roadmap item 9.7.4 explicitly owns the user-guide and design-doc
@@ -390,7 +390,7 @@ passed gates.
 
 The final implementation is acceptable only when the following are true:
 
-- unit tests prove ADR-008 precedence, signature-permitted emission, explicit
+- unit tests prove ADR-0008 precedence, signature-permitted emission, explicit
   overrides, `attributes`-only cases, and unknown harness fallback;
 - trybuild fixtures compile or fail in the first-party adapter crates exactly
   where expected;

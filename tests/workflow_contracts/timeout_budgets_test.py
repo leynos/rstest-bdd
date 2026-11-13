@@ -5,7 +5,7 @@ repository's own configuration, where every ``grace-period`` is five
 seconds. The termination allowance therefore always lands on 65 s there,
 and a contract that only ever sees one number cannot tell the corrected
 rule from the one it replaced: deleting the term entirely would leave the
-watchdog at 6,600 s and every assertion passing.
+watchdog at 9,900 s and every assertion passing.
 
 These tests drive the derivations with controlled configurations, so each
 branch is exercised where the repository's own numbers never reach: a

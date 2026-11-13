@@ -1,6 +1,6 @@
 //! Test-attribute policy resolution for generated scenario tests.
 //!
-//! This module implements the ADR-008 precedence chain that selects which
+//! This module implements the ADR-0008 precedence chain that selects which
 //! framework test attributes are emitted alongside `#[rstest::rstest]` for
 //! each generated test function:
 //!
@@ -108,7 +108,7 @@ fn resolve_attribute_hint_from_path(
     resolver(&segment_refs)
 }
 
-/// Policy-resolution inputs bundled for ADR-008 precedence.
+/// Policy-resolution inputs bundled for ADR-0008 precedence.
 pub(super) struct TestAttrPolicy<'a> {
     /// Attribute-resolution fallback `RuntimeMode` used when no higher-priority
     /// harness or explicit attribute policy path resolves a `TestAttributeHint`.
@@ -117,7 +117,7 @@ pub(super) struct TestAttrPolicy<'a> {
     /// `rstest_bdd_harness_tokio::TokioHarness`.
     pub(super) harness: Option<&'a syn::Path>,
     /// Explicit attribute policy path supplied by the macro caller; this has
-    /// the highest ADR-008 precedence when present.
+    /// the highest ADR-0008 precedence when present.
     pub(super) attributes: Option<&'a syn::Path>,
 }
 

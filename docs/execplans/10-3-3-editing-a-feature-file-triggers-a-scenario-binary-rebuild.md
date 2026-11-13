@@ -73,11 +73,11 @@ one, stop and escalate rather than working around it.
    case in Decision D4, which is called out there and must be announced.
 2. **No absolute path may be baked into the macro's emitted token stream.**
    This is binding constraint 1 of
-   `docs/adr-010-feature-file-change-detection.md`. The macro must not write a
-   literal such as `"/home/alice/project/tests/features/x.feature"` into the
-   code it generates. *Scope of enforcement, stated precisely because the
-   review found the loose wording misleading:* this constraint is enforced at
-   the token-stream level and is verified by the Milestone 1d assertion.
+   `docs/adrs/adr-0010-feature-file-change-detection.md`. The macro must not
+   write a literal such as `"/home/alice/project/tests/features/x.feature"`
+   into the code it generates. *Scope of enforcement, stated precisely because
+   the review found the loose wording misleading:* this constraint is enforced
+   at the token-stream level and is verified by the Milestone 1d assertion.
    Artefact-level freedom from absolute paths is asserted for **binary and test
    targets only**; an `rlib` retains source paths and constant values in its
    metadata regardless of what this change does (see *Artefacts and notes*,
@@ -92,8 +92,8 @@ one, stop and escalate rather than working around it.
    because `make lint` and `make test` both run `--all-features` on a stable
    toolchain and would enable it. See Decision D5.
 5. **Invalidation is a tested contract, not advisory prose.** This is binding
-   constraint 2 of ADR-010. A regression test must fail before the fix and pass
-   after it.
+   constraint 2 of ADR-0010. A regression test must fail before the fix and
+   pass after it.
 6. **`make check-fmt` and `make lint` must pass at the end of every milestone;
    `make test` must pass at the end of every milestone except the red one.**
    Milestone 1 exists to produce failing tests, so requiring `make test` there
@@ -373,7 +373,7 @@ is ticked so rates of progress and tolerance breaches are visible.
       asserts the new scenario runs. The recipe is executed living
       documentation: a change to it fails the suite.
 - [x] (2026-08-17) Milestone 8: documentation, ADR amendment, migration-guide
-      breaking change and caveat removal, roadmap tick. ADR-010 Accepted with
+      breaking change and caveat removal, roadmap tick. ADR-0010 Accepted with
       preserved-rejection amendments (D0a, D2, D5); design §2.7.6.6 rewritten
       to "what ships and why"; migration guide caveat deleted and the D3
       breaking change, the D4 `compile_error!` and the hermetic-build
@@ -394,8 +394,8 @@ implementation.
   construct showed the same absolute-path presence in the dev-profile binary
   (it comes from debug info, not the mechanism) and both were clean in release.
   Impact: the load-bearing discovery. It makes the zero-friction path viable on
-  MSRV 1.85 without the span gymnastics ADR-010 anticipated, and it requires
-  ADR-010's rejection rationale to be amended rather than merely obeyed.
+  MSRV 1.85 without the span gymnastics ADR-0010 anticipated, and it requires
+  ADR-0010's rejection rationale to be amended rather than merely obeyed.
 
 - Observation: **`include_str!` hard-errors on a non-UTF-8 file;
   `include_bytes!` does not, and registers dep-info identically.** Evidence:
@@ -582,7 +582,7 @@ implementation.
 
   ```rust
   #[doc = "Registers the bound `.feature` file as a Cargo rebuild dependency \
-           (ADR-010). Deleting this makes `.feature`-only edits silently skip \
+           (ADR-0010). Deleting this makes `.feature`-only edits silently skip \
            recompilation; see rstest-bdd::feature_rebuild_invalidation."]
   const _: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #rel));
   ```
@@ -598,7 +598,7 @@ implementation.
     can parse a file and generate zero tests from it under a `tags =` filter,
     and because the harness path replaces the function body wholesale.
   - *Anonymous `const _`* because naming it would make the file contents
-    reachable and therefore retained in the binary — the cost ADR-010 feared.
+    reachable and therefore retained in the binary — the cost ADR-0010 feared.
     This is fragile knowledge; hence the `#[doc]` attribute above.
   - *One binding per file, not per scenario*, to bound compile-time cost.
 
@@ -610,12 +610,12 @@ implementation.
   build script requires every consumer to add `build.rs`. Date/Author:
   2026-08-15, planning agent; revised after design review.
 
-- **Decision D0a (settled): amend ADR-010 rather than silently diverge.**
-  ADR-010 rejects "absolute-path `include_str!`" because it "embeds the full …
+- **Decision D0a (settled): amend ADR-0010 rather than silently diverge.**
+  ADR-0010 rejects "absolute-path `include_str!`" because it "embeds the full …
   path into the binary". Measurement shows that rationale applies to the
   variant where the *proc macro writes an absolute string literal into the
   token stream*, and not to the variant where the macro emits
-  `env!("CARGO_MANIFEST_DIR")` and lets `rustc` construct the path. ADR-010's
+  `env!("CARGO_MANIFEST_DIR")` and lets `rustc` construct the path. ADR-0010's
   decision outcome explicitly defers the mechanism choice to this ExecPlan, so
   recording the correction is within remit. The amendment must **preserve the
   original rejection text verbatim** and add a dated adjacent subsection
@@ -686,8 +686,8 @@ implementation.
   enforcement document-wide. The extractor should therefore take (document,
   section) pairs rather than whole documents; that is a small, clean
   generalization of netsuke's design, not a weakening of it. Note while
-  amending the ADR: ADR-010's claim that a build script "must emit one line per
-  file discovered, not just the directory" is over-cautious — Cargo scans a
+  amending the ADR: ADR-0010's claim that a build script "must emit one line
+  per file discovered, not just the directory" is over-cautious — Cargo scans a
   `rerun-if-changed` directory recursively (rust-lang/cargo#8973) — so the
   recipe can be a single directory line, which is far more robust than a list
   that can silently omit a new subdirectory. Date/Author: 2026-08-15,
@@ -710,7 +710,7 @@ implementation.
      the same way the tracking item does, with
      `concat!(env!("CARGO_MANIFEST_DIR"), "/", REL)` instead of a baked
      literal.
-     Satisfies ADR-010's *driver* (nothing absolute in the emitted token
+     Satisfies ADR-0010's *driver* (nothing absolute in the emitted token
      stream, no build-directory divergence in source), keeps failure messages
      absolute and clickable, preserves workspace uniqueness, and needs no
      reporter churn. Fails the roadmap's *literal* finish line, because the
@@ -765,14 +765,14 @@ implementation.
   planning agent (rewritten after design review).
 
 - **Decision D5 (settled): do not ship a `nightly` cargo feature for
-  `proc_macro::tracked_path`, contrary to ADR-010 constraint 5.** Two
+  `proc_macro::tracked_path`, contrary to ADR-0010 constraint 5.** Two
   independent reasons. First, `make lint` and `make test` both run
   `--all-features`, so the feature would be enabled on a stable toolchain by
   the project's own gates and break them immediately. Second, it buys nothing
   here: `tracked_path::path()` registers paths in dep-info, which
   `include_bytes!` already does, and it does not close the directory-addition
   gap either. Its only theoretical advantage — not loading file content into
-  rustc's source map — was measured to have no artefact cost. Amend ADR-010
+  rustc's source map — was measured to have no artefact cost. Amend ADR-0010
   constraint 5 from "usable behind a `nightly` feature gate" to "not adoptable
   behind a feature gate while the gates run `--all-features`; revisit on
   stabilization". Date/Author: 2026-08-15, planning agent (added after design
@@ -1158,11 +1158,11 @@ macro emits anything, so it can never demonstrate emitted tokens.
   "users' guide", `docs/documentation-style-guide.md` says "user's guide". This
   plan follows `AGENTS.md`; do not "correct" it.
 
-Read: `AGENTS.md`; `docs/adr-010-feature-file-change-detection.md` (especially
-its *Testing strategy*); `docs/rstest-bdd-design.md` §2.7.6.6 (line 2153) and
-§3.2.2 (line 2453, the orthogonal OUT_DIR-caching concern that must **not** be
-conflated with invalidation); `docs/v0-6-0-migration-guide.md` line 714;
-`docs/documentation-style-guide.md`; `docs/developers-guide.md`;
+Read: `AGENTS.md`; `docs/adrs/adr-0010-feature-file-change-detection.md`
+(especially its *Testing strategy*); `docs/rstest-bdd-design.md` §2.7.6.6 (line
+2153) and §3.2.2 (line 2453, the orthogonal OUT_DIR-caching concern that must
+**not** be conflated with invalidation); `docs/v0-6-0-migration-guide.md` line
+714; `docs/documentation-style-guide.md`; `docs/developers-guide.md`;
 `docs/testing-strategy.md`; `docs/repository-layout.md`;
 `docs/complexity-antipatterns-and-refactoring-strategies.md`;
 `docs/rust-testing-with-rstest-fixtures.md`; `docs/rust-doctest-dry-guide.md`;
@@ -1353,7 +1353,7 @@ this milestone; `make check-fmt` and `make lint` are.
 ### Milestone 2 — green for `#[scenario]`
 
 Create `crates/rstest-bdd-macros/src/codegen/tracking/mod.rs`. Its module-level
-`//!` doc comment must state the mechanism, cite ADR-010, and name the
+`//!` doc comment must state the mechanism, cite ADR-0010, and name the
 regression test that guards it — this is the one place the *why* can live
 permanently, and `AGENTS.md` already mandates a `//!` on every module.
 
@@ -1648,7 +1648,7 @@ fn main() {
 
 ### Milestone 8 — documentation and roadmap
 
-- `docs/adr-010-feature-file-change-detection.md`: Status `Proposed` →
+- `docs/adrs/adr-0010-feature-file-change-detection.md`: Status `Proposed` →
   `Accepted`, with the date and a brief summary of what was decided, per
   `docs/documentation-style-guide.md`; update the `Date` field to the amendment
   date. **Preserve the "Absolute-path `include_str!` variant — rejected"
@@ -1917,7 +1917,7 @@ no binding, compared against one with it, in both profiles:
 ```
 
 Two conclusions. The mechanism adds neither the absolute path nor the feature
-text to a binary — the unused anonymous `const` is elided, so ADR-010's
+text to a binary — the unused anonymous `const` is elided, so ADR-0010's
 "Medium" binary-size estimate does not apply to this form. And the absolute
 path present in dev-profile binaries comes from debug info and is present in
 the *control* too, which is why the plan asserts on the emitted token stream
@@ -2015,7 +2015,7 @@ unstabilized, behind
 `#![feature(proc_macro_tracked_env, proc_macro_tracked_path)]`.
 `proc_macro_error 1.0.4`'s `emit_warning!` is documented as nightly-only and
 silently ignored on stable. Cargo scans a `rerun-if-changed` **directory**
-recursively (rust-lang/cargo#8973), contrary to ADR-010's Option B con.
+recursively (rust-lang/cargo#8973), contrary to ADR-0010's Option B con.
 
 ## Interfaces and dependencies
 

@@ -1,8 +1,8 @@
-# Architectural decision record (ADR) 011: first-party scenario-state helpers and per-scenario cleanup
+# Architectural decision record (ADR) 0011: first-party scenario-state helpers and per-scenario cleanup
 
 ## Status
 
-Superseded (2026-06-11): ADR-012 superseded the proposed `ScenarioStore<T>`,
+Superseded (2026-06-11): ADR-0012 superseded the proposed `ScenarioStore<T>`,
 `GpuiScenarioStore`, and cleanup macro before implementation. The v0.6.x
 thread-local scenario-state and cleanup pattern was an interim workaround,
 rather than adoption of this ADR's proposed decision.
@@ -219,10 +219,10 @@ The ADR fixes the cleanup-ordering contract:
 | Version           | Recommended pattern                             | Support status      |
 | ----------------- | ----------------------------------------------- | ------------------- |
 | v0.6.x            | Thread-local scenario-state and cleanup interim | Shipped interim     |
-| v0.7.0 (breaking) | Guard-based `StepContext` borrowing (ADR-012)   | Supersedes proposal |
+| v0.7.0 (breaking) | Guard-based `StepContext` borrowing (ADR-0012)  | Supersedes proposal |
 
 The v0.6.x release used the thread-local scenario-state and cleanup interim
-pattern. ADR-012 superseded the proposed `ScenarioStore<T>`,
+pattern. ADR-0012 superseded the proposed `ScenarioStore<T>`,
 `GpuiScenarioStore`, and cleanup macro before implementation and provides the
 v0.7.0 migration path to guard-based `StepContext` borrowing.
 
@@ -280,10 +280,10 @@ harness cost of a model checker.
 
 ## References
 
-- [ADR 012: guard-based `StepContext` borrowing][adr-012] supersedes this
+- [ADR 0012: guard-based `StepContext` borrowing][adr-0012] supersedes this
   thread-local interim pattern with the v0.7.0 borrowing redesign.
-- [ADR 015: step-return override outcome][adr-015] records the related
+- [ADR 0015: step-return override outcome][adr-0015] records the related
   `StepContext` return-value change.
 
-[adr-012]: adr-012-guard-based-stepcontext-borrowing.md
-[adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
+[adr-0012]: adr-0012-guard-based-stepcontext-borrowing.md
+[adr-0015]: adr-0015-insert-outcome-for-step-return-overrides.md

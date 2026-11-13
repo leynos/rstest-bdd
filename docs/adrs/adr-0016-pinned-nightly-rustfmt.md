@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 016: pin the nightly rustfmt toolchain
+# Architectural decision record (ADR) 0016: pin the nightly rustfmt toolchain
 
 ## Status
 

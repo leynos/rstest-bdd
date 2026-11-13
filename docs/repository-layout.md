@@ -76,8 +76,11 @@ truth for requirements, design rationale, process notes, and planning.
   workflows and conventions.
 - Use [docs/rstest-bdd-design.md](rstest-bdd-design.md) and related design
   documents for architecture and rationale.
-- Use [docs/adr-*.md](contents.md#decision-records) for accepted Architecture
-  Decision Records (ADRs).
+- Store accepted Architecture Decision Records (ADRs) in
+  [`docs/adrs/`](adrs/) using `adr-nnnn-title-slug.md` filenames.
+- Store proposed Request for Comments (RFCs) in `docs/rfcs/` using
+  `rfc-nnnn-title-slug.md` filenames, as defined by the
+  [documentation style guide](documentation-style-guide.md).
 - Use [docs/execplans](execplans/) for execution plans tied to implementation
   work.
 

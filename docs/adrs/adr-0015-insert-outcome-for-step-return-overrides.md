@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 015: name the step-return override outcome
+# Architectural decision record (ADR) 0015: name the step-return override outcome
 
 ## Status
 
@@ -127,7 +127,7 @@ the second means the suite needs to disambiguate which fixture is meant.
 ## References
 
 - Issue [#514][i514]: `StepContext::insert_value` overloaded `None` return.
-- [ADR 012: guard-based `StepContext` borrowing][adr-012] covers the related
+- [ADR 0012: guard-based `StepContext` borrowing][adr-0012] covers the related
   borrowing redesign for the same type.
 - [v0.6.0 migration guide][migration] records the caller-facing upgrade steps.
 
@@ -135,11 +135,11 @@ the second means the suite needs to disambiguate which fixture is meant.
 
 ### 2026-09-14: cross-reference the superseded interim pattern
 
-[ADR 011: first-party scenario-state helpers][adr-011] records the thread-local
-interim pattern superseded by ADR-012, which provides the borrowing redesign
-related to this ADR's `StepContext` return-value change.
+[ADR 0011: first-party scenario-state helpers][adr-0011] records the
+thread-local interim pattern superseded by ADR-0012, which provides the
+borrowing redesign related to this ADR's `StepContext` return-value change.
 
-[adr-011]: adr-011-first-party-scenario-state-and-cleanup.md
-[adr-012]: adr-012-guard-based-stepcontext-borrowing.md
+[adr-0011]: adr-0011-first-party-scenario-state-and-cleanup.md
+[adr-0012]: adr-0012-guard-based-stepcontext-borrowing.md
 [i514]: https://github.com/leynos/rstest-bdd/issues/514
 [migration]: v0-6-0-migration-guide.md

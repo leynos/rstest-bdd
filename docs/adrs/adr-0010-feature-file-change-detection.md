@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 010: feature-file change detection for compile-time scenario binding
+# Architectural decision record (ADR) 0010: feature-file change detection for compile-time scenario binding
 
 ## Status
 

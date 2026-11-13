@@ -8,9 +8,9 @@ Status: COMPLETE
 
 This plan covers roadmap item 9.7.1 only. It must be approved before
 implementation begins, and implementation must not begin while
-`docs/adr-008-harness-led-attribute-policy-defaults.md` remains in `Proposed`
-status unless a maintainer explicitly authorizes work against Architecture
-Decision Record (ADR) 008.
+`docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` remains in
+`Proposed` status unless a maintainer explicitly authorizes work against
+Architecture Decision Record (ADR) 0008.
 
 ## Purpose / big picture
 
@@ -28,7 +28,7 @@ rstest_bdd_harness_tokio::TokioAttributePolicy
 rstest_bdd_harness_tokio::TokioHarness
 ```
 
-This matters because ADR-008 makes `harness = ...` the lead configuration for
+This matters because ADR-0008 makes `harness = ...` the lead configuration for
 first-party integrations. Users should be able to select `StdHarness`,
 `TokioHarness`, or `GpuiHarness` without also repeating the matching
 `attributes = ...` value, while still preserving explicit attribute-policy
@@ -37,22 +37,22 @@ overrides and third-party escape hatches.
 Success is observable when unit tests prove that the shared resolver returns
 the same hint for each first-party harness path and its matching
 attribute-policy path, unknown third-party harnesses do not infer a policy, and
-the ADR-008 precedence edge cases are covered. The roadmap item must not be
+the ADR-0008 precedence edge cases are covered. The roadmap item must not be
 marked done until the accepted ADR, code, tests, documentation, and repository
 gates all agree.
 
 ## Constraints
 
 - Do not implement this plan before explicit approval.
-- Do not implement this plan while ADR-008 is still `Proposed` unless a
+- Do not implement this plan while ADR-0008 is still `Proposed` unless a
   maintainer explicitly authorizes contingent implementation.
 - Keep the scope to roadmap item 9.7.1. Do not fold in roadmap items 9.7.2,
   9.7.3, or 9.7.4 except where a small test is necessary to prove the shared
   resolver contract.
-- Preserve the ADR-005a boundary: `HarnessAdapter` remains the runtime
+- Preserve the ADR-0025 boundary: `HarnessAdapter` remains the runtime
   delegation boundary and `AttributePolicy` remains the emitted test-attribute
   boundary.
-- Preserve the ADR-008 precedence order:
+- Preserve the ADR-0008 precedence order:
   1. explicit `attributes = ...`
   2. known first-party `harness = ...` mapping
   3. deprecated `runtime = "tokio-current-thread"` compatibility alias
@@ -81,7 +81,7 @@ gates all agree.
 - Interface: if any public trait, macro argument, or existing public function
   signature must change, stop and escalate before continuing.
 - Dependencies: if a new external crate is required, stop and escalate.
-- Governance: if ADR-008 remains `Proposed`, stop before code changes unless
+- Governance: if ADR-0008 remains `Proposed`, stop before code changes unless
   explicit maintainer approval is recorded in this plan.
 - Existing-work reconciliation: if the current code already satisfies 9.7.1,
   do not rewrite it. Verify the behaviour, update missing documentation or
@@ -97,8 +97,8 @@ gates all agree.
 
 ## Risks
 
-- Risk: the working tree already contains ADR-008-shaped helpers while
-  `docs/roadmap.md` still leaves 9.7.1 unchecked and ADR-008 remains
+- Risk: the working tree already contains ADR-0008-shaped helpers while
+  `docs/roadmap.md` still leaves 9.7.1 unchecked and ADR-0008 remains
   `Proposed`. Severity: high. Likelihood: high. Mitigation: start with a
   reconciliation milestone that inspects code, tests, ADR status, and roadmap
   state before editing implementation code.
@@ -135,20 +135,20 @@ gates all agree.
 - [x] (2026-05-08T11:22:32Z) Confirmed the branch was not `main` and renamed
       it to `9-7-1-first-party-policy-hint-resolution`.
 - [x] (2026-05-08T11:22:32Z) Reviewed `docs/roadmap.md`,
-      `docs/adr-008-harness-led-attribute-policy-defaults.md`, and
+      `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md`, and
       `docs/rstest-bdd-design.md` for the requested scope.
 - [x] (2026-05-08T11:22:32Z) Inspected current resolver and macro-codegen
-      touchpoints enough to identify existing ADR-008-shaped helpers.
+      touchpoints enough to identify existing ADR-0008-shaped helpers.
 - [x] (2026-05-08T11:22:32Z) Drafted this pre-implementation ExecPlan.
 - [x] (2026-05-08T15:37:00+02:00) Received explicit maintainer instruction to
       proceed with implementation from this plan.
-- [x] (2026-05-08T15:40:00+02:00) Reconfirmed ADR-008 remains `Proposed` and
+- [x] (2026-05-08T15:40:00+02:00) Reconfirmed ADR-0008 remains `Proposed` and
       recorded the maintainer instruction as contingent implementation
       authorization.
 - [x] (2026-05-08T15:43:00+02:00) Reconciled the existing implementation:
       shared policy and harness resolvers already exist, macro code already
       calls the harness resolver, and macro precedence tests already cover the
-      ADR-008 ordering.
+      ADR-0008 ordering.
 - [x] (2026-05-08T15:45:00+02:00) Ran the focused baseline policy tests with
       `cargo test -p rstest-bdd-policy`; all 15 unit tests and 5 doctests
       passed.
@@ -208,12 +208,12 @@ gates all agree.
 
 ## Surprises & Discoveries
 
-- Observation: `docs/adr-008-harness-led-attribute-policy-defaults.md` is still
-  in `Proposed` status. Evidence: its `Status` section says `Proposed`. Impact:
-  this plan must remain contingent until approval and ADR acceptance.
+- Observation: `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` is
+  still in `Proposed` status. Evidence: its `Status` section says `Proposed`.
+  Impact: this plan must remain contingent until approval and ADR acceptance.
 - Observation: roadmap prerequisites 9.3.4 and 9.4.4 are already marked done.
   Evidence: `docs/roadmap.md` marks both items with `[x]`. Impact: the
-  remaining governance gate is ADR-008 acceptance.
+  remaining governance gate is ADR-0008 acceptance.
 - Observation: the current worktree already contains
   `resolve_test_attribute_hint_for_harness_path` and a `KNOWN_HARNESS_HINTS`
   table in `crates/rstest-bdd-policy/src/lib.rs`. Evidence: targeted source
@@ -292,8 +292,8 @@ gates all agree.
 ## Decision Log
 
 - Decision: keep this ExecPlan in `DRAFT` status and explicitly gate
-  implementation on both plan approval and ADR-008 acceptance. Rationale: the
-  roadmap says 9.7 items are contingent while ADR-008 remains `Proposed`, and
+  implementation on both plan approval and ADR-0008 acceptance. Rationale: the
+  roadmap says 9.7 items are contingent while ADR-0008 remains `Proposed`, and
   the user reminded that the plan must be approved before implementation.
   Date/Author: 2026-05-08 / Codex.
 - Decision: make Stage A a reconciliation inventory rather than assuming no
@@ -311,7 +311,7 @@ gates all agree.
   negative path matrix. Date/Author: 2026-05-08 / Codex.
 - Decision: treat the user's request to proceed with implementation as
   explicit approval for the ExecPlan and explicit authorization to implement
-  against ADR-008 while it remains `Proposed`. Rationale: the plan required
+  against ADR-0008 while it remains `Proposed`. Rationale: the plan required
   both approval and maintainer authorization for contingent implementation, and
   the user explicitly instructed implementation to proceed. Date/Author:
   2026-05-08 / Codex.
@@ -393,9 +393,9 @@ The relevant source and documentation entrypoints are:
 
 - `docs/roadmap.md`, section 9.7.1, for acceptance criteria and prerequisite
   status.
-- `docs/adr-008-harness-led-attribute-policy-defaults.md`, especially the
+- `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md`, especially the
   decision outcome, precedence rules, migration plan, and known risks.
-- `docs/rstest-bdd-design.md`, section 2.7.3 and adjacent ADR-008 notes, for
+- `docs/rstest-bdd-design.md`, section 2.7.3 and adjacent ADR-0008 notes, for
   component architecture and macro integration.
 - `docs/users-guide.md`, harness adapter and attribute policy sections, for
   user-visible behaviour and third-party caveats.
@@ -421,7 +421,7 @@ change.
 
 ## Plan of work
 
-Stage A is reconciliation and must make no functional edits. Confirm ADR-008
+Stage A is reconciliation and must make no functional edits. Confirm ADR-0008
 status first. If the ADR is still `Proposed`, record the blocker in this plan
 and stop unless maintainer approval explicitly authorizes implementation. After
 that, compare roadmap 9.7.1 against the current implementation in
@@ -471,7 +471,7 @@ crate. Keep the test narrow and record why it belongs in 9.7.1 rather than
 9.7.2.
 
 Stage E updates documentation. If behaviour or implementation details change,
-update `docs/rstest-bdd-design.md` section 2.7.3 or the adjacent ADR-008
+update `docs/rstest-bdd-design.md` section 2.7.3 or the adjacent ADR-0008
 codegen notes to describe the shared helper, exact canonical mappings, and
 precedence order. Update `docs/users-guide.md` only if user-visible behaviour
 or caveats differ from the current guide. If no docs change is needed because
@@ -506,7 +506,7 @@ Confirm the governance gate:
 ```bash
 rg -n \
   "^## Status|^Proposed$|^Accepted$" \
-  docs/adr-008-harness-led-attribute-policy-defaults.md
+  docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md
 ```
 
 If the ADR is still `Proposed`, stop before implementation unless approval is
@@ -590,7 +590,7 @@ Commit with a file-based commit message, not `git commit -m`.
 
 The implementation is accepted only when all of the following are true:
 
-- ADR-008 is accepted or maintainer approval for contingent implementation is
+- ADR-0008 is accepted or maintainer approval for contingent implementation is
   recorded in this plan.
 - `resolve_test_attribute_hint_for_policy_path` and
   `resolve_test_attribute_hint_for_harness_path` return matching hints for the
@@ -626,7 +626,7 @@ rewrite working code. Run the focused tests and gates, update only the missing
 documentation or roadmap state, and explain the reconciliation in the Decision
 Log and final commit message.
 
-If ADR-008 remains `Proposed`, stop cleanly with this plan in `DRAFT` except
+If ADR-0008 remains `Proposed`, stop cleanly with this plan in `DRAFT` except
 for the maintainer-authorization exception recorded above, and do not mark the
 roadmap item done.
 
@@ -636,7 +636,7 @@ The planning context pack used for Wyvern coordination is `pk_4pujtp56`
 (`9-7-1-policy-hint-planning`). The first Wyvern planning brief confirmed:
 
 ```plaintext
-ADR-008 is still Proposed.
+ADR-0008 is still Proposed.
 Precedence is explicit attributes, known first-party harness mapping,
 deprecated Tokio runtime alias, then fallback.
 Canonical mappings are StdHarness -> DefaultAttributePolicy,
@@ -699,7 +699,7 @@ expansion, registration macros, or third-party inference in 9.7.1.
 
 ## Revision note
 
-- 2026-05-08: Initial draft created from roadmap item 9.7.1, ADR-008,
+- 2026-05-08: Initial draft created from roadmap item 9.7.1, ADR-0008,
   current design/user documentation, targeted source inspection, and Wyvern
-  planning input. The plan is explicitly contingent because ADR-008 remains
+  planning input. The plan is explicitly contingent because ADR-0008 remains
   `Proposed` and implementation requires approval.

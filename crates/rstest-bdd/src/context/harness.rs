@@ -1,4 +1,4 @@
-//! ADR-007 harness-context accessors.
+//! ADR-0007 harness-context accessors.
 //!
 //! The five methods here hard-code the reserved
 //! [`RSTEST_BDD_HARNESS_CONTEXT_FIXTURE`] key over the generic fixture API.
@@ -26,7 +26,7 @@ use crate::context::guards::{FixtureRef, FixtureRefMut};
 impl<'a> StepContext<'a> {
     /// Insert harness-provided context using the reserved fixture key.
     ///
-    /// Part of the ADR-007 harness-context contract. This shared-reference
+    /// Part of the ADR-0007 harness-context contract. This shared-reference
     /// variant exists for adapters that keep ownership of their context;
     /// macro-generated code uses
     /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
@@ -36,7 +36,7 @@ impl<'a> StepContext<'a> {
 
     /// Insert owned harness-provided context using the reserved fixture key.
     ///
-    /// Part of the ADR-007 harness-context contract. This is the variant
+    /// Part of the ADR-0007 harness-context contract. This is the variant
     /// emitted by macro-generated harness scenarios (see
     /// `codegen/scenario/runtime/harness.rs` in `rstest-bdd-macros`), which
     /// wrap the adapter's `HarnessAdapter::Context` in an owned cell so
@@ -60,7 +60,7 @@ impl<'a> StepContext<'a> {
 
     /// Borrow harness-provided context by type.
     ///
-    /// Part of the ADR-007 harness-context contract: the supported typed
+    /// Part of the ADR-0007 harness-context contract: the supported typed
     /// read accessor for context stored by
     /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
     #[must_use]
@@ -73,7 +73,7 @@ impl<'a> StepContext<'a> {
 
     /// Borrow harness-provided context mutably by type.
     ///
-    /// Part of the ADR-007 harness-context contract: the supported typed
+    /// Part of the ADR-0007 harness-context contract: the supported typed
     /// mutable accessor for context stored by
     /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
     #[must_use]

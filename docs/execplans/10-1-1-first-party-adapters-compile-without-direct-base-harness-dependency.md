@@ -36,14 +36,14 @@ item 10.1.1 done.
 - Keep the scope to roadmap item 10.1.1. Do not implement 10.1.2 missing
   fixture diagnostics or 10.1.3 GPUI stateful regression coverage in this
   branch.
-- Preserve ADR-005a's crate boundary: Tokio and GPUI remain outside the default
+- Preserve ADR-0025's crate boundary: Tokio and GPUI remain outside the default
   `rstest-bdd` dependency graph.
-- Preserve ADR-007 harness context injection. Steps still request harness
+- Preserve ADR-0007 harness context injection. Steps still request harness
   context with `#[from(rstest_bdd_harness_context)]`.
-- Preserve ADR-008 precedence: explicit `attributes = ...` beats harness-led
+- Preserve ADR-0008 precedence: explicit `attributes = ...` beats harness-led
   first-party defaults, which beat deprecated runtime compatibility aliases,
   which beat fallback attributes.
-- Preserve ADR-009 implicit fixture-name normalization. Adapter dependency
+- Preserve ADR-0009 implicit fixture-name normalization. Adapter dependency
   simplification must not alter fixture naming or `#[from(...)]` resolution.
 - Do not add new external crates. If validation needs helper code, prefer
   existing test harnesses and existing workspace crates.
@@ -131,12 +131,12 @@ Use these repository documents as source material:
   roadmap status update.
 - `docs/rstest-bdd-design.md`, especially sections 2.7.5 and 2.7.6.3, for
   first-party adapter roles and v0.6.0-beta2 quick-win scope.
-- [ADR-005a][adr-005a] for adapter crate boundaries.
-- `docs/adr-007-harness-context-injection.md` for context handoff rules.
-- `docs/adr-008-harness-led-attribute-policy-defaults.md` for attribute
+- [ADR-0025][adr-0025] for adapter crate boundaries.
+- `docs/adrs/adr-0007-harness-context-injection.md` for context handoff rules.
+- `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` for attribute
   default precedence.
-- `docs/adr-009-consistent-implicit-fixture-name-normalization.md` for fixture
-  name stability.
+- `docs/adrs/adr-0009-consistent-implicit-fixture-name-normalization.md` for
+  fixture name stability.
 - `docs/v0-6-0-migration-guide.md` for the required dependency matrix.
 - `docs/users-guide.md` for user-facing harness adapter behaviour.
 - `docs/developers-guide.md` for internal crate-boundary guidance.
@@ -222,9 +222,9 @@ whether the narrowest compatible mechanism is:
   while custom harness users continue to use `rstest-bdd-harness` directly.
 
 The decision must preserve renamed dependency support through
-`proc_macro_crate`, custom harness compatibility, and ADR-008 default attribute
-resolution. Record the final choice in `Decision Log` before coding past the
-prototype.
+`proc_macro_crate`, custom harness compatibility, and ADR-0008 default
+attribute resolution. Record the final choice in `Decision Log` before coding
+past the prototype.
 
 ### Milestone 3: implement the code-generation and adapter boundary change
 
@@ -461,4 +461,4 @@ adapter-only compile proof. Validation logs are available under
 and
 `/tmp/nixie-rstest-bdd-10-1-1-first-party-adapters-compile-without-direct-base-harness-dependency-impl.out`.
 
-[adr-005a]: docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md
+[adr-0025]: ../adrs/adr-0025-harness-adapter-crates-for-framework-specific-test-integration.md

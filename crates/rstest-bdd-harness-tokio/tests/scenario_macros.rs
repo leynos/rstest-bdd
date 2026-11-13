@@ -65,7 +65,7 @@ fn tokio_runtime_remains_available() { let _handle = tokio::runtime::Handle::cur
 /// Tests `#[scenario]` with `harness = TokioHarness` only.
 ///
 /// This is one of the runtime integration coverage points for the
-/// harness-led-default attribute-policy inference defined in ADR-008: the
+/// harness-led-default attribute-policy inference defined in ADR-0008: the
 /// macro is called with `harness = TokioHarness` and no `attributes = ...`,
 /// so the macro infers `TokioAttributePolicy` and emits the Tokio test
 /// attributes (with `#[tokio::test]` filtered for sync signatures). The

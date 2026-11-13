@@ -1,4 +1,4 @@
-# ExecPlan: implement ADR-008 harness-led attribute-policy defaults
+# ExecPlan: implement ADR-0008 harness-led attribute-policy defaults
 
 This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
@@ -6,13 +6,13 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: IMPLEMENTED
 
-`PLANS.md` is not present in this repository. This ExecPlan governed ADR-008
+`PLANS.md` is not present in this repository. This ExecPlan governed ADR-0008
 delivery for this workstream and remains as the implementation record after
 completion.
 
 ## Purpose / big picture
 
-ADR-008 changes the common first-party integration workflow for `#[scenario]`
+ADR-0008 changes the common first-party integration workflow for `#[scenario]`
 and `scenarios!`. After this work, a user who selects a first-party harness
 does not need to repeat the matching first-party attribute policy just to get
 the normal emitted test attributes. These forms should work as the preferred
@@ -34,7 +34,7 @@ infer arbitrary defaults.
 
 Success is observable in three ways:
 
-1. Unit tests prove the exact precedence order from ADR-008:
+1. Unit tests prove the exact precedence order from ADR-0008:
    explicit `attributes` override, known first-party harness defaults come
    next, the deprecated Tokio runtime alias remains below explicit harness
    selection, and the final fallback is the existing runtime-mode or
@@ -62,7 +62,7 @@ infer arbitrary defaults.
 
 Success is observable in three ways:
 
-1. Unit tests prove the exact precedence order from ADR-008:
+1. Unit tests prove the exact precedence order from ADR-0008:
    explicit `attributes` override, known first-party harness defaults come
    next, the deprecated Tokio runtime alias remains below explicit harness
    selection, and the final fallback is the existing runtime-mode or
@@ -76,13 +76,13 @@ Success is observable in three ways:
 
 ## Constraints
 
-- Implement only ADR-008 and roadmap workstream 9.7. Do not fold unrelated
+- Implement only ADR-0008 and roadmap workstream 9.7. Do not fold unrelated
   harness redesign, runtime alias redesign, or new third-party extension
   machinery into this change.
-- Preserve the architectural separation from ADR-005a: `HarnessAdapter`
+- Preserve the architectural separation from ADR-0025: `HarnessAdapter`
   remains the runtime delegation boundary and `AttributePolicy` remains the
   emitted-attribute boundary.
-- Preserve the exact ADR-008 precedence order:
+- Preserve the exact ADR-0008 precedence order:
   1. explicit `attributes = ...`
   2. known first-party `harness = ...` mapping
   3. deprecated `runtime = "tokio-current-thread"` compatibility alias
@@ -111,7 +111,7 @@ Success is observable in three ways:
 - Scope: if the implementation grows beyond 16 files changed or 900 net
   lines, stop and re-check whether the work has turned into a broader
   harness-policy refactor.
-- Interface: if shipping ADR-008 requires new user-facing macro syntax,
+- Interface: if shipping ADR-0008 requires new user-facing macro syntax,
   changes to `HarnessAdapter` or `AttributePolicy`, or a new public crate API,
   stop and split that API work into a separate decision.
 - Dependencies: if any new external crate is required, stop and escalate.
@@ -126,7 +126,7 @@ Success is observable in three ways:
   log and stop before claiming completion.
 - Iterations: if the same gate fails three consecutive times after attempted
   fixes, stop and escalate with the log path and current hypothesis.
-- Governance: do not mark roadmap item 9.7 complete unless ADR-008 has moved
+- Governance: do not mark roadmap item 9.7 complete unless ADR-0008 has moved
   out of `Proposed` status or the maintainers explicitly authorize delivery
   while the ADR status lags.
 
@@ -164,7 +164,7 @@ Success is observable in three ways:
 
 ## Progress
 
-- [x] (2026-04-09) Reviewed ADR-008, roadmap item 9.7, and adjacent execplans
+- [x] (2026-04-09) Reviewed ADR-0008, roadmap item 9.7, and adjacent execplans
       for policy emission and GPUI coverage.
 - [x] (2026-04-09) Reviewed the current user-guide and design-doc sections for
       harness and attribute-policy behaviour.
@@ -175,7 +175,7 @@ Success is observable in three ways:
 - [x] (2026-04-11) Stage A: add shared first-party harness-path hint
       resolution in `rstest-bdd-policy`.
 - [x] (2026-04-11) Stage B: refactor macro test-attribute resolution to honour
-      ADR-008 precedence for both `#[scenario]` and `scenarios!`.
+      ADR-0008 precedence for both `#[scenario]` and `scenarios!`.
 - [x] (2026-04-11) Stage C: add unit, trybuild, and behavioural coverage for
       harness-led defaults and explicit overrides.
 - [x] (2026-04-11) Stage D: update `docs/users-guide.md` and
@@ -187,7 +187,7 @@ Success is observable in three ways:
 - Observation: `crates/rstest-bdd-policy/src/lib.rs` already centralizes the
   canonical first-party attribute-policy path mapping through
   `resolve_test_attribute_hint_for_policy_path()`. Impact: the smallest,
-  lowest-risk ADR-008 implementation is to add first-party harness mapping in
+  lowest-risk ADR-0008 implementation is to add first-party harness mapping in
   the same shared crate instead of reintroducing macro-local mapping tables.
 - Observation: `crates/rstest-bdd-macros/src/codegen/scenario/test_attrs.rs`
   currently resolves attributes with
@@ -210,7 +210,7 @@ Success is observable in three ways:
   `trybuild_macros` in addition to the normal repository gates.
 - Observation: `scenarios!` lowers the deprecated Tokio runtime alias to a
   synchronous effective runtime before `ScenarioConfig` reaches shared codegen.
-  Impact: preserving ADR-008 precedence required a second runtime field
+  Impact: preserving ADR-0008 precedence required a second runtime field
   dedicated to attribute resolution so the alias hint survives while the
   generated function signature remains synchronous.
 
@@ -221,7 +221,7 @@ Success is observable in three ways:
   mapping. Rationale: the mapping is shared semantic policy data, not macro
   codegen logic, and keeping it in the shared crate prevents `#[scenario]` and
   `scenarios!` from drifting apart. Date/Author: 2026-04-09 / Codex.
-- Decision: implement ADR-008 precedence in one macro-local helper that
+- Decision: implement ADR-0008 precedence in one macro-local helper that
   receives runtime, resolved harness path, and explicit attribute-policy path.
   Rationale: the precedence rules are subtle enough that duplicating them
   across call sites would be a regression trap. Date/Author: 2026-04-09 / Codex.
@@ -238,7 +238,7 @@ Success is observable in three ways:
 
 ## Outcomes & Retrospective
 
-ADR-008 shipped on 2026-04-11 with the intended harness-led default behaviour.
+ADR-0008 shipped on 2026-04-11 with the intended harness-led default behaviour.
 `rstest-bdd-policy` now owns both first-party policy-path and harness-path
 resolution, mapping:
 
@@ -306,7 +306,7 @@ attribute emission:
 - `generate_test_attrs()`
 
 Today, `resolve_attribute_policy()` only sees `RuntimeMode` and the explicit
-`attributes` path. ADR-008 requires this module to honour explicit
+`attributes` path. ADR-0008 requires this module to honour explicit
 `attributes`, then inferred first-party harness defaults, then the runtime
 fallbacks.
 
@@ -338,7 +338,7 @@ The documentation that must change is:
 - `docs/rstest-bdd-design.md`
 
 If roadmap status is updated after execution, the relevant file is
-`docs/roadmap.md`, but only if ADR-008 has been accepted or the maintainers
+`docs/roadmap.md`, but only if ADR-0008 has been accepted or the maintainers
 explicitly authorize roadmap closure while the ADR status trails behind.
 
 ## Plan of work
@@ -366,7 +366,7 @@ Go/no-go validation:
 
 - `cargo test -p rstest-bdd-policy` passes with the new resolver tests.
 
-### Stage B: teach macro codegen ADR-008 precedence
+### Stage B: teach macro codegen ADR-0008 precedence
 
 Goal: make `generate_test_attrs()` resolve the effective attribute hint from
 explicit policy, inferred first-party harness default, and the existing runtime
@@ -379,7 +379,7 @@ Implementation details:
    - `runtime: RuntimeMode`
    - `harness: Option<&syn::Path>`
    - `attributes: Option<&syn::Path>`
-2. Keep the exact ADR-008 order in one helper:
+2. Keep the exact ADR-0008 order in one helper:
    - explicit `attributes`
    - known first-party harness
    - runtime-derived hint
@@ -487,7 +487,7 @@ Implementation details:
 4. Update `docs/rstest-bdd-design.md` section 2.7.3 so it no longer says the
    user-facing guidance should lead with paired `harness = ...` and
    `attributes = ...` configuration.
-5. Document the exact precedence order from ADR-008 in both docs so runtime
+5. Document the exact precedence order from ADR-0008 in both docs so runtime
    alias behaviour stays unambiguous.
 
 Go/no-go validation:
@@ -505,24 +505,24 @@ Run these commands and inspect the logs before closing the work:
 
 ```bash
 set -euo pipefail
-cargo test -p rstest-bdd-policy 2>&1 | tee /tmp/adr-008-policy.log
-cargo test -p rstest-bdd-macros --lib 2>&1 | tee /tmp/adr-008-macros.log
+cargo test -p rstest-bdd-policy 2>&1 | tee /tmp/adr-0008-policy.log
+cargo test -p rstest-bdd-macros --lib 2>&1 | tee /tmp/adr-0008-macros.log
 RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
   --test trybuild_macros step_macros_compile -- --exact 2>&1 | \
-  tee /tmp/adr-008-trybuild.log
+  tee /tmp/adr-0008-trybuild.log
 RUSTFLAGS="-D warnings" cargo test \
   -p rstest-bdd-harness-tokio --test harness_led_defaults 2>&1 | \
-  tee /tmp/adr-008-tokio.log
+  tee /tmp/adr-0008-tokio.log
 RUSTFLAGS="-D warnings" cargo test \
   -p rstest-bdd-harness-gpui --test harness_led_defaults \
   --features native-gpui-tests 2>&1 | \
-  tee /tmp/adr-008-gpui.log
-make fmt 2>&1 | tee /tmp/adr-008-make-fmt.log
-make markdownlint 2>&1 | tee /tmp/adr-008-make-markdownlint.log
-make nixie 2>&1 | tee /tmp/adr-008-make-nixie.log
-make check-fmt 2>&1 | tee /tmp/adr-008-make-check-fmt.log
-make lint 2>&1 | tee /tmp/adr-008-make-lint.log
-make test 2>&1 | tee /tmp/adr-008-make-test.log
+  tee /tmp/adr-0008-gpui.log
+make fmt 2>&1 | tee /tmp/adr-0008-make-fmt.log
+make markdownlint 2>&1 | tee /tmp/adr-0008-make-markdownlint.log
+make nixie 2>&1 | tee /tmp/adr-0008-make-nixie.log
+make check-fmt 2>&1 | tee /tmp/adr-0008-make-check-fmt.log
+make lint 2>&1 | tee /tmp/adr-0008-make-lint.log
+make test 2>&1 | tee /tmp/adr-0008-make-test.log
 ```
 
 If `make fmt`, `make check-fmt`, `make lint`, or `make test` fails because
@@ -535,6 +535,6 @@ Close-out checklist for the implementing agent:
 1. Update the `Progress` section with actual completion timestamps.
 2. Replace `Outcomes & Retrospective` with the delivered results and any
    follow-on work.
-3. If ADR-008 is accepted during execution, update the relevant roadmap items
+3. If ADR-0008 is accepted during execution, update the relevant roadmap items
    in `docs/roadmap.md`. If it is still only proposed, leave the roadmap as a
    contingent plan and record that decision in `Decision Log`.

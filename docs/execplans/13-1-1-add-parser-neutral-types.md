@@ -152,12 +152,12 @@ can still follow the rest of the document.
 - **`StepContext`** — `crates/rstest-bdd/src/context/mod.rs`. A per-scenario
   map from fixture name to either a borrowed reference or an owned
   `RefCell<Box<dyn Any>>` cell, plus a second map of **step-returned override
-  values**. Since ADR-012 its borrow methods take `&self` and return guards,
+  values**. Since ADR-0012 its borrow methods take `&self` and return guards,
   while its insert methods still take `&mut self`.
 - **Unique-type rule** — when a step function returns a value, the runtime
   offers it as an override for the one fixture whose type matches. Implemented
   by `StepContext::insert_value`, which returns `InsertOutcome::Inserted`,
-  `NoMatch`, or `AmbiguousIgnored` (ADR-015).
+  `NoMatch`, or `AmbiguousIgnored` (ADR-0015).
 - **Skip** — a step calls `rstest_bdd::skip!`, which panics with a
   `SkipRequest` payload. The step wrapper catches it and turns it into
   `StepExecution::Skipped`; `execute_step` then turns that into
@@ -190,12 +190,12 @@ Read these before starting, and return to them at the stages named.
 
 In reading order:
 
-1. `docs/adr-018-parser-neutral-scenario-execution.md` — the contract. Read in
-   full before Stage A.
-2. `docs/adr-012-guard-based-stepcontext-borrowing.md` — the borrow and
+1. `docs/adrs/adr-0018-parser-neutral-scenario-execution.md` — the contract.
+   Read in full before Stage A.
+2. `docs/adrs/adr-0012-guard-based-stepcontext-borrowing.md` — the borrow and
    lifecycle model `ScenarioScope` builds on. Note what it does *not* define:
    lifecycle hooks.
-3. `docs/adr-015-insert-outcome-for-step-return-overrides.md` — why
+3. `docs/adrs/adr-0015-insert-outcome-for-step-return-overrides.md` — why
    `insert_value` returns `InsertOutcome`, and why discarding it is a defect.
 4. `docs/rstest-bdd-design.md` §2.6 (runtime execution module), §3.11 (runtime
    module layout for contributors), and §2.7.6.5 (v0.7.0 redesign candidates).
@@ -219,7 +219,8 @@ In reading order:
     `dylint.toml` — the lint budget Constraint 8 summarizes.
 13. `.config/nextest.toml` — timeouts and test groups, before adding any suite
     that could be slow.
-14. `docs/adr-016-pinned-nightly-rustfmt.md` — `make fmt` and `make check-fmt`
+14. `docs/adrs/adr-0016-pinned-nightly-rustfmt.md` — `make fmt` and
+    `make check-fmt`
     invoke a pinned nightly `rustfmt`.
 15. `.github/workflows/mutation-testing.yml` — the `cargo-mutants` lane this
     plan leans on for negative controls.
@@ -295,13 +296,13 @@ These are hard invariants. Violating one requires escalation, not a workaround.
    but **not** a dependency of `rstest-bdd`, so metric emission is out of scope
    here and is deferred to 13.3.1.
 6. **No runtime mutation of the global step registry.** Link-time `inventory`
-   registration stays the only extension mechanism (ADR-018, *Extension
+   registration stays the only extension mechanism (ADR-0018, *Extension
    boundary*).
 7. **Source travels through the plan and the outcome, never out of an error.**
    The runner must not *add* source fields to `ExecutionError`, and must never
    infer a location by parsing an error string. It *does* populate the existing
    `StepExecutionRequest::feature_path` and `scenario_name`, from
-   `plan.source()` and `plan.name()` respectively; ADR-018 *Source-neutral
+   `plan.source()` and `plan.name()` respectively; ADR-0018 *Source-neutral
    diagnostics* explicitly permits those legacy field names to remain during
    the additive migration. See D15 for the resulting wart and its follow-up.
 8. **The workspace lint budget is not negotiable.** `make lint` runs Clippy
@@ -354,7 +355,7 @@ that fires immediately trains its reader to ignore all of them.
   deterministically without a new dependency or a timing-dependent test, stop
   and present options.
 - **Time.** Any single milestone exceeding 8 hours of work.
-- **Ambiguity.** Any point where ADR-018's binding text admits two readings
+- **Ambiguity.** Any point where ADR-0018's binding text admits two readings
   producing materially different public types.
 
 If the scope or time tolerance is approached rather than breached, the
@@ -367,8 +368,8 @@ between them. Raise that before spending the tolerance.
 
 - **Risk: the lifecycle-hook surface is a permanent public commitment made
   ahead of the ADR that should define it.** Severity: high. Likelihood: high
-  (already observed). ADR-018 requires before- and after-scenario hooks
-  "according to ADR 012"; ADR-012 defines none, and design document §2.7.6.5
+  (already observed). ADR-0018 requires before- and after-scenario hooks
+  "according to ADR 0012"; ADR-0012 defines none, and design document §2.7.6.5
   still lists "first-class world lifecycle hooks" as a *candidate*. Shipping
   `Lifecycle` now means reconciling a per-run `&mut self` trait with a future
   global registry — a change, not an extension. Mitigation: D2 presents three
@@ -486,7 +487,7 @@ between them. Raise that before spending the tolerance.
 - [x] (2026-09-19) Stage A closed. The maintainer instructed that the
   preliminary decisions be recorded as approved, so **D2 option (ii)**, **D3**,
   and **D10** are approved as recommended. D2 option (ii) means EP-M4 is struck
-  and ADR-018's lifecycle matrix is discharged only in part; that deviation is
+  and ADR-0018's lifecycle matrix is discharged only in part; that deviation is
   recorded under D2 and must be reflected in `docs/roadmap.md`.
 - [x] (2026-09-19) EP-M1: source, plan, and outcome types. `runner/` exists
   with `source.rs`, `plan.rs`, `plan/builder.rs`, `outcome/mod.rs`,
@@ -651,8 +652,8 @@ between them. Raise that before spending the tolerance.
 
   One planned refactor was dropped as unnecessary. The intent had been to pull
   `try_borrow`/`try_borrow_mut` into a new `context/borrow.rs`, but moving the
-  closed ADR-007 wrapper block instead took `mod.rs` under the cap with one
-  extraction rather than two, and the ADR-007 block is the better seam: it is
+  closed ADR-0007 wrapper block instead took `mod.rs` under the cap with one
+  extraction rather than two, and the ADR-0007 block is the better seam: it is
   self-contained, its in-place comment already declared the block closed, and
   the `try_borrow` pair is called from `entry.rs` and `guards.rs` and reads
   better beside the fixture map it reaches into. `context/harness.rs` is that
@@ -786,7 +787,7 @@ between them. Raise that before spending the tolerance.
   Four of the five are in **non-test helper functions** — the two `#[given]`
   steps, the `#[when]` step, and the `outcome` helper — which is exactly where
   the rule bites, because it denies the closure form outside `#[test]` bodies
-  while permitting it inside them. The fix is ADR-013's
+  while permitting it inside them. The fix is ADR-0013's
   `let ... else { panic!(..) }` shape, which two sibling suites added earlier
   in this same branch — `completeness.rs` and `skip_parity.rs` — already used,
   and which they were clean for precisely that reason. The correction the first
@@ -2823,9 +2824,9 @@ between them. Raise that before spending the tolerance.
   inside the module that owns the private fields, precisely when the fields
   encode a distinction the constructor computes.
 
-- **Observation:** ADR-018 requires before- and after-scenario hooks "according
-  to ADR 012", but ADR-012 defines no hooks at all. Evidence: ADR-012's *World
-  lifecycle contract* describes only drop-based cleanup performed by the
+- **Observation:** ADR-0018 requires before- and after-scenario hooks "according
+  to ADR 0012", but ADR-0012 defines no hooks at all. Evidence: ADR-0012's
+  *World lifecycle contract* describes only drop-based cleanup performed by the
   generated test body; `rg 'before_scenario| after_scenario|ScenarioScope'`
   returns no runtime matches; design document §2.7.6.5 still lists "first-class
   world lifecycle hooks" among the *remaining candidates*. Impact: Decision D2,
@@ -2874,7 +2875,7 @@ between them. Raise that before spending the tolerance.
   `HandlerFailed`, `MissingFixturesDetails`, and
   `crates/rstest-bdd/i18n/en/rstest-bdd.ftl:28` —
   `... (feature: { $feature_path }, scenario: { $scenario_name })`. Impact: the
-  first draft's Constraint 7 was unachievable. ADR-018 *Source-neutral
+  first draft's Constraint 7 was unachievable. ADR-0018 *Source-neutral
   diagnostics* already permits these legacy names during the additive
   migration, so Constraint 7 is restated and D15 records the resulting
   user-visible wart and its follow-up.
@@ -2965,7 +2966,7 @@ between them. Raise that before spending the tolerance.
   step wrappers only
   (`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly/mod.rs`).
   Caller-supplied hooks, steps registered through the raw `step!` form — which
-  is ADR-018's own extension story — and value destructors run during cleanup
+  is ADR-0018's own extension story — and value destructors run during cleanup
   all have none. `ScopeKind::Hook` already exists in the skip enum, inviting
   users to write `skip!()` in a hook, where it would panic with a plain `&str`.
   Impact: Decision D11 makes the runner panic-safe at its own boundary, and
@@ -2986,7 +2987,7 @@ between them. Raise that before spending the tolerance.
   after-hook failure separately from a primary failure and does not let it
   override one. Evidence: `ProtoScenario.PreHookFailure` and `PostHookFailure`
   are distinct fields, and a `ScenarioResult` can carry both. Impact:
-  independent corroboration for ADR-018's primary-versus-cleanup distinction.
+  independent corroboration for ADR-0018's primary-versus-cleanup distinction.
   It did not survive contact with D2 option (ii): a separate `cleanup_error()`
   accessor has no producer while the hooks are deferred, and as drafted it was
   ambiguous — a caller seeing `Some(_)` still could not tell which failure was
@@ -2997,13 +2998,13 @@ between them. Raise that before spending the tolerance.
 - **Observation:** `cucumber-rs`, the obvious Rust prior art, is *not*
   parser-neutral in the type sense: its `Parser` trait's `Output` is a stream of
   `gherkin::Feature`, so a non-Gherkin frontend must synthesize Gherkin AST
-  nodes. Impact: that is exactly ADR-018's rejected Option B, corroborating the
-  accepted boundary. It also means there is no upstream type vocabulary worth
-  copying.
+  nodes. Impact: that is exactly ADR-0018's rejected Option B, corroborating
+  the accepted boundary. It also means there is no upstream type vocabulary
+  worth copying.
 
 - **Observation:** Cucumber Messages collapses "deliberately skipped" and
   "skipped because an earlier step failed" into one `SKIPPED` status. Impact:
-  ADR-018's separate `Skipped` and `Bypassed` is a deliberate divergence and
+  ADR-0018's separate `Skipped` and `Bypassed` is a deliberate divergence and
   the better fit, because the two have different causes and the runtime already
   distinguishes them.
 
@@ -3449,7 +3450,7 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
 
 - **Observation:** two files breached the cap during EP-M2. `policy_tests.rs`
   reached 495 lines and became a five-file directory; `context/mod.rs` reached
-  408 and gave up its ADR-007 harness-context wrapper block to
+  408 and gave up its ADR-0007 harness-context wrapper block to
   `context/harness.rs`, landing at 336. `scripts/check_rs_file_lengths.py` and
   Whitaker's `module_max_lines` both enforce the limit, and both failed.
 - **Impact:** the cap is a *module* cap, so tests count. A large test module
@@ -4056,13 +4057,13 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   without depending on the runtime, and the macro crate needs none of these
   until 13.2.1 — when it will reference them through `#path::runner::…`,
   exactly as it already does `#path::execution::…`. Considered and rejected:
-  `context::ScenarioScope`, which would keep ADR-012's lifecycle model in one
+  `context::ScenarioScope`, which would keep ADR-0012's lifecycle model in one
   module but split the runner's own vocabulary across two; and extracting
-  `rstest-bdd-core` now, which ADR-018 defers (Option E). Date/Author:
+  `rstest-bdd-core` now, which ADR-0018 defers (Option E). Date/Author:
   2026-09-14, planning agent.
 
 - **D2: lifecycle hooks — one `Lifecycle` trait, caller-supplied per run, no
-  global registry. THREE OPTIONS; APPROVED AS (ii) ON 2026-09-19.** ADR-018
+  global registry. THREE OPTIONS; APPROVED AS (ii) ON 2026-09-19.** ADR-0018
   makes the before-hook-failure and after-hook-failure rows of its lifecycle
   matrix binding, but no hook mechanism exists anywhere in the workspace and
   the design document still lists them as a candidate.
@@ -4073,7 +4074,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
     including a stateful implementor and an async-only implementor.
   - **(ii) Ship `ScenarioScope<'ctx, H = NoHooks>` now, defer the traits.**
     The defaulted parameter means adding the traits later is source-compatible
-    for every caller writing `ScenarioScope::new(&mut ctx)`. ADR-018's
+    for every caller writing `ScenarioScope::new(&mut ctx)`. ADR-0018's
     lifecycle matrix is partially discharged and that is recorded as a
     deviation in this plan and in the roadmap entry. EP-M4 shrinks to nothing
     and INV-4, INV-8, and INV-10 lose their hook rows.
@@ -4091,8 +4092,8 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   2026-09-19** — ship `ScenarioScope<'ctx, 'fix, H = NoHooks>` with its
   defaulted type parameter now; defer `Lifecycle`, `NoHooks`'s `impl`,
   `with_hooks`, `split`, the `Before`/`After` variants of `ScenarioFailure`,
-  and every hook row of INV-4, INV-8, and INV-10. EP-M4 is struck. ADR-018's
-  lifecycle-path matrix (ADR-018-FR8) is **partially discharged**: its
+  and every hook row of INV-4, INV-8, and INV-10. EP-M4 is struck. ADR-0018's
+  lifecycle-path matrix (ADR-0018-FR8) is **partially discharged**: its
   after/cleanup column still holds, because scope cleanup is synchronous and
   unconditional, but its before/after *hook* rows have no mechanism to
   exercise. That deviation must be recorded in `docs/roadmap.md` under 13.1.1
@@ -4111,7 +4112,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
 
 - **D3: the plan carries no lifetime. Text is `Cow<'static, str>`; source paths
   are `SourcePath { Static(&'static str), Shared(Arc<str>) }`. APPROVED ON
-  2026-09-19.** Rationale: ADR-018 leaves ownership open to this review and
+  2026-09-19.** Rationale: ADR-0018 leaves ownership open to this review and
   requires support for both statically generated and dynamically parsed
   scenarios "without requiring avoidable copies at every step". A
   lifetime-parameterized plan forces a dynamic frontend into either a
@@ -4137,7 +4138,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   planning agent. **Status: APPROVED on 2026-09-19.** No revision was requested.
 
 - **D4: the outcome's step sequence is complete independently of the
-  `diagnostics` feature, and a gate leg must prove it.** Rationale: ADR-018
+  `diagnostics` feature, and a gate leg must prove it.** Rationale: ADR-0018
   states "diagnostics or reporter configuration must not change this sequence",
   whereas the generated code computes bypassed steps only under
   `diagnostics_enabled()`. This is the plan's one deliberate behavioural
@@ -4223,7 +4224,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
 
 - **D5: `runner` is the canonical outcome model and does not depend on
   `reporting`; the conversion lands in `reporting`, test-gated, at EP-M2.**
-  Rationale: ADR-018 forbids reporter types in the outcome surface, and there
+  Rationale: ADR-0018 forbids reporter types in the outcome surface, and there
   are three overlapping models today. A one-way arrow is necessary but not
   sufficient: `reporting::ScenarioStatus` cannot express failure at all, so
   13.2.1 must extend it. Writing the conversion now — in `reporting`, behind
@@ -4310,11 +4311,11 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   `ScenarioScope::with_hooks` — ahead of the ADR that will define user-facing
   hook registration, ordering, and duplicate detection is the decision that
   outlives its author and is hard to reverse. Under option (i), raise an ADR
-  amending ADR-018 and closing FR8's dangling reference to ADR-012 before Stage
-  C. Date/Author: 2026-09-14, planning agent.
+  amending ADR-0018 and closing FR8's dangling reference to ADR-0012 before
+  Stage C. Date/Author: 2026-09-14, planning agent.
 
 - **D8: no Kani and no Verus for this change.**
-  Rationale: ADR-018 says so, and the review sharpened the reason. The logic
+  Rationale: ADR-0018 says so, and the review sharpened the reason. The logic
   Kani would attack — terminal-index selection over a linear sequence — is the
   part of this design least likely to be wrong and is already exhaustively
   partitioned by LEM-1's parameterized tests. Verus would require specifying
@@ -4338,20 +4339,21 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   inhabited, because INV-8 upgrades a cleanup failure after a skip to `Failed`;
   and that upgrade discarded the skip's `at`, `message`, and `forced_failure`,
   forcing a caller to rescan `steps` and recompute
-  `!allow_skipped && fail_on_skipped` — the duplicated policy ADR-018 exists to
-  abolish. Separately, `FailureSite` and `ScenarioError` as independent fields
-  admitted contradictory states such as `site: Before` with a step error. One
-  `ScenarioFailure` sum — `Before(LifecycleError)`, `Step { index, error }`,
-  `After(LifecycleError)` — cannot lie, and `site()` is kept as a projection.
-  `LifecycleError` is opaque so the internal `Arc` stays a free implementation
-  choice. `ExecutionError` and `MissingFixturesDetails` gain `PartialEq`/`Eq`
-  (additive; see Constraint 1) so INV-5 compares whole outcomes rather than a
-  handwritten projection that could itself omit the differing field. Validated
-  by Spike 4. Date/Author: 2026-09-14, planning agent.
+  `!allow_skipped && fail_on_skipped` — the duplicated policy ADR-0018 exists
+  to abolish. Separately, `FailureSite` and `ScenarioError` as independent
+  fields admitted contradictory states such as `site: Before` with a step
+  error. One `ScenarioFailure` sum — `Before(LifecycleError)`,
+  `Step { index, error }`, `After(LifecycleError)` — cannot lie, and `site()`
+  is kept as a projection. `LifecycleError` is opaque so the internal `Arc`
+  stays a free implementation choice. `ExecutionError` and
+  `MissingFixturesDetails` gain `PartialEq`/`Eq` (additive; see Constraint 1)
+  so INV-5 compares whole outcomes rather than a handwritten projection that
+  could itself omit the differing field. Validated by Spike 4. Date/Author:
+  2026-09-14, planning agent.
 
 - **D10: `fail_on_skipped` is resolved once, at `ScenarioScope` construction,
   with an explicit per-run override. APPROVED ON 2026-09-19.** Rationale:
-  ADR-018 fixes the resolution *order* — programmatic, then environment, then
+  ADR-0018 fixes the resolution *order* — programmatic, then environment, then
   `false` — but not the *absence* of a per-run knob. Reading a process-global
   `AtomicU8` plus an environment variable from inside a library entry point is
   the wrong contract for the external-frontend use case that motivated the ADR,
@@ -4363,7 +4365,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   `ScenarioScope::new` therefore calls `config::fail_on_skipped()` once and
   stores the result, and `with_skip_policy(bool)` overrides it. The ADR's
   resolution order is preserved as the default. This makes INV-9 a type-level
-  fact rather than a test, and gives frontends the per-run control ADR-018
+  fact rather than a test, and gives frontends the per-run control ADR-0018
   promises. Additive; no existing signature changes. Date/Author: 2026-09-14,
   planning agent. **Status: APPROVED on 2026-09-19.** No revision was requested.
 
@@ -4371,7 +4373,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   Rationale: Constraint 3 cannot rest on the existing `catch_unwind`, which
   lives only in macro-generated step wrappers. Three call paths the runner owns
   have none: caller-supplied hooks; steps registered through the raw `step!`
-  form, which is ADR-018's own extension story; and value destructors run by
+  form, which is ADR-0018's own extension story; and value destructors run by
   cleanup. A panicking hook would unwind straight through `run_scenario`; a
   panicking destructor *during* that unwind would abort the process, which for
   a standalone frontend is the difference between a report and exit 134.
@@ -4405,7 +4407,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
 - **D13: `#[must_use]` on `ScenarioOutcome`, plus exactly one canonical fold.**
   Rationale: removing the panic removes the only channel that guaranteed a
   human saw a failure. More importantly, returning data leaves the *decision*
-  with every caller, so ADR-018's driver — one canonical skip policy — is only
+  with every caller, so ADR-0018's driver — one canonical skip policy — is only
   half discharged by structure. Correction, 2026-09-19: the rationale
   originally added that the *type-level* attribute "covers
   `let _ = run_scenario_async(..).await;`, which a function-level attribute
@@ -4449,7 +4451,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
 - **D15: the legacy `feature_path` naming is accepted for now and recorded as a
   follow-up.** Rationale: the runner must populate
   `StepExecutionRequest::feature_path`, and the only sensible value is the
-  plan's own source path. ADR-018 *Source-neutral diagnostics* explicitly
+  plan's own source path. ADR-0018 *Source-neutral diagnostics* explicitly
   permits existing `feature_path` fields to remain during the additive
   migration and anticipates a later pre-1.0 rename. The consequence is a real
   user-visible wart: a Markdown frontend's user will read
@@ -4457,7 +4459,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   `crates/rstest-bdd/i18n/en/rstest-bdd.ftl` renders that label. Two follow-ups
   are recorded rather than done here, because both touch surfaces Constraint 1
   freezes: a source-neutral Fluent message variant, and the field rename
-  ADR-018 anticipates. Add both to the roadmap under 13.3.1, whose success
+  ADR-0018 anticipates. Add both to the roadmap under 13.3.1, whose success
   criterion is precisely that a non-Gherkin frontend "reports their supplied
   locations". Date/Author: 2026-09-14, planning agent.
 
@@ -7594,7 +7596,7 @@ deliberately absent, and INV-8's struck row — said the deferred lifecycle hook
 are "delivered by 13.3.1". That is false. Roadmap 13.3.1 is the conformance
 frontend that proves the external-frontend boundary; it requires 13.2.1 and has
 nothing to do with hooks. The roadmap's own 13.1.1 entry states the position
-correctly and in terms: restoring the hooks "needs an ADR amending ADR-018
+correctly and in terms: restoring the hooks "needs an ADR amending ADR-0018
 first, and a replacement roadmap item — **there is none today**". So the
 document was contradicting the roadmap it points at, and it was contradicting
 *itself*, since a later entry (in the hand-off section) already said the
@@ -9186,7 +9188,7 @@ that keeps its own document identity can build a `ScenarioPlan` carrying
 the plan's own rather than reconstructed from an error, and which folds through
 exactly one canonical conversion into the existing harness result. Steps whose
 values are returned rather than written are observable at the call site, which
-discharges ADR-015's requirement on the new path as well as the old.
+discharges ADR-0015's requirement on the new path as well as the old.
 
 The seam the plan was built around held: the engine is one set of pure decision
 functions (`policy::absorb`, `policy::classify`, `policy::assemble`) under two
@@ -9198,13 +9200,13 @@ paths share an implementation without sharing a file.
 `ScenarioScope<'ctx, 'fix, H = NoHooks>` and deferred `Lifecycle`, `with_hooks`,
 `split`, and every hook row of INV-4, INV-8, and INV-10. **EP-M4 is struck,
 and no roadmap item replaces it**: restoring the hooks needs an ADR amending
-ADR-018 first, and a replacement milestone, which does not exist. (An earlier
+ADR-0018 first, and a replacement milestone, which does not exist. (An earlier
 draft of this paragraph named 13.3.1 as the deliverer. It is not: 13.3.1 is the
 conformance frontend, and it needs 13.2.1, not an ADR. The claim was wrong and
 is corrected here rather than left to mislead a successor.) Until such a
 milestone is written, the rows in `Verification plan` are the acceptance
 criteria for whoever picks the work up, and they are parked rather than
-scheduled. ADR-018 is therefore **partially discharged**: its Stage 1
+scheduled. ADR-0018 is therefore **partially discharged**: its Stage 1
 compatibility review and the `Lifecycle` half of its requirement set remain
 open, and this plan must not be read as closing them.
 
@@ -9325,18 +9327,18 @@ Each item the closing checklist named, discharged or explicitly left open:
 
 - **D2 option (i) / an amending ADR (D7):** not taken — no ADR was required and
   none was written. Option (ii) was selected, so the second bullet applies.
-- **Partial discharge of ADR-018's lifecycle matrix:** recorded here, in D2, and
-  in `docs/roadmap.md` under 13.1.1's *Partial discharge* paragraph. The
+- **Partial discharge of ADR-0018's lifecycle matrix:** recorded here, in D2,
+  and in `docs/roadmap.md` under 13.1.1's *Partial discharge* paragraph. The
   `Lifecycle` trait, `NoHooks`' impl, `with_hooks`, `split`, `LifecycleError`,
   `cleanup_error()`, and the hook rows of INV-4/INV-8/INV-10 do not exist.
   **This plan did not add a roadmap item for them, and the roadmap says so in
-  terms:** restoring any of it "needs an ADR amending ADR-018 first, and a
+  terms:** restoring any of it "needs an ADR amending ADR-0018 first, and a
   replacement roadmap item — there is none today." That absence is the single
   most important open item this plan leaves, and it is named rather than
   papered over.
 - **Ownership and outcome shapes in `docs/rstest-bdd-design.md`:** recorded at
   §2.6.4 and §3.11.1, both titled "the parser-neutral scenario runner". This
-  discharges ADR-018's Stage 1 compatibility review **for the types that
+  discharges ADR-0018's Stage 1 compatibility review **for the types that
   shipped**; it is *partially* discharged for the same reason as the bullet
   above.
 - **AXIOM-1 to AXIOM-7 falsified?** **No axiom was falsified, and AXIOM-4 is
@@ -9512,7 +9514,7 @@ rule CV-005, so no pull-request lane contacts CodeScene and the lines D39
 proposed to re-pin no longer exist. The action pin it would have changed is
 already one commit past the fix D39 identified. There is nothing to re-pin and
 nothing to decide. Then open the lifecycle work, which has **no roadmap item
-and cannot start without one**: it needs an ADR amending ADR-018 first (the
+and cannot start without one**: it needs an ADR amending ADR-0018 first (the
 roadmap states this under 13.1.1), and after that the `Verification plan` rows
 for INV-4, INV-8, and INV-10 are already written as its acceptance criteria and
 `NoHooks`' default type parameter is the extension point. The 13.2.1 and 13.3.1
@@ -9655,39 +9657,40 @@ Four properties of that code motivate this plan:
 There is no Terms of Reference document for this work. The upstream artefacts
 are:
 
-- **ADR-018**, `docs/adr-018-parser-neutral-scenario-execution.md`, status
-  **Accepted**, dated 2026-07-13. Binding sections: *Requirements*, *Decision
-  outcome and proposed direction*, *Compatibility and migration* Stage 1, and
-  *Verification strategy*.
-- **ADR-012**, `docs/adr-012-guard-based-stepcontext-borrowing.md`, status
-  **Accepted**. Supplies the `&self` borrow model and the world lifecycle
-  contract. It does **not** define lifecycle hooks; see D2 and D7.
-- **ADR-015**, `docs/adr-015-insert-outcome-for-step-return-overrides.md`.
-  Fixes returned-value propagation, including the requirement that a dropped
-  value be observable at the call site.
-- **ADR-002** and **ADR-019** constrain what a step handler may return; the
+- **ADR-0018**, `docs/adrs/adr-0018-parser-neutral-scenario-execution.md`,
+  status **Accepted**, dated 2026-07-13. Binding sections: *Requirements*,
+  *Decision outcome and proposed direction*, *Compatibility and migration*
+  Stage 1, and *Verification strategy*.
+- **ADR-0012**, `docs/adrs/adr-0012-guard-based-stepcontext-borrowing.md`,
+  status **Accepted**. Supplies the `&self` borrow model and the world
+  lifecycle contract. It does **not** define lifecycle hooks; see D2 and D7.
+- **ADR-0015**,
+  `docs/adrs/adr-0015-insert-outcome-for-step-return-overrides.md`. Fixes
+  returned-value propagation, including the requirement that a dropped value be
+  observable at the call site.
+- **ADR-0002** and **ADR-0019** constrain what a step handler may return; the
   runner consumes the already-classified result and does not reinterpret it.
 - **Roadmap** `docs/roadmap.md` §13.1.1, whose prerequisites 12.1.1 and 12.1.3
   are both marked done.
 - **AGENTS.md** and `docs/documentation-style-guide.md`.
 
-`ADR-018-FRn` and `ADR-018-TRn` below are this plan's shorthand for the
-numbered functional and technical requirements in ADR-018's *Requirements*
+`ADR-0018-FRn` and `ADR-0018-TRn` below are this plan's shorthand for the
+numbered functional and technical requirements in ADR-0018's *Requirements*
 section; the ADR itself assigns no identifiers.
 
 ```plaintext
-ADR-018-FR1,FR2 -> EP-M1 -> src/runner/tests/plan.rs (macro_path_allocates_no_step_text)
-ADR-018-FR3     -> EP-M2 -> tests/completeness.rs (every_invocation_is_recorded_once_in_order)
-ADR-018-FR4     -> EP-M3 -> tests/runner_sequence_props.rs (equivalence)
-ADR-018-FR5     -> EP-M2 -> tests/runner_sequence_props.rs (a_returned_value_is_visible_only_after_its_producer)
-ADR-018-FR6,FR7 -> EP-M2 -> tests/completeness.rs (the_bypassed_tail_has_the_length_the_terminal_event_implies)
-ADR-018-FR8     -> EP-M4 -> tests::runner::lifecycle::terminal_paths       (contingent on D2)
-ADR-018-FR9     -> EP-M2 -> tests/runner_panics.rs (an_unwrapped_step_panic_is_returned_not_thrown)
-ADR-018-FR10    -> EP-M2 -> src/runner/tests/outcome/mod.rs (canonical_fold_folds_forced_skip)
-ADR-018-TR1     -> EP-M1 -> src/runner/tests/surface.rs (no_frontend_types_in_public_api)
-ADR-018-TR2     -> EP-M2 -> tests/runner_panics.rs (a_wrapped_step_panic_is_unchanged)
-ADR-018-TR3     -> EP-M5 -> git diff --stat crates/rstest-bdd-macros (empty)
-ADR-018-TR7     -> EP-M1 -> src/runner/tests/plan.rs (parses_and_outlives_its_buffer)
+ADR-0018-FR1,FR2 -> EP-M1 -> src/runner/tests/plan.rs (macro_path_allocates_no_step_text)
+ADR-0018-FR3     -> EP-M2 -> tests/completeness.rs (every_invocation_is_recorded_once_in_order)
+ADR-0018-FR4     -> EP-M3 -> tests/runner_sequence_props.rs (equivalence)
+ADR-0018-FR5     -> EP-M2 -> tests/runner_sequence_props.rs (a_returned_value_is_visible_only_after_its_producer)
+ADR-0018-FR6,FR7 -> EP-M2 -> tests/completeness.rs (the_bypassed_tail_has_the_length_the_terminal_event_implies)
+ADR-0018-FR8     -> EP-M4 -> tests::runner::lifecycle::terminal_paths       (contingent on D2)
+ADR-0018-FR9     -> EP-M2 -> tests/runner_panics.rs (an_unwrapped_step_panic_is_returned_not_thrown)
+ADR-0018-FR10    -> EP-M2 -> src/runner/tests/outcome/mod.rs (canonical_fold_folds_forced_skip)
+ADR-0018-TR1     -> EP-M1 -> src/runner/tests/surface.rs (no_frontend_types_in_public_api)
+ADR-0018-TR2     -> EP-M2 -> tests/runner_panics.rs (a_wrapped_step_panic_is_unchanged)
+ADR-0018-TR3     -> EP-M5 -> git diff --stat crates/rstest-bdd-macros (empty)
+ADR-0018-TR7     -> EP-M1 -> src/runner/tests/plan.rs (parses_and_outlives_its_buffer)
 Skip parity     -> EP-M2 -> tests/skip_parity.rs (forced_failure_is_the_conjunction_of_both_inputs)
 Lifecycle matrix-> EP-M4 -> tests::runner::lifecycle::cleanup_exactly_once (contingent on D2)
 Cancellation    -> EP-M3 -> tests/runner_cancel.rs (cases::cancelling_during_a_step_)
@@ -9718,7 +9721,7 @@ are stated over data rather than over control flow.
   INV-15). This plan treats the in-scope behaviour as a contract boundary and
   exercises it for real rather than through a mock.
 - **AXIOM-3.** `StepContext::insert_value` implements the unique-type rule
-  (ADR-015). The runner is verified for *when* it calls it and for *recording
+  (ADR-0015). The runner is verified for *when* it calls it and for *recording
   its answer* — not for the rule's internals. It is explicitly **not** a
   licence to discard the returned `InsertOutcome`; see INV-12.
 - **AXIOM-4.** `config::fail_on_skipped()` resolves override, then environment,
@@ -9795,7 +9798,7 @@ visible to every invocation `j > i` and to no invocation `j <= i`.
   *before* the first producer. Negative control: a synthetic trace in which an
   observer sees a later producer's value must be rejected.
 
-**INV-4 — Cleanup exactly once.** For every terminal path in ADR-018's
+**INV-4 — Cleanup exactly once.** For every terminal path in ADR-0018's
 lifecycle matrix, the after hook runs exactly once and scope cleanup runs
 exactly once.
 
@@ -10132,7 +10135,7 @@ projects an `ExecutionError` onto a small `#[non_exhaustive] FailureKind`
 
 - Method: parameterized `rstest` over one witness per variant.
 - Rationale: without it, any Cucumber-Messages-shaped reporter must match
-  `ExecutionError`'s variants directly — realizing ADR-018's "may accidentally
+  `ExecutionError`'s variants directly — realizing ADR-0018's "may accidentally
   freeze internal registry or error representations" risk. A projection is
   cheap now and expensive to retrofit.
 - Artefact: `crates/rstest-bdd/tests/runner_instrumentation.rs` for the
@@ -10150,13 +10153,13 @@ registration form produced it.** No panic raised by a step body unwinds out of
 registry's own pattern string and a `file:line` identity; and a `SkipRequest`
 payload raised by `skip!` is still read as a skip rather than as a panic.
 
-- Rationale: this is Constraint 3 and ADR-018-TR2 stated as an obligation rather
-  than as prose, and it is the obligation D11's boundary discharges. It is
-  separate from INV-16 because INV-16 asks whether a *given* `ExecutionError`
-  projects to the right `FailureKind`, while this asks whether the error is
-  constructed at all for the registration form that has no wrapper to construct
-  it. The two are independently falsifiable: a driver can classify every error
-  correctly and still throw the one it never caught.
+- Rationale: this is Constraint 3 and ADR-0018-TR2 stated as an obligation
+  rather than as prose, and it is the obligation D11's boundary discharges. It
+  is separate from INV-16 because INV-16 asks whether a *given*
+  `ExecutionError` projects to the right `FailureKind`, while this asks whether
+  the error is constructed at all for the registration form that has no wrapper
+  to construct it. The two are independently falsifiable: a driver can classify
+  every error correctly and still throw the one it never caught.
 - Method: five integration tests, of which three exercise the synchronous
   boundary, one the asynchronous boundary, and one is the non-regression
   control for a macro-wrapped step. The observed quantity is what a caller
@@ -10575,7 +10578,7 @@ impl std::fmt::Display for ScenarioOutcome { /* the message 13.2.1 must reproduc
 ```
 
 Every payload sits behind an accessor and the status enum is fieldless, so the
-representation can move freely — which is what ADR-018's *Known risks* asks
+representation can move freely — which is what ADR-0018's *Known risks* asks
 for, and what a `#[non_exhaustive]` enum with public struct variants does not
 deliver.
 
@@ -10981,7 +10984,7 @@ Under **D2 option (ii)** the before/after hook nodes are struck, so they are
 **not** in Figure 1: there is no `Lifecycle` trait, no `with_hooks`, and no
 hook guard to disarm. What the figure does still carry is the cleanup path —
 the scope drop at `L` is unconditional and synchronous, which is what keeps the
-after/cleanup column of ADR-018's lifecycle matrix discharged. If a later ADR
+after/cleanup column of ADR-0018's lifecycle matrix discharged. If a later ADR
 restores the hooks (EP-M4 is struck, and its replacement is tracked in
 `docs/roadmap.md`), the sequence gains two guarded nodes — a `before` hook that
 bypasses every invocation when it fails, and an `after` hook run exactly once
@@ -10993,15 +10996,16 @@ mechanism this plan decided not to ship.
 
 ### Stage A — understand and decide (no code changes)
 
-Read ADR-018 in full, then ADR-012 and ADR-015, then design document §2.6 and
-§3.11. Load `rust-router`, then `arch-crate-design` and `rust-types-and-apis`.
-Prefer `codegraph_symbol_search` and `codegraph_get_callers` to grep.
+Read ADR-0018 in full, then ADR-0012 and ADR-0015, then design document §2.6
+and §3.11. Load `rust-router`, then `arch-crate-design` and
+`rust-types-and-apis`. Prefer `codegraph_symbol_search` and
+`codegraph_get_callers` to grep.
 
 Produce nothing but updates to this document: confirm or revise D1 to D15, and
 confirm the interface table.
 
 **Go/no-go:** D2, D3, and D10 must be explicitly approved, because all three
-extend ADR-018 rather than merely implementing it. If D2 option (i) is chosen,
+extend ADR-0018 rather than merely implementing it. If D2 option (i) is chosen,
 an ADR must land before Stage C (D7).
 
 ### Stage B onwards — red tests *per milestone*
@@ -11071,7 +11075,7 @@ not repeated below.
   `ScenarioSkip`, `ScenarioFailure`, `FailureSite`, and `ScenarioOutcome` with
   its accessors, `Display`, and `into_harness_result`. `LifecycleError` is
   *not* among them; see the D2 note. No runner yet.
-- **Requirements:** ADR-018-FR1, FR2, TR1, TR6, TR7.
+- **Requirements:** ADR-0018-FR1, FR2, TR1, TR6, TR7.
 - **Acceptance evidence:**
   `tests::runner::plan::macro_path_allocates_no_step_text` (every text and tag
   is `Cow::Borrowed`); `tests::runner::plan::parses_and_outlives_its_buffer` (a
@@ -11107,7 +11111,7 @@ not repeated below.
   outcome, resolves skip policy once, and returns rather than panicking — even
   when a raw-`step!` handler panics. `tracing` instrumentation lands here.
   Hooks are not yet supported.
-- **Requirements:** ADR-018-FR3, FR5, FR6, FR7, FR9, FR10, TR2, TR4 (partial).
+- **Requirements:** ADR-0018-FR3, FR5, FR6, FR7, FR9, FR10, TR2, TR4 (partial).
 - **Acceptance evidence:** INV-1, INV-2, INV-3, INV-6, INV-7, INV-9, INV-11,
   INV-12, INV-13, INV-14, INV-15, INV-16, INV-17, and LEM-1; the first two
   behavioural scenarios; and the `#[cfg(test)]` `reporting` conversion smoke
@@ -11121,8 +11125,8 @@ not repeated below.
 ### EP-M3 — Asynchronous runner and cancellation
 
 - **Outcome:** `run_scenario_async` and `engine/drive_async.rs`; sync and async
-  agree for `Both`-mode steps; cancellation behaves as ADR-018 specifies.
-- **Requirements:** ADR-018-FR4 and the asynchronous cancellation contract.
+  agree for `Both`-mode steps; cancellation behaves as ADR-0018 specifies.
+- **Requirements:** ADR-0018-FR4 and the asynchronous cancellation contract.
 - **Acceptance evidence:** INV-5 and INV-10's step case, with the three
   hardening requirements; the normal-completion control; the third behavioural
   scenario.
@@ -11149,7 +11153,7 @@ not repeated below.
   `ScenarioFailure`, hook panic guarding, and
   `enter_scope(ScopeKind::Hook, ..)` around hook bodies. Under option (ii) or
   (iii) this milestone is **struck** and the deviation recorded.
-- **Requirements:** ADR-018-FR8 and the lifecycle matrix.
+- **Requirements:** ADR-0018-FR8 and the lifecycle matrix.
 - **Acceptance evidence:** INV-4's full row set, INV-8, and INV-10's before-
   and after-hook cases.
 - **Conformance check:** no global registry introduced; the ADR required by D7
@@ -11163,7 +11167,7 @@ not repeated below.
   projection; the `--no-default-features -p rstest-bdd` leg added to
   `make test` and CI; the roadmap entry ticked and the recorded follow-ups
   added.
-- **Requirements:** ADR-018-TR3 and AGENTS.md's documentation obligations.
+- **Requirements:** ADR-0018-TR3 and AGENTS.md's documentation obligations.
 - **Acceptance evidence:** `make check-fmt`, `make lint`, `make test`,
   `make markdownlint`, `make nixie` all pass;
   `git diff --stat crates/rstest-bdd-macros` is empty; and the `Scope` figure
@@ -11284,7 +11288,7 @@ Three notes from prior sessions and from `.config/nextest.toml`:
 - `make markdownlint` depends on `spelling`, which Make considers satisfied if
   it already ran in the same invocation. Force a fresh run with
   `make -B spelling`.
-- `make fmt` and `make check-fmt` call a *pinned nightly* `rustfmt` (ADR-016);
+- `make fmt` and `make check-fmt` call a *pinned nightly* `rustfmt` (ADR-0016);
   a bare `cargo fmt` produces different output and fails the gate.
 
 ### Committing

@@ -1,4 +1,4 @@
-//! Runtime integration tests for ADR-008 harness-led attribute-policy
+//! Runtime integration tests for ADR-0008 harness-led attribute-policy
 //! defaults and their error paths in the GPUI harness crate.
 //!
 //! Unlike the snapshot and `RSTEST_BDD_RUN_MACROTEST`-gated expansion tests,
@@ -133,7 +133,7 @@ mod native {
     }
 
     /// `harness = GpuiHarness` with no `attributes = ...`: the macro infers
-    /// `GpuiAttributePolicy` (ADR-008) and the step observes the injected
+    /// `GpuiAttributePolicy` (ADR-0008) and the step observes the injected
     /// `TestAppContext` at runtime. Async steps force the macro to execute
     /// the scenario body through the async step path, while the reserved
     /// fixture proves the context came from `GpuiHarness` rather than from
