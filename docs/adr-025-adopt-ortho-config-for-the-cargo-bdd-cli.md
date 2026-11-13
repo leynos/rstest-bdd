@@ -76,8 +76,14 @@ The workspace lockfile resolves `cargo-platform` to v0.3.2. Reusable library
 crates reach it through `cargo_metadata` v0.23.1, whose
 `cargo-platform = "0.3.0"` requirement accepts that release. The previously
 locked v0.3.3 requires Rust 1.91, which would make the libraries' declared Rust
-1.88 floor inaccurate. This lockfile resolution preserves the library MSRV
-without adding an OrthoConfig dependency or changing library manifests.
+1.88 floor inaccurate. This resolution preserves the library MSRV for builds
+that resolve through this repository's lockfile, and it adds no OrthoConfig
+dependency and changes no library manifest. It does not, and cannot, constrain
+a downstream client: a resolver-2 consumer of a reusable crate keeps its own
+lockfile, where the caret requirement still admits v0.3.3 and its Rust 1.91
+floor. Consumers relying on the 1.88 floor therefore need the same resolution
+choice in their own lockfile, which is the limitation recorded in the execution
+plan's decision log.
 
 The configurable settings are the per-subcommand booleans that already exist:
 `--skipped` and `--json` for `steps`, and `--reasons` and `--json` for

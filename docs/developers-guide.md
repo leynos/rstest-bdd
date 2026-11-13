@@ -3389,8 +3389,10 @@ configuration types in the application crate and pass validated values into
 existing handlers.
 
 The workspace lockfile keeps `cargo-platform` at v0.3.2 because v0.3.3 raises
-the MSRV of library crates that reach it through `cargo_metadata`. Re-run the
-Rust 1.88 library check before updating this transitive dependency.
+the MSRV of library crates that reach it through `cargo_metadata`. This holds
+only for builds that resolve through this repository's lockfile: a downstream
+consumer has its own, in which the caret requirement still admits v0.3.3.
+Re-run the Rust 1.88 library check before updating this transitive dependency.
 
 Configuration unit tests use OrthoConfig's `_with_sources` entry points,
 `MapEnv`, and an explicit file-discovery context. Binary-level checks launch

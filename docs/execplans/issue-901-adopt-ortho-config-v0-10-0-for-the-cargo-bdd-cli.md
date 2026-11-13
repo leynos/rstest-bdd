@@ -833,6 +833,43 @@ Hard invariants. Violation requires escalation, not a workaround.
       `uv run pytest scripts/tests` (291 passed in 24.0 s) finished behind
       them, and the log holds no `FAILED`, `error[` or `make: ***` line.
 
+- [x] (2026-11-13) The next review round on `8b6a8002` reported two minor
+      findings, and both were real. First, `discovery_variables` redirected
+      `HOME` but not `XDG_CONFIG_DIRS`. The vendored
+      `ortho_config` source settles this: `source_xdg_bases`
+      (`src/subcommand/paths.rs`) extends the base list with every absolute
+      `XDG_CONFIG_DIRS` entry and, when the variable is absent or wholly
+      relative, with `/etc/xdg`; `load_from_files` (`src/subcommand/mod.rs`)
+      merges *every* existing candidate. The `cli` suite's child starts from
+      the ambient environment through `cli_child_environment`, so a host
+      `/etc/xdg/cargo_bdd/config.toml` really was reachable. Measured with
+      `XDG_CONFIG_DIRS` pointed at a directory holding a malformed
+      `cargo_bdd/config.toml`, 2 of the 4 cases failed before the change and
+      all 4 passed after it. `XDG_CONFIG_DIRS` and `USERPROFILE` are now both
+      redirected, and `cargo_home_variables` falls back from `HOME` to
+      `USERPROFILE` so redirecting the latter cannot strand Cargo's home. The
+      Windows native configuration directory comes from the Windows API, not
+      `APPDATA`, so it is unredirectable by any variable; the module
+      documentation now states that as the one residual rather than implying
+      full isolation. Second, ADR 025 and the developers' guide claimed the
+      `cargo-platform` v0.3.2 lock resolution preserved the Rust 1.88 library
+      MSRV without qualification. That is true only for builds resolving
+      through this repository's lockfile: a downstream resolver-2 consumer
+      keeps its own, where the caret requirement still admits v0.3.3 and its
+      Rust 1.91 floor. Both passages now say so, matching the qualification
+      the plan's decision log already carried. Gates on this round's tree
+      (`8b6a8002` plus a diff hashing to
+      `8404b0099cdf55b3ffddb63331d724b9328d8d38d688b4dd37880e59df29037b`)
+      ran `make markdownlint` 0, `make nixie` 0, `make lint` 0, `make
+      typecheck` 0 and the whole `make test` recipe 0, with 2,251/2,251
+      passed in 486.6 s, 787/787 passed in 309.1 s, `step_macros_compile`
+      PASS in both and 291 pytest passed, and no `FAILED` or `error[` line.
+      `make check-fmt` alone failed there, because nightly rustfmt wanted the
+      new `env::var` chain joined onto one line; the fix is whitespace-only,
+      so `make check-fmt`, `make markdownlint`, `make nixie`, `make lint`,
+      `make typecheck` and the `cargo-bdd` `cli` target were re-run on the
+      final tree and all exit zero.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected

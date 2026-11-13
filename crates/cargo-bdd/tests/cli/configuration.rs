@@ -7,16 +7,22 @@
 //! diagnostic, so a working `reasons` setting cannot hide a failure reported
 //! alongside it.
 //!
-//! Both platforms redirect `HOME` to the temporary directory, and Unix also
-//! exposes it as `XDG_CONFIG_HOME`. Redirecting `HOME` on Unix as well is not
-//! decoration: `ortho_config` merges *every* existing candidate, and its Unix
-//! list starts with `$HOME/.cargo_bdd.toml` and `$HOME/.config/cargo_bdd/`
-//! before the XDG bases. Leaving the real `HOME` inherited therefore lets a
-//! developer's own dotfile load alongside the fixture's file — a malformed one
-//! fails the case, and a well-formed one can satisfy a case that intended to
-//! prove the file tier. Cargo derives its own home from `HOME`, so the
-//! redirected run carries `CARGO_HOME` and `RUSTUP_HOME` explicitly to keep
-//! the nested registry and toolchain resolvable.
+//! Every discovery root the child can reach is redirected at the temporary
+//! directory. That is not decoration: `ortho_config` merges *every* existing
+//! candidate, so an inherited root lets a developer's own file load alongside
+//! the fixture's — a malformed one fails the case, and a well-formed one can
+//! satisfy a case that intended to prove the file tier. On Unix the merged
+//! list is `$HOME/.cargo_bdd.toml`, every `$XDG_CONFIG_HOME` and
+//! `XDG_CONFIG_DIRS` base, then the working-directory dotfile, so `HOME`,
+//! `XDG_CONFIG_HOME` and `XDG_CONFIG_DIRS` are all overridden; an absent
+//! `XDG_CONFIG_DIRS` would otherwise fall back to `/etc/xdg` and reintroduce
+//! a host root. On Windows the home dotfile falls back from `HOME` to
+//! `USERPROFILE`, and the native configuration directory comes from the
+//! Windows API rather than `APPDATA`, so it cannot be redirected by any
+//! variable and is left as the one documented residual. Cargo derives its own
+//! home from the same variables, so the redirected run carries `CARGO_HOME`
+//! and `RUSTUP_HOME` explicitly to keep the nested registry and toolchain
+//! resolvable.
 
 use std::env;
 
@@ -149,14 +155,20 @@ fn assert_no_application_diagnostic(stderr: &str) {
 ///
 /// The caller owns the temporary directory, so every path points at a location
 /// valid for the whole run; the file itself is optional. `HOME` is redirected
-/// on both platforms because both discover `$HOME/.cargo_bdd.toml`. The
-/// returned values are owned `String`s so the caller can hand out references
-/// that outlive this function.
+/// on both platforms because both discover `$HOME/.cargo_bdd.toml`, and
+/// `USERPROFILE` with it because Windows falls back to it. Unix also needs
+/// `XDG_CONFIG_DIRS` set to a temporary directory rather than unset: unset
+/// means `/etc/xdg`, which is a host root. The returned values are owned
+/// `String`s so the caller can hand out references that outlive this function.
 fn discovery_variables(root: &Dir, configuration_home: &str) -> Result<Vec<(String, String)>> {
-    let mut variables = vec![("HOME".to_owned(), configuration_home.to_owned())];
+    let mut variables = vec![
+        ("HOME".to_owned(), configuration_home.to_owned()),
+        ("USERPROFILE".to_owned(), configuration_home.to_owned()),
+    ];
     if !cfg!(windows) {
         root.create_dir_all("cargo_bdd")?;
         variables.push(("XDG_CONFIG_HOME".to_owned(), configuration_home.to_owned()));
+        variables.push(("XDG_CONFIG_DIRS".to_owned(), configuration_home.to_owned()));
     }
     variables.extend(cargo_home_variables());
     Ok(variables)
@@ -169,9 +181,10 @@ fn discovery_variables(root: &Dir, configuration_home: &str) -> Result<Vec<(Stri
 /// an empty registry. `RUSTUP_HOME` is carried for the same reason: the child
 /// resolves `cargo` through the ambient toolchain. A variable the developer
 /// has already set wins over the `$HOME`-derived default, matching Cargo's own
-/// precedence.
+/// precedence. `USERPROFILE` supplies the ambient home where `HOME` is absent,
+/// as on Windows, because the child's own `USERPROFILE` is redirected.
 fn cargo_home_variables() -> Vec<(String, String)> {
-    let home = env::var("HOME").ok();
+    let home = env::var("HOME").or_else(|_| env::var("USERPROFILE")).ok();
     [("CARGO_HOME", ".cargo"), ("RUSTUP_HOME", ".rustup")]
         .into_iter()
         .filter_map(|(key, directory)| {
