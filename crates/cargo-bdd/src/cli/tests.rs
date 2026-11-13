@@ -332,7 +332,7 @@ fn skipped_listing_reports_only_skipped_scenarios() {
 
 /// The Cargo-dispatched form reports the frozen `--skipped` requirement.
 ///
-/// Clap measured this message before OrthoConfig was adopted; the checked-in
+/// Clap measured this message before `OrthoConfig` was adopted; the checked-in
 /// baseline fixture pins the direct form, and this covers the wrapper form
 /// that shares the wording.
 #[test]
