@@ -1016,13 +1016,15 @@ Hard invariants. Violation requires escalation, not a workaround.
       redirect directory, which is the property the test exists for.
 
 - [x] (2026-11-13) Finding 3, an ambient-policy mutation test in
-      `skip_parity/resolution_once.rs`, is in branch scope but **not
-      expressible as described**. `ScenarioScope::new` reads
-      `config::fail_on_skipped()` once and stores the value; `run_scenario`
-      calls `SkipPolicy::resolve` on that stored value and never re-reads the
-      global. There is therefore no ambient mutation point after scope
-      construction to test, and adding one would change the design rather than
-      cover it. Recorded in the Decision log rather than acted on.
+      `skip_parity/resolution_once.rs`, was declined on round 10 because the
+      finding as then written mutated the global *between* runs, which no test
+      can distinguish from a correct implementation. Round 11 restated it
+      narrowly — mutate inside the handler, on a scope that took its policy
+      from the global — and that version describes a real gap. The row was
+      added, and a faithful mutation of the driver (re-read the global for
+      ambient scopes at record-assembly time) fails it **alone**, 9 passed and
+      1 failed, with its own assertion message. The earlier verdict was too
+      broad and is corrected in the Decision log.
 
 - [x] (2026-11-13) Findings 4 and 5 are **confirmed** and were
       self-inflicted: `V5` claimed the isolation check covered every discovery
@@ -1068,6 +1070,27 @@ Hard invariants. Violation requires escalation, not a workaround.
       `configuration::skipped_handler_uses_configured_reasons` cases and the
       eight `environment::` and `nested_target::` cases included. No log
       contains `FAILED`, `error[` or `make: ***`.
+
+- [x] (2026-11-13) Round 11: `coderabbit review --agent --base origin/main` on
+      `1fcbc3d2` returned one finding, on
+      `crates/rstest-bdd/tests/skip_parity/resolution_once.rs:150`, asking for
+      an ambient-policy in-flight mutation row. It is **confirmed** and the row
+      was added; see the Progress entry above and the revised Decision log
+      entry. The review log is `/tmp/coderabbit-issue-901-r11.out`.
+
+- [x] (2026-11-13) Gates on the round-11 tree, `REV_START` and `REV_END` both
+      `1fcbc3d2eeed03981b4b36f237df792be6bd3c76`. The Rust gate-input hash was
+      `27b15655eb10195b2479a8af2531c7a6f8ba86fb74ce4cdfc8c0b1d755baa742` at
+      the start of `make lint` and unchanged after `make typecheck` and
+      `make test`. `make check-fmt` 0 (`142 files left unchanged`),
+      `make markdownlint` 0 (`Summary: 0 error(s)`), `make lint` 0 through all
+      nine steps, `make typecheck` 0 (`All checks passed!`), and `make test` 0
+      with 2,256 workspace tests passed and 7 skipped, 788 passed and 7 skipped
+      on the `--no-default-features` leg, and 291 pytest tests passing. The new
+      row is `PASS` in both legs. No log contains `FAILED`, `error[` or
+      `make: ***`. `make nixie` exited zero with
+      `All diagrams validated successfully!`; the plan and migration guide hold
+      no Mermaid block, so it ran for the users' guide's one diagram.
 
 - [x] (2026-11-13) Two defects were found and fixed in the gate cycle above
       rather than carried. The first was `rustfmt` wanting
@@ -1425,16 +1448,22 @@ Hard invariants. Violation requires escalation, not a workaround.
   strictness to be re-argued instead. Date/Author: 2026-11-13, implementing
   agent.
 
-- Decision: do not add the review's proposed ambient-mutation test to
-  `crates/rstest-bdd/tests/skip_parity/resolution_once.rs`. Rationale: the test
-  would mutate `config::fail_on_skipped()` after `ScenarioScope::new`, but that
-  constructor is the only reader — it stores the resolved value and
-  `run_scenario` consults the stored value through `SkipPolicy::resolve`. There
-  is no later read to affect, so the test as described would assert a property
-  the design deliberately does not have. Covering the behaviour would require
-  re-reading ambient state per scenario, which is the design change the
-  stored-value decision exists to avoid. Date/Author: 2026-11-13, implementing
-  agent.
+- Decision: add the ambient-mutation row to
+  `crates/rstest-bdd/tests/skip_parity/resolution_once.rs`, reversing an
+  earlier "not expressible" verdict. Rationale: the round-10 statement of the
+  finding mutated the global between runs, which no test can distinguish from a
+  correct implementation, and was correctly declined. The round-11 statement is
+  narrower and does describe a real gap: the existing in-flight row supplies
+  the policy through `with_skip_policy`, so the override is the only input and
+  a driver that re-read the global *only on the ambient path* would pass every
+  other test in the module. The new row constructs the scope ambiently under an
+  armed `false` and lets the handler flip the global to `true` before skipping.
+  Evidence it is not redundant, and not vacuous: mutating the driver to re-read
+  the global for ambient scopes at record-assembly time fails this row alone (9
+  passed, 1 failed) with its own assertion message, while the other nine rows —
+  including the explicit-policy in-flight row — pass. The mutation was reverted
+  and `git diff` confirms `crates/rstest-bdd/src/` is clean. Date/Author:
+  2026-11-13, implementing agent; revised after review round 11.
 
 ## Outcomes & retrospective
 
