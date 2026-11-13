@@ -27,7 +27,7 @@ use crate::{
         write_scenarios,
         write_step,
     },
-    registry::{BypassedStep, Scenario, ScenarioOutcome, Step, collect_registry},
+    registry::{BypassedStep, RegistryDump, Scenario, ScenarioOutcome, Step, collect_registry},
 };
 
 mod invocation;
@@ -195,21 +195,38 @@ fn handle_steps(args: &StepsSettings) -> Result<()> {
 }
 
 /// Handle the `steps --unused` diagnostic.
-fn handle_unused() -> Result<()> { write_filtered_steps(|step| !step.used, None) }
+fn handle_unused() -> Result<()> {
+    write_listing(|registry, stdout| write_unused_steps(stdout, &registry.steps))
+}
 
 /// Handle the `steps --duplicates` diagnostic.
 fn handle_duplicates() -> Result<()> {
-    let groups = group_duplicate_steps(collect_registry()?.steps);
-    let mut stdout = io::stdout();
-    for group in groups {
+    write_listing(|registry, stdout| write_duplicate_groups(stdout, &registry.steps))
+}
+
+/// Write the unused-step listing for `steps` to `writer`.
+///
+/// Extracted from the handler so the selection rule is covered without
+/// building a workspace registry.
+fn write_unused_steps(writer: &mut dyn Write, steps: &[Step]) -> Result<()> {
+    steps
+        .iter()
+        .filter(|step| !step.used)
+        .try_for_each(|step| write_step(writer, step))
+}
+
+/// Write the duplicate-step listing for `steps` to `writer`.
+///
+/// Groups are separated by [`write_group_separator`], matching the CLI form
+/// that operators and the checked-in baseline already expect.
+fn write_duplicate_groups(writer: &mut dyn Write, steps: &[Step]) -> Result<()> {
+    for group in group_duplicate_steps(steps.iter().cloned()) {
         for step in &group {
-            write_step(&mut stdout, step)?;
+            write_step(writer, step)?;
         }
-        write_group_separator(&mut stdout)?;
+        write_group_separator(writer)?;
     }
-    stdout
-        .flush()
-        .wrap_err("failed to flush duplicate listing to stdout")
+    Ok(())
 }
 
 /// Group steps by the library-local identity used for duplicate diagnostics.
@@ -233,28 +250,36 @@ fn group_duplicate_steps(steps: impl IntoIterator<Item = Step>) -> Vec<Vec<Step>
 
 /// Handle the `steps --skipped` diagnostic.
 fn handle_bypassed_steps(json: bool) -> Result<()> {
-    let registry = collect_registry()?;
-    if json {
-        let reports: Vec<_> = registry
-            .bypassed_steps
-            .iter()
-            .map(SkipReport::from)
-            .collect();
-        return write_skip_reports_json(&reports);
-    }
+    write_listing(|registry, stdout| {
+        write_bypassed_steps_listing(stdout, &registry.bypassed_steps, json)
+    })
+}
 
-    let mut stdout = io::stdout();
-    write_bypassed_steps(&mut stdout, &registry.bypassed_steps)?;
-    stdout
-        .flush()
-        .wrap_err("failed to flush bypassed step listing")
+/// Write the bypassed-step listing, as JSON or as text.
+fn write_bypassed_steps_listing(
+    writer: &mut dyn Write,
+    steps: &[BypassedStep],
+    json: bool,
+) -> Result<()> {
+    if json {
+        let reports: Vec<_> = steps.iter().map(SkipReport::from).collect();
+        return write_skip_reports_json(writer, &reports);
+    }
+    write_bypassed_steps(writer, steps)
 }
 
 /// Handle the `skipped` diagnostic.
 fn handle_skipped(args: &SkippedSettings) -> Result<()> {
-    let registry = collect_registry()?;
-    let skipped: Vec<_> = registry
-        .scenarios
+    write_listing(|registry, stdout| write_skipped_listing(stdout, &registry.scenarios, args))
+}
+
+/// Write the skipped-scenario listing, as JSON or as text.
+fn write_skipped_listing(
+    writer: &mut dyn Write,
+    scenarios: &[Scenario],
+    args: &SkippedSettings,
+) -> Result<()> {
+    let skipped: Vec<_> = scenarios
         .iter()
         .filter(|scenario| scenario.status == ScenarioOutcome::Skipped)
         .collect();
@@ -264,7 +289,7 @@ fn handle_skipped(args: &SkippedSettings) -> Result<()> {
             .iter()
             .map(|scenario| SkipReport::from(*scenario))
             .collect();
-        return write_skip_reports_json(&reports);
+        return write_skip_reports_json(writer, &reports);
     }
 
     let options = if args.reasons {
@@ -272,12 +297,25 @@ fn handle_skipped(args: &SkippedSettings) -> Result<()> {
     } else {
         ScenarioDisplayOptions::compact()
     };
+    write_scenarios(writer, scenarios, options)
+}
 
+/// Collect the registry, render a listing through `render`, and flush it.
+///
+/// Every diagnostic writes to stdout and must report a flush failure against
+/// the same boundary, so the collection and flush live here once. `render`
+/// receives the registry and the stdout handle, which keeps each listing's
+/// selection rule directly testable against a buffer.
+fn write_listing<F>(render: F) -> Result<()>
+where
+    F: FnOnce(&RegistryDump, &mut dyn Write) -> Result<()>,
+{
+    let registry = collect_registry()?;
     let mut stdout = io::stdout();
-    write_scenarios(&mut stdout, &registry.scenarios, options)?;
+    render(&registry, &mut stdout)?;
     stdout
         .flush()
-        .wrap_err("failed to flush skipped scenario listing")
+        .wrap_err("failed to flush step listing to stdout")
 }
 
 /// Write steps selected by `filter`, optionally followed by scenarios.
@@ -285,30 +323,26 @@ fn write_filtered_steps<F>(filter: F, scenarios: Option<ScenarioDisplayOptions>)
 where
     F: Fn(&Step) -> bool,
 {
-    let registry = collect_registry()?;
-    let mut stdout = io::stdout();
-    registry
-        .steps
-        .iter()
-        .filter(|&step| filter(step))
-        .try_for_each(|step| write_step(&mut stdout, step))?;
-    if let Some(options) = scenarios {
-        write_scenarios(&mut stdout, &registry.scenarios, options)?;
-    }
-    stdout
-        .flush()
-        .wrap_err("failed to flush step listing to stdout")
+    write_listing(|registry, stdout| {
+        registry
+            .steps
+            .iter()
+            .filter(|&step| filter(step))
+            .try_for_each(|step| write_step(stdout, step))?;
+        if let Some(options) = scenarios {
+            write_scenarios(stdout, &registry.scenarios, options)?;
+        }
+        Ok(())
+    })
 }
 
 /// Serialize skip reports as newline-terminated JSON.
-fn write_skip_reports_json(reports: &[SkipReport<'_>]) -> Result<()> {
-    let mut stdout = io::stdout();
-    serde_json::to_writer(&mut stdout, reports)
+fn write_skip_reports_json(writer: &mut dyn Write, reports: &[SkipReport<'_>]) -> Result<()> {
+    serde_json::to_writer(&mut *writer, reports)
         .wrap_err("failed to serialize skip diagnostics to JSON")?;
-    stdout
+    writer
         .write_all(b"\n")
-        .wrap_err("failed to terminate JSON output with newline")?;
-    stdout.flush().wrap_err("failed to flush JSON output")
+        .wrap_err("failed to terminate JSON output with newline")
 }
 
 #[cfg(test)]
