@@ -94,7 +94,7 @@ for unit tests, promoting a Don't Repeat Yourself (DRY) approach.[^1]
 > functions with `#[tokio::test]`. Async scenario execution is now implemented
 > for Tokio current-thread mode; see §2.5 and the users guide for details.
 > Step definitions may be `async fn` and are awaited sequentially under the
-> async scenario runtime. ADR-005a introduces harness adapters and attribute
+> async scenario runtime. ADR-0025 introduces harness adapters and attribute
 > policies so Tokio (or GPUI) test attributes are supplied by opt-in plugin
 > crates rather than core features.
 
@@ -212,7 +212,7 @@ Feature: User Login
 > **Note:** This example shows async scenario execution. The test function uses
 > `async fn` with `#[tokio::test]`. Step definitions may also be `async fn` and
 > are awaited sequentially under the scenario runtime. See §2.5 for design
-> details. In the harness adapter architecture (ADR-005a), this attribute comes
+> details. In the harness adapter architecture (ADR-0025), this attribute comes
 > from the selected attribute policy plugin rather than core macros.
 
 ```rust,no_run
@@ -744,8 +744,8 @@ including examples, declares `[lints] workspace = true` so the root Clippy,
 Rust, and Rustdoc policy applies consistently. The remaining documentation
 checks run `make markdownlint` and `make nixie`; the job fails if any
 formatting or Mermaid rendering check fails. See
-[ADR-016](adr-016-pinned-nightly-rustfmt.md) for the accepted toolchain and
-lint-inheritance decision.
+[ADR-0016](adrs/adr-0016-pinned-nightly-rustfmt.md) for the accepted toolchain
+and lint-inheritance decision.
 
 Because registration occurs as the compiler encounters each attribute, step
 definitions must appear earlier in a module than any `#[scenario]` that uses
@@ -762,7 +762,7 @@ by declared Rust module. Scenario code passes a closed `StepScope`; lookup uses
 only that scope and rejects equally specific candidates. Library order and the
 previously matched step are deliberately absent from dispatch, preserving a
 lexical, deterministic specification vocabulary. RFC 0001
-([explicit step-library scopes](rfcs/0001-explicit-step-library-scopes.md))
+([explicit step-library scopes](rfcs/rfc-0001-explicit-step-library-scopes.md))
 defines the public selection contract, ambiguity model, and tooling scope.
 
 The `inventory` crate provides a clean and powerful abstraction over the
@@ -1188,13 +1188,13 @@ The step execution model described in §2.4 is synchronous: step wrappers are
 function pointers that execute immediately and return a `Result`. This section
 describes the asynchronous execution model that enables async scenario tests
 under Tokio. For the full architectural decision record, see
-[ADR-001](adr-001-async-fixtures-and-test.md).
+[ADR-0001](adrs/adr-0001-async-fixtures-and-test.md).
 
 > **Implementation status:** Async scenario execution is now implemented for
 > Tokio current-thread mode. The `scenarios!` macro accepts
 > `runtime = "tokio-current-thread"`, and `#[scenario]` detects `async fn` test
 > signatures. Step definitions may be `async fn` and are awaited sequentially
-> via the registered async wrapper (`AsyncStepFn`). ADR-005a moves runtime
+> via the registered async wrapper (`AsyncStepFn`). ADR-0025 moves runtime
 > selection into harness adapters and attribute policy plugins, and
 > `scenarios!` now treats `runtime = "tokio-current-thread"` as a
 > compatibility alias for Tokio harness selection.
@@ -1254,7 +1254,7 @@ is selected per scenario or per `scenarios!` invocation:
   `#[tokio::test]` annotation with an explicit `async fn` scenario.
 
 The legacy `runtime = "tokio-current-thread"` argument to `scenarios!` is a
-compatibility alias (per ADR-005a) that resolves to
+compatibility alias (per ADR-0025) that resolves to
 `harness = rstest_bdd_harness_tokio::TokioHarness`. This generates synchronous
 (not `async fn`) scenario test functions executed via `TokioHarness`, which
 provides the Tokio current-thread runtime. Async step functions are not
@@ -1348,7 +1348,7 @@ sequenceDiagram
 Manual scenario tests can opt into async execution by annotating the test
 function with `#[tokio::test]` and declaring it `async fn`.
 
-For auto-generated tests, ADR-005a introduces a harness adapter selection path.
+For auto-generated tests, ADR-0025 introduces a harness adapter selection path.
 The legacy `runtime = "tokio-current-thread"` argument is retained as
 compatibility syntax and now resolves to
 `rstest_bdd_harness_tokio::TokioHarness` (activated in roadmap item 9.2.4). The
@@ -1400,7 +1400,7 @@ execution, centralizing policy decisions that were previously embedded in the
 codegen layer. This separation keeps macro-generated code lightweight and makes
 runtime behaviour easier to test independently.
 
-ADR 018 records the accepted design for parser-neutral plans and a canonical
+ADR 0018 records the accepted design for parser-neutral plans and a canonical
 structured scenario runner built on this module. Stage 1 of that decision —
 §2.6.4's types and the two runners — has **landed**; the remaining staged work
 is the migration of the Gherkin frontend onto it and the lifecycle hooks, and
@@ -1459,7 +1459,7 @@ re-exports them from `rstest_bdd::execution` to preserve the public API, while
 the macro crate imports them directly from `rstest-bdd-policy`. That eliminates
 the manual synchronization risk that existed when each crate kept its own copy.
 
-ADR-005a supersedes these enums with harness adapters and attribute policy
+ADR-0025 supersedes these enums with harness adapters and attribute policy
 plugins. The harness adapter selects the execution strategy (sync, Tokio, GPUI,
 etc.), while an attribute policy plugin supplies the test attributes that must
 decorate generated scenario functions. This avoids embedding Tokio or GPUI
@@ -1491,7 +1491,7 @@ tested and modified without regenerating macro output.
 
 #### 2.6.4 The parser-neutral scenario runner
 
-`rstest_bdd::runner` is ADR-018's Stage 1. It executes a scenario the caller
+`rstest_bdd::runner` is ADR-0018's Stage 1. It executes a scenario the caller
 has already parsed, and it holds no frontend types: no `gherkin`, no Markdown,
 no Trymark, no process or reporter types. A non-Gherkin frontend therefore
 keeps its own source paths and line numbers all the way into the outcome.
@@ -1541,10 +1541,10 @@ run whose skip is permitted reports `ScenarioStatus::Skipped`, not a failure:
 no invocations. `is_passed` is deliberately not that fold, and the two disagree
 in the permitted-skip case.
 
-### 2.7 Harness adapters and attribute policy plugins (ADR-005a, ADR-007)
+### 2.7 Harness adapters and attribute policy plugins (ADR-0025, ADR-0007)
 
 Framework-specific test harnesses (Tokio, GPUI, Bevy, and others) should not
-inflate the default dependency graph of the core runtime or macros. ADR-005a
+inflate the default dependency graph of the core runtime or macros. ADR-0025
 introduces a harness adapter layer and a small attribute policy plugin
 interface so those integrations live in opt-in crates.
 
@@ -1591,9 +1591,9 @@ assert_eq!(harness.run(request).expect("std harness should not fail"), "ok");
 
 `ScenarioMetadata`, `ScenarioRunner<'a, C, T>`, and
 `ScenarioRunRequest<'a, C, T>` are the shared runner primitives for first-party
-and third-party harness crates. ADR-007 introduces `HarnessAdapter::Context` so
-harnesses can inject typed, framework-specific resources at the runner boundary
-without thread-local conventions.
+and third-party harness crates. ADR-0007 introduces `HarnessAdapter::Context`
+so harnesses can inject typed, framework-specific resources at the runner
+boundary without thread-local conventions.
 
 Phase 9.3.6 adds dedicated `StdHarness` behavioural coverage for parity with
 the Tokio harness test surface. The behavioural suite validates three baseline
@@ -1694,9 +1694,9 @@ body did not consume a fallible scenario's `Result`, producing
 a reason to weaken the fallible-scenario contract: every harness path must
 consume or propagate the scenario result. Unit-returning scenario functions
 already propagate fallible step errors and remain the simpler shape when the
-user body does not itself need `?` (ADR-006; roadmap 11.3.2).
+user body does not itself need `?` (ADR-0006; roadmap 11.3.2).
 
-**Context handoff (Phase 9.4.1 / ADR-007).** The harness contract now includes
+**Context handoff (Phase 9.4.1 / ADR-0007).** The harness contract now includes
 an associated context type:
 
 ```rust,no_run
@@ -1772,7 +1772,7 @@ The canonical path-to-hint mapping lives in `rstest-bdd-policy`, so adding
 first-party policy mappings no longer requires editing macro-local resolution
 tables.
 
-Attribute resolution follows the ADR-008 precedence order:
+Attribute resolution follows the ADR-0008 precedence order:
 
 1. explicit `attributes = ...`
 2. known first-party `harness = ...` mapping
@@ -1811,7 +1811,7 @@ adapters remain valid fallback paths without the diagnostic even when the
 first-party adapter crate is present.
 
 The accepted warning-channel and emission-ownership decision is recorded in
-[ADR-017](adr-017-toolchain-aware-adapter-fallback-diagnostics.md).
+[ADR-0017](adrs/adr-0017-toolchain-aware-adapter-fallback-diagnostics.md).
 
 The `codegen::adapter_fallback` module owns this diagnostic. Resolution is a
 pure decision that returns the selected base API crate path and optional
@@ -1856,17 +1856,17 @@ injection, regardless of the harness or attribute policy in use.
 **Dependency addition.** The macro crate (`rstest-bdd-macros`) gains a
 compile-time dependency on `rstest-bdd-harness` so it can emit fully-qualified
 trait paths in const assertions and harness delegation code. This is acceptable
-because `rstest-bdd-harness` is dependency-light per ADR-005a.
+because `rstest-bdd-harness` is dependency-light per ADR-0025.
 
-#### 2.7.4 ADR-008 codegen refactoring: harness-led attribute defaults
+#### 2.7.4 ADR-0008 codegen refactoring: harness-led attribute defaults
 
-ADR-008 did not only change user-facing precedence; it also refactored the
+ADR-0008 did not only change user-facing precedence; it also refactored the
 macro codegen path so that the implementation could express that precedence
 without further stretching the `scenario` module. In
 `crates/rstest-bdd-macros/src/codegen/scenario/test_attrs.rs`,
 `generate_test_attrs` now takes a `TestAttrPolicy<'a>` parameter object with
 `pub(super)` visibility, keeping it internal to the `scenario` codegen module
-while giving the grouping a name that matches ADR-008 terminology. The struct
+while giving the grouping a name that matches ADR-0008 terminology. The struct
 contains three policy-resolution inputs: `runtime: RuntimeMode`, which is the
 field that governs attribute-resolution fallback semantics when no harness or
 explicit attribute path is supplied, populated from
@@ -1893,7 +1893,7 @@ present, the deprecated `runtime = "tokio-current-thread"` alias still reaches
 Tokio behaviour through `RuntimeMode::test_attribute_hint()` when the runtime is
 `TokioCurrentThread`. Fourth, all remaining cases fall back to the sync or
 generic-async baseline, which emits `#[rstest::rstest]` only. This preserves
-ADR-008's "explicit policy beats harness default beats compatibility alias
+ADR-0008's "explicit policy beats harness default beats compatibility alias
 beats fallback" ordering while still producing `TokenStream2` output from one
 macro-local code path.
 
@@ -1925,7 +1925,7 @@ harness defaults, then the Tokio compatibility runtime alias, and finally the
 attribute-runtime or synchronous fallback before `generate_test_attrs` emits
 de-duplicated framework test attributes.*
 
-ADR-008 also introduced a deliberate split inside `ScenarioConfig` between
+ADR-0008 also introduced a deliberate split inside `ScenarioConfig` between
 `runtime: RuntimeMode` and `attribute_runtime: RuntimeMode`. The `runtime`
 field governs execution: whether the generated test body is `async fn`, which
 executor drives the body, and how the surrounding scenario machinery treats the
@@ -1974,7 +1974,7 @@ The first official adapters and policies are:
   `AttributePolicy` and emits `#[rstest::rstest]` followed by
   `#[tokio::test(flavor = "current_thread")]`. The crate depends only on
   `rstest-bdd-harness` (workspace) and `tokio` (version "1", features = ["
-  rt"]), keeping the dependency footprint minimal per ADR-005a. Immediate-ready
+  rt"]), keeping the dependency footprint minimal per ADR-0025. Immediate-ready
   async step *definitions* (`async fn` steps) do work inside `TokioHarness`,
   but the generated sync wrapper only polls them once when a harness-provided
   Tokio runtime is already active. If such a step yields `Pending`, execution
@@ -2084,7 +2084,7 @@ state patterns:
   protocol when a step must also borrow mutable harness context.
 
 Thread-local scenario state is an adoption workaround, not a replacement for
-the typed harness-context architecture selected by ADR-007. Any thread-local
+the typed harness-context architecture selected by ADR-0007. Any thread-local
 world must be reset before assigning scenario state, so failed or skipped
 scenarios cannot leak handles into a later scenario on the same test thread.
 
@@ -2124,7 +2124,7 @@ interaction.
 > on that typed error channel.
 >
 > The playbook's primary accessor form avoids `shadow_reuse` and
-> `unwrap_or_else(|| panic!(…))`. ADR-013 records the `make lint` Whitaker gate
+> `unwrap_or_else(|| panic!(…))`. ADR-0013 records the `make lint` Whitaker gate
 > that enforces `no_unwrap_or_else_panic`, and the user guide carries the
 > executable `let … else { panic!(…) }` shape mirrored by the regression suite.
 
@@ -2212,9 +2212,9 @@ the GPUI durable-handle specialization remains proven by `stateful_window.rs`.
 The user guide's "Bulk-migration cookbook" subsection documents the shape and
 bridges its GPUI snippets to published `gpui 0.2.2` through the vendored-to-
 published mapping table. This handwritten shared block is superseded by the
-v0.7.0 guard-based model (ADR-012); `ScenarioStore<T>` and the cleanup-guard
-fixture macro were proposed under ADR-011 (roadmap 10.3.1 and 10.3.2) but never
-shipped.
+v0.7.0 guard-based model (ADR-0012); `ScenarioStore<T>` and the cleanup-guard
+fixture macro were proposed under ADR-0011 (roadmap 10.3.1 and 10.3.2) but
+never shipped.
 
 ##### 2.7.6.3 v0.6.0-beta2 quick wins
 
@@ -2250,23 +2250,23 @@ The release strategy is therefore split by compatibility risk:
   11.2.1). It desugars to the reserved fixture key `rstest_bdd_harness_context`
   internally, and the legacy `#[from(rstest_bdd_harness_context)]` form is
   retained without deprecation. See the
-  [ADR-007 addendum](adr-007-harness-context-injection.md). Remaining
+  [ADR-0007 addendum](adrs/adr-0007-harness-context-injection.md). Remaining
   candidates, not yet shipped: a prelude for common integration imports, a
   typed borrow-error enum, and generated-wrapper coverage for mutable harness
   context plus scenario state. A first-party scenario-state helper
   (`ScenarioStore<T>` in `rstest-bdd`, `GpuiScenarioStore` in
   `rstest-bdd-harness-gpui`) and a cleanup-guard fixture macro were proposed
-  under [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) but were
-  superseded by ADR-012 before implementation and never shipped.
+  under [ADR-0011](adrs/adr-0011-first-party-scenario-state-and-cleanup.md) but
+  were superseded by ADR-0012 before implementation and never shipped.
 
 ##### 2.7.6.5 v0.7.0 pre-1.0.0 redesign
 
 - **Historical v0.6 guidance:** sections 2.7.6.1 and 2.7.6.2 record the former
   borrow constraint and its thread-local interim pattern for readers
   maintaining 0.6.x suites. They do not describe the current architecture.
-  ADR-012's implemented v0.7 contract uses `&self` borrow methods, `try_borrow`/
-  `try_borrow_mut` with typed `FixtureBorrowError` values, opaque guards that
-  permit concurrent borrows of distinct mutable fixtures, and
+  ADR-0012's implemented v0.7 contract uses `&self` borrow methods,
+  `try_borrow`/ `try_borrow_mut` with typed `FixtureBorrowError` values, opaque
+  guards that permit concurrent borrows of distinct mutable fixtures, and
   framework-guaranteed scenario-boundary cleanup. That contract supersedes both
   the interim pattern and the proposed `ScenarioStore<T>` helper. The remaining
   candidates are typed harness-context extractors that hide the reserved
@@ -2284,7 +2284,7 @@ dep-info, and rustc only records a file there when it was pulled in through
 `cargo::rerun-if-changed` directive; a procedural macro that opens a file with
 ordinary filesystem calls is invisible to that machinery.
 
-The shipping mechanism (ADR-010, accepted) is the **tracking binding**: each
+The shipping mechanism (ADR-0010, accepted) is the **tracking binding**: each
 macro emits, once per bound feature file and at item scope, an anonymous
 `const` whose value is
 `include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", <relative literal>))`.
@@ -2619,8 +2619,8 @@ macro.
   optimization and is orthogonal to *rebuild invalidation* (making Cargo aware
   that a `.feature`-only edit requires recompilation). The invalidation problem
   is separate and addressed by `§2.7.6.6` and
-  [ADR-010](adr-010-feature-file-change-detection.md). Confusing the two leads
-  to a plausible-sounding but ineffective mitigation: a cache that checks
+  [ADR-0010](adrs/adr-0010-feature-file-change-detection.md). Confusing the two
+  leads to a plausible-sounding but ineffective mitigation: a cache that checks
   `mtime` still does not tell Cargo to re-run the compiler.
 
 - **Runtime Step Matching:** The connection between a Gherkin step and its
@@ -2681,16 +2681,16 @@ between their BDD acceptance tests and their other unit/integration tests.
 
 The following table summarizes the key differences:
 
-| Feature          | rstest-bdd (Proposed)                                                                                                                     | cucumber                                                                        |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Test Runner      | Standard cargo test (via rstest expansion)                                                                                                | Custom runner invoked from a main function (World::run(…)) [^19]                |
-| State Management | rstest fixtures; dependency injection model [^1]                                                                                          | Mandatory World struct; a central state object per scenario [^11]               |
-| Step Discovery   | Automatic via compile-time registration (inventory) and runtime matching                                                                  | Explicit collection in the test runner setup (World::cucumber().steps(…)) [^20] |
-| Parameterization | Gherkin Scenario Outline maps to rstest's #[case] parameterization [^21]                                                                  | Handled internally by the cucumber runner                                       |
-| Async Support    | Tokio current-thread mode delivered via `TokioHarness`; multi-thread runtimes future work ([ADR-001](adr-001-async-fixtures-and-test.md)) | Built-in; requires specifying an async runtime [^11]                            |
-| Ecosystem        | Seamless integration with rstest and cargo features                                                                                       | Self-contained framework; can use any Rust library within steps                 |
-| Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features [^6]                                                            | cucumber-jvm/js-like; feature-driven, with a central test runner                |
-| Core Philosophy  | BDD as an extension of the existing rstest framework                                                                                      | A native Rust implementation of the Cucumber framework standard                 |
+| Feature          | rstest-bdd (Proposed)                                                                                                                            | cucumber                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Test Runner      | Standard cargo test (via rstest expansion)                                                                                                       | Custom runner invoked from a main function (World::run(…)) [^19]                |
+| State Management | rstest fixtures; dependency injection model [^1]                                                                                                 | Mandatory World struct; a central state object per scenario [^11]               |
+| Step Discovery   | Automatic via compile-time registration (inventory) and runtime matching                                                                         | Explicit collection in the test runner setup (World::cucumber().steps(…)) [^20] |
+| Parameterization | Gherkin Scenario Outline maps to rstest's #[case] parameterization [^21]                                                                         | Handled internally by the cucumber runner                                       |
+| Async Support    | Tokio current-thread mode delivered via `TokioHarness`; multi-thread runtimes future work ([ADR-0001](adrs/adr-0001-async-fixtures-and-test.md)) | Built-in; requires specifying an async runtime [^11]                            |
+| Ecosystem        | Seamless integration with rstest and cargo features                                                                                              | Self-contained framework; can use any Rust library within steps                 |
+| Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features [^6]                                                                   | cucumber-jvm/js-like; feature-driven, with a central test runner                |
+| Core Philosophy  | BDD as an extension of the existing rstest framework                                                                                             | A native Rust implementation of the Cucumber framework standard                 |
 
 ### 3.5 Potential extensions
 
@@ -2970,7 +2970,7 @@ value, and the scenario passed after boxing the error as an unused payload.
 Spelling `Result<(), E>` or using `StepResult` failed correctly, independent of
 whether the scenario function returned `()` or `Result<(), E>`. Because a named
 return type can also be a legitimate value alias, the macro cannot simply
-classify every unresolved path as a result. ADR-019 therefore selects through
+classify every unresolved path as a result. ADR-0019 therefore selects through
 inherent-method precedence at the concrete type, with regression coverage for
 both fallible and genuine-value aliases.
 
@@ -3026,10 +3026,10 @@ abort the scenario. Offering a payload does not guarantee it is recorded:
 `insert_value` returns an `InsertOutcome` naming whether the override took
 effect, or was dropped because no fixture had that type (`NoMatch`) or several
 did (`AmbiguousIgnored`). See
-[ADR-015](adr-015-insert-outcome-for-step-return-overrides.md). Once recorded,
-an override is visible through `try_borrow` and `try_borrow_mut` and takes
-precedence over the original fixture. `get::<T>` deliberately ignores override
-storage and serves shared fixtures only.
+[ADR-0015](adrs/adr-0015-insert-outcome-for-step-return-overrides.md). Once
+recorded, an override is visible through `try_borrow` and `try_borrow_mut` and
+takes precedence over the original fixture. `get::<T>` deliberately ignores
+override storage and serves shared fixtures only.
 
 For screen readers: The following sequence diagram shows the Then step
 requesting a typed fixture from `StepContext`. The context returns a shared
@@ -3225,7 +3225,8 @@ to record it. Execution marks the step itself at its command boundary.
 
 The ownership boundary and permitted call sites are recorded in the developer's
 guide under "Registry lookup and usage-marking invariants", and the decision is
-recorded in [ADR-024](adr-024-structural-usage-tracking-in-registry-lookups.md).
+recorded in
+[ADR-0024](adrs/adr-0024-structural-usage-tracking-in-registry-lookups.md).
 
 ### 3.10 Implicit fixture injection implementation
 
@@ -3396,7 +3397,7 @@ needs, because the first registry lookup trips a deliberate duplicate-step
 `assert!` that makes the unit-test binary unable to reach the registry at all.
 The reason is D21, and `docs/developers-guide.md` states it for contributors.
 
-### 3.12 Harness adapters and attribute plugins (ADR-005a)
+### 3.12 Harness adapters and attribute plugins (ADR-0025)
 
 The harness adapter architecture is now delivered as a small core harness
 crate, macro integration for selecting harnesses and attribute policies, and
@@ -3408,7 +3409,7 @@ Delivered behaviour:
   `ScenarioRunner<'a, C, T>`, `ScenarioRunRequest<'a, C, T>`,
   `AttributePolicy`, and `DefaultAttributePolicy` contracts.
 - `HarnessAdapter::Context` provides the typed fixture-injection boundary
-  selected by ADR-007. Harness-backed scenarios store that context in
+  selected by ADR-0007. Harness-backed scenarios store that context in
   `StepContext` under the reserved fixture key `rstest_bdd_harness_context`.
 - `rstest-bdd-macros` resolves first-party attribute policies by canonical
   path. Tokio and GPUI integrations therefore stay in opt-in crates while the
@@ -3578,7 +3579,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   `TryFrom<Vec<String>>`, ensuring each field declares the necessary `FromStr`
   bound. Derived aggregates bind captures by placeholder name rather than field
   declaration order; RFC 0002
-  ([named step-argument binding](rfcs/0002-named-step-argument-binding.md))
+  ([named step-argument binding](rfcs/rfc-0002-named-step-argument-binding.md))
   defines the mapping, conversion, and migration contract.
 - The wrapper honours a `#[step_args]` marker on exactly one parameter.
   The attribute is required because procedural macros cannot discover whether

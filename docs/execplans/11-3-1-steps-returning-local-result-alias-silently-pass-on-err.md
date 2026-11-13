@@ -79,7 +79,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
 - Stable Rust only. No nightly features, no `feature(specialization)`, no
   `auto_traits`, no `negative_impls`. The workspace minimum supported Rust
   version is `1.85` (`Cargo.toml`, `rust-version`). This constraint is the
-  entire reason ADR-002 exists.
+  entire reason ADR-0002 exists.
 - `unsafe_code = "forbid"` workspace-wide. Nothing in this change needs it.
 - No `.rs` file may exceed 400 lines
   (`scripts/check_rs_file_lengths.py`, run by `make lint`). Do **not** add
@@ -226,7 +226,7 @@ Stop and escalate when any of these is reached. Do not work around them.
       documentation made the 26-file limit inaccurate. The changed surface
       remains confined to this plan's listed runtime, macro, test, and
       documentation paths.
-- [x] EP-M5 Documentation: ADR-019, the ADR-002 amendment, design doc and
+- [x] EP-M5 Documentation: ADR-0019, the ADR-0002 amendment, design doc and
       diagram, users' guide, developers' guide, known issues, migration guide,
       CHANGELOG, contents index, ergonomics doc, and the roadmap are drafted.
       `make markdownlint` and `make nixie` are green. CodeRabbit reviewed the
@@ -469,13 +469,14 @@ Recorded during planning; keep appending during implementation.
   numbering, which would otherwise imply the wrong release line. Date/Author:
   2026-08-29, maintainer decision.
 
-- DEC-010: Write a new ADR-019 and *amend* ADR-002 rather than superseding it.
-  Rationale: ADR-002's load-bearing conclusion — reject nightly `auto_traits`/
+- DEC-010: Write a new ADR-0019 and *amend* ADR-0002 rather than superseding it.
+  Rationale: ADR-0002's load-bearing conclusion — reject nightly `auto_traits`/
   `negative_impls`, stay on stable — remains true and has live dependants
-  (`docs/adr-006-fallible-scenario-functions.md:16-18`,
+  (`docs/adrs/adr-0006-fallible-scenario-functions.md:16-18`,
   `docs/contents.md:66-67`). Only its *mechanism* bullet dies. Follow the dated
-  in-Status banner precedent set by `docs/adr-005-async-step-functions.md:5-9`.
-  Date/Author: 2026-08-29, planning agent, pending approval.
+  in-Status banner precedent set by
+  `docs/adrs/adr-0005-async-step-functions.md:5-9`. Date/Author: 2026-08-29,
+  planning agent, pending approval.
 
 - DEC-011: No `proptest`, `kani`, or `verus` for this change. See
   `Verification plan` for the justification; it is recorded there rather than
@@ -493,7 +494,7 @@ Recorded during planning; keep appending during implementation.
   migration impact. Moving imports into a runtime `macro_rules!` macro is not
   yet accepted as a remedy: it may change hygiene, but this must be proved
   rather than assumed. Affects DEC-002, EP-M0, INV-1, LEMMA-1, the module
-  invariants, and ADR-019. Status: **resolved 2026-08-29** — the maintainer
+  invariants, and ADR-0019. Status: **resolved 2026-08-29** — the maintainer
   approved the revised dispatch design recorded as `DEC-013` and `DEC-014`; the
   collision is eliminated rather than accepted as residual risk. The
   `macro_rules!` hygiene remedy is withdrawn without further experiment:
@@ -519,7 +520,7 @@ Recorded during planning; keep appending during implementation.
   stable; see `Surprises & discoveries`. Consequences: the fifteen-class
   classification matrix is unchanged; the emission drops the leading `(&probe)`
   autoref and its `clippy::needless_borrow` hazard; the module invariants and
-  AXIOM-1 are restated; ADR-019's rationale must credit inherent precedence,
+  AXIOM-1 are restated; ADR-0019's rationale must credit inherent precedence,
   not autoref ordering. Date/Author: 2026-08-29, maintainer decision.
 
 - DEC-014: Consume the selected tag through a *path-called* generic function
@@ -640,7 +641,7 @@ The workspace lives under `crates/`:
    (`crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/step_loop.rs:61-86`)
    receives `Ok(Some(payload))` and calls `let _ = ctx.insert_value(payload)`.
    `insert_value` returns
-   `InsertOutcome::{Inserted, NoMatch, AmbiguousIgnored}` (ADR-015). `NoMatch`
+   `InsertOutcome::{Inserted, NoMatch, AmbiguousIgnored}` (ADR-0015). `NoMatch`
    is dropped silently and, unlike `AmbiguousIgnored`, is not logged
    (`crates/rstest-bdd/src/context/mod.rs:317-319`).
 
@@ -658,7 +659,7 @@ migration for no benefit in the common case.
 
 Trait resolution, by contrast, happens after alias expansion. If the generated
 code asks the *compiler* which arm applies, aliases resolve for free. The
-obstacle ADR-002 identified is real — you cannot write "for all `T` except
+obstacle ADR-0002 identified is real — you cannot write "for all `T` except
 `Result<_, _>`" as a blanket impl without an overlap conflict — but method
 resolution sidesteps it. Under `DEC-013` the `Result` arm is an *inherent* impl
 and the fallback is a blanket trait: the two never meet in coherence at all,
@@ -674,18 +675,18 @@ Upstream artefacts and their revisions at the time of writing.
 - `docs/roadmap.md` item **11.3.1** (checked complete), located at lines
   1057-1075. Its design-doc citation now correctly names §3.8, and the item
   records that it landed in v0.6.0.
-- `docs/adr-002-stable-step-return-classification.md`, Status `Accepted`,
+- `docs/adrs/adr-0002-stable-step-return-classification.md`, Status `Accepted`,
   dated 2025-12-19. To be amended, not superseded (`DEC-010`).
-- `docs/adr-006-fallible-scenario-functions.md` — depends on ADR-002 for the
-  shared `ReturnKind`; needs a one-line note.
-- `docs/adr-015-insert-outcome-for-step-return-overrides.md` — defines
+- `docs/adrs/adr-0006-fallible-scenario-functions.md` — depends on ADR-0002 for
+  the shared `ReturnKind`; needs a one-line note.
+- `docs/adrs/adr-0015-insert-outcome-for-step-return-overrides.md` — defines
   `InsertOutcome`. Unchanged by this work, but it is the immediate downstream
   consumer of a classified payload.
 - `docs/rstest-bdd-design.md` §3.8, lines 2828-2944, including the Mermaid
   sequence diagram at 2906-2934 and its caption at 2936-2937.
 - `docs/users-guide.md` §"Step return values", lines 389-429. The heading text
-  must not change: `docs/adr-006-fallible-scenario-functions.md:17` deep-links
-  `users-guide.md#step-return-values`.
+  must not change: `docs/adrs/adr-0006-fallible-scenario-functions.md:17`
+  deep-links `users-guide.md#step-return-values`.
 - `docs/ergonomics-and-developer-experience.md` §3.1 bullet 3, lines 236-243.
 - `AGENTS.md` — the repository's binding conventions.
 - `docs/testing-strategy.md` — the structural-versus-semantic test split.
@@ -695,11 +696,11 @@ Upstream artefacts and their revisions at the time of writing.
 Trace links:
 
 ```plaintext
-issue#573 -> ROADMAP-11.3.1 -> ADR-019 -> EP-M3 -> tests::step_return::scenario_alias_no_hint_failure
-ROADMAP-11.3.1 -> ADR-002-amendment -> EP-M5 -> docs/users-guide.md#step-return-values
-ADR-002-L27 (stable overlap constraint) -> ADR-019-rationale -> EP-M3 -> crates/rstest-bdd/src/step_return.rs
+issue#573 -> ROADMAP-11.3.1 -> ADR-0019 -> EP-M3 -> tests::step_return::scenario_alias_no_hint_failure
+ROADMAP-11.3.1 -> ADR-0002-amendment -> EP-M5 -> docs/users-guide.md#step-return-values
+ADR-0002-L27 (stable overlap constraint) -> ADR-0019-rationale -> EP-M3 -> crates/rstest-bdd/src/step_return.rs
 gauss-beta3 -> DESIGN-3.8 -> EP-M5 -> docs/rstest-bdd-design.md sequence diagram
-ADR-015 (InsertOutcome) -> EP-M2 -> tests::step_return::scenario_alias_ok_overrides_fixture
+ADR-0015 (InsertOutcome) -> EP-M2 -> tests::step_return::scenario_alias_ok_overrides_fixture
 ```
 
 ## Verification plan
@@ -1228,7 +1229,7 @@ surface.
 **EP-M3 — the defect is fixed.** Requirements: discharges ROADMAP-11.3.1's core
 requirement and INV-1, INV-2, INV-3, INV-5. Acceptance:
 `step_return::scenario_alias_no_hint_failure` panics with `alias failure`; the
-full gate set passes. Conformance check: ADR-002's constraint "make unresolved
+full gate set passes. Conformance check: ADR-0002's constraint "make unresolved
 classification explicit without treating every named type as fallible" is
 satisfied — nothing is *assumed*, the compiler decides. No non-hidden public
 interface changed. No new dependency. No persisted or wire format touched.
@@ -1328,27 +1329,27 @@ Each item names the file and the passage. Prefer delegating the mechanical
 prose edits to the `scribe` sub-agent, with minimal, evidence-based changes
 that preserve project terminology.
 
-1. **New** `docs/adr-019-type-directed-step-return-classification.md`. Status
-   `Accepted`. Must state, in the rationale, *why* the mechanism sidesteps
-   ADR-002's line 27-28 constraint: the choice is made by **method-resolution
-   precedence — the `Result` arm is an inherent impl, the fallback a blanket
-   trait, so the two never meet in impl coherence, and where both apply,
-   inherent candidates outrank trait candidates** (`DEC-013`). Without that
-   sentence a future reader re-derives the 2025 constraint and reverts the
-   change. Also record why the dual-trait autoref ordering was rejected: its
-   arms sat at different probe positions, and EP-M0 proved a caller blanket
-   trait captures the earlier position silently. Also record that the design
-   satisfies `docs/ergonomics-and-developer-experience.md`'s first guiding
-   principle ("reduce ceremony … where intent can be clearly inferred"), since
-   it removes the need for `result` hints entirely.
-2. `docs/adr-002-stable-step-return-classification.md`: keep Status
+1. **New** `docs/adrs/adr-0019-type-directed-step-return-classification.md`.
+   Status `Accepted`. Must state, in the rationale, *why* the mechanism
+   sidesteps ADR-0002's line 27-28 constraint: the choice is made by
+   **method-resolution precedence — the `Result` arm is an inherent impl, the
+   fallback a blanket trait, so the two never meet in impl coherence, and where
+   both apply, inherent candidates outrank trait candidates** (`DEC-013`).
+   Without that sentence a future reader re-derives the 2025 constraint and
+   reverts the change. Also record why the dual-trait autoref ordering was
+   rejected: its arms sat at different probe positions, and EP-M0 proved a
+   caller blanket trait captures the earlier position silently. Also record
+   that the design satisfies `docs/ergonomics-and-developer-experience.md`'s
+   first guiding principle ("reduce ceremony … where intent can be clearly
+   inferred"), since it removes the need for `result` hints entirely.
+2. `docs/adrs/adr-0002-stable-step-return-classification.md`: keep Status
    `Accepted.`, add a dated amendment banner in the Status section following
-   the precedent at `docs/adr-005-async-step-functions.md:5-9`, and add an
+   the precedent at `docs/adrs/adr-0005-async-step-functions.md:5-9`, and add an
    `## Amendments` section. Correct or past-tense lines 32-37 (the "removing
    the need for trait trickery" claim), 39-43, 57-63 (the inverted alias
    paragraph — the most dangerous stale passage in the repository), 69-70, and
    78-82. Add a fourth entry to `## Alternatives considered` recording that
-   autoref specialization was not on the table in 2025-12, so ADR-019 reads as
+   autoref specialization was not on the table in 2025-12, so ADR-0019 reads as
    filling a blind spot rather than reversing a considered decision.
 3. `docs/rstest-bdd-design.md` §3.8: rewrite lines 2884-2889 and 2891-2901.
    The second passage currently *mandates* "require or diagnose an explicit
@@ -1359,9 +1360,9 @@ that preserve project terminology.
    2936-2937.
 4. `docs/users-guide.md` lines 389-429: rewrite 401-410 and 417-422. **Do not
    change the `### Step return values` heading text** —
-   `docs/adr-006-fallible-scenario-functions.md:17` deep-links its anchor.
-   Re-scope the hint-validation paragraph at 412-415 to `result` only. Lines
-   424-429 survive unchanged. Note that `make lint` runs
+   `docs/adrs/adr-0006-fallible-scenario-functions.md:17` deep-links its
+   anchor. Re-scope the hint-validation paragraph at 412-415 to `result` only.
+   Lines 424-429 survive unchanged. Note that `make lint` runs
    `scripts/check_users_guide_links.py`, so any new links here are gated.
 5. `docs/developers-guide.md`: add a new subsection. There is currently **no**
    coverage of return classification in this file at all — verified by grep —
@@ -1375,7 +1376,7 @@ that preserve project terminology.
    would swallow an `Err`: `Box<Result<..>>`, `Option<Result<..>>`,
    `&Result<..>`, and a type with `Deref<Target = Result<..>>`. Each entry must
    name the regression test that pins it, so the list is executable rather than
-   prose — ADR-002's own conclusion is that prose guidance alone is not an
+   prose — ADR-0002's own conclusion is that prose guidance alone is not an
    adequate guard against a false green. (`impl Trait` and nested `Result` are
    *not* listed here: `DEC-007` makes them compile errors.)
 7. `docs/v0-6-0-migration-guide.md`: per `DEC-009` this is a beta-to-final
@@ -1396,16 +1397,17 @@ that preserve project terminology.
 9. `docs/ergonomics-and-developer-experience.md` §3.1 bullet 3, lines 236-243:
    rewrite. It currently states the wrapper "will inspect its return type",
    which is no longer how the value/result split is decided.
-10. `docs/adr-006-fallible-scenario-functions.md` lines 16-18, 48, and 126: add
+10. `docs/adrs/adr-0006-fallible-scenario-functions.md` lines 16-18, 48, and
+    126: add
     a one-line note that scenarios retain `ReturnKind` while steps use
-    type-directed dispatch. Do not reopen ADR-006.
-11. `docs/adr-015-insert-outcome-for-step-return-overrides.md`: no change
+    type-directed dispatch. Do not reopen ADR-0006.
+11. `docs/adrs/adr-0015-insert-outcome-for-step-return-overrides.md`: no change
     needed, but confirm the payload-shape change does not invalidate its
     `NoMatch`/`AmbiguousIgnored` policy statement.
-12. `docs/contents.md`: note ADR-002 is amended by ADR-019 at lines 66-67;
-    insert the ADR-019 bullet after ADR-018 at lines 104-105; add the
-    `[adr-019]:` link reference to the **alphabetically sorted** block at lines
-    111-128, after `[adr-018]`.
+12. `docs/contents.md`: note ADR-0002 is amended by ADR-0019 at lines 66-67;
+    insert the ADR-0019 bullet after ADR-0018 at lines 104-105; add the
+    `[adr-0019]:` link reference to the **alphabetically sorted** block at lines
+    111-128, after `[adr-0018]`.
 13. `docs/CHANGELOG.md` under `## Unreleased`: a behaviour-change entry leading
     with the green-to-red warning.
 14. `docs/releasing-crates.md`: record the macro/runtime version-skew
@@ -1414,8 +1416,8 @@ that preserve project terminology.
     to §3.8; add a note that it landed in v0.6.0, since item 11.3 sits
     physically under the `## 12 … v0.7.0` heading despite its `11.` numbering.
 16. `docs/documentation-style-guide.md`: optional one-line addition recording
-    `Amended by ADR-NNN (YYYY-MM-DD)` as the sanctioned amendment form. There
-    is no such convention today and `docs/adr-005` invented one ad hoc.
+    `Amended by ADR-nnnn (YYYY-MM-DD)` as the sanctioned amendment form. There
+    is no such convention today and `docs/adrs/adr-0005` invented one ad hoc.
 
 ### Mermaid redraw (`docs/rstest-bdd-design.md` lines 2906-2934)
 
@@ -1616,9 +1618,9 @@ Read in this order before starting.
 | Before anything | `AGENTS.md`                                                                      | 400-line cap, `//!` docs, en-GB, `.expect()` policy, abstraction-documentation policy             |
 | Before anything | `docs/contents.md`                                                               | The index `AGENTS.md` mandates for choosing where documentation lands                             |
 | Before anything | `docs/repository-layout.md`                                                      | Orientation across crates                                                                         |
-| Design          | `docs/adr-002-stable-step-return-classification.md`                              | The decision being amended                                                                        |
+| Design          | `docs/adrs/adr-0002-stable-step-return-classification.md`                        | The decision being amended                                                                        |
 | Design          | `docs/rstest-bdd-design.md` §3.8, lines 2828-2944                                | The classification prose and diagram (**not** §2.1, which the roadmap wrongly cites)              |
-| Design          | `docs/documentation-style-guide.md` §ADRs                                        | ADR-019's required sections                                                                       |
+| Design          | `docs/documentation-style-guide.md` §ADRs                                        | ADR-0019's required sections                                                                      |
 | Implementation  | `docs/developers-guide.md`, "Generated-wrapper Tokio bridge"                     | The exact template for documenting a `#[doc(hidden)]` runtime-to-macro bridge                     |
 | Implementation  | `docs/complexity-antipatterns-and-refactoring-strategies.md`                     | Guidance for the EP-M1 extractions                                                                |
 | Tests           | `docs/testing-strategy.md`                                                       | The structural-versus-semantic split; the tag table is *structural* and must be justified as such |
@@ -1640,7 +1642,7 @@ Read in this order before starting.
 | C        | `rust-unit-testing`                                  | `rstest` `#[case]` tables, `pretty_assertions`, `googletest`, `insta`                                                |
 | C, E     | `nextest`                                            | `make test` prefers `cargo nextest`; the trybuild binary is in a serialized test group                               |
 | B        | `rust-unused-code`                                   | The EP-M1 extractions will surface `dead_code` questions                                                             |
-| F        | `arch-decision-records`                              | ADR-019 and the amendment-versus-supersession call                                                                   |
+| F        | `arch-decision-records`                              | ADR-0019 and the amendment-versus-supersession call                                                                  |
 | F        | `en-gb-oxendict`                                     | Hard-gated by `make markdownlint` via `typos`                                                                        |
 | E        | `addressing-whitaker-findings`                       | `make lint` runs the full Whitaker Dylint suite over new public API                                                  |
 | Landing  | `commit-message`, `pr-creation`, `comenq-coderabbit` | Repository-standard commit, pull-request, and review loop                                                            |

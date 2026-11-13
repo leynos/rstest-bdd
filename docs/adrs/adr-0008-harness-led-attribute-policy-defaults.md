@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 008: harness-led integration defaults
+# Architectural decision record (ADR) 0008: harness-led integration defaults
 
 ## Status
 
@@ -46,7 +46,7 @@ profile-level selector.
 
 - Reduce repetition in the common first-party harness configuration path.
 - Keep runtime behaviour and generated test attributes aligned by default.
-- Preserve the architectural separation introduced by ADR-005a.
+- Preserve the architectural separation introduced by ADR-0025.
 - Retain support for valid `attributes`-only and `harness`-only use cases.
 - Avoid relying on compile-time reflection that Rust procedural macros do not
   provide.
@@ -323,7 +323,7 @@ profile type rather than a bare crate name.
 
 ## Architectural rationale
 
-This direction keeps the clean boundary introduced by ADR-005a: runtime
+This direction keeps the clean boundary introduced by ADR-0025: runtime
 delegation and emitted test attributes remain separate responsibilities. It
 improves ergonomics by defaulting the secondary concern from the primary one,
 which is usually what users mean when they choose a harness.
@@ -337,7 +337,7 @@ defaults from arbitrary crates.
 
 ## References
 
-- [ADR 005a: harness adapter crates][adr-005a] records the harness abstraction
+- [ADR 0025: harness adapter crates][adr-0025] records the harness abstraction
   whose first-party adapters supply these defaults.
 
-[adr-005a]: adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md
+[adr-0025]: adr-0025-harness-adapter-crates-for-framework-specific-test-integration.md

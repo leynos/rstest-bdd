@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 009: consistent implicit fixture-name normalization
+# Architectural decision record (ADR) 0009: consistent implicit fixture-name normalization
 
 ## Status
 

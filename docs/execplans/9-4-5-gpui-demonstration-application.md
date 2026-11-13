@@ -48,11 +48,11 @@ the example's BDD scenarios pass, and the full gate set passes: `make fmt`,
 ## Constraints
 
 - Implement only roadmap item 9.4.5 from `docs/roadmap.md`.
-- Preserve Architecture Decision Record (ADR) 005 boundaries: GPUI
+- Preserve Architecture Decision Record (ADR) 0005 boundaries: GPUI
   dependencies remain outside core crates. The example may depend on `gpui` and
   `rstest-bdd-harness-gpui`, but `rstest-bdd`, `rstest-bdd-macros`, and
   `rstest-bdd-harness` must not gain new GPUI-specific responsibilities.
-- Preserve ADR-007 usage: step access to harness context must continue to flow
+- Preserve ADR-0007 usage: step access to harness context must continue to flow
   through `rstest_bdd_harness_context`.
 - Keep the example aligned with the current workspace GPUI shim in
   `vendor/gpui`; do not design the example around APIs that the repository does
@@ -263,8 +263,8 @@ Reference documents reviewed while drafting this plan:
 - `docs/rust-doctest-dry-guide.md`
 - `docs/complexity-antipatterns-and-refactoring-strategies.md`
 - `docs/gherkin-syntax.md`
-- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
-- `docs/adr-007-harness-context-injection.md`
+- `docs/adrs/adr-0025-harness-adapter-crates-for-framework-specific-test-integration.md`
+- `docs/adrs/adr-0007-harness-context-injection.md`
 
 ## Plan of work
 

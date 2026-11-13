@@ -6,7 +6,7 @@
 //! records the override (last write wins); ambiguous matches leave fixtures
 //! untouched.
 //!
-//! Borrowing is guard-based (ADR-012): borrow methods take `&self`, so
+//! Borrowing is guard-based (ADR-0012): borrow methods take `&self`, so
 //! guards for **distinct** fixtures may be held concurrently — including
 //! multiple mutable guards — without tripping `E0499`/`E0502`. Conflicting
 //! borrows of the **same** fixture surface as

@@ -3,7 +3,7 @@
 //! A warning raised while resolving step-return overrides must reach the
 //! developer even when the consuming test binary configures no logging at all,
 //! which is the common case for a test framework. Emission therefore goes
-//! through `tracing` (ADR-020), and a mirrored `eprintln!` covers the case
+//! through `tracing` (ADR-0020), and a mirrored `eprintln!` covers the case
 //! where no listener exists, so the warning is surfaced exactly once.
 
 /// Target every step-context warning is emitted and probed under.

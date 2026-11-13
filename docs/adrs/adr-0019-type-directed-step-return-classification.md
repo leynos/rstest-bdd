@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 019: type-directed step-return classification
+# Architectural decision record (ADR) 0019: type-directed step-return classification
 
 ## Status
 
@@ -11,7 +11,7 @@ type-directed bridge while preserving explicit hints and value aliases.
 
 ## Context and problem statement
 
-ADR-002 deliberately used macro-time syntax to distinguish unit, value, and
+ADR-0002 deliberately used macro-time syntax to distinguish unit, value, and
 known `Result` step returns. That stable-Rust compromise did not resolve local
 type aliases. A fallible alias could therefore be emitted as a value, box its
 `Err` as an unused payload, and let the scenario pass.
@@ -39,7 +39,7 @@ fallback. The selected zero-sized tag then normalizes the original value:
 `Result` errors become scenario failures, and successful payloads retain
 ordinary override behaviour.
 
-The mechanism sidesteps ADR-002's stable-Rust constraint through
+The mechanism sidesteps ADR-0002's stable-Rust constraint through
 method-resolution precedence: the `Result` arm is an inherent implementation,
 the fallback is a blanket trait, so the two never meet in implementation
 coherence, and where both apply, inherent candidates outrank trait candidates.
@@ -97,17 +97,17 @@ capture the earlier autoref position silently.
 ### Stable specialization or negative bounds
 
 Rejected. They are unavailable on stable Rust and would reintroduce the
-compatibility problem ADR-002 removed.
+compatibility problem ADR-0002 removed.
 
 ## References
 
-- [ADR-002: stable step return classification][adr-002]
+- [ADR-0002: stable step return classification][adr-0002]
 - [Ergonomics and developer experience][ergonomics]
 - [Step-return dispatch regressions][dispatch-tests]
 - [Rust reference: method-call expressions][method-resolution]
 - [Autoref specialization case study][autoref-specialization]
 
-[adr-002]: adr-002-stable-step-return-classification.md
+[adr-0002]: adr-0002-stable-step-return-classification.md
 [autoref-specialization]: https://github.com/dtolnay/case-studies/tree/master/autoref-specialization
 [dispatch-tests]: ../crates/rstest-bdd/tests/step_return_dispatch.rs
 [ergonomics]: ergonomics-and-developer-experience.md

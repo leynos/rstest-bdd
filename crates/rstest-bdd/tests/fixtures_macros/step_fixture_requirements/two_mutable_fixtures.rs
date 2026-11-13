@@ -1,6 +1,6 @@
 //! Compile-pass fixture for two mutable fixture borrows.
 //!
-//! Before ADR-012 this was a compile-fail case: `StepContext::borrow_mut`
+//! Before ADR-0012 this was a compile-fail case: `StepContext::borrow_mut`
 //! took `&mut self`, so the generated wrapper could not hold two mutable
 //! guards and rejected this signature with `E0499`. Guard-based borrowing
 //! makes the wrapper compile; this fixture pins that capability.

@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 020: consolidate on the `tracing` logging facade
+# Architectural decision record (ADR) 0020: consolidate on the `tracing` logging facade
 
 ## Status
 
@@ -153,11 +153,11 @@ warning twice.
 - Issue [#386][i386]: consider consolidating logging facades.
 - Pull request [#384][pr384]: raised the split while adding the Tokio
   current-thread scenario runtime.
-- [ADR 015: name the step-return override outcome][adr-015] covers the
+- [ADR 0015: name the step-return override outcome][adr-0015] covers the
   ambiguous-override outcome whose warning this decision reroutes.
 - [Developers' guide observability guidance](developers-guide.md#observability-guidance)
   records the emission conventions for harness authors.
 
-[adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
+[adr-0015]: adr-0015-insert-outcome-for-step-return-overrides.md
 [i386]: https://github.com/leynos/rstest-bdd/issues/386
 [pr384]: https://github.com/leynos/rstest-bdd/pull/384

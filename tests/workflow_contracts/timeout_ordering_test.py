@@ -13,7 +13,7 @@ third of its budget, and the failure read as an infrastructure fault
 rather than as a slow build. Nothing in ``.config/nextest.toml`` mentions
 the watchdog, and nothing in the workflow mentioned nextest, so the two
 could drift apart without either side noticing. The run budget has since
-been raised to 90 m; the arithmetic below reads it from the configuration
+been raised to 145 m; the arithmetic below reads it from the configuration
 rather than restating it.
 
 Two of the four timers do not start together, which the ordering has to

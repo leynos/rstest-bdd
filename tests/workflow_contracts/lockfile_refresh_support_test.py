@@ -14,10 +14,18 @@ Run with:
 import ast
 import typing as typ
 
-from lockfile_refresh_support import EXAMPLE_DIR_PREFIX, example_working_dir
+from lockfile_refresh_support import (
+    EXAMPLE_DIR_PREFIX,
+    INVOCATION_LOG_NAME,
+    example_working_dir,
+    read_invocation_log,
+    run_fragment,
+)
 from workflow_support import repository_file
 
 if typ.TYPE_CHECKING:
+    from pathlib import Path
+
     import pytest
 
 
@@ -72,6 +80,25 @@ def test_scratch_directories_live_under_the_pytest_base_directory(
             f"{directory.name!r} must carry the {EXAMPLE_DIR_PREFIX!r} prefix, "
             "which is what names the directory's owner in a failure"
         )
+
+
+def test_run_fragment_ignores_bash_env_path_rewrites(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep host Bash startup hooks from bypassing the recording Git stub."""
+    bash_env = tmp_path / "bash-env"
+    bash_env.write_text("PATH=/usr/bin:/bin\n", encoding="utf-8")
+    monkeypatch.setenv("BASH_ENV", str(bash_env))
+
+    result = run_fragment("git push origin 'HEAD:branch'", {}, tmp_path)
+
+    assert read_invocation_log(tmp_path / INVOCATION_LOG_NAME) == [
+        ["push", "origin", "HEAD:branch"]
+    ], "the runner must use the recording Git stub even when BASH_ENV rewrites PATH"
+    assert result.returncode == 0, (
+        f"the recorder must complete the fixture command, exit {result.returncode}, "
+        f"stderr {result.stderr!r}"
+    )
 
 
 #: The property whose settings are held, and where it is declared.

@@ -293,8 +293,8 @@ Documentation signposts:
 - `docs/rstest-bdd-design.md` section 2.7.6.3 for the beta2 quick-win scope,
   and section 2.7.6.1 for the borrow limitation that this task must not solve.
 - Architecture Decision Record (ADR)-007, recorded in
-  `docs/adr-007-harness-context-injection.md`, for the reserved harness context
-  fixture convention.
+  `docs/adrs/adr-0007-harness-context-injection.md`, for the reserved harness
+  context fixture convention.
 - `docs/users-guide.md` sections covering fixture injection, manual mutable
   sharing, harness adapters, single-leading-underscore normalization, and
   `#[from(...)]` as the exact-name escape hatch.

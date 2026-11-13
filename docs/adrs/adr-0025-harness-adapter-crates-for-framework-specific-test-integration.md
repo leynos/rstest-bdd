@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 005a: introduce harness adapter crates for framework-specific test integration
+# Architectural decision record (ADR) 0025: introduce harness adapter crates for framework-specific test integration
 
 ## Status
 
@@ -11,8 +11,11 @@ Bill of Materials) entries), while enabling Behaviour-Driven Development
 will follow the same pattern.
 
 Amended (2026-09-14): Renumber this record as ADR-005a to distinguish the
-harness-adapter decision from ADR-005's async-step-functions decision; the
+harness-adapter decision from ADR-0005's async-step-functions decision; the
 accepted decision content is unchanged.
+
+Amended (2026-11-03): Renumber this record as ADR-0025 to follow the adopted
+four-digit serial convention; the accepted decision content is unchanged.
 
 ## Date
 
@@ -237,7 +240,13 @@ execution semantics.
 
 ### 2026-09-14: assign the 005a identifier
 
-This record was renumbered from ADR-005 to ADR-005a because ADR-005 now
+This record was renumbered from ADR-0005 to ADR-005a because ADR-0005 now
 identifies the async-step-functions decision. The harness-adapter decision and
 its accepted content are unchanged; the filename and heading carry the new
 identifier to remove the collision.
+
+### 2026-11-03: adopt the four-digit serial convention
+
+The repository adopted four-digit serials for ADR filenames and headings. The
+legacy `005a` suffix does not fit that scheme, so this record now uses
+ADR-0025, the next available serial. Its accepted decision content is unchanged.

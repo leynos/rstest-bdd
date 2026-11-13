@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 001: async fixtures and tests (Tokio)
+# Architectural decision record (ADR) 0001: async fixtures and tests (Tokio)
 
 ## Status
 
@@ -274,10 +274,10 @@ clear.
 
 ## Related decisions
 
-ADR-004 introduces a shared `rstest-bdd-policy` crate to centralize
+ADR-0004 introduces a shared `rstest-bdd-policy` crate to centralize
 `RuntimeMode` and `TestAttributeHint` for both the runtime and macro crates.
 This ADR does not change the async execution direction above; it only removes
 policy duplication between crates.
 
-ADR-005a records the harness-adapter crates, which took over runtime selection.
-ADR-005 records the native async step-function decision.
+ADR-0025 records the harness-adapter crates, which took over runtime selection.
+ADR-0005 records the native async step-function decision.
