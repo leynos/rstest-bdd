@@ -1493,6 +1493,34 @@ Hard invariants. Violation requires escalation, not a workaround.
   `USERPROFILE` before `HOME`, with this base's relative-target resolution
   applied on top of it.
 
+- [x] (2026-11-14) Split the preparation contracts out of
+      `crates/rstest-bdd/tests/nextest_config.rs` into
+      `crates/rstest-bdd/tests/nextest_config/preparation.rs`. The first gate
+      run on the rebased candidate reached `make lint`'s file-length step and
+      failed: the file was 443 lines against the 400-line cap. Neither branch
+      was at fault, because the cap compares against one number: the target had
+      395 lines, this branch's old head 398, and the replay kept both sides'
+      contracts, so the union crossed the limit. No content was duplicated —
+      the replay correctly kept this branch's parameterized
+      `nextest_override_preserves_timeout_contract`, with
+      `override_for_exact_filter` and `assert_slow_timeout_contract`, alongside
+      #910's preparation and command-bound contracts — so trimming would have
+      deleted a live contract.
+
+  The split is by cohesion rather than by size alone: the preparation
+  override's four promises (only match, first position, scheduling priority,
+  per-command bound) are one subject, and the filtered-override and trybuild
+  contracts the parent keeps are another. The child module is attached with
+  `#[path = "nextest_config/preparation.rs"]`, matching `support.rs`, so Cargo
+  does not also compile it as a second test target. The parent is now 297 lines
+  and the child 204. Verified with the pinned `cargo +nightly-2026-08-07 fmt`,
+  `cargo clippy -p rstest-bdd --test nextest_config --all-features -- -D
+  warnings`,
+  and a direct run of the target, which reported 6 passed including both
+  `preparation::*` tests. Moving them one module deeper changes their reported
+  names to `preparation::…`; no Nextest filter, workflow or script matches them
+  by name, which `rg` confirmed outside this plan.
+
 ## Surprises & discoveries
 
 - Observation: `make markdownlint` passing is not evidence that a Markdown
