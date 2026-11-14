@@ -115,9 +115,12 @@ Hard invariants. Violation requires escalation, not a workaround.
   runs behave differently from CI. Severity: high. Likelihood: medium.
   Mitigation: unit tests inject sources (`MapEnv`, `_at` loaders,
   `SubcommandFileContext`) and never rely on discovery; binary-level tests
-  isolate `HOME`, `XDG_CONFIG_HOME`, `XDG_CONFIG_DIRS`, `USERPROFILE`, and
-  `APPDATA`, and remove the four configurable `CARGO_BDD_CMDS_*` variables from
-  the child process environment.
+  isolate `HOME`, `XDG_CONFIG_HOME`, `XDG_CONFIG_DIRS`, and `APPDATA`, and
+  remove the four configurable `CARGO_BDD_CMDS_*` variables from the child
+  process environment. `USERPROFILE` is deliberately *not* isolated: `HOME`
+  alone closes the home dotfile because discovery reads it first, and removing
+  `USERPROFILE` from the filtered child breaks the `sccache` compiler wrapper
+  on Windows. See the Progress entry for 2026-11-14 and the Decision log.
 - Risk: the Cargo-dispatch wrapper's `external_subcommand` help differs from
   the flat `cargo-bdd --help`. Severity: medium. Likelihood: high. Mitigation:
   select the helper only when argv begins with Cargo's injected `bdd` token;
@@ -1119,12 +1122,67 @@ Hard invariants. Violation requires escalation, not a workaround.
       cached: the conversion can fail, and caching a failure would remember it
       for the whole test binary, the same argument the cache already makes
       about `io::Result`. The shared `home_root` gained a `clone()` because
-      both `HOME` and `USERPROFILE` must carry the same path. `cargo check -p
-      cargo-bdd --tests` is clean, `cargo test -p cargo-bdd --test cli` ran 22
-      tests with 22 passed, and the poisoned-`HOME` control — a real
+      `HOME` and `USERPROFILE` were both redirected to it; the round-13 entry
+      below removes that second redirect and with it the clone. `cargo check
+      -p cargo-bdd --tests` is clean, `cargo test -p cargo-bdd --test cli` ran
+      22 tests with 22 passed, and the poisoned-`HOME` control — a real
       `$HOME/.cargo_bdd.toml` setting `cmds.skipped.json = true` — leaves
       `skipped_subcommand_includes_reasons_and_lines` passing, which is the
       behaviour the redirection exists to buy.
+
+- [x] (2026-11-14) Round 13, on `28b6adef`, returned zero findings
+      (`/tmp/coderabbit-issue-901-r13.out`).
+
+- [x] (2026-11-14) Both Windows CI jobs were red from `5d990774` onward while
+      every local Linux gate was green. Root cause: that commit added
+      `USERPROFILE` to the CLI test child environment's discovery redirect,
+      and the child environment is *filtered* — `NestedCargoEnv::apply_to`
+      calls `env_clear()` and re-applies only the map — so the variable
+      vanished from every nested process. `sccache` 0.12.0, which CI installs
+      as `RUSTC_WRAPPER`, resolves its own configuration through
+      `directories::ProjectDirs`; on Windows that routes to the Known Folder
+      API, which resolves through the user profile. With `USERPROFILE`
+      removed the lookup returned `None`, `sccache` panicked at
+      `config.rs:961` with "Unable to get config directory", and every nested
+      `cargo metadata` exited 101. The failure was misattributed at first to
+      the `configuration.rs` helper alone; the reason it hit unrelated tests
+      such as `nested_target::an_absent_target_falls_back_to_the_workspace_target`
+      is that the clear-and-reapply is process-wide, so one missing key
+      affects every child.
+
+- [x] (2026-11-14) Fixed by not redirecting `USERPROFILE`, which is redundant
+      as well as harmful: `ortho_config-0.10.0/src/subcommand/paths.rs` reads
+      `HOME` first and falls back to `USERPROFILE` only when `HOME` is absent
+      (non-Unix `collect_non_unix_paths`), so redirecting `HOME` already keeps
+      a developer's home dotfile out of the child. Removed the redirect from
+      `discovery_variables` in `crates/cargo-bdd/tests/cli/configuration.rs`
+      and from `empty_configuration_home_variables` in
+      `crates/cargo-bdd/tests/cli/discovery.rs`, dropping the now-unneeded
+      `clone()`. The two remaining `USERPROFILE` writes —
+      `tests/baseline_output.rs` and `tests/invocation/workspace.rs` — are not
+      the same defect and are unchanged: both call `env_clear()` themselves
+      and then *add* a valid `USERPROFILE`, so `sccache` has a profile to
+      resolve and never runs without one.
+
+- [x] (2026-11-14) Guarded by
+      `cli_child_environment_keeps_userprofile_inherited` in
+      `crates/cargo-bdd/tests/cli/environment.rs`. Verified non-vacuous by
+      mutation control: reinstating `USERPROFILE` in
+      `empty_configuration_home_variables` fails that row alone — 6 passed, 1
+      failed — with `left: Some("/tmp/cargo-bdd-cli-empty-home-…/home")`,
+      `right: Some("/home/carried-through")`. The mutation was reverted and
+      the file restored from a saved copy.
+
+- [x] (2026-11-14) Gates on the round-13 tree, `REV_START` and `REV_END` both
+      `28b6adef`. The Rust gate-input hash was
+      `aa2204ae3138a045c91cac6ae309f241e529bdf169220dcbdbcef9ab3b89f3c2` at
+      the start of `make check-fmt` and unchanged after the last test run. It
+      differs from the round-12 value `7af567e0…` because this round edits Rust
+      gate inputs. `make check-fmt` 0, `make markdownlint` 0, `make nixie` 0,
+      `make lint` 0 through all nine steps, `make typecheck` 0
+      (`All checks passed!`), and `cargo test -p cargo-bdd` 0 with 46 + 1 + 23
+      + 21 tests passing across its four targets. The nested-fixture target
+      took 676.63 s under compile-admission contention and still passed.
 
 ## Surprises & discoveries
 
@@ -1324,6 +1382,29 @@ Hard invariants. Violation requires escalation, not a workaround.
   later layout change returns `None` and defers to `cargo metadata` instead of
   guessing.
 
+- Observation: a *redundant* environment redirect can still break an unrelated
+  tool. Redirecting `USERPROFILE` alongside `HOME` narrowed the discovery
+  search space by nothing — `HOME` is read first, so the home dotfile was
+  already covered — yet it removed the only value the Windows Known Folder API
+  could resolve a profile from, which made `sccache` panic on every nested
+  `cargo` invocation. Evidence: Windows was green at `76f8f63e`, red at
+  `1caf9302`, and red from `5d990774` onward, the commit that introduced the
+  redirect; `main` was green throughout. Impact: the redirect is removed, and
+  `cli_child_environment_keeps_userprofile_inherited` now pins the absence so a
+  future "belt and braces" addition fails on Linux before reaching CI. The
+  general lesson is recorded in the Decision log: in a *filtered* child
+  environment, adding a variable is never a no-op, so a redirect must be
+  justified by a search root it actually closes.
+
+- Observation: a green local gate run is not evidence about a Windows-only
+  failure, and the pre-existing gate list gives no such evidence. The `sccache`
+  panic needed `RUSTC_WRAPPER` to reach a nested process, which only CI
+  arranges, so no Linux gate could have caught it. Impact: the only local check
+  that now covers this class is the unit test on the environment helper itself,
+  which asserts the *shape* of the map rather than the outcome in a child. That
+  is deliberate — it is the strongest assertion available without reproducing
+  the Windows toolchain.
+
 ## Decision log
 
 - Decision: take `ortho_config` v0.10.0 with default features enabled.
@@ -1474,6 +1555,27 @@ Hard invariants. Violation requires escalation, not a workaround.
   including the explicit-policy in-flight row — pass. The mutation was reverted
   and `git diff` confirms `crates/rstest-bdd/src/` is clean. Date/Author:
   2026-11-13, implementing agent; revised after review round 11.
+
+- Decision: leave `USERPROFILE` inherited in the CLI fixture's child
+  environment, and never redirect a variable that does not close a search root
+  of its own. Rationale: the redirect was redundant — discovery reads `HOME`
+  first on non-Unix and consults `USERPROFILE` only as a fallback — but not
+  harmless, because the child environment is built by filtering and then
+  `env_clear()`, so any variable absent from the map is absent from every
+  nested process. `sccache` resolves its configuration through the Windows
+  Known Folder API, which needs a resolvable profile; without one it panics and
+  every nested `cargo` in the suite dies. The two other `USERPROFILE` writes in
+  the suite (`tests/baseline_output.rs`, `tests/invocation/workspace.rs`) are
+  left alone: each clears the environment itself and then *adds* a valid
+  `USERPROFILE`, so they set the profile rather than remove it. Alternatives
+  considered and declined: keeping the redirect and clearing `RUSTC_WRAPPER` in
+  the child (hides the tool the gate is meant to exercise, and would not fix
+  other profile-dependent children), and redirecting `USERPROFILE` but also
+  setting `SCCACHE_CONF` (works, but adds a second unexplained special case to
+  buy back a redirect that closes nothing). Evidence: Windows green at
+  `76f8f63e`, red from `5d990774` onward, green on `main`; local guard test
+  fails on the reintroduced redirect and passes without it. Date/Author:
+  2026-11-14, implementing agent; from review round 13's CI evidence.
 
 ## Outcomes & retrospective
 
@@ -1783,18 +1885,20 @@ The change introduces five obligations worth stating.
   elsewhere; TOML only with default features). Method: treated as an axiom
   about a third-party interface, with one contract-level check: run the child
   from an empty temporary working directory, assert that it contains no local
-  `.cargo_bdd.toml`, and point `HOME`, `XDG_CONFIG_HOME`, `XDG_CONFIG_DIRS`,
-  `USERPROFILE`, and `APPDATA` at empty temporary directories. Remove the four
-  `CARGO_BDD_CMDS_*` setting variables from the child environment. This
-  confirms that none of the discovery roots settable from the environment, nor
-  the environment tier, contributes a value. It does **not** establish full
-  isolation: on Windows the native configuration directory is obtained through
-  the Windows API rather than from a variable, so `APPDATA` does not redirect
-  it and the check cannot speak for that root. The Unix roots — the home
-  dotfile, both XDG bases including the `/etc/xdg` fallback — are all covered.
-  Rationale: verifying OrthoConfig's internals is out of scope, but the
-  repository's hermeticity depends on this boundary, so it is exercised once
-  rather than assumed. Residual gap: a developer with a real
+  `.cargo_bdd.toml`, and point `HOME`, `XDG_CONFIG_HOME`, `XDG_CONFIG_DIRS`, and
+  `APPDATA` at empty temporary directories. `USERPROFILE` is left inherited:
+  `HOME` closes the home dotfile, and removing `USERPROFILE` from a filtered
+  child breaks `sccache` on Windows (see the Progress entry for 2026-11-14).
+  Remove the four `CARGO_BDD_CMDS_*` setting variables from the child
+  environment. This confirms that none of the discovery roots settable from the
+  environment, nor the environment tier, contributes a value. It does **not**
+  establish full isolation: on Windows the native configuration directory is
+  obtained through the Windows API rather than from a variable, so `APPDATA`
+  does not redirect it and the check cannot speak for that root. The Unix roots
+  — the home dotfile, both XDG bases including the `/etc/xdg` fallback — are
+  all covered. Rationale: verifying OrthoConfig's internals is out of scope,
+  but the repository's hermeticity depends on this boundary, so it is exercised
+  once rather than assumed. Residual gap: a developer with a real
   `~/.cargo_bdd.toml` will see it affect local runs. The users' guide must say
   so.
 

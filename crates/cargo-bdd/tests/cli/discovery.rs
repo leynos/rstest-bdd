@@ -32,11 +32,21 @@ use cap_std::{ambient_authority, fs_utf8::Dir};
 /// three empty directories per test binary, well under a kilobyte; cleaning it
 /// up is left to the host's temporary-directory housekeeping.
 ///
-/// `HOME` and `USERPROFILE` cover the home dotfile, which both platforms read
-/// and where Windows falls back from `HOME` to `USERPROFILE`.
+/// `HOME` covers the home dotfile on every platform. On Windows it outranks
+/// `USERPROFILE` in the discovery order, so redirecting it is enough and
+/// `USERPROFILE` is deliberately left inherited: it is how the Windows
+/// Known Folder API resolves a profile, and `sccache` — which CI installs as
+/// `RUSTC_WRAPPER` — calls `directories::ProjectDirs` while resolving its own
+/// configuration. With the profile unresolvable that call returns `None`,
+/// `sccache` panics, and every nested cargo invocation in this suite dies with
+/// `Unable to get config directory`. The earlier redirect covered
+/// `USERPROFILE` as well and passed locally on Linux while turning both
+/// Windows CI jobs red.
+///
 /// `XDG_CONFIG_HOME` and `XDG_CONFIG_DIRS` cover the Unix bases; the latter
 /// must be set rather than left absent, because an absent or wholly relative
-/// value means `/etc/xdg`, which is a host root again.
+/// value means `/etc/xdg`, which is a host root again. Windows ignores both,
+/// so they are set there only to keep one environment map for both platforms.
 ///
 /// `CARGO_HOME` and `RUSTUP_HOME` hold no discovery candidate, so they are not
 /// redirected but carried: see `ambient_cargo_home_variables`.
@@ -62,8 +72,7 @@ pub(super) fn empty_configuration_home_variables(
     let xdg_config_home = create_sibling(&home, "xdg-config-home")?;
     let xdg_config_dirs = create_sibling(&home, "xdg-config-dirs")?;
     let mut variables = vec![
-        (OsString::from("HOME"), home_root.clone()),
-        (OsString::from("USERPROFILE"), home_root),
+        (OsString::from("HOME"), home_root),
         (OsString::from("XDG_CONFIG_HOME"), xdg_config_home),
         (OsString::from("XDG_CONFIG_DIRS"), xdg_config_dirs),
     ];
@@ -134,6 +143,10 @@ fn create_sibling(parent: &Utf8Path, name: &str) -> io::Result<OsString> {
 /// untouched, which is what lets a test point the registry somewhere of its
 /// own choosing. The ambient variable outranks the default for the same reason,
 /// matching Cargo's own precedence.
+///
+/// `USERPROFILE` is consulted only as a home source when `HOME` is absent,
+/// matching the same precedence Cargo uses. It is never redirected into the
+/// child: see the module documentation for why.
 fn ambient_cargo_home_variables(requested: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
     let home = env::var_os("HOME").or_else(|| env::var_os("USERPROFILE"));
     [("CARGO_HOME", ".cargo"), ("RUSTUP_HOME", ".rustup")]
