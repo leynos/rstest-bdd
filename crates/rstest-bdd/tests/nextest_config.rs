@@ -29,10 +29,18 @@
 //!   s reserve) and requires the default profile's `global-timeout` to cover it, and the
 //!   `cargo-spawning` group's `max-threads` to stay at 1 so nested builds keep serializing.
 //!
-//! The three timed overrides are asserted at their exact periods rather than only
+//! The timed overrides are asserted at their exact periods rather than only
 //! against the global timeout, because widening one is how a cold build gets
 //! hidden instead of moved: the preparation override is the only place in the
 //! file where a cold dependency build may spend a test's budget.
+//!
+//! Four binaries now carry a longer period: the preparation, the `cargo-bdd`
+//! CLI smoke tests, `rstest-bdd-harness::binary_test_support_cargo`, and the
+//! compile-test and rebuild-invalidation families. Each was added because a
+//! lane observation showed it shelling out to `cargo` under the default 60 s
+//! hang detector; `binary_test_support_cargo` was the last one found, on run
+//! 43607129223. A fifth nested-Cargo test must join this set rather than
+//! inherit the default.
 //!
 //! The overrides, the group and the run-level ceiling are policy that a future
 //! edit could break silently, so these assertions fail loudly instead. They
