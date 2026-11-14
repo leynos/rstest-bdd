@@ -10,11 +10,12 @@ Status: IMPLEMENTATION COMPLETE (the head `83a0e488` failed hosted run
 this branch's own span test. That was a flake in a test this branch added, not
 a regression in the diff: the same code passed the lane at `a634e98a`. It has
 been diagnosed and fixed at the source rather than by loosening the assertion,
-and the fix is measured — see `Progress` and `Surprises & discoveries`. A
-hosted verdict for the fix is pending, so the latest *green* hosted verdict
-remains CI run `43592197882` at `a634e98a`, where all three required
-`build-test` jobs passed. Earlier green runs, including `f10c0e4d` under run
-`43582906292` and `f93347ef` and `76f8f63e` under run `43453087168`, are
+and the fix is measured — see `Progress` and `Surprises & discoveries`. The
+fix's own hosted verdict is run `43604994289` at `0b798c1e`, which passed with
+all three required `build-test` jobs green, so the failing lane's verdict has
+been re-taken for the fixed tree rather than inferred from the earlier run.
+Earlier green runs, including `43592197882` at `a634e98a`, `f10c0e4d` under
+`43582906292`, and `f93347ef` and `76f8f63e` under `43453087168`, are
 historical evidence recorded in `Progress`; merge pending)
 
 ## Purpose / big picture
@@ -551,9 +552,11 @@ Hard invariants. Violation requires escalation, not a workaround.
       unchecked until the pull request lands on `main`. The head `83a0e488`
       failed hosted run `43596802177` on the required Windows strict lane, in
       this branch's own span test; that flake is diagnosed and fixed at its
-      source (see `Progress`), and a hosted verdict for the fix is pending. The
-      latest *green* hosted verdict remains CI run `43592197882` at
-      `a634e98a`, where all three `build-test` jobs passed. The `make test`
+      source (see `Progress`), and the fix passed hosted run `43604994289` at
+      `0b798c1e` with all three `build-test` jobs green. The failing lane's
+      verdict is therefore re-taken for the fixed tree, not carried over from
+      an earlier one. That run supersedes CI run `43592197882` at `a634e98a`
+      as the latest green verdict. The `make test`
       row is met locally at `f7fa8cd6`, and the commits after it edit only this
       plan, which no Rust gate reads, so that row's input has not moved. The
       Markdown gates do read this file, and were re-run at the head.
@@ -1425,6 +1428,12 @@ Hard invariants. Violation requires escalation, not a workaround.
       --no-default-features --features 'rstest-bdd/diagnostics
       rstest-bdd-server/test-support strict-compile-time-validation'` — and
       exited zero with 2214 passed, 0 failed and 7 ignored.
+      The fix was committed as `0b798c1e` and pushed, and hosted run
+      `43604994289` passed there with all three required `build-test` jobs
+      green, including `build-test (windows,
+      strict-compile-time-validation)` — the lane that had failed at
+      `83a0e488`. The failing test's own verdict is therefore re-taken for the
+      fixed tree rather than carried over from the earlier run.
 
 ## Surprises & discoveries
 
