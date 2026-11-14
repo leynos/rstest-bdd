@@ -3393,12 +3393,15 @@ reasons = true
 json = true
 ```
 
-On Unix and Redox, `cargo-bdd` checks `~/.cargo_bdd.toml`, the first existing
-XDG `cargo_bdd/config.toml`, then `./.cargo_bdd.toml`, merging them in that
-order. It uses `$XDG_CONFIG_HOME/cargo_bdd` when `XDG_CONFIG_HOME` is an
-absolute path; otherwise it uses `$HOME/.config/cargo_bdd`. If neither
-`XDG_CONFIG_DIRS` nor an absolute directory in it is available, the system
-default is `/etc/xdg/cargo_bdd`.
+On Unix and Redox, `cargo-bdd` checks `~/.cargo_bdd.toml`, then each XDG
+`cargo_bdd/config.toml` in its search order, then `./.cargo_bdd.toml`, merging
+them in that order. The user directory comes first: it uses
+`$XDG_CONFIG_HOME/cargo_bdd` when `XDG_CONFIG_HOME` is an absolute path, and
+otherwise `$HOME/.config/cargo_bdd`. Every absolute directory in
+`XDG_CONFIG_DIRS` is then searched in the order listed, so a setting that
+appears in more than one of them comes from the first that defines it. If
+`XDG_CONFIG_DIRS` is unset, empty, or holds no absolute directory, the single
+system default `/etc/xdg/cargo_bdd` replaces that part of the search.
 
 On other platforms, it checks the home `.cargo_bdd.toml`, the native
 `cargo_bdd/config.toml` directory, then the working-directory

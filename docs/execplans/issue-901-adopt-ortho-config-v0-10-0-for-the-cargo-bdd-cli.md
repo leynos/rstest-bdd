@@ -1302,6 +1302,24 @@ Hard invariants. Violation requires escalation, not a workaround.
       the verbatim copies, so the correction was recorded in
       `docs/rstest-bdd-design.md` and belongs upstream in `leynos/ortho-config`.
 
+- [x] (2026-11-14) Round 18 reported four findings, all in scope and all fixed.
+      Findings 1 and 2 found a *fourth* copy of the Windows home defect, in
+      `crates/cargo-bdd/tests/invocation/workspace.rs`, which redirects four
+      roots and so was missed when the first three were corrected. It read
+      `HOME` first on both platforms, and it skipped both explicit toolchain
+      homes whenever neither ambient home existed even though `env_clear()`
+      had already removed them. Each override is now resolved independently,
+      and the fallback derives from `toolchain_home()`. The invocation target
+      passed 21 of 21 cases after the change, which includes the
+      Cargo-dispatched forms the finding said could not find the toolchain.
+      Finding 3 was right that the users' guide named only the first existing
+      XDG directory; `ortho_config`'s `source_xdg_bases` consults every
+      absolute `XDG_CONFIG_DIRS` entry in its listed order, so the guide now
+      says so. Finding 4 is now stated precisely rather than dropped: the two
+      fixtures redirect different amounts, only Unix and Redox are fully
+      isolated because only there are the XDG bases the whole search, and the
+      `cli` helper deliberately leaves `USERPROFILE` inherited for `sccache`.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected

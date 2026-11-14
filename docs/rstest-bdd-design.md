@@ -2960,10 +2960,20 @@ the same example still consults `HOME`/`USERPROFILE` or the platform home
 fallback, and `EnvSource::config_dir_fallback` when available, so a reader who
 copies it on Windows does not get the isolation the comment promises. The
 repository imports the guide verbatim and does not correct it in place; see
-[the provenance record](ortho-config-v0-10-0-provenance.md). Supplying `HOME`
-(or `USERPROFILE` on non-Unix) alongside the XDG variables is what closes the
-gap, and that is what `empty_configuration_home_variables` does for the CLI
-tests described below.
+[the provenance record](ortho-config-v0-10-0-provenance.md). Supplying a home
+alongside the XDG variables is what closes that part of the gap, and
+`empty_configuration_home_variables` does it for the CLI tests described below.
+
+That closes the home dotfile and nothing more. The two test fixtures redirect
+different amounts. `empty_configuration_home_variables` sets `HOME` and leaves
+`USERPROFILE` inherited, because the Windows profile Known Folder API resolves
+from it and `sccache` panics when it cannot; the separate native configuration
+directory comes from that API rather than from `APPDATA`, so no variable
+redirects it, and that fixture remains non-hermetic on Windows as `V5` records.
+The invocation fixture clears the environment and sets both `HOME` and
+`USERPROFILE`, which covers the native lookup as far as any variable can. Both
+are the best isolation their platform permits, not full isolation; only Unix
+and Redox, where the XDG bases are the whole search, are fully isolated.
 
 #### Environment prefix and legacy names
 
