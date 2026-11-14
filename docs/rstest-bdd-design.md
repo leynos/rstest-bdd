@@ -2951,6 +2951,20 @@ This subcommand loader does not expose OrthoConfig's hidden `--config-path`
 option or a `CARGO_BDD_CONFIG_PATH` selector. Its file inputs are the default
 discovery locations above.
 
+One comment in the imported OrthoConfig guide overstates its isolation. The
+`guide-subcommand-sources` example supplies a map holding only
+`XDG_CONFIG_HOME` and `XDG_CONFIG_DIRS`, and its comment says "nothing outside
+this map and the explicit base is consulted". That is true on Unix and Redox,
+where those are the whole search. It is not true elsewhere: on non-Unix targets
+the same example still consults `HOME`/`USERPROFILE` or the platform home
+fallback, and `EnvSource::config_dir_fallback` when available, so a reader who
+copies it on Windows does not get the isolation the comment promises. The
+repository imports the guide verbatim and does not correct it in place; see
+[the provenance record](ortho-config-v0-10-0-provenance.md). Supplying `HOME`
+(or `USERPROFILE` on non-Unix) alongside the XDG variables is what closes the
+gap, and that is what `empty_configuration_home_variables` does for the CLI
+tests described below.
+
 #### Environment prefix and legacy names
 
 The prefix is `CARGO_BDD_`. A subcommand setting is spelled

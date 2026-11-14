@@ -544,9 +544,12 @@ Hard invariants. Violation requires escalation, not a workaround.
       Gecko Security passed. CodeRabbit, Sourcery and automerge were skipped.
 - [ ] §6: documentation, gates, follow-up review, commit, push, hosted CI,
       review reconciliation, and merge. Merge is still pending: this box stays
-      unchecked until the pull request lands on `main`. The hosted checks for
-      the current head are green and the local `make test` exception has been
-      cleared, so the work this section names is done; only the merge remains.
+      unchecked until the pull request lands on `main`. The latest *completed*
+      hosted verdict is `f93347ef`, where all three `build-test` jobs passed;
+      heads pushed since then have no recorded verdict, so this entry claims
+      nothing about them. The final-tree `make test` acceptance is likewise
+      still unmet, as the `make test` row records: the one unfiltered run is
+      historical. Both are the work this section names, so it stays incomplete.
       The candidate was rebased onto `origin/main`
       (`693bba91`) and gated at revision `96e38df8`; the rebase described in
       `Outcomes & retrospective` is the later one.
@@ -554,9 +557,8 @@ Hard invariants. Violation requires escalation, not a workaround.
       `make nixie` and `make test-workflow-contracts` (373 tests) all exited
       zero there, as did the workspace doc tests, `make check-fixture-lockfiles`
       and `scripts/tests` (290 tests). The full suite passed every test that
-      reached a verdict; the single-invocation `make test` exception is
-      recorded in Outcomes & retrospective. The earlier delivery history
-      follows. Its first hosted
+      reached a verdict there. Those verdicts are all historical now. The
+      earlier delivery history follows. Its first hosted
       run #41673314102 failed before tests started on Windows because the
       Unix-only `ConfigFixture::local_directory` helper triggered `dead_code`
       under `-D warnings`; the helper now has a `#[cfg(unix)]` guard. Linux also
@@ -1249,6 +1251,54 @@ Hard invariants. Violation requires escalation, not a workaround.
       was corrected. The current head's suite was still in progress when it was
       read, so the line names `f93347ef` as the latest *completed* verdict and
       claims nothing about `0952d888`.
+
+- [x] (2026-11-14) CodeRabbit round 17 raised seven findings. Four were code
+      changes, two were record corrections, and one is an upstream defect this
+      repository must not fix in the imported text.
+
+- [x] (2026-11-14) Toolchain-home resolution was wrong on Windows, in three
+      copies. `toolchain_home` in `cli/discovery.rs`, `cargo_home_variables` in
+      `cli/configuration.rs` and `ambient_location` in `cli/environment.rs` all
+      derived `CARGO_HOME`/`RUSTUP_HOME` from `HOME` first. Cargo and Rustup
+      resolve their home through the `home` crate, which on Windows reads
+      `USERPROFILE` and the profile Known Folder API and never `HOME`; the file
+      *discovery* order is a different thing and does read `HOME` first, which
+      is why only `HOME` is redirected. A Windows shell that sets both to
+      different values was therefore handed a registry under the wrong root.
+      All three now use `USERPROFILE`-first on Windows, skip an empty value,
+      and keep explicit overrides.
+
+- [x] (2026-11-14) Two shared helpers panicked outside a test boundary, which
+      `docs/developers-guide.md` forbids: `cli_child_environment` discarded the
+      `io::Error` from `empty_configuration_home_variables` and panicked, and
+      `render_listing` used two `.expect()` calls. Both now return `Result` and
+      propagate with `?`; their callers keep the terminal assertion at the test
+      boundary. `cli_child_environment`'s `?` still returns before any
+      environment is built, so a failure cannot fall back to the host's
+      discovery roots.
+
+- [x] (2026-11-14) The seven shared assertion helpers in the `invocation`
+      target became macros, so a failure reports the case that chose the input
+      rather than a line inside the helper body that six cases share. The
+      macros are defined above their first use because `macro_rules!` is
+      textually scoped, and the two the child module calls are re-exported.
+
+- [x] (2026-11-14) Two plan claims were corrected rather than defended. The
+      `make test` row claimed final-tree acceptance from the `8a5cb67f` run;
+      that run is historical — `git rev-list --count 8a5cb67f..41f50191`
+      reports fifteen commits between it and this text — so the row is now
+      recorded as **unmet** again. The §6 entry said the current head's hosted
+      checks were green; it now names `f93347ef` as the latest completed
+      verdict and claims nothing about later heads.
+
+- [x] (2026-11-14) The seventh finding is a real defect in the imported
+      OrthoConfig guide and is *not* fixed here. Its `guide-subcommand-sources`
+      comment claims "nothing outside this map and the explicit base is
+      consulted", which on non-Unix targets is false: the same example still
+      reads `HOME`/`USERPROFILE` or the platform home fallback and
+      `EnvSource::config_dir_fallback`. The provenance contract forbids editing
+      the verbatim copies, so the correction was recorded in
+      `docs/rstest-bdd-design.md` and belongs upstream in `leynos/ortho-config`.
 
 ## Surprises & discoveries
 
@@ -2115,11 +2165,17 @@ Acceptance means all of the following, in one gate run against the final tree:
   checks `cargo-bdd` with OrthoConfig. These commands test the package-level
   MSRV split directly.
 
-The `make test` row asks for one gate run against the final tree. It is now met
-locally: the whole recipe ran once at `8a5cb67f`, unfiltered, and exited zero
-with every test finished. Every remaining statement in this subsection is the
-earlier evidence that the row accumulated before that run; where it says the
-row is unmet or an exception is retained, the later record in
+The `make test` row asks for one gate run against the final tree. One such run
+exists: the whole recipe ran unfiltered at `8a5cb67f` and exited zero with
+every test finished. It is *historical* evidence, not the final-tree acceptance
+the row asks for. `git rev-list --count 8a5cb67f..41f50191` reports fifteen
+commits between that run and this text, and this round changed test-only files
+as well — and a test-only change still reaches the gate's input. That
+acceptance therefore remains **unmet**: it needs one unfiltered `make test` at
+whatever revision the pull request is merged from, with a verdict recorded
+against that exact revision. Every remaining statement in this subsection is
+older evidence still, accumulated before that run; where it says the row is
+unmet or an exception is retained, the later record in
 `Outcomes & retrospective` supersedes it.
 
 - Hosted run `43386083081` on `e28a927a` passed all three `build-test` jobs.
