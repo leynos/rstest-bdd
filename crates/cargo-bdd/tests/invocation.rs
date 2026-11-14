@@ -4,7 +4,7 @@
 //! file stays focused on the observable contract: which invocation forms reach
 //! a handler, and which bytes and exit statuses each failure produces.
 
-use std::{io, process::Output};
+use std::io;
 
 use rstest::rstest;
 
@@ -16,6 +16,115 @@ mod observability;
 mod workspace;
 
 use workspace::{Invocation, IsolatedWorkspace, isolated_workspace};
+
+/// Assert the exit status, empty stdout and stderr prefix of a load failure.
+///
+/// A macro rather than a function so a failure reports the call site that
+/// chose the input. Three cases reach it with three different malformed
+/// documents, and the reported line is what tells them apart.
+macro_rules! assert_configuration_error {
+    ($output:expr) => {{
+        let output = $output;
+        assert_eq!(output.status.code(), Some(1));
+        assert_eq!(output.stdout, [] as [u8; 0]);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("failed to load configuration for `steps`"));
+    }};
+}
+
+/// Assert the diagnostic for a configured JSON mode with no merged `skipped`.
+///
+/// The message names both keys, so a rejection that fired for a different
+/// reason — an unreadable file, or the CLI-only guard — would not match.
+macro_rules! assert_invalid_configuration_error {
+    ($output:expr) => {{
+        let output = $output;
+        assert_eq!(
+            (output.status.code(), output.stdout.as_slice()),
+            (Some(1), b"" as &[u8])
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("invalid configuration `cmds.steps.json = true`"),
+            "expected the invalid-configuration diagnostic, got: {stderr}"
+        );
+        assert!(
+            stderr.contains("`cmds.steps.skipped = true` or pass `--skipped`"),
+            "expected the diagnostic to name both remedies, got: {stderr}"
+        );
+    }};
+}
+
+/// Assert a successful help invocation that printed `usage` and no stderr.
+macro_rules! assert_successful_help {
+    ($output:expr, $usage:expr) => {{
+        let output = $output;
+        let usage = $usage;
+        assert!(output.status.success(), "help invocation should succeed");
+        assert!(String::from_utf8_lossy(&output.stdout).contains(usage));
+        assert_eq!(output.stderr, [] as [u8; 0]);
+    }};
+}
+
+/// Assert a successful listing that emitted exactly an empty JSON array.
+macro_rules! assert_successful_json_listing {
+    ($output:expr) => {{
+        let output = $output;
+        assert!(output.status.success(), "JSON listing should succeed");
+        assert_eq!(
+            (output.stdout.as_slice(), output.stderr.as_slice()),
+            (b"[]\n" as &[u8], b"" as &[u8])
+        );
+    }};
+}
+
+/// Assert two invocations produced identical stdout and stderr.
+macro_rules! assert_matching_streams {
+    ($actual:expr, $expected:expr) => {{
+        let (actual, expected) = ($actual, $expected);
+        assert_eq!(
+            (actual.stdout.as_slice(), actual.stderr.as_slice()),
+            (expected.stdout.as_slice(), expected.stderr.as_slice())
+        );
+    }};
+}
+
+/// Assert the exact exit status, empty stdout and stderr of a parse failure.
+macro_rules! assert_missing_skipped_error {
+    ($output:expr, $expected_stderr:expr) => {{
+        let output = $output;
+        let expected_stderr = $expected_stderr;
+        assert_eq!(
+            (
+                output.status.code(),
+                output.stdout.as_slice(),
+                output.stderr.as_slice()
+            ),
+            (Some(2), b"" as &[u8], expected_stderr.as_bytes())
+        );
+    }};
+}
+
+/// Assert the injected and Cargo-dispatched forms fail identically.
+macro_rules! assert_matching_parse_failures {
+    ($injected:expr, $cargo:expr) => {{
+        let (injected, cargo) = ($injected, $cargo);
+        assert_eq!(
+            (injected.status.code(), cargo.status.code()),
+            (Some(2), Some(2))
+        );
+        assert_eq!(
+            (injected.stdout.as_slice(), injected.stderr.as_slice()),
+            (cargo.stdout.as_slice(), cargo.stderr.as_slice())
+        );
+        assert!(String::from_utf8_lossy(&cargo.stderr).contains("--skipped"));
+    }};
+}
+
+// Re-exported so the child modules, which are textually after this file's
+// `mod` declarations, can call the macros by path.
+pub(crate) use assert_invalid_configuration_error;
+pub(crate) use assert_successful_json_listing;
 
 /// Every invocation form renders the same `steps --help` usage text.
 #[rstest]
@@ -32,9 +141,9 @@ fn flat_injected_and_real_cargo_forms_share_the_same_command_help(
     } else {
         "Usage: cargo-bdd steps"
     };
-    assert_successful_help(&flat, flat_usage);
-    assert_successful_help(&injected, "Usage: cargo bdd steps");
-    assert_matching_streams(&injected, &cargo);
+    assert_successful_help!(&flat, flat_usage);
+    assert_successful_help!(&injected, "Usage: cargo bdd steps");
+    assert_matching_streams!(&injected, &cargo);
     Ok(())
 }
 
@@ -52,7 +161,7 @@ fn all_invocation_forms_reach_the_steps_handler_with_file_configuration(
     let cargo = workspace.cargo_dispatch(&["steps", "--json"])?;
 
     for output in [&flat, &injected, &cargo] {
-        assert_successful_json_listing(output);
+        assert_successful_json_listing!(output);
     }
     Ok(())
 }
@@ -69,7 +178,7 @@ fn explicit_json_uses_environment_configuration_in_a_child_process(
         variables: &[("CARGO_BDD_CMDS_STEPS_SKIPPED", "true")],
     })?;
 
-    assert_successful_json_listing(&output);
+    assert_successful_json_listing!(&output);
     Ok(())
 }
 
@@ -89,8 +198,8 @@ fn flat_steps_json_without_configuration_keeps_the_original_parse_failure(
         "For more information, try '--help'.\n"
     );
 
-    assert_missing_skipped_error(&flat, expected_flat_stderr);
-    assert_matching_parse_failures(&injected, &cargo);
+    assert_missing_skipped_error!(&flat, expected_flat_stderr);
+    assert_matching_parse_failures!(&injected, &cargo);
     Ok(())
 }
 
@@ -120,7 +229,7 @@ fn configuration_file_errors_exit_one_on_stderr(
 
     let output = workspace.direct(&["steps"])?;
 
-    assert_configuration_error(&output);
+    assert_configuration_error!(&output);
     Ok(())
 }
 
@@ -172,83 +281,6 @@ fn unreadable_local_configuration_exits_one_on_stderr(
         }
     };
 
-    assert_configuration_error(&output);
+    assert_configuration_error!(&output);
     Ok(())
-}
-
-/// Assert the exit status, empty stdout and stderr prefix of a load failure.
-fn assert_configuration_error(output: &Output) {
-    assert_eq!(output.status.code(), Some(1));
-    assert_eq!(output.stdout, [] as [u8; 0]);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("failed to load configuration for `steps`"));
-}
-
-/// Assert the diagnostic for a configured JSON mode with no merged `skipped`.
-///
-/// The message names both keys, so a rejection that fired for a different
-/// reason — an unreadable file, or the CLI-only guard — would not match.
-fn assert_invalid_configuration_error(output: &Output) {
-    assert_eq!(
-        (output.status.code(), output.stdout.as_slice()),
-        (Some(1), b"" as &[u8])
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("invalid configuration `cmds.steps.json = true`"),
-        "expected the invalid-configuration diagnostic, got: {stderr}"
-    );
-    assert!(
-        stderr.contains("`cmds.steps.skipped = true` or pass `--skipped`"),
-        "expected the diagnostic to name both remedies, got: {stderr}"
-    );
-}
-
-/// Assert a successful help invocation that printed `usage` and no stderr.
-fn assert_successful_help(output: &Output, usage: &str) {
-    assert!(output.status.success(), "help invocation should succeed");
-    assert!(String::from_utf8_lossy(&output.stdout).contains(usage));
-    assert_eq!(output.stderr, [] as [u8; 0]);
-}
-
-/// Assert a successful listing that emitted exactly an empty JSON array.
-fn assert_successful_json_listing(output: &Output) {
-    assert!(output.status.success(), "JSON listing should succeed");
-    assert_eq!(
-        (output.stdout.as_slice(), output.stderr.as_slice()),
-        (b"[]\n" as &[u8], b"" as &[u8])
-    );
-}
-
-/// Assert two invocations produced identical stdout and stderr.
-fn assert_matching_streams(actual: &Output, expected: &Output) {
-    assert_eq!(
-        (actual.stdout.as_slice(), actual.stderr.as_slice()),
-        (expected.stdout.as_slice(), expected.stderr.as_slice())
-    );
-}
-
-/// Assert the exact exit status, empty stdout and stderr of a parse failure.
-fn assert_missing_skipped_error(output: &Output, expected_stderr: &str) {
-    assert_eq!(
-        (
-            output.status.code(),
-            output.stdout.as_slice(),
-            output.stderr.as_slice()
-        ),
-        (Some(2), b"" as &[u8], expected_stderr.as_bytes())
-    );
-}
-
-/// Assert the injected and Cargo-dispatched forms fail identically.
-fn assert_matching_parse_failures(injected: &Output, cargo: &Output) {
-    assert_eq!(
-        (injected.status.code(), cargo.status.code()),
-        (Some(2), Some(2))
-    );
-    assert_eq!(
-        (injected.stdout.as_slice(), injected.stderr.as_slice()),
-        (cargo.stdout.as_slice(), cargo.stderr.as_slice())
-    );
-    assert!(String::from_utf8_lossy(&cargo.stderr).contains("--skipped"));
 }

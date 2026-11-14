@@ -183,14 +183,21 @@ fn discovery_variables(root: &Dir, configuration_home: &str) -> Result<Vec<(Stri
 /// Carry the ambient Cargo and Rustup homes into the redirected child.
 ///
 /// Cargo locates its registry through `CARGO_HOME`, defaulting to
-/// `$HOME/.cargo`, so redirecting `HOME` alone would point the nested build at
-/// an empty registry. `RUSTUP_HOME` is carried for the same reason: the child
-/// resolves `cargo` through the ambient toolchain. A variable the developer
-/// has already set wins over the `$HOME`-derived default, matching Cargo's own
-/// precedence. `USERPROFILE` supplies the ambient home where `HOME` is absent,
-/// matching the same precedence.
+/// `$CARGO_TOOLCHAIN_HOME/.cargo`, so redirecting `HOME` alone would point the
+/// nested build at an empty registry. `RUSTUP_HOME` is carried for the same
+/// reason: the child resolves `cargo` through the ambient toolchain. A variable
+/// the developer has already set wins over the derived default, matching
+/// Cargo's own precedence.
+///
+/// The base of that default is [`toolchain_home`], not `HOME`, because Cargo
+/// and Rustup resolve their home through the `home` crate: on Windows that is
+/// `USERPROFILE` and then the profile Known Folder API, and it never reads
+/// `HOME`. The configuration file's discovery order is the opposite and reads
+/// `HOME` first, which is why only `HOME` is redirected. Deriving both from one
+/// variable would hand the child a registry under the wrong root whenever a
+/// Windows shell sets a Unix-style `HOME` distinct from the profile.
 fn cargo_home_variables() -> Vec<(String, String)> {
-    let home = env::var("HOME").or_else(|_| env::var("USERPROFILE")).ok();
+    let home = toolchain_home();
     [("CARGO_HOME", ".cargo"), ("RUSTUP_HOME", ".rustup")]
         .into_iter()
         .filter_map(|(key, directory)| {
@@ -201,6 +208,24 @@ fn cargo_home_variables() -> Vec<(String, String)> {
                 .map(|value| (key.to_owned(), value))
         })
         .collect()
+}
+
+/// The home Cargo and Rustup derive their defaults from.
+///
+/// Mirrors `crates/cargo-bdd/tests/cli/discovery.rs`, which owns the same
+/// decision for the shared helper. An empty value counts as absent on both
+/// platforms: `home` treats an empty `USERPROFILE` that way, and an empty
+/// `HOME` would otherwise derive `.cargo` relative to the child's working
+/// directory rather than to any home.
+fn toolchain_home() -> Option<String> {
+    let names: &[&str] = if cfg!(windows) {
+        &["USERPROFILE", "HOME"]
+    } else {
+        &["HOME", "USERPROFILE"]
+    };
+    names
+        .iter()
+        .find_map(|name| env::var(name).ok().filter(|value| !value.is_empty()))
 }
 
 /// Write the platform's highest-precedence discovered configuration file.

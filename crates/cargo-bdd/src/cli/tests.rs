@@ -190,13 +190,19 @@ fn accounts_step(pattern: &str, line: u32, used: bool) -> Step {
 }
 
 /// Render `steps` through `listing` and return the text it wrote.
+///
+/// Returns `Result` rather than panicking, because this is a shared helper
+/// called from two test cases: the guide scopes `.expect()` to the test
+/// boundary, so the callers use it and this body propagates instead. A
+/// rendering error keeping its own type also reads better than a panic whose
+/// fixed message cannot say which of the two steps failed.
 fn render_listing(
     listing: fn(&mut dyn std::io::Write, &[Step]) -> eyre::Result<()>,
     steps: &[Step],
-) -> String {
+) -> eyre::Result<String> {
     let mut rendered = Vec::new();
-    listing(&mut rendered, steps).expect("writing to a buffer cannot fail");
-    String::from_utf8(rendered).expect("the listing is UTF-8")
+    listing(&mut rendered, steps)?;
+    String::from_utf8(rendered).map_err(|error| eyre::eyre!(error))
 }
 
 /// The unused listing keeps only steps no scenario executed.
@@ -207,7 +213,7 @@ fn unused_listing_keeps_only_unexecuted_steps() {
         accounts_step("dormant", 2, false),
     ];
 
-    let rendered = render_listing(write_unused_steps, &steps);
+    let rendered = render_listing(write_unused_steps, &steps).expect("the listing should render");
 
     assert!(
         rendered.contains("'dormant' [accounts]"),
@@ -232,7 +238,8 @@ fn duplicate_listing_writes_a_separator_after_each_group() {
         accounts_step("unique", 3, false),
     ];
 
-    let rendered = render_listing(write_duplicate_groups, &steps);
+    let rendered =
+        render_listing(write_duplicate_groups, &steps).expect("the listing should render");
 
     assert_eq!(
         rendered.matches("---\n").count(),

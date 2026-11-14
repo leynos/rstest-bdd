@@ -52,11 +52,12 @@ use super::{discovery::empty_configuration_home_variables, isolation, workspace_
 /// resolved against this process's working directory is reported rather than
 /// handed to a child that would resolve it somewhere else.
 ///
-/// Both propagate rather than panics so the cause survives. A redirect naming a
+/// Both propagate rather than panic so the cause survives: a redirect naming a
 /// directory that was never created would otherwise surface as a
-/// missing-configuration failure in whichever smoke test ran next. A failure
-/// returns before any environment is built, so it still cannot fall back to the
-/// host's configuration roots, which is what this guard exists to prevent.
+/// missing-configuration failure in whichever smoke test ran next. The `?`
+/// returns before any environment is built, so a failure still cannot fall back
+/// to the host's configuration roots — which is what this guard exists to
+/// prevent.
 pub(crate) fn cli_child_environment(
     mut vars: Vec<(OsString, OsString)>,
 ) -> io::Result<nested_cargo::NestedCargoEnv> {

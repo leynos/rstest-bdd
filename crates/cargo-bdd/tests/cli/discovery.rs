@@ -144,11 +144,51 @@ fn create_sibling(parent: &Utf8Path, name: &str) -> io::Result<OsString> {
 /// own choosing. The ambient variable outranks the default for the same reason,
 /// matching Cargo's own precedence.
 ///
-/// `USERPROFILE` is consulted only as a home source when `HOME` is absent,
-/// matching the same precedence Cargo uses. It is never redirected into the
-/// child: see the module documentation for why.
+/// The home Cargo and Rustup derive their defaults from.
+///
+/// This is deliberately *not* `HOME`-first on Windows. Cargo resolves both
+/// homes through the `home` crate, which documents `USERPROFILE` (falling back
+/// to the profile Known Folder API) as the Windows source and never reads
+/// `HOME`. The discovery order for the *configuration file* is a different
+/// thing: it consults `HOME` first, which is why only `HOME` is redirected.
+/// Using one home for both would be a defect whenever the two disagree, which
+/// a Windows shell with a Unix-style `HOME` arranged for Git or MSYS does —
+/// the child would be handed a registry and toolchain under the wrong root.
+///
+/// The empty value is skipped on both platforms because `home` skips it: an
+/// empty `USERPROFILE` means "not set" to the Known Folder fallback there, and
+/// an empty `HOME` would otherwise derive `.cargo` relative to the child's
+/// working directory.
+fn toolchain_home() -> Option<OsString> {
+    let names: &[&str] = if cfg!(windows) {
+        &["USERPROFILE", "HOME"]
+    } else {
+        &["HOME", "USERPROFILE"]
+    };
+    names
+        .iter()
+        .find_map(|name| env::var_os(name).filter(|value| !value.is_empty()))
+}
+
+/// Carry Cargo's ambient home through the redirection.
+///
+/// Cargo derives its registry from `CARGO_HOME` and its toolchain from
+/// `RUSTUP_HOME`, each defaulting under the user home this policy overrides.
+/// Redirecting the home without carrying these would point the nested build at
+/// an empty registry.
+///
+/// Three sources are considered in order of authority: what the caller
+/// requested, then the ambient variable, then the [`toolchain_home`] default.
+/// The caller's value is the most specific intent available and is passed
+/// through untouched, which is what lets a test point the registry somewhere of
+/// its own choosing. The ambient variable outranks the default for the same
+/// reason, matching Cargo's own precedence.
+///
+/// `USERPROFILE` is never redirected into the child: see the module
+/// documentation for why. It is consulted here only as the home Cargo itself
+/// would derive a default from, which is a different question.
 fn ambient_cargo_home_variables(requested: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
-    let home = env::var_os("HOME").or_else(|| env::var_os("USERPROFILE"));
+    let home = toolchain_home();
     [("CARGO_HOME", ".cargo"), ("RUSTUP_HOME", ".rustup")]
         .into_iter()
         .filter_map(|(key, directory)| {

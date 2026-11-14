@@ -7,7 +7,10 @@
 //! compiled units, and any inherited `CARGO_BDD_*` variable must be dropped
 //! because the binary reads that prefix as a configuration tier.
 
-use std::ffi::{OsStr, OsString};
+use std::{
+    ffi::{OsStr, OsString},
+    io,
+};
 
 use super::{cli_child_environment, workspace_root};
 
@@ -15,7 +18,7 @@ use super::{cli_child_environment, workspace_root};
 #[rstest::rstest]
 #[case::workspace_cache(None)]
 #[case::caller_cache(Some("custom-coverage-target"))]
-fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io::Result<()> {
+fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> io::Result<()> {
     let vars = target
         .map(|value| vec![(OsString::from("CARGO_TARGET_DIR"), OsString::from(value))])
         .unwrap_or_default();
@@ -57,7 +60,7 @@ fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io:
 /// installs. See `cli_child_environment_keeps_userprofile_inherited`.
 #[cfg(unix)]
 #[test]
-fn cli_child_environment_redirects_every_discovery_root() -> std::io::Result<()> {
+fn cli_child_environment_redirects_every_discovery_root() -> io::Result<()> {
     let child = cli_child_environment(Vec::new())?;
 
     let mut roots = Vec::new();
@@ -105,7 +108,7 @@ fn cli_child_environment_redirects_every_discovery_root() -> std::io::Result<()>
 /// that is what the helper contract says: it adds redirections, it does not
 /// overwrite the caller's intent.
 #[test]
-fn cli_child_environment_keeps_userprofile_inherited() -> std::io::Result<()> {
+fn cli_child_environment_keeps_userprofile_inherited() -> io::Result<()> {
     let ambient = OsString::from("/home/carried-through");
     let child = cli_child_environment(vec![(OsString::from("USERPROFILE"), ambient.clone())])?;
 
@@ -127,7 +130,7 @@ fn cli_child_environment_keeps_userprofile_inherited() -> std::io::Result<()> {
 /// here; the explicit branch is covered by
 /// `cli_child_environment_carries_an_explicit_cargo_home` below.
 #[test]
-fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() -> std::io::Result<()> {
+fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() -> io::Result<()> {
     let child = cli_child_environment(Vec::new())?;
     let home = child.get("HOME").expect("HOME is redirected");
 
@@ -159,7 +162,7 @@ fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() -> std::io::Res
 /// all. Asserting only the default's shape would let a rewrite of the explicit
 /// value pass unnoticed.
 #[test]
-fn cli_child_environment_carries_an_explicit_cargo_home() -> std::io::Result<()> {
+fn cli_child_environment_carries_an_explicit_cargo_home() -> io::Result<()> {
     let custom = OsStr::new("/opt/cargo-cache");
     let child = cli_child_environment(vec![(OsString::from("CARGO_HOME"), custom.to_owned())])?;
 
@@ -170,13 +173,23 @@ fn cli_child_environment_carries_an_explicit_cargo_home() -> std::io::Result<()>
 /// The ambient value a Cargo home variable should carry into the child.
 ///
 /// Mirrors the helper's precedence deliberately: an explicit variable wins,
-/// otherwise the location is derived under the ambient user home.
+/// otherwise the location is derived under the toolchain home Cargo itself
+/// would use. That is `USERPROFILE` on Windows and `HOME` elsewhere, because
+/// Cargo resolves it through the `home` crate; deriving it from `HOME`
+/// everywhere would disagree with the helper on a Windows shell that sets both
+/// to different values, which is the defect this case exists to catch.
 fn ambient_location(variable: &str, directory: &str) -> std::path::PathBuf {
     if let Some(explicit) = std::env::var_os(variable) {
         return std::path::PathBuf::from(explicit);
     }
-    let home = std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
+    let names: &[&str] = if cfg!(windows) {
+        &["USERPROFILE", "HOME"]
+    } else {
+        &["HOME", "USERPROFILE"]
+    };
+    let home = names
+        .iter()
+        .find_map(|name| std::env::var_os(name).filter(|value| !value.is_empty()))
         .unwrap_or_default();
     std::path::Path::new(&home).join(directory)
 }
@@ -188,7 +201,7 @@ fn ambient_location(variable: &str, directory: &str) -> std::path::PathBuf {
 /// reason. Both a real setting name and an unrelated name in the same prefix
 /// are checked, because the binary reads the whole prefix as configuration.
 #[test]
-fn cli_child_environment_drops_inherited_configuration_variables() -> std::io::Result<()> {
+fn cli_child_environment_drops_inherited_configuration_variables() -> io::Result<()> {
     let vars = vec![
         (
             OsString::from("CARGO_BDD_CMDS_STEPS_SKIPPED"),
@@ -224,10 +237,6 @@ fn cli_child_environment_drops_inherited_configuration_variables() -> std::io::R
     Ok(())
 }
 
-/// `OsStr` is referenced through the imported alias above.
-#[allow(dead_code)]
-fn _assert_os_str_alias(_: &OsStr) {}
-
 /// Windows resolves a differently-spelled configuration name, so drop it too.
 ///
 /// Variable names on Windows are case-insensitive but keep the spelling they
@@ -244,8 +253,7 @@ fn _assert_os_str_alias(_: &OsStr) {}
 /// left to the Windows lane to notice on its own.
 #[cfg(windows)]
 #[test]
-fn cli_child_environment_drops_a_differently_spelled_configuration_variable() -> std::io::Result<()>
-{
+fn cli_child_environment_drops_a_differently_spelled_configuration_variable() -> io::Result<()> {
     let child = cli_child_environment(vec![(
         OsString::from("cargo_bdd_log"),
         OsString::from("debug"),
@@ -263,7 +271,7 @@ fn cli_child_environment_drops_a_differently_spelled_configuration_variable() ->
 /// binary reads and have to survive. Without this case the comparison could
 /// widen to the whole stem and the drop test would not notice.
 #[test]
-fn cli_child_environment_keeps_names_that_do_not_carry_the_prefix() -> std::io::Result<()> {
+fn cli_child_environment_keeps_names_that_do_not_carry_the_prefix() -> io::Result<()> {
     let kept = ["CARGO_BDD", "CARGO_BDX_LOG", "cargo_bddx_log"];
     let vars: Vec<(OsString, OsString)> = kept
         .iter()
