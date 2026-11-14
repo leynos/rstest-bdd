@@ -5,13 +5,14 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IMPLEMENTATION COMPLETE (latest *completed* hosted verdict is
-`f93347ef`: all three `build-test` jobs pass, including both Windows jobs and
-the Linux job whose earlier timeout was diagnosed as host contention. The
-current head `0952d888` has its `build-test` suite in progress and no verdict
-yet, so this line claims nothing about it. Earlier green runs, including
-`76f8f63e` under run `43453087168`, are historical evidence recorded in
-`Progress`; merge pending)
+Status: IMPLEMENTATION COMPLETE (latest *completed* hosted verdict is CI run
+`43582906292` at `f10c0e4d`: all three required `build-test` jobs pass,
+including both Windows jobs and the Linux job whose earlier timeout was
+diagnosed as host contention. The head carrying this text is `de4de598`, one
+commit later and still awaiting its own hosted verdict, so this line claims
+nothing about it. Earlier green runs, including `f93347ef` and `76f8f63e` under
+run `43453087168`, are historical evidence recorded in `Progress`; merge
+pending)
 
 ## Purpose / big picture
 
@@ -545,11 +546,11 @@ Hard invariants. Violation requires escalation, not a workaround.
 - [ ] §6: documentation, gates, follow-up review, commit, push, hosted CI,
       review reconciliation, and merge. Merge is still pending: this box stays
       unchecked until the pull request lands on `main`. The latest *completed*
-      hosted verdict is `f93347ef`, where all three `build-test` jobs passed;
-      heads pushed since then have no recorded verdict, so this entry claims
-      nothing about them. The `make test` row is met locally at `404c8861`, and
-      a hosted verdict for that head is the remaining evidence this section
-      names.
+      hosted verdict is CI run `43582906292` at `f10c0e4d`, where all three
+      `build-test` jobs passed; the head after it has no recorded verdict yet,
+      so this entry claims nothing about it. The `make test` row is met locally
+      at `de4de598`, and a hosted verdict for a head at or after that revision
+      is the remaining evidence this section names.
       The candidate was rebased onto `origin/main`
       (`693bba91`) and gated at revision `96e38df8`; the rebase described in
       `Outcomes & retrospective` is the later one.
@@ -1319,6 +1320,25 @@ Hard invariants. Violation requires escalation, not a workaround.
       fixtures redirect different amounts, only Unix and Redox are fully
       isolated because only there are the XDG bases the whole search, and the
       `cli` helper deliberately leaves `USERPROFILE` inherited for `sccache`.
+
+- [x] (2026-11-14) The round-18 commit `f10c0e4d` passed hosted CI in run
+      `43582906292`: all three `build-test` lanes succeeded, and those three are
+      the only contexts the `main-required-checks` ruleset requires. The
+      advisory CodeScene gate failed on that head for `String Heavy Function
+      Arguments` in `crates/cargo-bdd/tests/invocation/workspace.rs` — a rule
+      about code this branch had just written, since the new helper took the
+      variable name and its default directory as two `&str` parameters. The
+      pair was transposable without a type error, so `de4de598` replaces it with
+      a `ToolchainHome` enum: one value carrying both facts, iterated at the
+      call site. Suppressing the rule would have left the hazard in place.
+
+- [x] (2026-11-14) `make test` was re-taken at `de4de598` because the commit
+      before it changed a gate input, and it exited zero with `REV_START` and
+      `REV_END` both that revision: 2258 of 2258 nextest tests passed with 7
+      skipped, 788 of 788 doc tests passed with 7 skipped, and 292 pytest tests
+      passed. The earlier `404c8861` verdict was not reused for a tree with a
+      changed gate input, and the paragraph that explained why it still applied
+      was replaced rather than left to misdescribe the current evidence.
 
 ## Surprises & discoveries
 
@@ -2186,18 +2206,16 @@ Acceptance means all of the following, in one gate run against the final tree:
   MSRV split directly.
 
 The `make test` row asks for one gate run against the final tree. It is met
-locally at `404c8861`: the whole recipe ran unfiltered on a clean tree,
-`REV_START` and `REV_END` both `404c8861fb8a5e2289cd7049a60febc4bd2d0fb6`, and
+locally at `de4de598`: the whole recipe ran unfiltered on a clean tree,
+`REV_START` and `REV_END` both `de4de598beaab8908dfa9e84327f88853182b3b0`, and
 exited zero with 2258 of 2258 nextest tests passing (7 skipped), 788 of 788 doc
-tests passing (7 skipped), and 292 pytest tests passing.
+tests passing (7 skipped), and 292 pytest tests passing, with no `FAILED` line
+and no `make: ***` in the log.
 
-That verdict is anchored to `404c8861`, not to the revision that carries this
-paragraph. `5de5136c` follows it and touches only this document, and no target
-the recipe runs reads `docs/execplans/`: a `grep -rn execplans scripts/*.py`
-returns nothing, and no Rust test or doc test mentions the directory. The
-verdict therefore still describes every input the gates read, which is what the
-row is for; if any commit changes a file a gate does read, the run has to be
-re-taken.
+That run was taken because the commit before it changed production-adjacent
+test code, which is a gate input; the earlier verdict at `404c8861` is kept in
+the history below rather than reused. If a later commit changes a file a gate
+reads, the run has to be re-taken again.
 
 The earlier run at `8a5cb67f` is *historical* by comparison:
 `git rev-list --count 8a5cb67f..41f50191` reports fifteen commits between it
