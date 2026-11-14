@@ -6,11 +6,9 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
-This plan covers roadmap item 9.7.3 only. It must be approved before
-implementation begins. While
-`docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` remains in
-`Proposed` status, implementation remains contingent unless a maintainer
-explicitly authorizes it.
+This plan covers roadmap item 9.7.3 only. It was subject to approval before
+implementation began. ADR-0008 was accepted on 2026-09-14, satisfying the
+decision prerequisite.
 
 ## Purpose / big picture
 

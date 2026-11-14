@@ -36,10 +36,11 @@ After this plan is executed, a reader of the repository can observe:
    real published `gpui 0.2.2` API, or clearly flag which gpui they target) and
    *extended* with a feature-file rebuild-invalidation subsection and a nextest
    parallelism subsection.
-3. Three new ADRs (`adr-0010`, `adr-0011`, `adr-0012`) exist. ADR-0010 and
-   ADR-0011 remain `Proposed`; ADR-0012 is `Accepted` and its guard-based
-   borrowing contract is implemented in v0.7.0. A tracked note addresses the
-   lingering `Proposed` status of ADR-0008.
+3. Three new ADRs (`adr-0010`, `adr-0011`, `adr-0012`) exist. ADR-0010 is
+   `Accepted` as of 2026-08-17; ADR-0011 remains `Proposed`; ADR-0012 is
+   `Accepted` and its guard-based borrowing contract is implemented in v0.7.0.
+   ADR-0008 was accepted on 2026-09-14, satisfying the prerequisite recorded on
+   the roadmap.
 4. The adoption guides carry the same corrections, so the next adopter does not
    repeat the four-shape gpui API mismatch, the lint-profile collisions, or the
    stale-feature-file confusion.
@@ -52,8 +53,9 @@ the branch returns no unresolved concerns.
 This was a planning-and-documentation deliverable, so it did not itself
 implement the code work it scheduled. Since its completion, ADR-0012 has been
 accepted and the guard-based `StepContext` contract has landed in v0.7.0.
-ADR-0010's rebuild-invalidation fix remains deferred to roadmap item 11.3.1 and
-a separate follow-up ExecPlan; ADR-0011 remains proposed.
+ADR-0010's rebuild-invalidation fix was completed under roadmap item 10.3.3.
+Roadmap item 11.3.1 covers the separate result-alias work; ADR-0011 remains
+proposed.
 
 ## Constraints
 

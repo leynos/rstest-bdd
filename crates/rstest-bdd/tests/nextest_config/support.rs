@@ -46,23 +46,33 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-/// The value of `key` in `profile.default`, if the profile sets it.
-fn default_profile_key<'a>(configuration: &'a Value, key: &str) -> Option<&'a Value> {
+/// The value of `key` in `profile_name`, if the profile sets it.
+fn profile_key<'a>(configuration: &'a Value, profile_name: &str, key: &str) -> Option<&'a Value> {
     configuration
         .get("profile")
         .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get("default"))
+        .and_then(|profiles| profiles.get(profile_name))
         .and_then(Value::as_table)
-        .and_then(|default_profile| default_profile.get(key))
+        .and_then(|profile| profile.get(key))
+}
+
+/// The named profile's run-level `global-timeout`.
+pub(super) fn profile_global_timeout<'a>(
+    configuration: &'a Value,
+    profile_name: &str,
+) -> Result<&'a str, io::Error> {
+    profile_key(configuration, profile_name, "global-timeout")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "nextest configuration must set profile.{profile_name}.global-timeout"
+            ))
+        })
 }
 
 /// The default profile's run-level `global-timeout`.
 pub(super) fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
-    default_profile_key(configuration, "global-timeout")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            io::Error::other("nextest configuration must set profile.default.global-timeout")
-        })
+    profile_global_timeout(configuration, "default")
 }
 
 /// `test-groups` is a top-level nextest table, not a profile key, so it needs

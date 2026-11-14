@@ -1576,7 +1576,7 @@ escape backslashes and double quotes so the copied fixture remains valid on
 Windows; use a TOML serializer for any broader configuration-writing need.
 
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
-  `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
+  `slow-timeout`, 145 m `global-timeout`) for deliberately slow local runs.
 
 When adding a test binary that shells out to `cargo`, extend the relevant
 override's `filter` expression rather than raising the default `slow-timeout`:

@@ -50,7 +50,7 @@ Success is observable when:
   (execution delegation) or 9.2.3 (runtime compatibility alias) in this change.
 - Keep Tokio and Graphical Processing User Interface (GPUI) dependencies
   out of core crates (`rstest-bdd`, `rstest-bdd-macros`, `rstest-bdd-harness`)
-  per Architecture Decision Record (ADR) 0005.
+  per Architecture Decision Record (ADR-0025).
 - Preserve existing public behaviour for current users: all existing macro
   invocations without `harness`/`attributes` must produce identical output.
 - The `runtime = "tokio-current-thread"` parameter in `scenarios!` continues

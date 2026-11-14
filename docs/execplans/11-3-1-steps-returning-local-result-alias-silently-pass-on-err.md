@@ -686,7 +686,7 @@ Upstream artefacts and their revisions at the time of writing.
   sequence diagram at 2906-2934 and its caption at 2936-2937.
 - `docs/users-guide.md` §"Step return values", lines 389-429. The heading text
   must not change: `docs/adrs/adr-0006-fallible-scenario-functions.md:17`
-  deep-links `users-guide.md#step-return-values`.
+  deep-links `../users-guide.md#step-return-values`.
 - `docs/ergonomics-and-developer-experience.md` §3.1 bullet 3, lines 236-243.
 - `AGENTS.md` — the repository's binding conventions.
 - `docs/testing-strategy.md` — the structural-versus-semantic test split.

@@ -183,6 +183,10 @@ this means operators, end users, or integrators.
   documented example becomes a contract the implementation must satisfy and
   cannot drift from the behaviour it claims.
 
+  Repository status: enforcement currently covers only the bounded region
+  described by roadmap item 10.3.3. Extending it across the users' guide is
+  deferred to roadmap item 10.3.4.
+
 ### Migration guide
 
 Use a migration guide, named `docs/v<major>-<minor>-<patch>-migration-guide.md`
@@ -521,7 +525,7 @@ providing a historical record for future maintainers.
 ### Naming convention
 
 Name ADR files using the pattern `adrs/adr-nnnn-title-slug.md`, relative to the
-`docs/` directory, for example `docs/adrs/adr-0001-async-fixtures-and-tests.md`.
+`docs/` directory, for example `docs/adrs/adr-0001-async-fixtures-and-test.md`.
 
 - `nnnn` is a four-digit, zero-padded serial number, unique among the ADRs in
   the repository and allocated independently of RFC numbers.
@@ -724,6 +728,8 @@ contents of the manual.
   `ignore` skips both compilation and execution.
 - Put function attributes after the doc comment.
 
+The `example_crate` name below is a placeholder; replace it with the crate name.
+
 ```rust,no_run
 /// Returns the sum of `a` and `b`.
 ///
@@ -736,7 +742,8 @@ contents of the manual.
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,ignore
+/// use example_crate::add;
 /// assert_eq!(add(2, 3), 5);
 /// ```
 #[inline]
