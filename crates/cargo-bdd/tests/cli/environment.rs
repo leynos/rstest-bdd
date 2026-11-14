@@ -101,9 +101,11 @@ fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() {
     let home = child.get("HOME").expect("HOME is redirected");
 
     for (variable, directory) in [("CARGO_HOME", ".cargo"), ("RUSTUP_HOME", ".rustup")] {
-        let value = child
-            .get(variable)
-            .unwrap_or_else(|| panic!("{variable} must be carried into the child"));
+        // `let … else` rather than `.expect(...)`, because the fixed message
+        // an `expect` carries cannot name which of the two variables failed.
+        let Some(value) = child.get(variable) else {
+            panic!("{variable} must be carried into the child");
+        };
         let path = std::path::Path::new(value);
         assert!(
             !path.starts_with(std::path::Path::new(home)),
