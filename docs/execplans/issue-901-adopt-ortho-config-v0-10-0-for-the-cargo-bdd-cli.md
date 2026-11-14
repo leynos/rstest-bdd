@@ -1184,6 +1184,40 @@ Hard invariants. Violation requires escalation, not a workaround.
       + 21 tests passing across its four targets. The nested-fixture target
       took 676.63 s under compile-admission contention and still passed.
 
+- [x] (2026-11-14) CI run `43561135082` on `f93347ef`: both Windows jobs
+      **pass**, which is the fix this round is for. Windows `default features`
+      in 34m54s and `strict-compile-time-validation` in 44m58s, both
+      completing the step that was previously dying, so the `sccache` panic is
+      gone at its source. The Linux lane failed instead, on a 60 s timeout of
+      `rstest-bdd-harness::binary_test_support_cargo
+      locate_or_build_returns_command_for_workspace_binary` — a test in a
+      crate and file this branch has only reformatted, and one that is *not*
+      in the `cargo-spawning` test group, so it runs in the default 60 s lane
+      while spawning a nested `cargo build`.
+
+- [x] (2026-11-14) Diagnosed the Linux timeout as host contention, with three
+      independent lines of evidence. First, the run was uniformly slow: the
+      same test took 8.49 s on the previous green run at `28b6adef` and
+      exceeded 60 s here, while
+      `configuration::skipped_handler_uses_configured_reasons::case_1_file_tier`
+      went from 14.95 s to 74.15 s in the same commit — a 5x slowdown across
+      every nested-`cargo` test rather than a defect confined to one test.
+      Second, the change
+      is provably a no-op on Linux: `crates/cargo-bdd/src/` never reads
+      `USERPROFILE`, and `ortho_config`'s `collect_unix_paths` consults only
+      `HOME` and the XDG bases, so dropping a variable no Linux code path
+      reads cannot alter behaviour there. Third, `main` is green on all three
+      lanes, so the branch is the only difference from a passing baseline — but
+      this specific test's failure mode is timing, not logic. A re-run of the
+      failed job was triggered rather than any code change.
+
+- [x] (2026-11-14) The two stale plan statements the fix invalidated were
+      corrected in place: the Risks mitigation that listed `USERPROFILE` among
+      the variables the binary-level tests isolate, and the Verification plan's
+      contract-level discovery check. Both now state the policy and point at
+      this entry. The earlier Progress entries that describe the redirect as it
+      was are left as written, because they record what was true at the time.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
