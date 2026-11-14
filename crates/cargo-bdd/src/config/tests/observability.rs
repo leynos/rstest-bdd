@@ -4,10 +4,24 @@
 //! assertions pin both halves of the contract: every load opens one span, and
 //! that span carries the command label only, so no configuration value can
 //! reach a subscriber's logs.
+//!
+//! The capture installs a **global** default subscriber rather than a
+//! thread-local one, because the callsites are process-wide state shared by
+//! every test in this binary. A `DefaultCallsite` caches an `Interest` that
+//! every thread reads, and `tracing_core` recomputes it from
+//! `dispatcher::get_default`, which is the *calling thread's* default falling
+//! back to the global one. `tracing::subscriber::with_default` installs only a
+//! thread-local default and does not recompute anything, so a sibling test that
+//! reaches one of these loaders concurrently caches its interest against the
+//! process-wide `NoSubscriber` instead of this capture. Whichever loader loses
+//! that race produces a span no layer sees. A global default makes every
+//! thread's fallback the capture itself, so the cached interest cannot be
+//! computed against a dispatcher that discards spans.
 
 use std::{
     fmt,
     sync::{Arc, Mutex},
+    thread::{self, ThreadId},
 };
 
 use clap::CommandFactory;
@@ -33,6 +47,8 @@ use crate::cli::Cli;
 struct CapturedSpan {
     name: String,
     fields: Vec<String>,
+    /// The thread that opened the span, so a case can ignore its siblings'.
+    thread: ThreadId,
 }
 
 /// Shared sink for captured spans.
@@ -42,12 +58,22 @@ struct SpanCapture {
 }
 
 impl SpanCapture {
-    /// Take a copy of the spans captured so far.
-    fn recorded(&self) -> Vec<CapturedSpan> {
+    /// Take a copy of the spans captured so far on the calling thread.
+    ///
+    /// The capture sees every span the binary opens once it owns the global
+    /// default, including those a concurrently running test opens. Reporting
+    /// only the calling thread's spans keeps a case's verdict about its own
+    /// loaders.
+    fn recorded_by_this_thread(&self) -> Vec<CapturedSpan> {
         let Ok(spans) = self.spans.lock() else {
             panic!("the span capture mutex should not be poisoned");
         };
-        spans.clone()
+        let this_thread = thread::current().id();
+        spans
+            .iter()
+            .filter(|span| span.thread == this_thread)
+            .cloned()
+            .collect()
     }
 }
 
@@ -59,6 +85,7 @@ impl<S: Subscriber> Layer<S> for SpanCapture {
         let captured = CapturedSpan {
             name: attributes.metadata().name().to_owned(),
             fields: visitor.names,
+            thread: thread::current().id(),
         };
         let Ok(mut spans) = self.spans.lock() else {
             panic!("the span capture mutex should not be poisoned");
@@ -101,14 +128,18 @@ fn both_loaders_emit_one_bounded_configuration_span() {
     let fixture = ConfigFixture::new().expect("test setup should create the isolated fixture");
     let sources = fixture.sources(MapEnv::new());
 
-    tracing::subscriber::with_default(subscriber, || {
-        // The merge result is irrelevant here: a failed load still opens and
-        // closes its span, and the assertions below cover the span contract.
-        let _ = merge_steps(&StepsConfig::default(), &steps_matches, &sources);
-        let _ = resolve_skipped(&SkippedConfig::default(), &skipped_matches, &sources);
-    });
+    // A global default leaves no thread falling back to `NoSubscriber`, which
+    // is what makes the capture deterministic; the module doc has the full
+    // reason. Sibling tests keep running concurrently and may open spans of
+    // their own, so the assertions below read back this thread's spans only.
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("the unit-test binary should not install another global subscriber");
+    // The merge result is irrelevant here: a failed load still opens and
+    // closes its span, and the assertions below cover the span contract.
+    let _ = merge_steps(&StepsConfig::default(), &steps_matches, &sources);
+    let _ = resolve_skipped(&SkippedConfig::default(), &skipped_matches, &sources);
 
-    let spans = capture.recorded();
+    let spans = capture.recorded_by_this_thread();
     assert_eq!(
         spans.len(),
         2,
