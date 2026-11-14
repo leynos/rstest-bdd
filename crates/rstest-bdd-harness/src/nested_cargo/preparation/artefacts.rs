@@ -8,10 +8,10 @@
 //! the second half of the answer, in two layers.
 //!
 //! The structural layer refuses a profile that exists and is empty, or that
-//! has lost the subdirectories Cargo reads to decide its units are current.
-//! The exact layer is the one that makes the check sound: the stamp records
-//! the outputs the preparation left beside its dep-info records, and every one
-//! of them must still be present.
+//! has lost the directories Cargo reads to decide its units are current. The
+//! exact layer is the one that makes the check sound: the stamp records the
+//! outputs the preparation left beside its dep-info records, and every one of
+//! them must still be present.
 //!
 //! A rule about rustc's file naming cannot decide this. Removing only
 //! `lib<stem>.rlib` while `lib<stem>.rmeta` survives makes Cargo recompile
@@ -21,192 +21,22 @@
 //! separates those two states. A record of what the preparation produced does,
 //! because a unit that was linked has an `.rlib` in it and a check-only unit
 //! never does.
+//!
+//! Neither layer names a directory. Cargo's layout is explicitly unstable and
+//! changed under this module once already; [`super::layout`] discovers where the
+//! units are, and this module records what it found there.
 
 use std::{
-    collections::BTreeSet,
-    fmt::Write as _,
     fs,
     io,
     path::{Path, PathBuf},
 };
 
-use super::{Preparation, stamp::Stamp};
-
-/// The subdirectories Cargo needs inside a profile to skip recompiling.
-///
-/// `deps` holds the compiled dependency units a timed assertion links against;
-/// `.fingerprint` holds the records Cargo reads to decide those units are still
-/// current. Erasing either one forces the next `cargo` invocation to rebuild
-/// the dependency graph, even though `<profile>` itself still exists — so a
-/// gate that only checked the profile would admit exactly the cold build this
-/// module exists to keep out of a timed test.
-///
-/// Both names are Cargo's, not this repository's: they are what
-/// `<target>/<profile>` contains after any successful build, in every Cargo
-/// version this workspace supports.
-pub const DEPENDENCY_ARTEFACT_DIRS: [&str; 2] = ["deps", ".fingerprint"];
-
-/// Whether `directory` exists and holds at least one entry.
-///
-/// An empty `deps` or `.fingerprint` is not a prepared tree: `cargo clean -p`
-/// and a glob that misses both leave the directories behind and remove what
-/// matters.
-///
-/// An absent directory is reported as "no entries" rather than as an error:
-/// that is the ordinary eviction this module exists to name, and surfacing it
-/// as a bare `No such file or directory` would replace a precise diagnosis
-/// with a filesystem message.
-///
-/// # Errors
-///
-/// Returns the read error for any failure other than absence — a permission
-/// denial, an I/O fault. Those must fail closed rather than be read as an
-/// empty directory, which is the unsafe direction: it would let an unreadable
-/// profile pass the check.
-fn has_entries(directory: &Path) -> io::Result<bool> {
-    match fs::read_dir(directory) {
-        Ok(mut entries) => has_entries_from(entries.next()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error),
-    }
-}
-
-/// Decide whether a listing is non-empty from its first step.
-///
-/// `read_dir` yields each entry lazily, so its error arrives from `next()`. An
-/// `Err` there is a read fault partway through the listing, not evidence of an
-/// entry: counting it as one would report an unreadable directory as populated,
-/// the same fail-open direction [`has_entries`] guards. No portable fixture
-/// produces that error as the *first* item, hence this seam.
-fn has_entries_from(first: Option<io::Result<fs::DirEntry>>) -> io::Result<bool> {
-    match first {
-        Some(Ok(_)) => Ok(true),
-        Some(Err(error)) => Err(error),
-        None => Ok(false),
-    }
-}
-
-/// The entry names in `directory`, sorted.
-///
-/// Sorting keeps the recorded list — which becomes part of the stamp — stable
-/// across runs. `read_dir` order is the filesystem's, so an unsorted list would
-/// rewrite the stamp on every preparation on some hosts.
-///
-/// # Errors
-///
-/// Returns the read error when any entry cannot be named.
-fn entries_of(directory: &Path) -> io::Result<Vec<String>> {
-    let mut names: Vec<String> = fs::read_dir(directory)?
-        .map(|entry| entry.map(|entry| entry.file_name().to_string_lossy().into_owned()))
-        .collect::<io::Result<_>>()?;
-    names.sort();
-    Ok(names)
-}
-
-/// Split a dep-info file name into its unit stem.
-///
-/// Returns `None` for anything that is not a `.d` record, so an unrelated
-/// entry in `deps` — a `.rlib`, a `.rmeta`, a build script's output — is never
-/// mistaken for one.
-fn dep_info_stem(name: &str) -> Option<&str> { name.strip_suffix(".d") }
-
-/// The outputs in `present` that belong to the unit with `stem`.
-///
-/// This is a *rule about rustc's naming*, not a list of extensions, and it is
-/// used only to discover which entries belong together — never to decide that
-/// a tree is usable. An earlier version used it for the decision itself and
-/// was wrong: see the module documentation.
-///
-/// The rule uses what is stable: rustc names a library output
-/// `lib<stem>.<something>` and a linked binary `<stem>` or `<stem>.<something>`
-/// (`.exe` on Windows). Anchoring on the stem and requiring a separator keeps
-/// the pairing from matching a different unit whose name merely starts with
-/// the same characters.
-fn is_output_of(name: &str, stem: &str) -> bool {
-    // A record's own name must not count as its output: `unit.d` matches the
-    // binary form because `.d` is a dot-extension, so a unit with no output
-    // would otherwise appear to witness itself.
-    if name == format!("{stem}.d") {
-        return false;
-    }
-    // A library: `lib<stem>` followed by an extension.
-    let library = name
-        .strip_prefix("lib")
-        .and_then(|rest| rest.strip_prefix(stem))
-        .is_some_and(|extension| extension.starts_with('.'));
-    // A linked binary: exactly `<stem>`, or `<stem>.<extension>`.
-    let binary = name
-        .strip_prefix(stem)
-        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'));
-    library || binary
-}
-
-/// The outputs a profile's dep-info records describe.
-///
-/// These are the units Cargo will recompile if their outputs go missing, so
-/// they are exactly the names a preparation must be able to vouch for. The
-/// list is one directory listing, reused for every record: `deps` holds
-/// thousands of entries and this runs once per preparation.
-///
-/// # Errors
-///
-/// Returns the read error when `deps` cannot be listed.
-fn described_outputs(deps: &Path) -> io::Result<Vec<String>> {
-    let present = entries_of(deps)?;
-    let mut outputs: BTreeSet<String> = BTreeSet::new();
-    for stem in present.iter().filter_map(|name| dep_info_stem(name)) {
-        outputs.extend(
-            present
-                .iter()
-                .filter(|name| is_output_of(name, stem))
-                .cloned(),
-        );
-    }
-    Ok(outputs.into_iter().collect())
-}
-
-/// Record the artefact names a freshly prepared family vouches for.
-///
-/// Called after the preparation command succeeded, so the names are what that
-/// command actually left rather than what it was expected to leave. One list
-/// per [`Preparation::artefacts`] entry, in that order.
-///
-/// A `deps` directory that does not exist records nothing rather than
-/// failing: the caller runs [`verify_structural`] first, which has already
-/// refused that state with the diagnosis worth reporting. Reaching here with
-/// one absent would mean an eviction between the two calls, and an empty
-/// record there is still refused by [`verify_recorded`]'s structural half.
-///
-/// A name that is not valid Unicode is recorded lossily: every real `deps`
-/// entry is ASCII, and refusing on one would fail a preparation for a reason
-/// it cannot name.
-///
-/// # Errors
-///
-/// Returns the read error when a `deps` directory that exists cannot be
-/// listed, or an entry cannot be named.
-pub(super) fn record(preparation: &Preparation) -> io::Result<Vec<Vec<String>>> {
-    preparation
-        .artefacts
-        .iter()
-        .map(
-            |directory| match described_outputs(&directory.join("deps")) {
-                Ok(outputs) => Ok(outputs),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
-                Err(error) => Err(error),
-            },
-        )
-        .collect()
-}
-
-/// Why one prepared profile is no longer usable.
-#[derive(Debug, Clone)]
-pub(super) struct Eviction {
-    /// The profile directory whose artefacts are missing.
-    pub(super) profile: PathBuf,
-    /// The recorded artefact names that have gone.
-    pub(super) missing: Vec<String>,
-}
+use super::{
+    Preparation,
+    layout::{self, Layout},
+    stamp::Stamp,
+};
 
 /// How many missing names a failure message lists before summarizing.
 ///
@@ -217,11 +47,24 @@ pub(super) struct Eviction {
 /// only the tail.
 const NAMED_OUTPUTS: usize = 5;
 
+/// Why a prepared profile is no longer usable.
+#[derive(Debug, Clone)]
+pub(super) struct Eviction {
+    /// The profile directory whose artefacts are missing.
+    pub(super) profile: PathBuf,
+    /// What is wrong with the profile as a whole, when no single recorded
+    /// output can be named.
+    pub(super) reason: Option<&'static str>,
+    /// The recorded artefact names that have gone.
+    pub(super) missing: Vec<String>,
+}
+
 impl Eviction {
-    /// An eviction of the whole profile, naming no individual output.
-    fn whole(directory: &Path) -> Self {
+    /// An eviction of the whole profile, described by `reason`.
+    fn whole(directory: &Path, reason: &'static str) -> Self {
         Self {
             profile: directory.to_path_buf(),
+            reason: Some(reason),
             missing: Vec::new(),
         }
     }
@@ -230,7 +73,10 @@ impl Eviction {
     pub(super) fn describe(&self) -> String {
         let profile = self.profile.display();
         if self.missing.is_empty() {
-            return profile.to_string();
+            return self.reason.map_or_else(
+                || profile.to_string(),
+                |reason| format!("{profile} ({reason})"),
+            );
         }
         let named: Vec<&str> = self
             .missing
@@ -244,10 +90,78 @@ impl Eviction {
             // Writing into the existing buffer avoids a second allocation for
             // a suffix that is at most a few characters, and is what clippy's
             // `format_push_string` asks for.
-            let _ = write!(listed, " and {remaining} more");
+            let _ = std::fmt::Write::write_fmt(&mut listed, format_args!(" and {remaining} more"));
         }
         format!("{profile} (missing {listed})")
     }
+}
+
+/// The name a recorded output is filed under.
+///
+/// The unit directory is named relative to the profile and joined with `/` on
+/// every platform, so the same tree produces the same stamp text on Windows and
+/// on Unix, and a stamp written by one host is readable by another. The
+/// directory has to be part of the name: two units in different directories can
+/// share a stem, and a record that named only the stem would let one unit's
+/// output witness the other's.
+fn recorded_name(profile: &Path, directory: &Path, output: &str) -> String {
+    let relative: Vec<String> = directory.strip_prefix(profile).map_or_else(
+        |_| vec![directory.to_string_lossy().into_owned()],
+        |relative| {
+            relative
+                .components()
+                .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                .collect()
+        },
+    );
+    if relative.is_empty() {
+        return output.to_owned();
+    }
+    format!("{}/{output}", relative.join("/"))
+}
+
+/// The recorded names a layout vouches for, sorted.
+///
+/// # Errors
+///
+/// Returns the read error when a unit directory cannot be listed.
+fn recorded_names(profile: &Path, layout: &Layout) -> io::Result<Vec<String>> {
+    let mut names: Vec<String> = Vec::new();
+    for directory in &layout.units {
+        for output in layout::outputs_in(directory)? {
+            names.push(recorded_name(profile, directory, &output));
+        }
+    }
+    names.sort();
+    names.dedup();
+    Ok(names)
+}
+
+/// Record the artefact names a freshly prepared family vouches for.
+///
+/// Called after the preparation command succeeded, so the names are what that
+/// command actually left rather than what it was expected to leave. One list
+/// per [`Preparation::artefacts`] entry, in that order.
+///
+/// A profile that does not exist records nothing rather than failing: the
+/// caller runs [`verify_structural`] first, which has already refused that
+/// state with the diagnosis worth reporting. Reaching here with one absent
+/// would mean an eviction between the two calls, and an empty record there is
+/// still refused by [`verify_recorded`]'s structural half.
+///
+/// A name that is not valid Unicode is recorded lossily: every real unit name is
+/// ASCII, and refusing on one would fail a preparation for a reason it cannot
+/// name.
+///
+/// # Errors
+///
+/// Returns the read error when a profile that exists cannot be inspected.
+pub(super) fn record(preparation: &Preparation) -> io::Result<Vec<Vec<String>>> {
+    preparation
+        .artefacts
+        .iter()
+        .map(|profile| recorded_names(profile, &layout::discover(profile)?))
+        .collect()
 }
 
 /// Why `directory` is not a usable prepared profile, if it is not.
@@ -261,28 +175,34 @@ fn eviction_of(directory: &Path, recorded: Option<&[String]>) -> io::Result<Opti
         Ok(metadata) if metadata.is_dir() => {}
         // Absent, or present as something that is not a directory: both are the
         // ordinary eviction named above.
-        Ok(_) => return Ok(Some(Eviction::whole(directory))),
+        Ok(_) => return Ok(Some(Eviction::whole(directory, "not a directory"))),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Ok(Some(Eviction::whole(directory)));
+            return Ok(Some(Eviction::whole(directory, "absent")));
         }
         // A permission or I/O fault must name itself. Folding it into an
         // eviction would report a tree that cannot be inspected as one that is
         // known to be empty, which is a diagnosis the reader cannot act on.
         Err(error) => return Err(error),
     }
-    let deps = directory.join("deps");
-    if !has_entries(&deps)? {
-        // Naming the directory is the whole diagnosis when it is empty or
-        // absent; nothing inside it can be reported as individually gone.
-        return Ok(Some(Eviction::whole(directory)));
+    let layout = layout::discover(directory)?;
+    // Naming the directory is the whole diagnosis when a half is missing;
+    // nothing inside it can be reported as individually gone. The two halves
+    // are ordered so the message names the one the preparation most likely
+    // lost first, and `is_usable` remains the single definition of "both".
+    if layout.units.is_empty() {
+        return Ok(Some(Eviction::whole(directory, "holds no compiled units")));
     }
-    if !has_entries(&directory.join(".fingerprint"))? {
-        return Ok(Some(Eviction::whole(directory)));
+    if layout.fingerprints.is_empty() {
+        return Ok(Some(Eviction::whole(
+            directory,
+            "holds no fingerprint records",
+        )));
     }
+    debug_assert!(layout.is_usable(), "both halves were just checked");
     let Some(recorded) = recorded else {
         return Ok(None);
     };
-    let present = entries_of(&deps)?;
+    let present = recorded_names(directory, &layout)?;
     let missing: Vec<String> = recorded
         .iter()
         .filter(|name| !present.contains(name))
@@ -293,6 +213,7 @@ fn eviction_of(directory: &Path, recorded: Option<&[String]>) -> io::Result<Opti
     }
     Ok(Some(Eviction {
         profile: directory.to_path_buf(),
+        reason: None,
         missing,
     }))
 }

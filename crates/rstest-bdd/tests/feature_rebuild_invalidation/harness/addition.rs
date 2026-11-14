@@ -67,43 +67,14 @@ const ADDED_FILE_NAME: &str = "zzz_added.feature";
 const ADDED_TEST_NAME: &str = "zzz_added_the_added_scenario";
 
 fn run_addition_experiment() -> AdditionOutcome {
-    // The dependency closure was compiled by the preparation test; this gate
-    // only verifies it, because a timed experiment must not absorb a cold
-    // graph build.
-    if let Err(err) = super::preparation::ensure_addition_prepared() {
-        return AdditionOutcome::abandoned(
-            format!("addition fixture is not prepared: {err}"),
-            String::new(),
-        );
-    }
-    fixtures::ensure_addition_fixture_copied();
-    reset_added_file();
-    if let Err(err) = write_build_script_from_docs() {
-        return AdditionOutcome::abandoned(err, String::new());
-    }
-    let env = match process::build_child_env() {
+    let env = match prepared_addition_env() {
         Ok(env) => env,
-        Err(err) => {
-            return AdditionOutcome::abandoned(
-                format!("the child environment could not be built: {err}"),
-                String::new(),
-            );
-        }
+        Err(reason) => return AdditionOutcome::abandoned(reason, String::new()),
     };
-    if let Err(err) = preflight_manifest_lockfile_consistency(&env) {
-        return AdditionOutcome::abandoned(err, String::new());
-    }
-    let outcome = run_cargo(&env, &["test", "--locked", "--offline"]);
-    let (baseline_error, baseline_output) = match outcome {
-        Ok(captured) => (None, captured.stdout),
-        Err(err) => (
-            Some(format!("baseline cargo test failed to run: {err}")),
-            String::new(),
-        ),
+    let baseline_output = match baseline_run(&env) {
+        Ok(output) => output,
+        Err(reason) => return AdditionOutcome::abandoned(reason, String::new()),
     };
-    if let Some(reason) = baseline_error.clone() {
-        return AdditionOutcome::abandoned(reason, baseline_output);
-    }
 
     if let Err(err) = add_new_feature_file() {
         return AdditionOutcome::abandoned(
@@ -112,8 +83,7 @@ fn run_addition_experiment() -> AdditionOutcome {
         );
     }
 
-    let second_captured = run_cargo(&env, &["test", "--locked", "--offline"]);
-    let second_captured = match second_captured {
+    let second_captured = match run_cargo(&env, &["test", "--locked", "--offline"]) {
         Ok(captured) => captured,
         Err(err) => panic!("second cargo test failed to run: {err}"),
     };
@@ -128,6 +98,34 @@ fn run_addition_experiment() -> AdditionOutcome {
         new_scenario_ran,
         second_run_output: second_captured.stdout,
         second_run_recompiled,
+    }
+}
+
+/// Gate on preparation, reset the fixture, and build the child environment.
+///
+/// The dependency closure was compiled by the preparation test; this gate only
+/// verifies it, because a timed experiment must not absorb a cold graph build.
+/// The manifest/lockfile preflight runs last, so a fixture directory that is
+/// merely unprepared reports that rather than a lockfile mismatch it cannot
+/// have caused.
+fn prepared_addition_env() -> Result<process::ChildEnv, String> {
+    if let Err(err) = super::preparation::ensure_addition_prepared() {
+        return Err(format!("addition fixture is not prepared: {err}"));
+    }
+    fixtures::ensure_addition_fixture_copied();
+    reset_added_file();
+    write_build_script_from_docs()?;
+    let env = process::build_child_env()
+        .map_err(|err| format!("the child environment could not be built: {err}"))?;
+    preflight_manifest_lockfile_consistency(&env)?;
+    Ok(env)
+}
+
+/// Run the baseline `cargo test` and return its output, or the reason it failed.
+fn baseline_run(env: &process::ChildEnv) -> Result<String, String> {
+    match run_cargo(env, &["test", "--locked", "--offline"]) {
+        Ok(captured) => Ok(captured.stdout),
+        Err(err) => Err(format!("baseline cargo test failed to run: {err}")),
     }
 }
 

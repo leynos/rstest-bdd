@@ -45,7 +45,6 @@ pub use environment::{
 };
 pub use preparation::{
     DEFAULT_PROFILE,
-    DEPENDENCY_ARTEFACT_DIRS,
     MAX_SEQUENTIAL_COMMANDS,
     PREPARATION_COMMAND_TIMEOUT,
     Preparation,

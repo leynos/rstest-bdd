@@ -991,23 +991,36 @@ there the profile is a descendant of the stamp root rather than a sibling —
 either way, the gate names it.
 
 The check does not stop at `is_dir()`. A profile directory can exist and be
-empty, or keep existing after `rm -rf <target>/debug/deps`, and in both cases
-Cargo must rebuild the dependency graph the next time anything links against it.
-`DEPENDENCY_ARTEFACT_DIRS` names what Cargo itself needs to skip that rebuild —
-`deps`, which holds the compiled units, and `.fingerprint`, which holds the
-records Cargo reads to decide those units are current — and the gate requires
-both to exist and be non-empty. Evicting either one refuses the preparation,
-which is the behaviour
-`evicting_the_dependency_artefacts_invalidates_the_preparation` pins in the
+empty, or keep existing after `rm -rf <target>/debug`, and in both cases Cargo
+must rebuild the dependency graph the next time anything links against it. What
+the gate requires is what Cargo itself needs to skip that rebuild: a directory
+holding compiled units, and a non-empty store of the fingerprint records Cargo
+reads to decide those units are current. Evicting either one refuses the
+preparation, which is the behaviour
+`evicting_either_required_half_alone_invalidates_the_preparation` pins in the
 shared policy and in the rebuild harness, alongside
 `an_empty_profile_directory_is_not_a_prepared_family`.
 
-A non-empty `deps` is still not evidence that the work survived, and neither is
-a rule about the form of its file names. The gate therefore records what the
-preparation actually produced. After the preparation command succeeds, the
-module lists the outputs described by the dep-info records in `deps` and writes
-those names into the stamp; the gate then requires every one of them to still
-be present, and reports the ones that have gone.
+Those directories are discovered rather than named. Cargo's build-directory
+layout is explicitly not a stable interface and has changed under this
+repository already: one release moved every compiled unit from `<profile>/deps`
+to `<profile>/build/<pkg>/<hash>/out`, kept nothing in `deps`, and offered no
+stable opt-out. A check that named `deps` therefore refused every preparation
+on the newer toolchain. The `layout` module walks the profile instead, and keys
+on rustc's own invariant rather than Cargo's placement: rustc writes a unit's
+dep-info record into the `--out-dir` holding that unit's outputs, so a
+directory with `.d` records is a directory holding units wherever Cargo put it.
+Both shapes are covered by `both_cargo_layouts_are_discovered` and, end to end,
+by the CLI preparation test against a real build.
+
+A non-empty unit directory is still not evidence that the work survived, and
+neither is a rule about the form of its file names. The gate therefore records
+what the preparation actually produced. After the preparation command succeeds,
+the module lists the outputs described by the dep-info records it discovered
+and writes those names into the stamp — each qualified by the directory holding
+it, since two units in different directories can share a stem — and the gate
+then requires every one of them to still be present, reporting the ones that
+have gone.
 
 The record exists because no naming rule can decide the question. Removing only
 `lib<stem>.rlib` while `lib<stem>.rmeta` survives makes Cargo recompile that

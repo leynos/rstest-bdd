@@ -17,9 +17,17 @@ fn world() -> StreamingState { StreamingState::default() }
 fn _world() -> &'static str { "explicit _world fixture" }
 
 #[given("the streaming world is available")]
+#[expect(
+    clippy::used_underscore_binding,
+    reason = "the test proves underscore-prefixed implicit fixture injection can be used directly"
+)]
 fn world_is_available(_world: &mut StreamingState) { _world.parsed_events = 1; }
 
 #[when("the parser runs once more")]
+#[expect(
+    clippy::used_underscore_binding,
+    reason = "the test proves underscore-prefixed implicit fixture injection can be used directly"
+)]
 fn parser_runs_again(_world: &mut StreamingState) { _world.parsed_events += 1; }
 
 #[then("implicit underscore fixture lookup uses the world fixture")]

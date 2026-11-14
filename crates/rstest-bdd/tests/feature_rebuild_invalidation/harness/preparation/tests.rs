@@ -26,16 +26,24 @@ fn child_env(target_directory: &std::path::Path) -> process::ChildEnv {
 /// Leave `env`'s target directory as a real build would: a profile holding
 /// Cargo's dependency artefacts.
 ///
-/// The gate requires `deps` and `.fingerprint` inside the profile, not merely
-/// the profile directory, so a fixture that created only the latter would make
-/// the first gate refuse for a reason other than the eviction under test.
+/// The gate requires a unit directory and a fingerprint store inside the
+/// profile, not merely the profile directory, so a fixture that created only
+/// the latter would make the first gate refuse for a reason other than the
+/// eviction under test.
+///
+/// The unit itself is written as rustc writes one — a `.d` record beside the
+/// output it describes — because that pairing is what the discovery walk
+/// follows. A bare placeholder file in `deps` would leave the profile with no
+/// units, and the gate would refuse the eviction for the wrong reason.
 fn populate_profile(env: &process::ChildEnv) {
     let profile = process::child_target_directory(env).join(nested_cargo::DEFAULT_PROFILE);
-    for name in nested_cargo::DEPENDENCY_ARTEFACT_DIRS {
-        let directory = profile.join(name);
-        std::fs::create_dir_all(&directory).expect("dependency artefact dir");
-        std::fs::write(directory.join("unit"), b"artefact").expect("dependency artefact");
-    }
+    let deps = profile.join("deps");
+    std::fs::create_dir_all(&deps).expect("dependency artefact dir");
+    std::fs::write(deps.join("unit.d"), b"dep-info").expect("dep-info");
+    std::fs::write(deps.join("libunit.rlib"), b"artefact").expect("dependency artefact");
+    let fingerprints = profile.join(".fingerprint");
+    std::fs::create_dir_all(&fingerprints).expect("fingerprint dir");
+    std::fs::write(fingerprints.join("unit"), b"fingerprint record").expect("fingerprint record");
 }
 
 /// A scratch copy of the fixture, standing in for `fixtures::scratch_root`.
@@ -258,7 +266,7 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
 }
 
 #[test]
-fn evicting_the_dependency_artefacts_invalidates_the_preparation() {
+fn evicting_the_compiled_units_invalidates_the_preparation() {
     // The profile directory can survive while the work inside it does not.
     // This is the partial eviction a gate that only checked `is_dir()` would
     // accept: `<target>/debug` still exists, so does the family's stamp, and

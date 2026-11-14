@@ -29,19 +29,18 @@
 //! Preparation commands are bounded by [`PREPARATION_COMMAND_TIMEOUT`], which
 //! is deliberately separate from every assertion deadline. The pieces live in
 //! private submodules: `stamp` holds the fingerprint and the stamp file,
-//! `artefacts` decides whether a stamped tree is still there, `toolchain`
-//! resolves the compiler identity, `input_hash` hashes fixture sources, and
-//! `lifecycle` owns the gate that decides whether to build. What a caller
-//! needs is re-exported here.
+//! `artefacts` decides whether a stamped tree is still there, `layout` finds
+//! the directories Cargo put that tree in, `toolchain` resolves the compiler
+//! identity, `input_hash` hashes fixture sources, and `lifecycle` owns the gate
+//! that decides whether to build. What a caller needs is re-exported here.
 
 mod artefacts;
 mod input_hash;
+mod layout;
 mod lifecycle;
 mod stamp;
 mod stamp_file;
 mod toolchain;
-
-pub use artefacts::DEPENDENCY_ARTEFACT_DIRS;
 pub use input_hash::{cargo_config_inputs, input_hash};
 pub use lifecycle::{
     ensure_prepared,

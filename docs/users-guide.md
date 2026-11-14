@@ -2911,11 +2911,15 @@ trybuild preparation by nothing at all. That is a difference in the runner, not
 in this module, and it is why the named preparation test exists as a separate
 Nextest pass rather than being left to the timed tests.
 
-The artefact check requires each vouched-for profile to contain non-empty
-`deps` and `.fingerprint` directories (`DEPENDENCY_ARTEFACT_DIRS`), and then
-requires every output the preparation recorded to still be present. It proves
-that what the preparation produced is still there, not that the whole tree is
-warm for a different feature set or profile.
+The artefact check discovers each vouched-for profile's contents rather than
+naming Cargo's directories, because Cargo's build-directory layout is not a
+stable interface: the current layout moved every compiled unit out of
+`<profile>/deps` and left that directory absent. The check requires a directory
+holding rustc dep-info records beside their outputs — that pairing is rustc's,
+not Cargo's, so it holds in every layout — and a non-empty fingerprint store.
+It then requires every output the preparation recorded to still be present. It
+proves that what the preparation produced is still there, not that the whole
+tree is warm for a different feature set or profile.
 
 A toolchain that cannot be identified is reported as a preparation error rather
 than recorded as an `"unknown"` fingerprint field. An `"unknown"` field would

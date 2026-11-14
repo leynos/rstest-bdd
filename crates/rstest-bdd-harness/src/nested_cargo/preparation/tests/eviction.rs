@@ -11,7 +11,6 @@ use std::{fs, io, path::PathBuf};
 
 use super::{super::stamp::stamp_path, scratch_preparation};
 use crate::nested_cargo::{
-    DEPENDENCY_ARTEFACT_DIRS,
     NestedCargoEnv,
     Preparation,
     PreparationSummary,
@@ -75,58 +74,63 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
 }
 
 #[test]
-fn evicting_either_dependency_directory_alone_invalidates_the_preparation() {
-    // The gate names two directories, `deps` and `.fingerprint`, and they are
-    // removed one at a time here. Removing both together would pass even if
-    // only one were checked: either directory's absence empties the profile
-    // check, so the other could be silently ignored. Cargo needs both — `deps`
-    // holds the units a timed assertion links and `.fingerprint` holds the
-    // records it reads to decide those units are current — so each removal
-    // alone must be refused.
-    for removed in DEPENDENCY_ARTEFACT_DIRS {
+fn evicting_either_required_half_alone_invalidates_the_preparation() {
+    // The gate requires two things of a profile: a directory holding compiled
+    // units, and a non-empty fingerprint store. They are removed one at a time
+    // here. Removing both together would pass even if only one were checked:
+    // either half's absence empties the profile check, so the other could be
+    // silently ignored. Cargo needs both — the units are what a timed assertion
+    // links, and the store holds the records it reads to decide those units are
+    // current — so each removal alone must be refused.
+    //
+    // The pair is named here rather than read from a public constant: which
+    // directories Cargo uses is its layout, and this module now discovers them.
+    for half in ["units", "fingerprints"] {
         let (_directory, preparation, _environment) = stamped_preparation();
         let profile = prepared_profile(&preparation);
-        let target = profile.join(removed);
+        let removed = match half {
+            "units" => profile.join("deps"),
+            _ => profile.join(".fingerprint"),
+        };
 
-        fs::remove_dir_all(&target).expect("evict one dependency directory");
+        fs::remove_dir_all(&removed).expect("evict one required half");
         assert!(profile.is_dir(), "the profile directory must survive");
         assert!(
             stamp_path(&preparation).is_file(),
-            "the stamp must survive removing {removed}"
+            "the stamp must survive removing {half}"
         );
-        let remaining: Vec<&str> = DEPENDENCY_ARTEFACT_DIRS
-            .iter()
-            .copied()
-            .filter(|name| *name != removed)
-            .collect();
+        let sibling = match half {
+            "units" => profile.join(".fingerprint"),
+            _ => profile.join("deps"),
+        };
         assert!(
-            remaining.iter().all(|name| profile.join(name).is_dir()),
-            "only {removed} may be missing, so its sibling still has to satisfy its own check"
+            sibling.is_dir(),
+            "only {half} may be missing, so its sibling still has to satisfy its own check"
         );
 
         let error = ensure_prepared_with(&preparation, true, || {
             panic!("a timed test must never prepare")
         })
-        .expect_err("a missing dependency directory must fail the gate");
+        .expect_err("a missing required half must fail the gate");
         assert_eq!(
             error.kind(),
             io::ErrorKind::NotFound,
-            "removing {removed} must be refused"
+            "removing {half} must be refused"
         );
         let message = error.to_string();
         assert!(
             message.contains("artefacts it vouched for are gone"),
-            "removing {removed} must name the eviction: {message}"
+            "removing {half} must name the eviction: {message}"
         );
         assert!(
             message.contains("debug"),
-            "removing {removed} must name the profile: {message}"
+            "removing {half} must name the profile: {message}"
         );
     }
 }
 
 #[test]
-fn emptying_a_dependency_directory_invalidates_the_preparation() {
+fn emptying_a_unit_directory_invalidates_the_preparation() {
     // `cargo clean -p` and a glob that misses both leave the directories in
     // place and remove what matters. An empty directory is not a prepared
     // tree, so the check cannot be `exists()`: it has to count entries.
@@ -152,7 +156,7 @@ fn emptying_a_dependency_directory_invalidates_the_preparation() {
     let error = ensure_prepared_with(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
-    .expect_err("an emptied dependency directory must fail the gate");
+    .expect_err("an emptied unit directory must fail the gate");
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }
 
@@ -173,10 +177,8 @@ fn a_dep_info_record_without_its_output_invalidates_the_preparation() {
     assert!(deps.join("unit.d").is_file(), "the dep-info must survive");
     assert!(stamp_path(&preparation).is_file(), "the stamp must survive");
     assert!(
-        DEPENDENCY_ARTEFACT_DIRS
-            .iter()
-            .all(|name| profile.join(name).is_dir()),
-        "both artefact directories must survive"
+        profile.join("deps").is_dir() && profile.join(".fingerprint").is_dir(),
+        "both required halves must survive"
     );
 
     let error = ensure_prepared_with(&preparation, true, || {
@@ -190,7 +192,7 @@ fn a_dep_info_record_without_its_output_invalidates_the_preparation() {
         "the message must name the eviction: {message}"
     );
     assert!(
-        message.contains("missing libunit.rlib"),
+        message.contains("deps/libunit.rlib"),
         "the message must name the artefact that went: {message}"
     );
     assert!(
@@ -231,7 +233,7 @@ fn a_metadata_only_unit_is_paired_with_its_dep_info_record() {
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
     let message = error.to_string();
     assert!(
-        message.contains("missing libchecked.rmeta"),
+        message.contains("deps/libchecked.rmeta"),
         "the message must name the metadata-only artefact that went: {message}"
     );
 }
@@ -263,9 +265,8 @@ fn an_empty_profile_directory_is_not_a_prepared_family() {
     .expect_err("an empty profile must fail the gate");
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
     assert!(
-        DEPENDENCY_ARTEFACT_DIRS
-            .iter()
-            .all(|name| !profile.join(name).exists()),
+        profile.join("deps").symlink_metadata().is_err()
+            && profile.join(".fingerprint").symlink_metadata().is_err(),
         "the fixture must leave the profile genuinely empty: {}",
         directory.path().display()
     );
