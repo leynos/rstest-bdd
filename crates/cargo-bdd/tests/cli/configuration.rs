@@ -36,7 +36,7 @@ use eyre::{Result, eyre};
 use rstest::rstest;
 use serial_test::serial;
 
-use super::run_cargo_bdd_captured_with_env;
+use super::{discovery, run_cargo_bdd_captured_with_env};
 
 /// One `reasons` configuration combination driven through the real binary.
 struct ReasonsCase {
@@ -212,20 +212,11 @@ fn cargo_home_variables() -> Vec<(String, String)> {
 
 /// The home Cargo and Rustup derive their defaults from.
 ///
-/// Mirrors `crates/cargo-bdd/tests/cli/discovery.rs`, which owns the same
-/// decision for the shared helper. An empty value counts as absent on both
-/// platforms: `home` treats an empty `USERPROFILE` that way, and an empty
-/// `HOME` would otherwise derive `.cargo` relative to the child's working
-/// directory rather than to any home.
+/// [`discovery::toolchain_home`] owns the platform rule; this only renders it
+/// for the `String`-valued map below. Duplicating the rule here is what let a
+/// `HOME`-first Windows order survive in three sibling modules at once.
 fn toolchain_home() -> Option<String> {
-    let names: &[&str] = if cfg!(windows) {
-        &["USERPROFILE", "HOME"]
-    } else {
-        &["HOME", "USERPROFILE"]
-    };
-    names
-        .iter()
-        .find_map(|name| env::var(name).ok().filter(|value| !value.is_empty()))
+    discovery::toolchain_home().and_then(|home| home.into_string().ok())
 }
 
 /// Write the platform's highest-precedence discovered configuration file.

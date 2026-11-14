@@ -3393,15 +3393,16 @@ reasons = true
 json = true
 ```
 
-On Unix and Redox, `cargo-bdd` checks `~/.cargo_bdd.toml`, then each XDG
-`cargo_bdd/config.toml` in its search order, then `./.cargo_bdd.toml`, merging
-them in that order. The user directory comes first: it uses
-`$XDG_CONFIG_HOME/cargo_bdd` when `XDG_CONFIG_HOME` is an absolute path, and
-otherwise `$HOME/.config/cargo_bdd`. Every absolute directory in
-`XDG_CONFIG_DIRS` is then searched in the order listed, so a setting that
-appears in more than one of them comes from the first that defines it. If
-`XDG_CONFIG_DIRS` is unset, empty, or holds no absolute directory, the single
-system default `/etc/xdg/cargo_bdd` replaces that part of the search.
+On Unix and Redox, `cargo-bdd` merges `~/.cargo_bdd.toml`, one XDG
+`cargo_bdd/config.toml`, and `./.cargo_bdd.toml`, in that order. The XDG file
+is chosen rather than merged: the search order is `$XDG_CONFIG_HOME/cargo_bdd`
+(when `XDG_CONFIG_HOME` is an absolute path, and otherwise
+`$HOME/.config/cargo_bdd`), then every absolute directory in `XDG_CONFIG_DIRS`
+in the order listed, then `/etc/xdg/cargo_bdd` if `XDG_CONFIG_DIRS` is unset,
+empty, or holds no absolute directory. The first base that contains
+`config.toml` supplies the XDG file and later bases are not read, so a file in
+a later base is ignored entirely when an earlier base has one, even if the
+earlier file omits the setting you are looking for.
 
 On other platforms, it checks the home `.cargo_bdd.toml`, the native
 `cargo_bdd/config.toml` directory, then the working-directory

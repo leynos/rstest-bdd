@@ -130,40 +130,33 @@ fn create_sibling(parent: &Utf8Path, name: &str) -> io::Result<OsString> {
     Ok(OsString::from(directory.into_string()))
 }
 
-/// Carry Cargo's ambient home through the redirection.
-///
-/// Cargo derives its registry from `CARGO_HOME` and its toolchain from
-/// `RUSTUP_HOME`, each defaulting under the user home this policy overrides.
-/// Redirecting the home without carrying these would point the nested build at
-/// an empty registry.
-///
-/// Three sources are considered in order of authority: what the caller
-/// requested, then the ambient variable, then the user-home default. The
-/// caller's value is the most specific intent available and is passed through
-/// untouched, which is what lets a test point the registry somewhere of its
-/// own choosing. The ambient variable outranks the default for the same reason,
-/// matching Cargo's own precedence.
-///
 /// The home Cargo and Rustup derive their defaults from.
 ///
-/// This is deliberately *not* `HOME`-first on Windows. Cargo resolves both
-/// homes through the `home` crate, which documents `USERPROFILE` (falling back
-/// to the profile Known Folder API) as the Windows source and never reads
-/// `HOME`. The discovery order for the *configuration file* is a different
-/// thing: it consults `HOME` first, which is why only `HOME` is redirected.
-/// Using one home for both would be a defect whenever the two disagree, which
-/// a Windows shell with a Unix-style `HOME` arranged for Git or MSYS does —
-/// the child would be handed a registry and toolchain under the wrong root.
+/// Cargo resolves both homes through the `home` crate, and this mirrors it
+/// rather than approximating it. On Unix that crate reads `HOME` and nothing
+/// else. On Windows it reads `USERPROFILE` when that is set and non-empty, and
+/// otherwise queries the profile Known Folder API; it never reads `HOME`.
+///
+/// `HOME` is therefore *not* a fallback on Windows. This file's own discovery
+/// order does consult `HOME` first, which is why only `HOME` is redirected, but
+/// that is the configuration file's rule, not Cargo's. Substituting `HOME` here
+/// would hand the child a registry and toolchain under a root Cargo never
+/// looks at, which a Windows shell with a Unix-style `HOME` arranged for Git or
+/// MSYS makes reachable.
+///
+/// Returning `None` on Windows without `USERPROFILE` is deliberate: the caller
+/// must not invent a home the way the platform would, because only the Windows
+/// API can say where the profile is.
 ///
 /// The empty value is skipped on both platforms because `home` skips it: an
 /// empty `USERPROFILE` means "not set" to the Known Folder fallback there, and
 /// an empty `HOME` would otherwise derive `.cargo` relative to the child's
 /// working directory.
-fn toolchain_home() -> Option<OsString> {
+pub(super) fn toolchain_home() -> Option<OsString> {
     let names: &[&str] = if cfg!(windows) {
-        &["USERPROFILE", "HOME"]
+        &["USERPROFILE"]
     } else {
-        &["HOME", "USERPROFILE"]
+        &["HOME"]
     };
     names
         .iter()

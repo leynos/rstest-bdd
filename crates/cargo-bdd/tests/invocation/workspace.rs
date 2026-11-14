@@ -270,6 +270,12 @@ impl ToolchainHome {
     /// requiring one would drop an override that the parent process did set.
     /// Only the fallback is derived, and only when an ambient home exists.
     ///
+    /// An explicit value is made absolute against this process's working
+    /// directory, which is the one Cargo would have resolved it against. The
+    /// child runs elsewhere, so leaving a relative value as text would move it:
+    /// `home` joins a relative home onto the *child's* current directory, and
+    /// this command changes that directory before the child starts.
+    ///
     /// That fallback is [`toolchain_home`], not `HOME`, because Cargo and
     /// Rustup resolve their home through the `home` crate: on Windows that is
     /// `USERPROFILE` and then the profile Known Folder API, and it never reads
@@ -283,7 +289,23 @@ impl ToolchainHome {
     /// encoded path, which would silently name a different directory.
     fn explicit_or_derived(self) -> io::Result<Option<std::ffi::OsString>> {
         if let Some(explicit) = std::env::var_os(self.variable()) {
-            return Ok(Some(explicit));
+            let working_directory = std::env::current_dir()?;
+            let working_directory = Utf8Path::from_path(&working_directory)
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "the parent working directory is not UTF-8",
+                    )
+                })?
+                .to_path_buf();
+            let explicit = Utf8PathBuf::try_from(explicit)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+            let resolved = if explicit.is_absolute() {
+                explicit
+            } else {
+                working_directory.join(explicit)
+            };
+            return Ok(Some(resolved.into_os_string()));
         }
         let Some(home) = toolchain_home() else {
             return Ok(None);
@@ -296,16 +318,21 @@ impl ToolchainHome {
 
 /// The home Cargo and Rustup derive their defaults from.
 ///
+/// One variable per platform, not a platform-ordered fallback list. `home`
+/// reads `USERPROFILE` then the profile Known Folder API on Windows and `HOME`
+/// on Unix; `HOME` is never a Windows source. This file's own discovery order
+/// does consult `HOME` first, which is why only `HOME` is redirected, but that
+/// is the configuration file's rule and not Cargo's; substituting it here would
+/// name a root Cargo never reads.
+///
 /// An empty value counts as absent on both platforms: `home` treats an empty
 /// `USERPROFILE` that way, and an empty `HOME` would otherwise derive `.cargo`
-/// relative to the child's working directory rather than to any home. The
-/// platform order is the one `home` documents, not the order the configuration
-/// file's own discovery uses; see [`ToolchainHome::explicit_or_derived`].
+/// relative to the child's working directory rather than to any home.
 fn toolchain_home() -> Option<std::ffi::OsString> {
     let names: &[&str] = if cfg!(windows) {
-        &["USERPROFILE", "HOME"]
+        &["USERPROFILE"]
     } else {
-        &["HOME", "USERPROFILE"]
+        &["HOME"]
     };
     names
         .iter()
