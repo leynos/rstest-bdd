@@ -11,9 +11,11 @@ this branch's own span test. That was a flake in a test this branch added, not
 a regression in the diff: the same code passed the lane at `a634e98a`. It has
 been diagnosed and fixed at the source rather than by loosening the assertion,
 and the fix is measured — see `Progress` and `Surprises & discoveries`. The
-fix's own hosted verdict is run `43604994289` at `0b798c1e`, which passed with
-all three required `build-test` jobs green, so the failing lane's verdict has
-been re-taken for the fixed tree rather than inferred from the earlier run.
+fix's own hosted verdict is run `43604994289` at `0b798c1e` and run
+`43608966901` at `17cf96e7`, which each passed with all three required
+`build-test` jobs green, so the failing lane's verdict has been re-taken for
+the fixed tree and for the pushed head rather than inferred from the earlier
+run.
 Earlier green runs, including `43592197882` at `a634e98a`, `f10c0e4d` under
 `43582906292`, and `f93347ef` and `76f8f63e` under `43453087168`, are
 historical evidence recorded in `Progress`; merge pending)
@@ -553,10 +555,12 @@ Hard invariants. Violation requires escalation, not a workaround.
       failed hosted run `43596802177` on the required Windows strict lane, in
       this branch's own span test; that flake is diagnosed and fixed at its
       source (see `Progress`), and the fix passed hosted run `43604994289` at
-      `0b798c1e` with all three `build-test` jobs green. The failing lane's
-      verdict is therefore re-taken for the fixed tree, not carried over from
-      an earlier one. That run supersedes CI run `43592197882` at `a634e98a`
-      as the latest green verdict. The `make test`
+      `0b798c1e` with all three `build-test` jobs green; the pushed head
+      `17cf96e7` then passed run `43608966901`, again with all three. The
+      failing lane's verdict is therefore re-taken for the fixed tree and for
+      the pushed head, not carried over from an earlier one. Those runs
+      supersede CI run `43592197882` at `a634e98a` as the latest green
+      verdict. The `make test`
       row is met locally at `f7fa8cd6`, and the commits after it edit only this
       plan, which no Rust gate reads, so that row's input has not moved. The
       Markdown gates do read this file, and were re-run at the head.
@@ -1433,7 +1437,11 @@ Hard invariants. Violation requires escalation, not a workaround.
       green, including `build-test (windows,
       strict-compile-time-validation)` — the lane that had failed at
       `83a0e488`. The failing test's own verdict is therefore re-taken for the
-      fixed tree rather than carried over from the earlier run.
+      fixed tree rather than carried over from the earlier run. The commit
+      recording that verdict, `17cf96e7`, was then pushed and run again as
+      `43608966901`, which also passed all three lanes, so the pushed head
+      carries its own verdict rather than one inherited from the commit
+      before it.
 
 ## Surprises & discoveries
 
