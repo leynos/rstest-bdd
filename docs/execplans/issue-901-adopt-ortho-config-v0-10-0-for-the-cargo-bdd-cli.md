@@ -8,11 +8,11 @@ be kept up to date as work proceeds.
 Status: IMPLEMENTATION COMPLETE (latest *completed* hosted verdict is CI run
 `43582906292` at `f10c0e4d`: all three required `build-test` jobs pass,
 including both Windows jobs and the Linux job whose earlier timeout was
-diagnosed as host contention. The head carrying this text is `de4de598`, one
-commit later and still awaiting its own hosted verdict, so this line claims
-nothing about it. Earlier green runs, including `f93347ef` and `76f8f63e` under
-run `43453087168`, are historical evidence recorded in `Progress`; merge
-pending)
+diagnosed as host contention. The head carrying this text is `f7fa8cd6`, three
+commits later and still awaiting a hosted verdict of its own, so this line
+claims nothing about it. Earlier green runs, including `f93347ef` and
+`76f8f63e` under run `43453087168`, are historical evidence recorded in
+`Progress`; merge pending)
 
 ## Purpose / big picture
 
@@ -549,7 +549,7 @@ Hard invariants. Violation requires escalation, not a workaround.
       hosted verdict is CI run `43582906292` at `f10c0e4d`, where all three
       `build-test` jobs passed; the head after it has no recorded verdict yet,
       so this entry claims nothing about it. The `make test` row is met locally
-      at `de4de598`, and a hosted verdict for a head at or after that revision
+      at `f7fa8cd6`, and a hosted verdict for a head at or after that revision
       is the remaining evidence this section names.
       The candidate was rebased onto `origin/main`
       (`693bba91`) and gated at revision `96e38df8`; the rebase described in
@@ -1332,13 +1332,30 @@ Hard invariants. Violation requires escalation, not a workaround.
       a `ToolchainHome` enum: one value carrying both facts, iterated at the
       call site. Suppressing the rule would have left the hazard in place.
 
-- [x] (2026-11-14) `make test` was re-taken at `de4de598` because the commit
-      before it changed a gate input, and it exited zero with `REV_START` and
-      `REV_END` both that revision: 2258 of 2258 nextest tests passed with 7
-      skipped, 788 of 788 doc tests passed with 7 skipped, and 292 pytest tests
-      passed. The earlier `404c8861` verdict was not reused for a tree with a
-      changed gate input, and the paragraph that explained why it still applied
-      was replaced rather than left to misdescribe the current evidence.
+- [x] (2026-11-14) `make test` has been re-taken at `de4de598` and then at
+      `f7fa8cd6`, each time because the commit before it changed a gate input,
+      and each exited zero with `REV_START` and `REV_END` both the revision it
+      names: 2258 of 2258 nextest tests passed with 7 skipped, 788 of 788 doc
+      tests passed with 7 skipped, and 292 pytest tests passed. The earlier
+      verdicts were not reused for a tree with a changed gate input, and the
+      paragraph that once explained why an older one still applied was replaced
+      rather than left to misdescribe the current evidence.
+
+- [x] (2026-11-14) Round 19 reported three findings, and all three were right
+      about code or prose this branch had introduced. Finding 1 named the
+      `HOME` fallback in the Windows toolchain-home selection; a fourth copy of
+      that selection existed too, so the rule was consolidated into
+      `discovery::toolchain_home` and the three sibling modules now call it
+      instead of restating it. `home` reads `USERPROFILE` then the profile
+      Known Folder API on Windows and `HOME` on Unix, so no platform-ordered
+      fallback list is correct. Finding 2 was the relative-path case: `home`
+      joins a relative home onto the current directory, and the invocation
+      fixture changes that directory before the child starts, so explicit homes
+      are now resolved against the parent's directory first. Finding 3
+      corrected this branch's own edit to the users' guide: `cargo-bdd`
+      selects one XDG file and never merges later bases, so the "first that
+      defines the setting" wording was replaced with the rule and its
+      consequence. The design document already stated it correctly.
 
 ## Surprises & discoveries
 
@@ -2206,8 +2223,8 @@ Acceptance means all of the following, in one gate run against the final tree:
   MSRV split directly.
 
 The `make test` row asks for one gate run against the final tree. It is met
-locally at `de4de598`: the whole recipe ran unfiltered on a clean tree,
-`REV_START` and `REV_END` both `de4de598beaab8908dfa9e84327f88853182b3b0`, and
+locally at `f7fa8cd6`: the whole recipe ran unfiltered on a clean tree,
+`REV_START` and `REV_END` both `f7fa8cd66b820ea9be1beab079d055e16d329652`, and
 exited zero with 2258 of 2258 nextest tests passing (7 skipped), 788 of 788 doc
 tests passing (7 skipped), and 292 pytest tests passing, with no `FAILED` line
 and no `make: ***` in the log.
