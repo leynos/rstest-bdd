@@ -126,20 +126,10 @@ impl IsolatedWorkspace {
             .env("CARGO", env!("CARGO"))
             .env("CARGO_NET_OFFLINE", "true")
             .current_dir(&self.working_directory);
-        if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
-            let home = Utf8PathBuf::try_from(home)
-                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-            command
-                .env(
-                    "CARGO_HOME",
-                    std::env::var_os("CARGO_HOME")
-                        .unwrap_or_else(|| home.join(".cargo").into_os_string()),
-                )
-                .env(
-                    "RUSTUP_HOME",
-                    std::env::var_os("RUSTUP_HOME")
-                        .unwrap_or_else(|| home.join(".rustup").into_os_string()),
-                );
+        for (key, directory) in [("CARGO_HOME", ".cargo"), ("RUSTUP_HOME", ".rustup")] {
+            if let Some(value) = explicit_or_derived_home(key, directory)? {
+                command.env(key, value);
+            }
         }
         if let Some(system_root) = std::env::var_os("SystemRoot") {
             command.env("SystemRoot", system_root);
@@ -237,6 +227,54 @@ impl IsolatedWorkspace {
         let source_directory = working_directory.open_dir("src")?;
         source_directory.write("main.rs", "fn main() {}\n")
     }
+}
+
+/// Resolve one toolchain home for the cleared environment.
+///
+/// The child's environment is cleared, so the explicit `CARGO_HOME` or
+/// `RUSTUP_HOME` has to be re-exported here or it is lost. Each is resolved on
+/// its own: an explicit value needs no ambient home, and requiring one would
+/// drop a override that the parent process did set. Only the fallback is
+/// derived, and only when an ambient home exists.
+///
+/// That fallback is [`toolchain_home`], not `HOME`, because Cargo and Rustup
+/// resolve their home through the `home` crate: on Windows that is
+/// `USERPROFILE` and then the profile Known Folder API, and it never reads
+/// `HOME`. Configuring both from `HOME` would point this child at a registry
+/// and toolchain that do not exist whenever a Windows shell sets a Unix-style
+/// `HOME` distinct from the profile, and every Cargo-dispatched invocation
+/// case would then fail to find the installed toolchain.
+///
+/// A value that is not valid UTF-8 is an error rather than a lossily encoded
+/// path, which would silently name a different directory.
+fn explicit_or_derived_home(key: &str, directory: &str) -> io::Result<Option<std::ffi::OsString>> {
+    if let Some(explicit) = std::env::var_os(key) {
+        return Ok(Some(explicit));
+    }
+    let Some(home) = toolchain_home() else {
+        return Ok(None);
+    };
+    let home = Utf8PathBuf::try_from(home)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    Ok(Some(home.join(directory).into_os_string()))
+}
+
+/// The home Cargo and Rustup derive their defaults from.
+///
+/// An empty value counts as absent on both platforms: `home` treats an empty
+/// `USERPROFILE` that way, and an empty `HOME` would otherwise derive `.cargo`
+/// relative to the child's working directory rather than to any home. The
+/// platform order is the one `home` documents, not the order the configuration
+/// file's own discovery uses; see [`explicit_or_derived_home`].
+fn toolchain_home() -> Option<std::ffi::OsString> {
+    let names: &[&str] = if cfg!(windows) {
+        &["USERPROFILE", "HOME"]
+    } else {
+        &["HOME", "USERPROFILE"]
+    };
+    names
+        .iter()
+        .find_map(|name| std::env::var_os(name).filter(|value| !value.is_empty()))
 }
 
 /// Create an isolated workspace, or the I/O error that prevented it.
