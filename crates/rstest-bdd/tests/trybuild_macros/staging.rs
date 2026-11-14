@@ -180,12 +180,10 @@ fn stage_trybuild_support_files() -> io::Result<()> {
     Ok(())
 }
 
-/// Resolve the Cargo target directory shared by trybuild staging and inspection.
+/// Resolve the Cargo target root from the running test executable.
 ///
-/// The running integration-test executable is compiled beneath Cargo's
-/// effective target root, including a `--target-dir` selected by `cargo
-/// llvm-cov`. Prefer that path over `cargo metadata`: metadata does not receive
-/// a caller's command-line target-directory override.
+/// Cargo metadata does not receive `cargo llvm-cov` overrides, including
+/// Windows' `debug/build/.../out` layout.
 pub(super) fn trybuild_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
     static TARGET_DIRECTORY: OnceLock<Utf8PathBuf> = OnceLock::new();
     TARGET_DIRECTORY
@@ -205,11 +203,13 @@ fn target_directory_from_running_test_executable() -> Option<Utf8PathBuf> {
 /// helper serves only the trybuild test-support module. Its callers must
 /// use the returned root for both staged inputs and inspection artefacts.
 fn target_directory_from_test_executable(executable: &Utf8Path) -> Option<Utf8PathBuf> {
-    let dependencies = executable.parent()?;
-    if dependencies.file_name() != Some("deps") {
-        return None;
-    }
-    Some(dependencies.parent()?.parent()?.to_owned())
+    let directory = executable.parent()?;
+    let depth = match directory.file_name()? {
+        "deps" => 2,
+        "out" if directory.ancestors().nth(3)?.file_name() == Some("build") => 5,
+        _ => return None,
+    };
+    directory.ancestors().nth(depth).map(Utf8Path::to_owned)
 }
 
 fn metadata_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
