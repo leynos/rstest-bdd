@@ -38,37 +38,59 @@ const FIXTURE_TEST_BINARIES: [&str; 2] = ["diagnostics_fixture", "unsupported_du
 /// directory cannot be read is not one that has been prepared, and the
 /// distinction is worth keeping in the message.
 pub(super) fn fixture_binaries_present(profile: &Path) -> std::io::Result<bool> {
-    let mut present = vec![false; FIXTURE_TEST_BINARIES.len()];
     // `read_dir` on the profile is what reports an absent tree, so that error
     // survives even though the subdirectories below it are walked leniently.
     let root = std::fs::read_dir(profile)?;
     let mut pending: Vec<std::fs::DirEntry> = root.collect::<std::io::Result<_>>()?;
+    let mut present = vec![false; FIXTURE_TEST_BINARIES.len()];
     while let Some(entry) = pending.pop() {
-        let file_type = entry.file_type()?;
-        if file_type.is_dir() {
-            // A subdirectory that vanishes between the listing and this read is
-            // skipped: the profile is the thing under test, not the race.
-            if let Ok(children) = std::fs::read_dir(entry.path()) {
-                pending.extend(children.filter_map(std::io::Result::ok));
-            }
-            continue;
+        // A subdirectory that vanishes between the listing and this read is
+        // skipped: the profile is the thing under test, not the race.
+        if let Ok(children) = std::fs::read_dir(entry.path()) {
+            pending.extend(children.filter_map(std::io::Result::ok));
         }
-        let name = entry.file_name().to_string_lossy().into_owned();
-        for (index, stem) in FIXTURE_TEST_BINARIES.iter().enumerate() {
-            // `<stem>-<hash>`: the fixture binary itself, never its `.d`
-            // record, which carries the same stem and a `.d` suffix instead.
-            let is_record = name
-                .strip_suffix(".d")
-                .is_some_and(|record| record.starts_with(stem));
-            let is_binary = name
-                .strip_prefix(stem)
-                .is_some_and(|rest| rest.starts_with('-'));
-            if let (true, Some(found)) = (!is_record && is_binary, present.get_mut(index)) {
-                *found = true;
-            }
-        }
+        note_binary(&entry.file_name().to_string_lossy(), &mut present);
     }
     Ok(present.iter().all(|found| *found))
+}
+
+/// Record `name` against the fixture binary it witnesses, if it witnesses one.
+///
+/// Kept apart from the walk so each concern reads on its own: the walk answers
+/// "what entries are below the profile", and this answers "which of them count".
+fn note_binary(name: &str, present: &mut [bool]) {
+    for (index, stem) in FIXTURE_TEST_BINARIES.iter().enumerate() {
+        let Some(found) = present.get_mut(index) else {
+            continue;
+        };
+        if witnesses_binary(name, stem) {
+            *found = true;
+        }
+    }
+}
+
+/// Whether `name` is the compiled test binary for the fixture `stem`.
+///
+/// Cargo writes `<stem>-<hash>` for the binary and `<stem>-<hash>.d` for its
+/// dep-info record. The record must be rejected even though it carries the same
+/// stem, and it is rejected by *name* rather than by a `file_type` check: both
+/// are regular files, and the name is what differs. Requiring the `-` separator
+/// keeps a stem from matching a longer sibling that merely begins with the same
+/// characters.
+///
+/// The record is excluded by its extension as `Path` reports it, compared
+/// case-insensitively: Cargo writes `.d`, but the filesystems it targets do not
+/// agree on case, so a case-sensitive suffix test would be the wrong question.
+fn witnesses_binary(name: &str, stem: &str) -> bool {
+    let Some(rest) = name.strip_prefix(stem) else {
+        return false;
+    };
+    if !rest.starts_with('-') {
+        return false;
+    }
+    !std::path::Path::new(name)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("d"))
 }
 
 #[cfg(test)]

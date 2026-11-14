@@ -38,6 +38,8 @@ use super::{
     stamp::Stamp,
 };
 
+mod replacement;
+
 /// How many missing names a failure message lists before summarizing.
 ///
 /// A `cargo clean` can take hundreds of entries at once. Naming every one
@@ -205,7 +207,7 @@ fn eviction_of(directory: &Path, recorded: Option<&[String]>) -> io::Result<Opti
     let present = recorded_names(directory, &layout)?;
     let missing: Vec<String> = recorded
         .iter()
-        .filter(|name| !present.contains(name))
+        .filter(|name| !replacement::is_vouched_for(name.as_str(), &present))
         .cloned()
         .collect();
     if missing.is_empty() {

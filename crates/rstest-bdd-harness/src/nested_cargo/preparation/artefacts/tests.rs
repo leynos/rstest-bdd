@@ -27,29 +27,40 @@ fn write_units(directory: &std::path::Path, units: &[(&str, &str)]) {
     }
 }
 
-/// A profile in the classic `<profile>/deps` + `<profile>/.fingerprint` shape.
-fn preparation_with(units: &[(&str, &str)]) -> (tempfile::TempDir, Preparation) {
+/// A profile holding `units` in `unit_dir` and a store at `store`, both named
+/// relative to `<profile>`.
+///
+/// The two fixtures below describe the same thing — a profile holding a unit
+/// directory and a store beside it — and differ only in where Cargo would have
+/// put them, so they share this scaffolding and pass the layout in.
+fn preparation_in(
+    unit_dir: &str,
+    store: &str,
+    units: &[(&str, &str)],
+) -> (tempfile::TempDir, Preparation) {
     let directory = tempfile::tempdir().expect("temp dir");
     let target = directory.path().join("target");
     let profile = target.join("debug");
-    write_units(&profile.join("deps"), units);
-    fs::create_dir_all(profile.join(".fingerprint")).expect("fingerprint dir");
-    fs::write(profile.join(".fingerprint/record"), b"record").expect("fingerprint");
+    write_units(&profile.join(unit_dir), units);
+    let store = profile.join(store);
+    fs::create_dir_all(&store).expect("fingerprint dir");
+    fs::write(store.join("record"), b"record").expect("fingerprint");
     let preparation = preparation_for(directory.path(), &target);
     (directory, preparation)
 }
 
+/// A profile in the classic `<profile>/deps` + `<profile>/.fingerprint` shape.
+fn preparation_with(units: &[(&str, &str)]) -> (tempfile::TempDir, Preparation) {
+    preparation_in("deps", ".fingerprint", units)
+}
+
 /// A profile in Cargo 1.100.0's `<profile>/build/<pkg>/<hash>/out` shape.
 fn preparation_with_new_layout(units: &[(&str, &str)]) -> (tempfile::TempDir, Preparation) {
-    let directory = tempfile::tempdir().expect("temp dir");
-    let target = directory.path().join("target");
-    let profile = target.join("debug");
-    let hash = profile.join("build/unit/0123456789abcdef");
-    write_units(&hash.join("out"), units);
-    fs::create_dir_all(hash.join("fingerprint")).expect("fingerprint dir");
-    fs::write(hash.join("fingerprint/lib-unit"), b"record").expect("fingerprint");
-    let preparation = preparation_for(directory.path(), &target);
-    (directory, preparation)
+    preparation_in(
+        "build/unit/0123456789abcdef/out",
+        "build/unit/0123456789abcdef/fingerprint",
+        units,
+    )
 }
 
 /// Describe `target/debug` as the artefacts a preparation rooted at `root`

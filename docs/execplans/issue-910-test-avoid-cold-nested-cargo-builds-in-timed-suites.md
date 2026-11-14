@@ -1259,6 +1259,45 @@ rather than by reading this branch's comments.
       families through the Makefile's own `RUSTFLAGS` and feature selection,
       not a hand-rolled approximation.
 
+- [x] Stop reading a *replaced* unit as an evicted one, which the exact layer
+      did on every run of the full suite. `make test` failed at
+      `rstest_bdd::feature_rebuild_invalidation::feature_addition_triggers_rebuild`
+      with `nested fixture artefacts for family feature-addition are not
+      prepared (…/target/tests/feature-addition/.feature-addition.rstest-bdd-prepared
+      is missing or stale, and the artefacts it vouched for are gone
+      (…/target/debug (missing deps/invalidation-208b4c614aa6ee86,
+      deps/librstest_bdd_rebuild_invalidation_fixture-6287f0c96ae1b378.rlib,
+      …rmeta, deps/rstest_bdd_rebuild_invalidation_fixture-83897a1060c95132)))`,
+      2246 passed and 1 failed out of 2314. The four names were the *sibling*
+      fixture's units, and no rule about eviction was involved: both scratch
+      families stamp the **shared** `<target>/debug`, so each family's stamp
+      records every unit in the profile, and
+      `clean_fixture_units` runs `cargo clean -p
+      rstest-bdd-rebuild-invalidation-fixture` by design before each
+      experiment's baseline. Cargo rebuilt those units under new metadata
+      hashes — `invalidation-208b4c61…` became `invalidation-082d5309…`,
+      `librstest_bdd_rebuild_invalidation_fixture-6287f0c9…` became
+      `-4cb94ee2…` — so every recorded name for them looked absent at once
+      while the profile held all four units. Measured before changing anything:
+      each missing name had a same-form replacement differing only in the hash,
+      and the stamp's own mtime (13:17:10) was *later* than the profile's
+      (13:16:19), which ruled out "the tree went after the stamp" and left
+      "the tree was rebuilt" as the only reading. `artefacts/replacement.rs`
+      now splits a recorded name into directory, stem, hash and suffix, and
+      accepts a name as vouched for when a present name matches all but the
+      hash. The output form must match too, because excusing any same-stem
+      entry would reopen the hole the exact layer exists to close — an `.rlib`
+      removed while its `.rmeta` survived is exactly what
+      `an_rlib_removed_beside_a_surviving_rmeta_is_an_eviction` refuses, and
+      that case still passes. The two-layer check was right that something had
+      changed; what it lacked was the distinction between a unit that was
+      *deleted* and one that was *replaced under a new name*, which is the
+      normal consequence of the per-package clean this harness performs
+      deliberately. Lesson: a predicate over another tool's on-disk names must
+      account for that tool's *own* renaming behaviour, not only its deletions,
+      and the failure to look for is the one where a rebuild is
+      indistinguishable from an eviction.
+
 ## Surprises & Discoveries
 
 - **A hand-rolled `RUSTFLAGS` stales every stamp it touches.** 2026-11-12. The

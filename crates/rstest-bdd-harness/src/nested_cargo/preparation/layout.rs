@@ -100,23 +100,11 @@ pub(super) fn discover(profile: &Path) -> io::Result<Layout> {
     while let Some((directory, depth)) = pending.pop() {
         // `depth == 0` is the profile itself, so its children are the level
         // Cargo's incremental cache lives at.
-        let listing = match listing_of(&directory, depth == 0) {
-            Ok(listing) => listing,
-            Err(error) if error.kind() == io::ErrorKind::NotFound && depth == 0 => {
-                return Ok(layout);
-            }
-            Err(error) => return Err(error),
+        let Some(listing) = list_or_absent(&directory, depth == 0)? else {
+            // Only the profile itself can be legitimately absent.
+            return Ok(layout);
         };
-        if listing
-            .names
-            .iter()
-            .any(|name| dep_info_stem(name).is_some())
-        {
-            layout.units.push(directory.clone());
-        }
-        if is_fingerprint_store(&directory) && !listing.names.is_empty() {
-            layout.fingerprints.push(directory.clone());
-        }
+        classify(&directory, &listing, &mut layout);
         if depth < MAX_DEPTH {
             pending.extend(
                 listing
@@ -132,6 +120,59 @@ pub(super) fn discover(profile: &Path) -> io::Result<Layout> {
     layout.units.sort();
     layout.fingerprints.sort();
     Ok(layout)
+}
+
+/// List `directory`, reporting an absent profile as `None`.
+///
+/// Absence is only tolerated at the profile itself; a missing subdirectory
+/// mid-walk is a read fault, because a tree that changed under the walk cannot
+/// be vouched for.
+///
+/// # Errors
+///
+/// As [`listing_of`], for every failure other than an absent profile.
+fn list_or_absent(directory: &Path, is_profile: bool) -> io::Result<Option<Listing>> {
+    match listing_of(directory, is_profile) {
+        Ok(listing) => Ok(Some(listing)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound && is_profile => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+/// Record what `directory` contributes to `layout`.
+///
+/// Two independent questions, neither of which can shorten the other: whether
+/// the directory holds units, and whether it is a populated fingerprint store.
+fn classify(directory: &Path, listing: &Listing, layout: &mut Layout) {
+    if listing
+        .names
+        .iter()
+        .any(|name| dep_info_stem(name).is_some())
+    {
+        layout.units.push(directory.to_path_buf());
+    }
+    if is_fingerprint_store(directory) && !listing.names.is_empty() {
+        layout.fingerprints.push(directory.to_path_buf());
+    }
+}
+
+/// Whether `entry` is a directory the walk should descend into.
+///
+/// Split out of [`listing_of`] as its own predicate so the loop body stays one
+/// branch: the Whitaker suite's `conditional_max_n_branches` refuses an
+/// `if` that nests three tests, and naming the rule makes it checkable.
+///
+/// `prune_incremental` is only true for the profile's own children, so the
+/// cache is excluded at the one level Cargo keeps it and nowhere else.
+///
+/// # Errors
+///
+/// Returns the read error when the entry's file type cannot be read.
+fn is_walkable(entry: &fs::DirEntry, prune_incremental: bool) -> io::Result<bool> {
+    if !entry.file_type()?.is_dir() {
+        return Ok(false);
+    }
+    Ok(!(prune_incremental && entry.file_name() == INCREMENTAL))
 }
 
 /// Read one directory's entry names and its immediate subdirectories.
@@ -155,7 +196,7 @@ fn listing_of(directory: &Path, prune_incremental: bool) -> io::Result<Listing> 
     let mut subdirectories = Vec::new();
     for entry in fs::read_dir(directory)? {
         let entry = entry?;
-        if entry.file_type()?.is_dir() && !(prune_incremental && entry.file_name() == INCREMENTAL) {
+        if is_walkable(&entry, prune_incremental)? {
             subdirectories.push(entry.path());
         }
         names.push(entry.file_name().to_string_lossy().into_owned());
