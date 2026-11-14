@@ -8,11 +8,12 @@ be kept up to date as work proceeds.
 Status: IMPLEMENTATION COMPLETE (latest *completed* hosted verdict is CI run
 `43592197882` at `a634e98a`: all three required `build-test` jobs pass,
 including both Windows jobs and the Linux job whose earlier timeout was
-diagnosed as host contention. That revision carries this text's code and its own
-`make test` row, so no gate evidence is outstanding. Earlier green runs,
-including `f10c0e4d` under run `43582906292` and `f93347ef` and `76f8f63e`
-under run `43453087168`, are historical evidence recorded in `Progress`; merge
-pending)
+diagnosed as host contention. The local `make test` row was taken one commit
+earlier at `f7fa8cd6`, and the commits after it edit only this plan, so that
+row's input has not moved. The Markdown gates were re-run at the head, since
+they do read this file. Earlier green runs, including `f10c0e4d` under run
+`43582906292` and `f93347ef` and `76f8f63e` under run `43453087168`, are
+historical evidence recorded in `Progress`; merge pending)
 
 ## Purpose / big picture
 
@@ -548,8 +549,10 @@ Hard invariants. Violation requires escalation, not a workaround.
       unchecked until the pull request lands on `main`. The latest *completed*
       hosted verdict is CI run `43592197882` at `a634e98a`, where all three
       `build-test` jobs passed. The `make test` row is met locally at
-      `f7fa8cd6`, and that head's own hosted run is green, so no verdict
-      evidence remains outstanding. Merge is the only unchecked item.
+      `f7fa8cd6`, and the two commits after it edit only this plan, which no
+      Rust gate reads, so that row's input has not moved. The Markdown gates
+      do read this file, and were re-run at the head. No verdict evidence
+      remains outstanding; merge is the only unchecked item.
       The candidate was rebased onto `origin/main`
       (`693bba91`) and gated at revision `96e38df8`; the rebase described in
       `Outcomes & retrospective` is the later one.
@@ -1355,6 +1358,26 @@ Hard invariants. Violation requires escalation, not a workaround.
       selects one XDG file and never merges later bases, so the "first that
       defines the setting" wording was replaced with the rule and its
       consequence. The design document already stated it correctly.
+
+- [x] (2026-11-14) Hosted CI run `43592197882` passed at `a634e98a` with all
+      three required `build-test` lanes green, and CodeScene and Gecko passed
+      with it. That closed the last gap the previous status line named. A
+      correction followed: the line had said the head's own hosted run was
+      green at `f7fa8cd6`, and no run exists for that revision at all — GitHub
+      records runs only for `dbede7ea`, `f10c0e4d` and `a634e98a`. Both the
+      status line and the section 6 checkbox now state the reachability
+      properly instead: `a634e98a` carries every line of code the local
+      `make test` row was taken on, the two commits after `f7fa8cd6` edit only
+      this plan, and the Markdown gates that do read it were re-run at the new
+      head. Those re-runs were taken at `3d9aaab5` with `REV_START` and
+      `REV_END` both recording it: `make check-fmt`, `make markdownlint`,
+      `make spelling` and `make nixie` exited zero, as did `make lint` (all
+      nine steps, zero warnings in the log), `make typecheck`, and
+      `cargo test -p cargo-bdd --test invocation --test cli` (21 and 24 cases).
+      Separately, PR #912 is not a draft: GitHub's timeline shows a
+      `ready_for_review` event by `leynos` at 2026-11-07T23:27:23Z, before this
+      round's work, and no `convert_to_draft` event. The brief asked for a
+      draft PR, so the state is recorded here rather than silently reversed.
 
 ## Surprises & discoveries
 
