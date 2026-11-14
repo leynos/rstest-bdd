@@ -4,7 +4,7 @@
 //! The suite parses `.config/nextest.toml` with `toml` and asserts its timeout
 //! policy, including `global-timeout` and the `cargo-spawning` thread limit.
 //!
-//! Four contracts are pinned:
+//! Five contracts are pinned:
 //!
 //! * `preparation_nextest_override_preserves_timeout_contract` requires exactly one override to
 //!   match `test(/nested_fixture_preparation$/)`, at a 30 m period with the same termination
@@ -20,6 +20,10 @@
 //!   others. It then requires the override to keep a 20 m `slow-timeout` period, `terminate-after =
 //!   1`, a 5 s grace period and membership of the `cargo-spawning` group, and the default profile's
 //!   `global-timeout` to exceed the period in seconds.
+//! * `preparation_command_bound_fires_before_the_runner_kills_the_test` requires the per-command
+//!   preparation timeout multiplied by the number of sequential commands a preparation test may run
+//!   to stay below the preparation override's period, so the named timeout error that carries the
+//!   child's captured output fires first.
 //! * `nested_cargo_run_retains_cold_build_reserve` recomputes the R-6 sizing scenario (a reference
 //!   lane of `180 + 600 * 4 + 600 * 3` seconds, ten cold nested invocations at 19 s each and a 600
 //!   s reserve) and requires the default profile's `global-timeout` to cover it, and the
