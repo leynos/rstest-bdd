@@ -980,10 +980,10 @@ rather than by reading this branch's comments.
          file now reads as the rule and its two layers, with no fixture code
          interleaved.
 
-- [ ] Close the six pre-merge rows CodeRabbit reported on `f3d05061`. Five are
-      now implemented and not yet committed; the sixth (the Makefile-driven
-      end-to-end test) is answered by the harness-level sequence instead, with
-      the reasoning recorded below.
+- [x] Close the six pre-merge rows CodeRabbit reported on `f3d05061`. Five are
+      implemented across `6905d6c3`, `ac22bd22`, `5a1bd0d6` and `7dcbb059`;
+      the sixth (the Makefile-driven end-to-end test) is answered by the
+      harness-level sequence instead, with the reasoning recorded below.
       1. **The toolchain probe is injectable, and the boundary is tested
          through it.** `fingerprint` composed a fingerprint from a probe that
          production always supplied, so every existing test exercised only
@@ -1932,6 +1932,56 @@ rather than by reading this branch's comments.
 - **The preparation override goes first in the file.** Nextest's first-match
   precedence means position, not priority, is what keeps the preparation from
   inheriting a timed assertion's budget.
+
+## Surprises & discoveries: the packaging boundary
+
+- **A fallible signature is a breaking change to the *published* surface, not
+  only to the workspace.** `build_child_env` returning `io::Result` compiled
+  everywhere in the workspace, so every local gate passed. `cargo package`
+  strips workspace `path` overrides, so the verification build of `cargo-bdd`
+  compiled against the *published* `rstest-bdd-harness` 0.6.0, which never had
+  that signature, and failed with
+
+  ```text
+  error[E0599]: no method named `with_context` found for struct
+  `NestedCargoEnv` in the current scope
+     --> src\registry\mod.rs:254:6
+  ```
+
+  Only the hosted `Publish dry run` step, on all three lanes, could see it. The
+  lesson is that `cargo check` and `cargo test` cannot tell whether a
+  workspace-internal API change is packageable; `cargo package` is a
+  *different* compiler input because of the stripped paths.
+- **`--allow-unpublished-workspace-deps` does not rescue a compile error.** It
+  downgrades only the index-lookup failure that lading recognizes — the
+  `failed to select a version for the requirement` plus
+  `location searched: crates.io index` pair. A version too low for the API
+  produces a compile error instead, which lading raises as a preflight failure.
+  The fix is a version that names the release train, not a weaker gate.
+- **The version bump is the documented remedy, not an unrelated change.**
+  `--allow-unpublished-workspace-deps` exists precisely for "a release train
+  whose workspace crates share a new version before any crate has been uploaded"
+  (`docs/releasing-crates.md`). `docs/v0-7-0-migration-guide.md` already filed
+  this fallibility as a v0.7.0 change; the version was simply never bumped.
+  After `lading bump 0.7.0`, `cargo package` fails with the index-lookup
+  failure the gate tolerates instead of a compile error, and
+  `make publish-check` exits 0.
+- **Three couplings live outside `lading bump`.** `PUBLISHED_GPUI_E2E_VERSION`
+  in the `Makefile` and the published-GPUI E2E fixture's pins and patch paths
+  are asserted against the workspace version by
+  `scripts/tests/test_published_gpui_e2e_lockfile_contract.py`, so the bump is
+  incomplete without them. The fixture lockfile is then stale; relink it with
+  `cargo update --workspace`, which touched six lines, rather than
+  `cargo generate-lockfile`, which re-resolved all 786 packages and churned 888
+  lines for the same result.
+- **The repository's own `.git/config` rewrites SSH to HTTPS.** It carries
+  `url.https://github.com/.insteadof git@github.com:`, so a push to an
+  `git@github.com:` URL is transparently downgraded to HTTPS and prints the
+  Lody shim's output despite `GIT_SSH_COMMAND=/usr/bin/ssh`. Override the
+  rewrite for the single command with
+  `-c url.git@github.com:.insteadof=https://github.com/`; a read-only
+  `ls-remote` under the same override confirms the SSH transport actually
+  reaches the repository before a push is trusted.
 
 ## Outcomes & Retrospective
 
