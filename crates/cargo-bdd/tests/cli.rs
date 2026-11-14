@@ -32,10 +32,9 @@
 //! map's precedence is asserted separately by
 //! `cli_child_environment_reuses_target`.
 
-use std::{env, ffi::OsString, path::PathBuf, process::ExitStatus, str};
+use std::{env, path::PathBuf, process::ExitStatus, str};
 
 use assert_cmd::Command;
-use discovery::empty_configuration_home_variables;
 use eyre::{Context, Result};
 use rstest_bdd_harness::{
     binary_test_support::{BinaryName, locate_or_build_binary},
@@ -137,54 +136,16 @@ use preparation::ensure_cli_prepared;
 #[path = "cli/configuration.rs"]
 mod configuration;
 
-/// Apply the shared isolation policy with this CLI fixture's workspace target.
-///
-/// Only CLI smoke-test setup owns this fallback; explicit coverage and caller
-/// target directories continue to take precedence.
-///
-/// Inherited `CARGO_BDD_*` variables are dropped before the shared policy runs.
-/// The binary reads that prefix as a configuration tier, so a developer's own
-/// export would otherwise outrank the file under test and make a file-tier case
-/// assert against somebody else's setting. Cargo assigns no meaning to the
-/// prefix, so nothing Cargo needs is lost.
-///
-/// The file tier needs the same treatment, and the prefix filter cannot give
-/// it: discovery reads `$HOME/.cargo_bdd.toml`, the XDG bases and, on Windows,
-/// the home dotfile, so an inherited `HOME` or `XDG_CONFIG_DIRS` lets a
-/// developer's own file change what these smoke tests observe. Measured with a
-/// `HOME` dotfile setting `cmds.skipped.json = true`,
-/// `skipped_subcommand_includes_reasons_and_lines` fails on a run that
-/// otherwise passes. Those roots are therefore pointed at an empty directory.
-///
-/// For example, `cli_child_environment(Vec::new())` selects the workspace
-/// `target/`; a snapshot containing `CARGO_TARGET_DIR` retains that value.
-///
-/// # Errors
-///
-/// As [`nested_cargo::env_from_vars`]: a relative target directory that cannot
-/// be resolved against this process's working directory is reported rather than
-/// handed to a child that would resolve it somewhere else.
-fn cli_child_environment(
-    mut vars: Vec<(OsString, OsString)>,
-) -> std::io::Result<nested_cargo::NestedCargoEnv> {
-    vars.retain(|(key, _)| !key.to_string_lossy().starts_with("CARGO_BDD_"));
-    // Built before extending so the helper can see what the caller asked for;
-    // it passes a caller-supplied `CARGO_HOME` or `RUSTUP_HOME` through rather
-    // than replacing it.
-    if let Ok(redirects) = empty_configuration_home_variables(&vars) {
-        vars.extend(redirects);
-    } else {
-        // A test that cannot build its environment must fail rather than run
-        // against the host's configuration roots, which is what this guard
-        // exists to prevent.
-        panic!("the discovery-root redirect could not be prepared");
-    }
-    nested_cargo::env_from_vars(
-        vars,
-        Some(&workspace_root().join("target")),
-        nested_cargo::ProfileDestination::Caller,
-    )
-}
+// The prefix test is its own concern; its documentation gives the Windows
+// case-insensitivity reasoning.
+#[path = "cli/isolation.rs"]
+mod isolation;
+
+// The map is built once here and asserted on by the `environment` module.
+#[path = "cli/child_environment.rs"]
+mod child_environment;
+
+use child_environment::cli_child_environment;
 
 // The discovery-root redirection is a cohesion split: it owns the file tier's
 // environment policy, and the sibling `environment` module asserts the map this
