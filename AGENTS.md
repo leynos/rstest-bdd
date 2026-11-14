@@ -218,11 +218,14 @@ project:
   - `make check-fmt` runs `cargo fmt --all -- --check` on the nightly toolchain
     named by `FMT_TOOLCHAIN`, checks the two standalone published-GPUI fixture
     manifests the same way, runs `ruff format --check` over the Python targets,
-    and runs `mdtablefix --check` over the tracked Markdown files. It does not
-    modify files. The formatter runs on nightly because `.rustfmt.toml` enables
-    unstable options; every other Cargo invocation uses the stable toolchain
-    from `rust-toolchain.toml`. Use `make fmt` to apply the fixes it reports; it
-    runs the same formatters in write mode.
+    and runs `mdtablefix --check` over the tracked Markdown files. The checks
+    do not reformat sources, but the `build-python` prerequisite runs `uv sync`.
+    The formatter runs on nightly because `.rustfmt.toml` enables unstable
+    options. The Cargo steps in `make lint` and `make test` use the stable
+    toolchain from `rust-toolchain.toml`; `make dev-build`, `make dev-test` and
+    the published-GPUI end-to-end fixture use their own nightly toolchains. Use
+    `make fmt` to apply the fixes that `make check-fmt` reports; it runs the same
+    formatters in write mode.
   - `make lint` runs Clippy over every target with all features and
     `-D warnings` (the `RUST_FLAGS` default), then `cargo doc --workspace
     --no-deps` with `RUSTDOCFLAGS` defaulting to `--cfg docsrs -D warnings`,
@@ -230,8 +233,9 @@ project:
     `-D warnings`. It then runs the Python linters (Ruff, Pylint with the
     `df12_python_lints` plugin, and ambrleaks, after `interrogate` docstring
     coverage) and the repository's script checks under `scripts/`. Clippy and
-    rustdoc assign no `RUSTFLAGS`, so they inherit the environment and the
-    `rustflags` in `.cargo/config.toml`, which add the mold linker on Linux.
+    rustdoc assign no `RUSTFLAGS`, so an environment `RUSTFLAGS` replaces the
+    `rustflags` in `.cargo/config.toml`, and with them the mold linker on Linux.
+    An environment `CARGO_ENCODED_RUSTFLAGS` takes precedence over `RUSTFLAGS`.
   - `make test` builds the `cargo-bdd` and `todo-cli` binaries, then runs the
     workspace suite with `cargo nextest run` when `cargo-nextest` is installed
     and `cargo test` otherwise, both using `--workspace --all-targets
@@ -239,7 +243,9 @@ project:
     the `rstest-bdd` crate alone with `--no-default-features`, checks the fixture
     lockfiles, and runs `pytest scripts/tests`. The Cargo build and test steps
     assign `RUSTFLAGS` to `-D warnings` plus the Linux mold linker, which
-    replaces any inherited `RUSTFLAGS`.
+    replaces the flags inherited from the environment and `.cargo/config.toml`.
+    An inherited `CARGO_ENCODED_RUSTFLAGS` still takes precedence over that
+    assignment, so clear it before running these recipes.
 - Clippy warnings MUST be disallowed.
 - Fix any warnings emitted during tests in the code itself rather than
   silencing them.
