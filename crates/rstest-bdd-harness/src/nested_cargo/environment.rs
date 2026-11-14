@@ -25,6 +25,7 @@ use std::{
     collections::BTreeMap,
     env,
     ffi::{OsStr, OsString},
+    io,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -35,11 +36,14 @@ use super::{ProfileDestination, profile};
 ///
 /// Captures the current environment and applies the shared filtering rules;
 /// `fallback_target_dir` is used when the parent has no `CARGO_TARGET_DIR`.
-#[must_use]
+///
+/// # Errors
+///
+/// As [`env_from_vars`].
 pub fn build_child_env(
     fallback_target_dir: &Path,
     profile_destination: ProfileDestination,
-) -> NestedCargoEnv {
+) -> io::Result<NestedCargoEnv> {
     env_from_vars(
         env::vars_os().collect(),
         Some(fallback_target_dir),
@@ -53,17 +57,26 @@ pub fn build_child_env(
 /// against synthetic values without mutating the real process environment.
 /// Production callers should use [`build_child_env`].
 ///
+/// An inherited relative `CARGO_TARGET_DIR` is resolved against this process's
+/// working directory, because the child resolves it against its own.
+///
+/// # Errors
+///
+/// Returns an error when `CARGO_TARGET_DIR` is relative and the working
+/// directory cannot be read. The alternative — passing the relative value
+/// through — would silently point the child at a different directory, so this
+/// is reported rather than handed on.
+///
 /// # Panics
 ///
 /// Panics when `vars` has no `CARGO_TARGET_DIR` and no fallback is supplied:
 /// a nested Cargo invocation without a target directory would silently build
 /// into the caller's manifest directory.
-#[must_use]
 pub fn env_from_vars(
     vars: Vec<(OsString, OsString)>,
     fallback_target_dir: Option<&Path>,
     profile_destination: ProfileDestination,
-) -> NestedCargoEnv {
+) -> io::Result<NestedCargoEnv> {
     NestedCargoEnv::from_vars(vars, fallback_target_dir, profile_destination)
 }
 
@@ -76,16 +89,22 @@ impl NestedCargoEnv {
     ///
     /// Each rule is applied by one named helper below, so the shared policy
     /// reads as the list it documents rather than as nested conditionals.
+    ///
+    /// # Errors
+    ///
+    /// As [`absolute_target_directory`]: a relative `CARGO_TARGET_DIR` that
+    /// cannot be resolved against the working directory is an error, not a
+    /// relative value handed to the child.
     fn from_vars(
         mut vars: Vec<(OsString, OsString)>,
         fallback_target_dir: Option<&Path>,
         profile_destination: ProfileDestination,
-    ) -> Self {
+    ) -> io::Result<Self> {
         strip_outer_build_vars(&mut vars);
         ensure_target_directory(&mut vars, fallback_target_dir);
-        resolve_target_directory(&mut vars);
+        resolve_target_directory(&mut vars)?;
         redirect_profile_file(&mut vars, profile_destination);
-        Self(vars.into_iter().collect())
+        Ok(Self(vars.into_iter().collect()))
     }
 
     /// Whether `key` is set in the filtered environment.
@@ -113,12 +132,18 @@ impl NestedCargoEnv {
     /// second time against a different directory.
     ///
     /// Returns `None` only for an environment built without the filtering
-    /// constructor, such as [`Default`].
-    #[must_use]
-    pub fn target_directory(&self) -> Option<PathBuf> {
+    /// constructor, such as [`Default`], and an error only when the value is
+    /// relative and the working directory cannot be read — the same condition
+    /// [`absolute_target_directory`] reports.
+    ///
+    /// # Errors
+    ///
+    /// As [`absolute_target_directory`].
+    pub fn target_directory(&self) -> io::Result<Option<PathBuf>> {
         self.0
             .get(OsStr::new("CARGO_TARGET_DIR"))
             .map(|value| absolute_target_directory(value))
+            .transpose()
     }
 
     /// Apply the environment to `cmd`, starting from an empty environment.
@@ -180,12 +205,19 @@ fn ensure_target_directory(vars: &mut Vec<(OsString, OsString)>, fallback: Optio
 /// here. Resolving once, before the value reaches any child, is what keeps the
 /// directory the child builds in and the directory a stamp is derived from the
 /// same place.
-fn resolve_target_directory(vars: &mut [(OsString, OsString)]) {
+///
+/// A value that cannot be resolved is reported rather than passed on as a
+/// relative path. A relative path in the child names the fixture directory
+/// instead of the directory the caller meant, so the failure would surface
+/// later as a cold rebuild or as a stamp that guards the wrong tree — neither
+/// of which names the working directory as the cause.
+fn resolve_target_directory(vars: &mut [(OsString, OsString)]) -> io::Result<()> {
     for (key, value) in vars {
         if key == OsStr::new("CARGO_TARGET_DIR") {
-            *value = absolute_target_directory(value).into_os_string();
+            *value = absolute_target_directory(value)?.into_os_string();
         }
     }
+    Ok(())
 }
 
 /// Move a child's coverage output off the parent's gated profile.
@@ -222,17 +254,44 @@ fn redirect_profile_file(vars: &mut Vec<(OsString, OsString)>, destination: Prof
 /// tree the build never writes. Resolving once, before the value reaches any
 /// child, keeps both looking at the same directory.
 ///
-/// An already-absolute path is returned unchanged. A path that cannot be made
-/// absolute (neither it nor the current directory can be read) is also left
-/// untouched rather than failing the caller: the build will surface that
-/// problem with far better context than this helper can.
-#[must_use]
-pub fn absolute_target_directory(value: &OsStr) -> PathBuf {
+/// An already-absolute path is returned unchanged. A relative one is joined to
+/// the working directory, and the lookup is the only step that can fail.
+///
+/// # Errors
+///
+/// Returns the error from reading the current directory. Returning the
+/// relative path instead would hand the child a value that names the fixture
+/// directory rather than the caller's, which is the silent misresolution this
+/// helper exists to prevent.
+pub fn absolute_target_directory(value: &OsStr) -> io::Result<PathBuf> {
+    absolute_target_directory_with(value, env::current_dir)
+}
+
+/// [`absolute_target_directory`] with the working-directory lookup supplied.
+///
+/// The lookup is a parameter so the failure path is reachable from a test: no
+/// portable fixture removes the process's own working directory, and deleting
+/// the directory this process runs in would disturb every other test in the
+/// binary. A test passes a closure that returns its own error instead.
+fn absolute_target_directory_with<F>(value: &OsStr, lookup: F) -> io::Result<PathBuf>
+where
+    F: FnOnce() -> io::Result<PathBuf>,
+{
     let path = Path::new(value);
     if path.is_absolute() {
-        return path.to_path_buf();
+        return Ok(path.to_path_buf());
     }
-    env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
+    lookup().map(|cwd| cwd.join(path)).map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!(
+                "cannot resolve the relative target directory {} to an absolute path because the \
+                 working directory cannot be read ({error}); a nested build would resolve it \
+                 against its own working directory instead",
+                path.display()
+            ),
+        )
+    })
 }
 
 /// Describe the filtered environment for inclusion in failure messages.
@@ -243,4 +302,76 @@ pub fn describe_env(env: &NestedCargoEnv) -> String {
         .map(|(key, value)| format!("{}={}", key.to_string_lossy(), value.to_string_lossy()))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    //! The target-directory resolution's failure path.
+    //!
+    //! The success paths are covered where they are used, through
+    //! [`NestedCargoEnv`]; what cannot be reached from those is a working
+    //! directory that cannot be read. No portable fixture removes the
+    //! directory the test process is running in, so the lookup is injected.
+
+    use std::{
+        ffi::OsStr,
+        io,
+        path::{Path, PathBuf},
+    };
+
+    use super::absolute_target_directory_with;
+
+    #[test]
+    fn an_absolute_value_never_consults_the_working_directory() {
+        // The lookup is not merely unused here, it must not be called: an
+        // absolute path is already resolved, and a process whose working
+        // directory has been deleted still names a perfectly good absolute
+        // target. Panicking in the lookup states that rather than asserting
+        // the result and hoping.
+        let resolved = absolute_target_directory_with(Path::new("/abs/target").as_os_str(), || {
+            panic!("an absolute target directory must not consult the working directory")
+        })
+        .expect("an absolute path is resolved without any lookup");
+        assert_eq!(resolved, PathBuf::from("/abs/target"));
+    }
+
+    #[test]
+    fn an_unreadable_working_directory_is_reported_rather_than_left_relative() {
+        // The regression: this used to fall back to the relative path, which
+        // then named one directory for this process and another for a child
+        // running in a fixture directory. The error must name the value and
+        // the cause, because the caller has no other way to learn that the
+        // working directory is what went wrong.
+        let error = absolute_target_directory_with(OsStr::new("relative-cache"), || {
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "the working directory is gone",
+            ))
+        })
+        .expect_err("an unreadable working directory must not yield a path");
+
+        assert_eq!(
+            error.kind(),
+            io::ErrorKind::NotFound,
+            "the cause's kind must survive: {error}"
+        );
+        let message = error.to_string();
+        assert!(
+            message.contains("relative-cache"),
+            "the unresolved value must be named: {message}"
+        );
+        assert!(
+            message.contains("the working directory is gone"),
+            "the underlying cause must be named: {message}"
+        );
+    }
+
+    #[test]
+    fn a_relative_value_is_joined_to_the_read_working_directory() {
+        let resolved = absolute_target_directory_with(OsStr::new("relative-cache"), || {
+            Ok(PathBuf::from("/some/cwd"))
+        })
+        .expect("a readable working directory resolves a relative value");
+        assert_eq!(resolved, PathBuf::from("/some/cwd/relative-cache"));
+    }
 }

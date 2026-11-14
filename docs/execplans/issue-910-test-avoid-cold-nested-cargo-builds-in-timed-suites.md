@@ -1072,7 +1072,232 @@ rather than by reading this branch's comments.
       the impersonal voice and rewrapped to the 80-column limit;
       `make markdownlint` reported 127 files and 0 errors afterwards.
 
+- [x] Make the target-directory resolution fallible, after review pointed out
+      that it swallowed an I/O error. `absolute_target_directory` joined a
+      relative `CARGO_TARGET_DIR` to `current_dir()` and, on failure, returned
+      the *relative* path with a comment saying the build would report it
+      better. It would not: the child resolves a relative value against the
+      fixture directory it runs in, so the silent fallback pointed the build
+      and the stamp at two different trees. `absolute_target_directory`,
+      `build_child_env`, `env_from_vars`, `NestedCargoEnv::target_directory`,
+      `Preparation::new`, `Preparation::for_fixture` and `env_for_directory`
+      now return `io::Result`. The lookup is injected
+      (`absolute_target_directory_with`) because no portable fixture can make
+      the process's own working directory unreadable; the three new unit tests
+      drive the absolute, resolved and failing cases. My earlier reason for
+      declining this row was wrong and is recorded under Surprises.
+
+- [x] Pin the `prepare-nested-fixtures` filter against the nextest override.
+      First written as a Rust test in `nextest_config.rs`, which pushed that
+      file to 455 lines and failed the 400-line gate. Moving the parsing into
+      `nextest_config/support.rs` left it at 415, still over. The gate was
+      right and the placement was wrong: the repository already reads Makefile
+      recipes as data in `scripts/tests/test_users_guide_links_makefile_contract.py`,
+      so the contract now lives in
+      `scripts/tests/test_prepare_nested_fixtures_makefile_contract.py` with
+      that file's `recipe` helper. It asserts the nextest invocation, the exact
+      `-E` filter, the shared `RUSTFLAGS` and the `.PHONY` declaration.
+      Nextest exits zero when a filter matches nothing, so a drifted filter
+      would prepare nothing and report success. Verified by mutation: changing
+      the Makefile's `$$` to `$` fails the filter assertion with both spellings
+      printed.
+
+- [x] Document the bounded drain and the fallible constructors. The users
+      guide now states that a successful run's captured output is the direct
+      child's rather than the process tree's, and that `env_for_directory` is
+      internal to `Preparation::for_fixture`; the v0.7.0 migration guide
+      carries the same two points plus a checklist entry for the signature
+      change.
+
+- [x] Make the CLI preparation test prove it built the fixture, not merely
+      that it succeeded. `nested_fixture_preparation` now asserts both of the
+      fixture's own test binaries are in the profile the timed tests read, via
+      `fixture_binaries_present`. The witness is covered on three sides: a
+      tree holding one of the two (and otherwise only unrelated units) is
+      rejected, both present is accepted, and an absent `deps` is rejected —
+      so the assertion cannot pass by always answering either way.
+      The reviewer's literal request was a run against an *isolated* target.
+      That was considered and declined, on a cost that is the whole subject of
+      this change: a fresh target means compiling the fixture's full dependency
+      graph (205 crates, measured with `cargo tree --offline`) inside the very
+      preparation this issue exists to make cheap, and the family's `Compiling`
+      output would then be dominated by that graph rather than by the fixture.
+      The property the isolated target was there to prove — that a no-op
+      preparation cannot satisfy the check — is proved instead by the negative
+      witnesses above, which exercise the same predicate the timed assertion
+      depends on without building anything.
+      First draft of the positive control wrote each unit's output as a bare
+      stem, and it failed: the witness requires `-` after the stem, which is
+      what Cargo actually emits (`diagnostics_fixture-0b30ca8d7f4fe548`). The
+      test caught the fixture rather than the code. Verified against the real
+      tree afterwards: the warm `target/debug/deps` holds
+      `diagnostics_fixture-0b30ca8d7f4fe548` and
+      `unsupported_dump_steps-e8af36137db6ef48`, and holds
+      `diagnostics_fixture-0cbdf3c87e1a0917.d` as well — which the witness
+      correctly ignores.
+
+- [x] Reconcile the filtered-Nextest row against what already covers it. The
+      requested sequence — unprepared target fails, `make
+      prepare-nested-fixtures` runs, the same filtered test then passes —
+      already exists as
+      `a_family_prepared_by_the_preparation_test_satisfies_the_nextest_gate`
+      in `preparation/tests/stamping.rs`, which runs exactly those three steps
+      against one scratch directory, reopening the family from a fresh
+      description so the pass cannot lean on in-process state. What was *not*
+      covered is the link from the Makefile target to the nextest filter, which
+      the Python contract added above now pins.
+      A literal test shelling out to `make prepare-nested-fixtures` was
+      considered and declined: the target runs `cargo nextest run` over all six
+      preparation tests, so a test that invoked it would nest nextest inside
+      nextest, rebuild this workspace's fixtures from inside the
+      `cargo-spawning` group whose `max-threads = 1` serializes them, and
+      recurse into the very budget the target exists to spend once. There is no
+      nested-nextest precedent anywhere in the workspace. The compositional
+      alternative — spawn `cargo nextest run` on one small filtered suite — was
+      also declined for the same recursion at smaller scale.
+
+- [x] Clear the lint fallout from the now-fallible target resolution. The
+      fallible `env_from_vars` left three violations in the CLI fixture, all
+      caught by `make lint` and none by a plain `cargo check`:
+      `case_sensitive_file_extension_comparisons` on `ends_with(".d")`,
+      `indexing_slicing` on `present[index]`, and `expect_used` on the
+      `.expect(...)` in `cli_child_environment` and in
+      `fixture_binaries_present`'s caller. The first two were rewritten by
+      name (`strip_suffix(".d")`, `get_mut`); the third is the interesting
+      one. `clippy.toml` sets `allow-expect-in-tests = true`, and it does
+      **not** cover a plain `fn` in an integration-test crate: only
+      `#[cfg(test)]` modules and `#[test]` bodies. `cli_child_environment`,
+      `fixture_binaries_present` and the rstest case body all had to return
+      `Result` — which also means the stone `#[rstest]` body needed a trailing
+      `Ok(())` — so the `expect` moved back to the assertion sites that are
+      genuinely in test bodies.
+
+- [x] Read the 2026-11-11 `make test` red as the documented queue-starvation
+      mode, not a regression. The gate reported 2191/2299 passing with
+      `preparation::nested_fixture_preparation` the only failure, and its
+      stderr was the bound itself:
+      `nested cargo exceeded its 540 s wall-clock bound; the child was killed`,
+      with the captured output showing the nested build still compiling
+      dependencies behind waits of ~100 compiles ahead. That is the failure
+      already analysed under Surprises, first seen 2026-11-09 and reproduced by
+      stashing the whole diff on clean `HEAD`. Three independent facts confirm
+      this occurrence is the same thing rather than something new: the bound
+      reports the command and the captured output instead of hanging; the
+      family's stamp exists at `target/.cargo-bdd-cli.rstest-bdd-prepared` with
+      recorded fingerprint `e1b18c15de4ee742`; and both fixture binaries are
+      present in `target/debug/deps`, so the artefacts the timed tests read
+      exist. The failed attempt also recompiled them with a new hash
+      (`diagnostics_fixture-f7372c1b4a9607cf`), which is why the next `make
+      test` needs a real build rather than a stamp hit.
+
+- [x] Close the last three gate failures on the settled tree, all introduced by
+      this branch rather than inherited. `make spelling` rejected
+      `recognised`/`recognise` in the new witness test, which en-GB-oxendict
+      requires as `-ize`; both renamed. `make lint` then found the same
+      `expect_used` class in `rstest-bdd-harness/tests/nested_cargo_env.rs`,
+      where `caller_env` and `scratch_env` unwrapped the now-fallible
+      `env_from_vars`: both now return `io::Result`, the eleven affected
+      `#[test]` bodies return `Result` and end in `Ok(())`, and the chained
+      `redirected_profile_paths_are_unique_per_call` uses `?` before `.get`.
+      That pushed the file from 397 to 411 lines and tripped the 400-line gate,
+      so its four shared fixtures moved to
+      `tests/nested_cargo_env/fixtures.rs` behind the same `#[path]` submodule
+      arrangement `cargo-bdd/tests/cli.rs` already uses; the file is now 386
+      lines. `make lint` also caught an intra-doc link from the public
+      `absolute_target_directory` to the private
+      `absolute_target_directory_with` under
+      `-D rustdoc::private-intra-doc-links`; the sentence now describes the
+      error instead of linking to it. Its own wording is what surfaced the
+      lesson: the reason a helper is fallible belongs at the call site, not
+      duplicated into every fixture.
+
+- [x] Separate the two gate failures that this host produces from defects.
+      `make test` on the settled tree improved to 2193/2299 with the CLI
+      preparation now **passing** in 105.102 s and rebuild-invalidation in
+      503.462 s; the only failure left was
+      `rstest-bdd::trybuild_macros::nested_fixture_preparation`, timed out at
+      nextest's 1800 s cap. That is the documented partial-preparation mode,
+      and the filesystem says so directly: the family's trybuild stamp exists
+      at `target/tests/trybuild/.trybuild-macros.rstest-bdd-prepared`
+      (written 23:43) while its sibling UI-lint target at
+      `crates/rstest-bdd/target/tests/ui_lints_clippy` holds 256 MB of
+      `debug/` and **no stamp at all**. So the dependency graph compiled and
+      the later `cargo clippy` command was what ran out of budget — the same
+      shape recorded for 2026-11-09, when this family "prepared and stamped
+      its family in 1195.9 s, then lost a later bounded `cargo clippy` command
+      to the same 540 s bound". `make prepare-nested-fixtures` then completed
+      it: trybuild_macros passed in 488.473 s, with CLI at 0.444 s and
+      rebuild-invalidation at 0.775 s — stamp hits, which is the idempotent
+      path the design predicts. GPUI took 721.099 s and tokio 258.708 s, both
+      inside their 1800 s budgets. The sixth family was cut short by the outer
+      `timeout 1500` I wrapped around the run (SIGTERM at 26.294 s), which is
+      my own harness limit rather than a test result; it is the one family
+      documented at 864 s cold and is being prepared on its own.
+
+- [x] Show the last rebuild-invalidation failure was a wiped `target/`, not a
+      defect. The 2026-11-12 run failed
+      `feature_addition_triggers_rebuild` at 305.451 s on the harness's own
+      300 s bound, which read as a possible defect in the fallible-resolution
+      plumbing. Two measurements ruled that out. First, a solo run was
+      SIGTERM'd at 105.249 s by session teardown while this workspace was still
+      compiling its own test binary (`Finished test profile ... in 13m 12s`),
+      so it never reached a verdict; the diff to `harness/process.rs` is only
+      `io::Result` plumbing through `build_child_env`, `child_env_from_vars`,
+      `resolve_target_directory` and `preparation_view`, with the 300 s bound
+      and the rebuild work untouched. Second, the retry failed in 0.040 s with
+      the *stamp-missing* message, which is the gate working: the whole
+      `target/` tree had been recreated at 11:16 and every stamp was gone,
+      including `target/tests/feature-addition/`. That run also carried my own
+      mistake — `RUSTFLAGS="-D warnings -Clink-arg=-fuse-ld=mold"` alone,
+      without the `--all-features` the fingerprint covers, so the stamp would
+      have been stale regardless. `make prepare-nested-fixtures` then prepared
+      all six families in 117.832 s (CLI 5.699 s, rebuild-invalidation
+      4.569 s, trybuild 45.264 s, GPUI 8.128 s, tokio 9.683 s, server
+      44.485 s), and the test passed in **5.956 s** against its documented
+      1.745 s. The lesson is the one this ExecPlan already states in another
+      place: read the stamp before reading the timeout, and run the timed
+      families through the Makefile's own `RUSTFLAGS` and feature selection,
+      not a hand-rolled approximation.
+
 ## Surprises & Discoveries
+
+- **A hand-rolled `RUSTFLAGS` stales every stamp it touches.** 2026-11-12. The
+  preparation fingerprint covers `RUSTFLAGS` *and* the feature selection, so
+  `RUSTFLAGS="-D warnings -Clink-arg=-fuse-ld=mold" cargo nextest run -p …
+  -E 'test(…)'`
+  prepares and reads a different tree from `make prepare-nested-fixtures`,
+  which adds `--workspace --all-targets --all-features`. The failure is
+  immediate and looks like a missing stamp rather than an environment mismatch,
+  and its own message names the cause only if you read to the end. Run timed
+  families through the Makefile's recipes, and pass the same `CARGO_FLAGS` when
+  running one alone.
+
+- **`allow-expect-in-tests` stops at `#[cfg(test)]`.** 2026-11-11. A
+  `#[test]` body and a `#[cfg(test)]` module are covered; a plain helper `fn`
+  in an integration-test file under `crates/*/tests/` is not, even though
+  nothing outside the test harness can call it. `-D warnings` turns that into a
+  build failure with a message pointing at a line that is obviously test-only,
+  which is why it first read as a false positive. The fix that survives review
+  is to make the helper fallible and let the `#[test]` body assert, rather than
+  to silence the lint.
+
+- **A declined finding is not closed because the first reason was plausible.**
+  2026-11-11. The `current_dir()` row was declined on the grounds that
+  threading the error would change "documented public API behaviour".
+  `git grep` against `origin/main` then showed that neither
+  `absolute_target_directory` nor even `environment.rs` exists there: both are
+  new in this PR, so there was no established API to protect. The decline had
+  been reasoning about a codebase that does not exist. Re-measure a decline's
+  premises against the base branch before reusing it, especially when the
+  function under discussion was introduced by the branch itself.
+
+- **A success-path drain has to be bounded, and the bound costs output.**
+  2026-11-11. `collect_until(now + DRAIN_GRACE)` runs on the exit path too, not
+  only after a kill. That is what keeps a successful `cargo` whose grandchild
+  holds the pipe from blocking for the grandchild's lifetime, but it means the
+  captured text is the direct child's. Both halves are now stated in the users
+  guide and the migration guide rather than left to be discovered from
+  `bounded.rs`.
 
 - **`markdownlint`'s MD013 is not `mdtablefix`'s wrapper, and only the hosted
   gate catches the difference.** 2026-11-11. Rewrapping a paragraph by hand to

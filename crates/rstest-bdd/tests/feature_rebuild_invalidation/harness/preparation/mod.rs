@@ -41,7 +41,7 @@ const PREPARE_ARGS: [&str; 5] = ["test", "--no-run", "--locked", "--offline", "-
 /// copy, the metadata preflight or the compile fails, and the stamp I/O error
 /// when the stamp cannot be written.
 pub(crate) fn ensure_rebuild_prepared() -> std::io::Result<()> {
-    let env = process::build_child_env();
+    let env = process::build_child_env()?;
     let preparation = rebuild_preparation(&env)?;
     nested_cargo::ensure_prepared(&preparation, || prepare_rebuild(&env))
 }
@@ -53,7 +53,7 @@ pub(crate) fn ensure_rebuild_prepared() -> std::io::Result<()> {
 /// As [`ensure_rebuild_prepared`], and with any error from preparing the
 /// addition fixture.
 pub(crate) fn prepare_all() -> std::io::Result<()> {
-    let env = process::build_child_env();
+    let env = process::build_child_env()?;
     let rebuild = rebuild_preparation(&env)?;
     nested_cargo::prepare_now(&rebuild, || prepare_rebuild(&env))?;
     let addition = addition_preparation(&env)?;
@@ -66,7 +66,7 @@ pub(crate) fn prepare_all() -> std::io::Result<()> {
 ///
 /// As [`ensure_rebuild_prepared`].
 pub(crate) fn ensure_addition_prepared() -> std::io::Result<()> {
-    let env = process::build_child_env();
+    let env = process::build_child_env()?;
     let preparation = addition_preparation(&env)?;
     nested_cargo::ensure_prepared(&preparation, || prepare_addition(&env))
 }
@@ -134,11 +134,11 @@ fn fixture_preparation(
     let mut roots = vec![source_dir];
     roots.extend(workspace_inputs()?);
     let inputs = nested_cargo::input_hash(&roots)?;
-    Ok(nested_cargo::Preparation::new(
+    nested_cargo::Preparation::new(
         nested_cargo::Sources::new(family, "locked-offline-test-no-run", inputs),
         artefact_directory(process::child_target_directory(env), artefact_subdir),
-        process::preparation_view(env),
-    ))
+        process::preparation_view(env)?,
+    )
 }
 
 /// Describe the rebuild fixture's preparation family.

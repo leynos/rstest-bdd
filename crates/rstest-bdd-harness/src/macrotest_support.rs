@@ -233,12 +233,12 @@ impl TrybuildTree {
                 manifest_path.display()
             ))
         })?;
-        Ok(Preparation::for_fixture(
+        Preparation::for_fixture(
             self.family.clone(),
             target_root,
             self.variant.clone(),
             nested_cargo::input_hash(&self.inputs()?)?,
-        ))
+        )
     }
 
     /// The inputs whose change invalidates the prepared tree.

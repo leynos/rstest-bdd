@@ -131,22 +131,22 @@ fn trybuild_variant() -> String {
 /// Describe the trybuild preparation family.
 fn trybuild_preparation(target_directory: &Utf8Path) -> io::Result<nested_cargo::Preparation> {
     let directory = target_directory.join("tests/trybuild");
-    Ok(nested_cargo::Preparation::for_fixture(
+    nested_cargo::Preparation::for_fixture(
         TRYBUILD_FAMILY,
         directory.into_std_path_buf(),
         trybuild_variant(),
         nested_cargo::input_hash(&input_roots()?)?,
-    ))
+    )
 }
 
 /// Describe the UI-lint preparation family.
 fn ui_clippy_preparation() -> io::Result<nested_cargo::Preparation> {
-    Ok(nested_cargo::Preparation::for_fixture(
+    nested_cargo::Preparation::for_fixture(
         UI_CLIPPY_FAMILY,
         ui_clippy_target_directory().into_std_path_buf(),
         format!("clippy:{}", env!("CARGO_PKG_VERSION")),
         nested_cargo::input_hash(&input_roots()?)?,
-    ))
+    )
 }
 
 /// Build the `cargo clippy` invocation the UI-lint cases use.

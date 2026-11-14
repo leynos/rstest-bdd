@@ -171,13 +171,39 @@ else. They differ in what they do with an inherited value:
 - `env_for_directory` **drops** the inherited value and uses its own
   `directory` instead, because that directory is the one being stamped and a
   stale inherited value would point the build somewhere the stamp does not
-  describe.
+  describe. It is **internal**: it exists for `Preparation::for_fixture`, and a
+  nested build that should keep the outer cache wants `build_child_env`.
+
+This resolution is fallible. `build_child_env`, `env_from_vars`,
+`absolute_target_directory`, `NestedCargoEnv::target_directory`,
+`Preparation::new`, `Preparation::for_fixture` and `env_for_directory` now
+return `io::Result` where they previously returned the value directly. The
+error is the one case that used to be silent: a *relative* `CARGO_TARGET_DIR`
+whose working directory cannot be read. The previous behaviour was to return
+the value unresolved, which handed the child a path naming the fixture
+directory rather than the caller's — a stamp guarding a tree the build never
+writes. Absolute values never consult the working directory and never fail. Add
+`?` at each call site; no other signature changed.
 
 A caller that previously passed a relative `CARGO_TARGET_DIR` through its own
 environment now has an absolute path in the child. `Preparation::new` derives
 its `artefacts` list from the target directory resolved in the child
 environment rather than from the stamp directory, so the stamp and the compiled
 units it vouches for stay in step when the target directory moves.
+
+### A bounded run's captured output is the direct child's
+
+`run_bounded` and `run_bounded_with_timeout` cap output collection a short
+grace period after the direct child exits. Without the cap, a successful child
+that leaves a descendant holding the inherited pipe write ends would block the
+call for that descendant's whole lifetime; with it, the call returns promptly.
+The trade is that text a *descendant* writes after the direct child exits is
+not collected, so `Output::stdout` and `Output::stderr` describe the direct
+child rather than the whole process tree. The exit status is unaffected.
+
+If a nested build hands its diagnostics to a helper that outlives it, expect
+less captured text than the tree produced. Wrap the invocation in a supervisor
+that waits for the whole tree when the complete output is required.
 
 ## Migration checklist
 
@@ -202,6 +228,11 @@ units it vouches for stay in step when the target directory moves.
       named preparation test reached by `prepare_now` and gate the timed tests
       on `ensure_prepared`; run that preparation pass under Nextest before the
       timed suite.
+- [ ] Add `?` to every `nested_cargo` environment, target-directory and
+      `Preparation` constructor call that now returns `io::Result`.
+- [ ] Re-check any code that parses a bounded run's captured output: it holds
+      what the direct child wrote, not what its descendants wrote after it
+      exited.
 
 ## Common errors
 

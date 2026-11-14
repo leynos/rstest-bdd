@@ -177,7 +177,8 @@ fn a_relative_target_directory_is_resolved_once_before_it_reaches_the_child() {
         vec![("CARGO_TARGET_DIR".into(), "relative-cache".into())],
         None,
         ProfileDestination::Caller,
-    );
+    )
+    .expect("a relative target directory with a readable working directory must resolve");
     let cwd = std::env::current_dir().expect("current dir");
 
     assert_eq!(
@@ -186,7 +187,10 @@ fn a_relative_target_directory_is_resolved_once_before_it_reaches_the_child() {
         "the child must receive an absolute path, because it does not run in this directory"
     );
     assert_eq!(
-        environment.target_directory().as_deref(),
+        environment
+            .target_directory()
+            .expect("a resolved environment should yield its target directory")
+            .as_deref(),
         Some(cwd.join("relative-cache").as_path()),
         "the resolved accessor must agree with the value the child receives"
     );
@@ -203,7 +207,8 @@ fn for_fixture_vouches_for_the_profile_its_own_builds_populate() {
     // the work a timed assertion would otherwise redo.
     let directory = tempfile::tempdir().expect("fixture dir");
     let preparation =
-        Preparation::for_fixture("unit-fixture", directory.path().to_path_buf(), "v", "hash");
+        Preparation::for_fixture("unit-fixture", directory.path().to_path_buf(), "v", "hash")
+            .expect("the fixture preparation should describe its artefacts");
     assert_eq!(
         preparation.artefacts,
         vec![directory.path().join(DEFAULT_PROFILE)],

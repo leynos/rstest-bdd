@@ -230,7 +230,8 @@ fn every_build_relevant_variable_changes_the_fingerprint() {
             ],
             Some(&target),
             crate::nested_cargo::ProfileDestination::Caller,
-        );
+        )
+        .expect("the fixture environment should resolve");
         let changed = fingerprint_with(
             &preparation(&target, &with_variable, "v", "hash"),
             recorded_toolchain,
@@ -269,7 +270,8 @@ fn variables_outside_the_build_relevant_set_do_not_change_the_fingerprint() {
             ],
             Some(&target),
             crate::nested_cargo::ProfileDestination::Caller,
-        );
+        )
+        .expect("the fixture environment should resolve");
         let changed = fingerprint_with(
             &preparation(&target, &with_variable, "v", "hash"),
             recorded_toolchain,

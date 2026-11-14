@@ -90,6 +90,7 @@ fn environment_in(target: &Path) -> NestedCargoEnv {
         Some(target),
         ProfileDestination::Caller,
     )
+    .expect("the fixture environment should resolve")
 }
 
 /// A preparation rooted at `directory`.
@@ -104,6 +105,7 @@ fn preparation(
         directory.to_path_buf(),
         environment.clone(),
     )
+    .expect("the fixture preparation should describe its artefacts")
 }
 
 /// A scratch preparation with variant `"v"` and input hash `"hash"`.

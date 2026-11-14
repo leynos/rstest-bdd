@@ -76,7 +76,15 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
     }
     fixtures::ensure_fixture_copied();
     fixtures::restore_feature_file();
-    let env = process::build_child_env();
+    let env = match process::build_child_env() {
+        Ok(env) => env,
+        Err(err) => {
+            return outcome::DepInfoOutcome::abandoned(
+                format!("the child environment could not be built: {err}"),
+                String::new(),
+            );
+        }
+    };
     // Drop any fixture units compiled by an earlier (pre-tracking) era so the
     // dep-info read describes the current build, not a stale binary.
     clean_fixture_units(&env);
@@ -174,7 +182,14 @@ fn build_rebuild_outcome() -> RebuildOutcome {
     // checked-in source and drop the fixture's compiled units so the baseline
     // always starts from the pristine feature text.
     fixtures::restore_feature_file();
-    let env = process::build_child_env();
+    let env = match process::build_child_env() {
+        Ok(env) => env,
+        Err(err) => {
+            return outcome::RebuildOutcome::abandoned(format!(
+                "the child environment could not be built: {err}"
+            ));
+        }
+    };
     clean_fixture_units(&env);
 
     // Baseline full run must pass.

@@ -14,7 +14,6 @@ use std::{
 
 use rstest_bdd_harness::nested_cargo::{
     CapturedOutput,
-    NestedCargoEnv,
     ProfileDestination,
     cargo_command,
     describe_env,
@@ -24,34 +23,13 @@ use rstest_bdd_harness::nested_cargo::{
     run_bounded_with_timeout,
 };
 
-fn vars(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
-    pairs
-        .iter()
-        .map(|(key, value)| (OsString::from(key), OsString::from(value)))
-        .collect()
-}
+#[path = "nested_cargo_env/fixtures.rs"]
+mod fixtures;
 
-fn fallback() -> PathBuf { PathBuf::from("/tmp/fallback-target") }
-
-/// Build an environment for a process whose coverage the caller keeps.
-fn caller_env(vars: Vec<(OsString, OsString)>) -> NestedCargoEnv {
-    env_from_vars(vars, Some(&fallback()), ProfileDestination::Caller)
-}
-
-/// Build an environment for a nested build whose coverage is redirected.
-fn scratch_env(vars: Vec<(OsString, OsString)>) -> NestedCargoEnv {
-    env_from_vars(vars, Some(&fallback()), ProfileDestination::ChildScratch)
-}
-
-/// Look up one environment entry on a built command.
-fn cmd_env(cmd: &Command, key: &str) -> Option<OsString> {
-    cmd.get_envs()
-        .find(|(name, _)| name.to_string_lossy() == key)
-        .and_then(|(_, value)| value.map(OsString::from))
-}
+use fixtures::{caller_env, cmd_env, scratch_env, vars};
 
 #[test]
-fn strips_makeflags_pkg_and_llvm_cov_variables() {
+fn strips_makeflags_pkg_and_llvm_cov_variables() -> std::io::Result<()> {
     let env = caller_env(vars(&[
         ("CARGO_MAKEFLAGS", "-j4"),
         ("CARGO_PKG_NAME", "outer"),
@@ -60,25 +38,31 @@ fn strips_makeflags_pkg_and_llvm_cov_variables() {
         ("CARGO_LLVM_COV_SHOW_MISSING", "1"),
         ("CARGO_TARGET_DIR", "/shared-target"),
         ("PATH", "/usr/bin"),
-    ]));
+    ]))?;
     assert_eq!(
         describe_env(&env),
         "CARGO_TARGET_DIR=/shared-target\nPATH=/usr/bin"
     );
+    Ok(())
 }
 
 #[test]
-fn falls_back_to_caller_target_directory_when_unset() {
-    let env = caller_env(vars(&[("PATH", "/usr/bin")]));
+fn falls_back_to_caller_target_directory_when_unset() -> std::io::Result<()> {
+    let env = caller_env(vars(&[("PATH", "/usr/bin")]))?;
     assert_eq!(
         env.get("CARGO_TARGET_DIR"),
         Some(OsStr::new("/tmp/fallback-target"))
     );
+    Ok(())
 }
 
 #[test]
 #[should_panic(expected = "no CARGO_TARGET_DIR")]
 fn panics_without_target_dir_or_fallback() {
+    // The call is expected to panic before it can produce a value, so the
+    // result is discarded rather than unwrapped: unwrapping would report a
+    // missing panic as "the fixture environment should resolve", which is not
+    // the failure this test names.
     let _ = env_from_vars(
         vars(&[("PATH", "/usr/bin")]),
         None,
@@ -87,30 +71,32 @@ fn panics_without_target_dir_or_fallback() {
 }
 
 #[test]
-fn keeps_the_caller_profile_for_the_process_under_test() {
+fn keeps_the_caller_profile_for_the_process_under_test() -> std::io::Result<()> {
     let env = caller_env(vars(&[
         ("CARGO_TARGET_DIR", "/shared-target"),
         ("LLVM_PROFILE_FILE", "/cov/parent-%p-%m.profraw"),
-    ]));
+    ]))?;
     assert_eq!(
         env.get("LLVM_PROFILE_FILE"),
         Some(OsStr::new("/cov/parent-%p-%m.profraw")),
         "the process under test must report into the caller's coverage run"
     );
+    Ok(())
 }
 
 #[test]
-fn omits_the_profile_file_when_the_caller_has_none() {
-    let env = caller_env(vars(&[("CARGO_TARGET_DIR", "/shared-target")]));
+fn omits_the_profile_file_when_the_caller_has_none() -> std::io::Result<()> {
+    let env = caller_env(vars(&[("CARGO_TARGET_DIR", "/shared-target")]))?;
     assert!(!env.contains_key("LLVM_PROFILE_FILE"));
+    Ok(())
 }
 
 #[test]
-fn redirects_inherited_profile_file_to_unique_child_path() {
+fn redirects_inherited_profile_file_to_unique_child_path() -> std::io::Result<()> {
     let env = scratch_env(vars(&[
         ("CARGO_TARGET_DIR", "/shared-target"),
         ("LLVM_PROFILE_FILE", "/cov/parent-%m.profraw"),
-    ]));
+    ]))?;
     let redirected = env.get("LLVM_PROFILE_FILE").expect("redirected profile");
     let redirected = redirected.to_string_lossy();
     assert!(
@@ -123,37 +109,40 @@ fn redirects_inherited_profile_file_to_unique_child_path() {
         redirected.contains("%p"),
         "profile pattern must stay per-process: {redirected}"
     );
+    Ok(())
 }
 
 #[test]
-fn keeps_parent_profile_file_when_not_inherited() {
-    let env = scratch_env(vars(&[("CARGO_TARGET_DIR", "/shared-target")]));
+fn keeps_parent_profile_file_when_not_inherited() -> std::io::Result<()> {
+    let env = scratch_env(vars(&[("CARGO_TARGET_DIR", "/shared-target")]))?;
     assert!(!env.contains_key("LLVM_PROFILE_FILE"));
+    Ok(())
 }
 
 #[test]
-fn redirected_profile_paths_are_unique_per_call() {
+fn redirected_profile_paths_are_unique_per_call() -> std::io::Result<()> {
     let base = vars(&[
         ("CARGO_TARGET_DIR", "/shared-target"),
         ("LLVM_PROFILE_FILE", "/cov/parent.profraw"),
     ]);
-    let first = scratch_env(base.clone())
+    let first = scratch_env(base.clone())?
         .get("LLVM_PROFILE_FILE")
         .expect("first")
         .to_os_string();
-    let second = scratch_env(base)
+    let second = scratch_env(base)?
         .get("LLVM_PROFILE_FILE")
         .expect("second")
         .to_os_string();
     assert_ne!(first, second, "concurrent children need distinct profiles");
+    Ok(())
 }
 
 #[test]
-fn apply_to_replaces_the_whole_child_environment() {
+fn apply_to_replaces_the_whole_child_environment() -> std::io::Result<()> {
     let env = caller_env(vars(&[
         ("CARGO_TARGET_DIR", "/shared-target"),
         ("RUSTFLAGS", "-Dwarnings"),
-    ]));
+    ]))?;
     let mut cmd = Command::new("true");
     cmd.env("LEFTOVER", "stale");
     env.apply_to(&mut cmd);
@@ -167,11 +156,12 @@ fn apply_to_replaces_the_whole_child_environment() {
             .iter()
             .any(|(key, _)| key == &OsString::from("LEFTOVER"))
     );
+    Ok(())
 }
 
 #[test]
-fn cargo_command_pins_cwd_and_environment() {
-    let env = caller_env(vars(&[("CARGO_TARGET_DIR", "/shared-target")]));
+fn cargo_command_pins_cwd_and_environment() -> std::io::Result<()> {
+    let env = caller_env(vars(&[("CARGO_TARGET_DIR", "/shared-target")]))?;
     let cwd = std::env::temp_dir();
     let cmd = cargo_command(&env, &cwd);
     assert_eq!(cmd.get_current_dir(), Some(cwd.as_path()));
@@ -185,11 +175,12 @@ fn cargo_command_pins_cwd_and_environment() {
         Some(OsStr::new("/shared-target"))
     );
     assert_eq!(cmd_env(&cmd, "CARGO_MAKEFLAGS"), None);
+    Ok(())
 }
 
 #[test]
-fn filtered_command_targets_the_program_and_cwd() {
-    let env = caller_env(vars(&[("CARGO_TARGET_DIR", "/shared-target")]));
+fn filtered_command_targets_the_program_and_cwd() -> std::io::Result<()> {
+    let env = caller_env(vars(&[("CARGO_TARGET_DIR", "/shared-target")]))?;
     let program = PathBuf::from("/usr/bin/env");
     let cwd = std::env::temp_dir();
     let cmd = filtered_command(&program, &env, &cwd);
@@ -199,15 +190,16 @@ fn filtered_command_targets_the_program_and_cwd() {
         cmd_env(&cmd, "CARGO_TARGET_DIR").as_deref(),
         Some(OsStr::new("/shared-target"))
     );
+    Ok(())
 }
 
 #[test]
-fn describe_env_lists_sorted_key_value_pairs() {
+fn describe_env_lists_sorted_key_value_pairs() -> std::io::Result<()> {
     let env = caller_env(vars(&[
         ("ZZ_LAST", "1"),
         ("CARGO_TARGET_DIR", "/shared-target"),
         ("AA_FIRST", "0"),
-    ]));
+    ]))?;
     let description = describe_env(&env);
     let mut lines = description.lines();
     assert!(
@@ -229,20 +221,22 @@ fn describe_env_lists_sorted_key_value_pairs() {
             .starts_with("ZZ_LAST=")
     );
     assert_eq!(lines.next(), None);
+    Ok(())
 }
 
 #[test]
-fn iter_yields_the_filtered_pairs_in_sorted_order() {
+fn iter_yields_the_filtered_pairs_in_sorted_order() -> std::io::Result<()> {
     let env = caller_env(vars(&[
         ("ZZ_LAST", "1"),
         ("CARGO_MAKEFLAGS", "-j4"),
         ("CARGO_TARGET_DIR", "/shared-target"),
-    ]));
+    ]))?;
     let pairs: Vec<String> = env
         .iter()
         .map(|(key, value)| format!("{}={}", key.to_string_lossy(), value.to_string_lossy()))
         .collect();
     assert_eq!(pairs, ["CARGO_TARGET_DIR=/shared-target", "ZZ_LAST=1"]);
+    Ok(())
 }
 
 #[cfg(unix)]

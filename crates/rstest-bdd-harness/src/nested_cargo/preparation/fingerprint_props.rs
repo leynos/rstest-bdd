@@ -121,12 +121,14 @@ fn preparation_over(
         variables,
         Some(&target),
         crate::nested_cargo::ProfileDestination::Caller,
-    );
+    )
+    .expect("the fixture environment should resolve");
     Preparation::new(
         super::Sources::new("unit", variant, inputs),
         target,
         environment,
     )
+    .expect("the fixture preparation should describe its artefacts")
 }
 
 proptest! {

@@ -2770,8 +2770,14 @@ resolves the child's target directory to an absolute path, using the
 caller-supplied fallback when the parent names none. `env_from_vars` builds the
 same environment from an explicit variable snapshot, which is intended for
 tests that check the filtering rules without mutating the process environment.
-Then run the command through `run_bounded`, which applies a 300 s default
-bound, or `run_bounded_with_timeout` to size the bound yourself:
+Both are fallible: a relative `CARGO_TARGET_DIR` is resolved against the
+process's working directory, because the child would resolve it against its
+own, and that lookup is the one step that can fail. `env_for_directory` is
+**internal**: it exists to serve `Preparation::for_fixture`, whose whole point
+is that the stamped directory outranks an inherited `CARGO_TARGET_DIR`, and it
+is not the right constructor for a nested build that should keep the outer
+cache. Then run the command through `run_bounded`, which applies a 300 s
+default bound, or `run_bounded_with_timeout` to size the bound yourself:
 
 ```rust,no_run
 use std::path::Path;
@@ -2802,10 +2808,26 @@ whose coverage is the measurement. `filtered_command` applies the same
 environment to a program other than `cargo`, such as a binary under test that
 itself spawns nested builds.
 
+The successful-exit path uses the same bounded collection, and that has a
+consequence worth knowing before relying on the captured text. A drain that
+waited for EOF would block for as long as any descendant kept the inherited
+write ends open, which is unbounded for a process that daemonizes a child and
+exits; so the collector stops a grace period after the direct child exits. A
+descendant that is still writing at that point is *not* waited for, and
+whatever it would have written is absent from both `stdout` and `stderr`. The
+status, and everything the direct child itself wrote before exiting, is intact.
+Treat the captured output as the direct child's, not as the whole process
+tree's: a build that delegates its diagnostics to a long-lived helper may
+report less than you expect. Use an explicit wrapper that waits for the tree
+when that matters.
+
 Preparation moves a cold fixture build out of the timed test body. Name the
 family, a variant label and a caller-supplied hash of the fixture inputs with
 `Sources`, then describe the preparation with `Preparation::new`, which derives
-the artefact directories from the environment's target directory.
+the artefact directories from the environment's target directory. Both
+`Preparation::new` and the public `Preparation::for_fixture` are fallible for
+that reason: deriving an artefact path from an unresolvable target directory
+would record a relative path that the gate then checks against the wrong root.
 `Preparation::for_fixture` describes a family whose nested builds all run
 against the stamped directory. Build the artefacts in a named preparation test
 with `prepare_now`, and gate the timed test on `ensure_prepared`:
@@ -2818,7 +2840,7 @@ use rstest_bdd_harness::nested_cargo::{
     prepare_now,
 };
 
-fn fixture(env: NestedCargoEnv, inputs: String) -> Preparation {
+fn fixture(env: NestedCargoEnv, inputs: String) -> io::Result<Preparation> {
     Preparation::new(
         Sources::new("my-fixture", "all-features", inputs),
         PathBuf::from("target/tests/my-fixture"),

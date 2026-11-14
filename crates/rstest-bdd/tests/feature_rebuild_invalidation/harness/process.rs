@@ -63,7 +63,9 @@ pub(crate) struct ChildEnv {
 
 /// Capture a snapshot of the parent environment, adjusted for the nested
 /// build. Every invocation of the child uses this exact snapshot.
-pub(crate) fn build_child_env() -> ChildEnv { child_env_from_vars(std::env::vars_os().collect()) }
+pub(crate) fn build_child_env() -> io::Result<ChildEnv> {
+    child_env_from_vars(std::env::vars_os().collect())
+}
 
 /// The directory this environment resolves for Cargo's build artefacts.
 pub(crate) fn child_target_directory(env: &ChildEnv) -> &Path { &env.target_directory }
@@ -74,15 +76,15 @@ pub(crate) fn child_target_directory(env: &ChildEnv) -> &Path { &env.target_dire
 /// target directory without mutating this process's environment.
 pub(crate) fn child_env_from_vars(
     mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)>,
-) -> ChildEnv {
+) -> io::Result<ChildEnv> {
     strip_outer_build_vars(&mut vars);
     ensure_target_directory(&mut vars);
     redirect_profile_file(&mut vars);
-    let target_directory = resolve_target_directory(&mut vars);
-    ChildEnv {
+    let target_directory = resolve_target_directory(&mut vars)?;
+    Ok(ChildEnv {
         vars,
         target_directory,
-    }
+    })
 }
 
 /// Remove the variables that describe the *outer* build or crate.
@@ -145,22 +147,29 @@ fn redirect_profile_file(vars: &mut Vec<(std::ffi::OsString, std::ffi::OsString)
 /// one place for this process and another for the child. Resolving it to an
 /// absolute path before it is stored — and therefore before it is handed to
 /// the child — keeps the stamp and the artefacts in the same directory.
+///
+/// # Errors
+///
+/// Returns the resolution error when an inherited relative value cannot be
+/// made absolute. Storing it unchanged would hand the child a path that names
+/// the fixture directory instead.
 fn resolve_target_directory(
     vars: &mut [(std::ffi::OsString, std::ffi::OsString)],
-) -> std::path::PathBuf {
+) -> io::Result<std::path::PathBuf> {
     vars.sort_by(|a, b| a.0.cmp(&b.0));
-    let target_directory = vars
+    let target_directory = match vars
         .iter()
         .find(|(key, _)| key.to_string_lossy() == "CARGO_TARGET_DIR")
-        .map_or_else(super::fixtures::shared_target_dir, |(_, value)| {
-            rstest_bdd_harness::nested_cargo::absolute_target_directory(value)
-        });
+    {
+        Some((_, value)) => rstest_bdd_harness::nested_cargo::absolute_target_directory(value)?,
+        None => super::fixtures::shared_target_dir(),
+    };
     for (key, value) in vars.iter_mut() {
         if key.to_string_lossy() == "CARGO_TARGET_DIR" {
             *value = target_directory.clone().into_os_string();
         }
     }
-    target_directory
+    Ok(target_directory)
 }
 
 /// The preparation policy's view of this harness's child environment.
@@ -175,7 +184,15 @@ fn resolve_target_directory(
 /// resolved, and the child environment always carries `CARGO_TARGET_DIR` by
 /// this point, so the fingerprint records where the artefacts really go rather
 /// than a workspace default the child never uses.
-pub(crate) fn preparation_view(env: &ChildEnv) -> rstest_bdd_harness::nested_cargo::NestedCargoEnv {
+///
+/// # Errors
+///
+/// As [`rstest_bdd_harness::nested_cargo::env_from_vars`]. In practice the
+/// value here has already been resolved by [`child_env_from_vars`], so this
+/// cannot fail for a `ChildEnv` this module built.
+pub(crate) fn preparation_view(
+    env: &ChildEnv,
+) -> io::Result<rstest_bdd_harness::nested_cargo::NestedCargoEnv> {
     rstest_bdd_harness::nested_cargo::env_from_vars(
         env.vars.clone(),
         Some(child_target_directory(env)),
@@ -297,7 +314,8 @@ mod tests {
                 "/temporary/coverage-build".into(),
             ),
             ("RSTEST_BDD_NESTED_CARGO_SENTINEL".into(), "kept".into()),
-        ]);
+        ])
+        .expect("the fixture environment should resolve");
         assert!(
             env.vars
                 .iter()

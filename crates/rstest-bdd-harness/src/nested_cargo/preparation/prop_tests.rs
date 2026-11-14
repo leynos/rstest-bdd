@@ -263,12 +263,14 @@ fn a_stamp_beside_the_inputs_does_not_change_the_hash() {
         Vec::new(),
         Some(&std::env::temp_dir().join("target")),
         crate::nested_cargo::ProfileDestination::Caller,
-    );
+    )
+    .expect("the fixture environment should resolve");
     let preparation = Preparation::new(
         super::Sources::new("unit", "v", "hash"),
         root.clone(),
         environment,
-    );
+    )
+    .expect("the fixture preparation should describe its artefacts");
     let stamp = super::stamp::stamp_path(&preparation);
     assert_eq!(stamp.parent(), Some(root.as_path()), "stamp beside inputs");
     fs::write(&stamp, b"fingerprint").expect("stamp");

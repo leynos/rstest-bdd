@@ -81,7 +81,15 @@ fn run_addition_experiment() -> AdditionOutcome {
     if let Err(err) = write_build_script_from_docs() {
         return AdditionOutcome::abandoned(err, String::new());
     }
-    let env = process::build_child_env();
+    let env = match process::build_child_env() {
+        Ok(env) => env,
+        Err(err) => {
+            return AdditionOutcome::abandoned(
+                format!("the child environment could not be built: {err}"),
+                String::new(),
+            );
+        }
+    };
     if let Err(err) = preflight_manifest_lockfile_consistency(&env) {
         return AdditionOutcome::abandoned(err, String::new());
     }

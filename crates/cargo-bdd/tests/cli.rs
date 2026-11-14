@@ -84,7 +84,7 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     // `LLVM_PROFILE_FILE`: `cargo llvm-cov` only merges the `.profraw` files
     // named by the pattern it exported, and redirecting this one would report
     // its exercised lines as never executed.
-    let child_env = cli_child_environment(env::vars_os().collect());
+    let child_env = cli_child_environment(env::vars_os().collect())?;
     let program = locate_or_build_cargo_bdd_command()?;
     let mut cmd = nested_cargo::filtered_command(
         std::path::Path::new(program.get_program()),
@@ -127,7 +127,15 @@ use preparation::ensure_cli_prepared;
 ///
 /// For example, `cli_child_environment(Vec::new())` selects the workspace
 /// `target/`; a snapshot containing `CARGO_TARGET_DIR` retains that value.
-fn cli_child_environment(vars: Vec<(OsString, OsString)>) -> nested_cargo::NestedCargoEnv {
+///
+/// # Errors
+///
+/// As [`nested_cargo::env_from_vars`]: a relative target directory that cannot
+/// be resolved against this process's working directory is reported rather than
+/// handed to a child that would resolve it somewhere else.
+fn cli_child_environment(
+    vars: Vec<(OsString, OsString)>,
+) -> std::io::Result<nested_cargo::NestedCargoEnv> {
     nested_cargo::env_from_vars(
         vars,
         Some(&workspace_root().join("target")),
@@ -138,11 +146,11 @@ fn cli_child_environment(vars: Vec<(OsString, OsString)>) -> nested_cargo::Neste
 #[rstest::rstest]
 #[case::workspace_cache(None)]
 #[case::caller_cache(Some("custom-coverage-target"))]
-fn cli_child_environment_reuses_target(#[case] target: Option<&str>) {
+fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io::Result<()> {
     let vars = target
         .map(|value| vec![(OsString::from("CARGO_TARGET_DIR"), OsString::from(value))])
         .unwrap_or_default();
-    let child = cli_child_environment(vars);
+    let child = cli_child_environment(vars)?;
     // A caller's value is preserved as a *directory*, not necessarily as the
     // exact string: a relative value names a different place to a child that
     // runs in the fixture directory, so the helper resolves it against this
@@ -154,10 +162,14 @@ fn cli_child_environment_reuses_target(#[case] target: Option<&str>) {
     );
     assert_eq!(child.get("CARGO_TARGET_DIR"), Some(expected.as_os_str()));
     assert_eq!(
-        child.target_directory().as_deref(),
+        child
+            .target_directory()
+            .expect("a resolved environment should yield its target directory")
+            .as_deref(),
         Some(expected.as_path()),
         "the resolved target directory must be the absolute one the child receives"
     );
+    Ok(())
 }
 
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {

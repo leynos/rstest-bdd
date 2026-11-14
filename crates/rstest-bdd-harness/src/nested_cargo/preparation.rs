@@ -60,6 +60,7 @@ mod tests;
 
 use std::{
     env,
+    io,
     path::{Path, PathBuf},
     sync::{Mutex, MutexGuard, PoisonError},
     time::Duration,
@@ -191,20 +192,29 @@ impl Preparation {
     /// while the compiled units land in the profile directory of the target
     /// directory the *child* resolves. Deriving both from one value is what
     /// keeps them in step when the target directory moves.
-    #[must_use]
-    pub fn new(sources: Sources, directory: PathBuf, environment: NestedCargoEnv) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// As [`NestedCargoEnv::target_directory`]: a relative target directory
+    /// that cannot be resolved is reported rather than recorded as a relative
+    /// artefact path, which the gate would then check against the wrong root.
+    pub fn new(
+        sources: Sources,
+        directory: PathBuf,
+        environment: NestedCargoEnv,
+    ) -> io::Result<Self> {
         let artefacts = environment
-            .target_directory()
+            .target_directory()?
             .map(|target| vec![target.join(DEFAULT_PROFILE)])
             .unwrap_or_default();
-        Self {
+        Ok(Self {
             family: sources.family,
             directory,
             environment,
             variant: sources.variant,
             inputs: sources.inputs,
             artefacts,
-        }
+        })
     }
 
     /// Describe a family whose nested builds all run against `directory`.
@@ -220,14 +230,17 @@ impl Preparation {
     /// the very roots it hashes.
     /// Coverage stays with the caller: the fixture's own run is what the
     /// coverage gate measures, so an inherited `LLVM_PROFILE_FILE` is kept.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// As [`Preparation::new`].
     pub fn for_fixture(
         family: impl Into<String>,
         directory: PathBuf,
         variant: impl Into<String>,
         inputs: impl Into<String>,
-    ) -> Self {
-        let environment = env_for_directory(&directory, ProfileDestination::Caller);
+    ) -> io::Result<Self> {
+        let environment = env_for_directory(&directory, ProfileDestination::Caller)?;
         Self::new(
             Sources::new(family, variant, inputs),
             directory,
@@ -241,11 +254,22 @@ impl Preparation {
 /// `CARGO_TARGET_DIR` is dropped from the inherited values because the
 /// directory being stamped is the authority: a stale inherited value would
 /// point the build somewhere the stamp does not describe.
-#[must_use]
+///
+/// Callers that only need an environment for a nested build should reach for
+/// [`build_child_env`] or [`env_from_vars`] instead: this helper exists to
+/// serve [`Preparation::for_fixture`], because dropping the inherited value is
+/// a decision about what a *stamp* describes rather than a general filtering
+/// rule.
+///
+/// # Errors
+///
+/// As [`env_from_vars`]. The dropped variable is re-supplied from `directory`,
+/// so this reports only when `directory` itself is relative and the working
+/// directory cannot be read.
 pub fn env_for_directory(
     directory: &Path,
     profile_destination: ProfileDestination,
-) -> NestedCargoEnv {
+) -> io::Result<NestedCargoEnv> {
     env_from_vars(
         env::vars_os()
             .filter(|(key, _)| key != "CARGO_TARGET_DIR")

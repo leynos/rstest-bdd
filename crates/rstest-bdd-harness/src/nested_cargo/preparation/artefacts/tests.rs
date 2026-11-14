@@ -34,12 +34,14 @@ fn preparation_with(units: &[(&str, &str)]) -> (tempfile::TempDir, Preparation) 
         )
         .expect("output");
     }
-    let environment = env_from_vars(Vec::new(), Some(&target), ProfileDestination::Caller);
+    let environment = env_from_vars(Vec::new(), Some(&target), ProfileDestination::Caller)
+        .expect("the fixture environment should resolve");
     let preparation = Preparation::new(
         Sources::new("unit", "v", "hash"),
         directory.path().to_path_buf(),
         environment,
-    );
+    )
+    .expect("the fixture preparation should describe its artefacts");
     (directory, preparation)
 }
 

@@ -20,6 +20,7 @@ fn child_env(target_directory: &std::path::Path) -> process::ChildEnv {
         OsString::from("CARGO_TARGET_DIR"),
         target_directory.as_os_str().to_os_string(),
     )])
+    .expect("the fixture environment should resolve")
 }
 
 /// Leave `env`'s target directory as a real build would: a profile holding
@@ -78,7 +79,8 @@ fn an_inherited_target_directory_moves_the_stamp_with_the_artefacts() {
 
 #[test]
 fn without_an_inherited_target_the_workspace_target_is_used() {
-    let env = process::child_env_from_vars(Vec::new());
+    let env =
+        process::child_env_from_vars(Vec::new()).expect("the fixture environment should resolve");
     assert_eq!(
         process::child_target_directory(&env),
         fixtures::shared_target_dir()
