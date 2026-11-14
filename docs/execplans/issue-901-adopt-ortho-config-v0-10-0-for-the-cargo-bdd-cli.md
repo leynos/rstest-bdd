@@ -15,9 +15,12 @@ fix's own hosted verdict is run `43604994289` at `0b798c1e` and run
 `43608966901` at `17cf96e7`, which each passed with all three required
 `build-test` jobs green, so the failing lane's verdict has been re-taken for
 the fixed tree and for the pushed head rather than inferred from the earlier
-run. Earlier green runs, including `43592197882` at `a634e98a`, `f10c0e4d` under
-`43582906292`, and `f93347ef` and `76f8f63e` under `43453087168`, are
-historical evidence recorded in `Progress`; merge pending)
+run. A later plan-only commit, `413b46c3`, then failed the same lane on the
+formatting gate because its own edit needed a rewrap; `2a017af9` applied that
+rewrap and passed run `43617023742` with all three lanes green, so the
+delivered head is that one. Earlier green runs, including `43592197882` at
+`a634e98a` and `f10c0e4d` under `43582906292`, are historical evidence recorded
+in `Progress`; merge pending)
 
 ## Purpose / big picture
 
@@ -559,7 +562,10 @@ Hard invariants. Violation requires escalation, not a workaround.
       failing lane's verdict is therefore re-taken for the fixed tree and for
       the pushed head, not carried over from an earlier one. Those runs
       supersede CI run `43592197882` at `a634e98a` as the latest green
-      verdict. The `make test`
+      verdict. The commit `413b46c3` that recorded those verdicts then failed
+      the same lane on `make check-fmt`, because its own prose needed a
+      rewrap; `2a017af9` applied it and passed run `43617023742`, whose three
+      lanes are the delivered head's verdict. The `make test`
       row is met locally at `f7fa8cd6`, and the commits after it edit only this
       plan, which no Rust gate reads, so that row's input has not moved. The
       Markdown gates do read this file, and were re-run at the head.
@@ -1440,9 +1446,37 @@ Hard invariants. Violation requires escalation, not a workaround.
       recording that verdict, `17cf96e7`, was then pushed and run again as
       `43608966901`, which also passed all three lanes, so the pushed head
       carries its own verdict rather than one inherited from the commit
-      before it.
+      before it. The next plan-only commit, `413b46c3`, failed the required
+      Linux lane in its `Check formatting` step at 28 seconds: `mdtablefix
+      --check` reported this file as `+1 -2`, so `make check-fmt` exited 2 and
+      the Markdown, spelling, lint and test steps behind it never ran. The
+      cause was a paragraph break the previous commit introduced — a line
+      ending `run.` followed by one beginning `Earlier` — which mdtablefix
+      joins into a single line of exactly 80 columns. No word changed and no
+      inline code span was split. `2a017af9` applied that rewrap; `make
+      check-fmt` then reported 142 files unchanged and exited zero, `make
+      markdownlint` still reported 0 errors, and hosted run `43617023742`
+      passed all three lanes there. My own gate for the two preceding commits
+      had been `make markdownlint`, which does not run mdtablefix, even though
+      `make check-fmt` is the gate the hosted lane runs first and the file
+      being edited is its input.
 
 ## Surprises & discoveries
+
+- Observation: `make markdownlint` passing is not evidence that a Markdown
+  edit passes the gate the hosted Linux lane runs. `make check-fmt` runs
+  `mdtablefix --check` with `--wrap` after the rustfmt steps, and
+  `make markdownlint` does not run mdtablefix at all. Evidence: commit
+  `413b46c3`, which edited only this plan, passed `make markdownlint` locally
+  and failed hosted run `43612834665` in `Check formatting` with `+1 -2` on
+  this file; reproducing with `make check-fmt` exited 2 in the same step.
+  Impact: a plan-only commit still needs the formatting gate, and the specific
+  thing it enforces here is that a paragraph break between two prose lines is
+  not preserved — the joined line was exactly 80 columns, so it is a fixed
+  point of a re-run and does not oscillate. Applying the fixer needs
+  `--in-place`; without it mdtablefix only prints the result, and `--check` and
+  `--diff` agreeing with an unchanged worktree is not evidence the fix was not
+  needed.
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
   by the pre-change binary with `error: unrecognized subcommand 'bdd'`, exit 2,
