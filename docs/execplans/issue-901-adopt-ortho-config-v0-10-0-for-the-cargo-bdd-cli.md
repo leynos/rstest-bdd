@@ -547,9 +547,9 @@ Hard invariants. Violation requires escalation, not a workaround.
       unchecked until the pull request lands on `main`. The latest *completed*
       hosted verdict is `f93347ef`, where all three `build-test` jobs passed;
       heads pushed since then have no recorded verdict, so this entry claims
-      nothing about them. The final-tree `make test` acceptance is likewise
-      still unmet, as the `make test` row records: the one unfiltered run is
-      historical. Both are the work this section names, so it stays incomplete.
+      nothing about them. The `make test` row is met locally at `404c8861`, and
+      a hosted verdict for that head is the remaining evidence this section
+      names.
       The candidate was rebased onto `origin/main`
       (`693bba91`) and gated at revision `96e38df8`; the rebase described in
       `Outcomes & retrospective` is the later one.
@@ -1284,10 +1284,12 @@ Hard invariants. Violation requires escalation, not a workaround.
       textually scoped, and the two the child module calls are re-exported.
 
 - [x] (2026-11-14) Two plan claims were corrected rather than defended. The
-      `make test` row claimed final-tree acceptance from the `8a5cb67f` run;
-      that run is historical — `git rev-list --count 8a5cb67f..41f50191`
-      reports fifteen commits between it and this text — so the row is now
-      recorded as **unmet** again. The §6 entry said the current head's hosted
+      `make test` row claimed final-tree acceptance from the `8a5cb67f` run,
+      which is historical: `git rev-list --count 8a5cb67f..41f50191` reports
+      fifteen commits between it and this text. That claim was withdrawn, the
+      recipe was then re-run on the clean tree at `404c8861` with `REV_START`
+      and `REV_END` both recording that revision, and the row now cites that
+      anchored verdict instead. The §6 entry said the current head's hosted
       checks were green; it now names `f93347ef` as the latest completed
       verdict and claims nothing about later heads.
 
@@ -2165,15 +2167,17 @@ Acceptance means all of the following, in one gate run against the final tree:
   checks `cargo-bdd` with OrthoConfig. These commands test the package-level
   MSRV split directly.
 
-The `make test` row asks for one gate run against the final tree. One such run
-exists: the whole recipe ran unfiltered at `8a5cb67f` and exited zero with
-every test finished. It is *historical* evidence, not the final-tree acceptance
-the row asks for. `git rev-list --count 8a5cb67f..41f50191` reports fifteen
-commits between that run and this text, and this round changed test-only files
-as well — and a test-only change still reaches the gate's input. That
-acceptance therefore remains **unmet**: it needs one unfiltered `make test` at
-whatever revision the pull request is merged from, with a verdict recorded
-against that exact revision. Every remaining statement in this subsection is
+The `make test` row asks for one gate run against the final tree. It is met
+locally at `404c8861`, the revision this text was written at: the whole recipe
+ran unfiltered on a clean tree, `REV_START` and `REV_END` both
+`404c8861fb8a5e2289cd7049a60febc4bd2d0fb6`, and exited zero with 2258 of 2258
+nextest tests passing (7 skipped), 788 of 788 doc tests passing (7 skipped),
+and 292 pytest tests passing. The earlier run at `8a5cb67f` is *historical* by
+comparison: `git rev-list --count 8a5cb67f..41f50191` reports fifteen commits
+between it and this text. Either way the row asks for a run against the final
+tree, so a commit after `404c8861` would put the verdict out of date and it
+would have to be re-taken at the new head; what this paragraph certifies is
+`404c8861` and nothing later. Every remaining statement in this subsection is
 older evidence still, accumulated before that run; where it says the row is
 unmet or an exception is retained, the later record in
 `Outcomes & retrospective` supersedes it.
