@@ -43,7 +43,7 @@ use super::{
 /// to find `cargo` — and this function strips `CARGO_TARGET_DIR` from them, so
 /// the helper's own precedence rule is what the test observes.
 fn run_fixture_with(snapshot: Vec<(OsString, OsString)>) -> Result<std::process::Output> {
-    let env = cli_child_environment(snapshot);
+    let env = cli_child_environment(snapshot)?;
     let program = locate_or_build_cargo_bdd_command()?;
     let mut cmd =
         nested_cargo::filtered_command(Path::new(program.get_program()), &env, &fixture_dir());
@@ -71,7 +71,7 @@ struct MetadataTargets {
 /// environment map the fixture build receives, so what it resolves is the
 /// environment decision under test rather than a re-derivation of it.
 fn resolved_target_directory(snapshot: Vec<(OsString, OsString)>) -> Result<PathBuf> {
-    let env = cli_child_environment(snapshot);
+    let env = cli_child_environment(snapshot)?;
     let mut cmd = nested_cargo::cargo_command(&env, &fixture_dir());
     cmd.args(["metadata", "--format-version", "1", "--no-deps"]);
     let output = cmd.output()?;
@@ -120,7 +120,7 @@ fn workspace_target() -> std::path::PathBuf { workspace_root().join("target") }
 /// The applied value, or `None` when the command would carry no target
 /// directory at all.
 fn cli_target_dir(snapshot: Vec<(OsString, OsString)>) -> Result<Option<OsString>> {
-    let env = cli_child_environment(snapshot);
+    let env = cli_child_environment(snapshot)?;
     let program = locate_or_build_cargo_bdd_command()?;
     let cmd =
         nested_cargo::filtered_command(Path::new(program.get_program()), &env, &fixture_dir());

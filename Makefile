@@ -7,7 +7,7 @@ VALE ?= vale
 .PHONY: check-published-gpui-e2e-lock
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
 .PHONY: update-feature-rebuild-fixtures-lock
-.PHONY: check-fixture-lockfiles update-fixture-lockfiles prefetch-fixture-deps
+.PHONY: check-fixture-lockfiles update-fixture-lockfiles prefetch-fixture-deps prepare-nested-fixtures
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -166,8 +166,16 @@ lint: ## Run Clippy and the Whitaker Dylint suite with warnings denied
 	$(PROJECT_PYTHON) scripts/check_gpui_mapping_table.py
 	$(PROJECT_PYTHON) scripts/check_serial_nextest_matrix.py
 
+# Select the aggregated suite by name rather than with `--all`. The suite
+# already registers every constituent lint, so naming it loads the same lint
+# set. `--all` instead loads every library the installed tree happens to hold,
+# and that tree is written by a pinned installer against a rolling release: an
+# installer older than a lint cannot prune that lint's standalone library, so
+# `--all` loads it beside the suite and rustc panics with "duplicate
+# specification of lint" before any of this repository's code is checked.
+# Naming the suite keeps the gate independent of that pruning bug.
 lint-whitaker: ## Run the Whitaker Dylint suite with warnings denied
-	RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
+	RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --lib whitaker_suite -- $(CARGO_FLAGS)
 
 lint-python: build-python interrogate ## Run Python linters
 	$(RUFF) check $(PYTHON_TARGETS)
@@ -201,7 +209,7 @@ typecheck: build-python ## Run cargo and Python type checks with warnings denied
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
 PUBLISHED_GPUI_E2E_DIR := tests/fixtures/published-gpui-e2e
 PUBLISHED_GPUI_E2E_STAGE_DIR := target/published-gpui-e2e
-PUBLISHED_GPUI_E2E_VERSION := 0.6.0
+PUBLISHED_GPUI_E2E_VERSION := 0.7.0
 PUBLISHED_GPUI_E2E_PACKAGES := \
 	rstest-bdd-patterns \
 	rstest-bdd-policy \
@@ -333,6 +341,26 @@ update-fixture-lockfiles: update-published-gpui-e2e-lock ## Regenerate every fix
 # prefetch has to finish before cargo-mutants starts.
 prefetch-fixture-deps: ## Warm the Cargo cache for the mutation lane's offline fixture builds
 	$(PROJECT_PYTHON) scripts/check_fixture_lockfiles.py --fetch
+
+# Compile the fixture dependency graphs the nested-Cargo suites need, before
+# any timed assertion runs.
+#
+# `make test` does not call this: under `cargo nextest` the named preparation
+# tests are part of the suite and `.config/nextest.toml` schedules them ahead
+# of the assertions with a budget of their own, and under plain `cargo test`
+# the timed tests prepare lazily behind a process-wide lock. Run this when a
+# run selects a subset — a filtered `cargo nextest run`, or a single test —
+# because nextest then fails the timed test with the command that prepares it
+# rather than letting that test's deadline pay for a cold build. It is
+# idempotent: a warm target directory costs one stamp read per family.
+#
+# The environment deliberately matches the `test` target's main leg. The
+# preparation stamps record the build-relevant environment and the toolchain,
+# so preparing under a different `RUSTFLAGS` or feature selection only warms a
+# tree the timed tests will not reuse.
+prepare-nested-fixtures: ## Prepare the nested-Cargo fixture build trees before a filtered test run
+	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS) \
+		-E 'test(/nested_fixture_preparation$$/)'
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

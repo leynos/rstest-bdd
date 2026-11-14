@@ -1,3 +1,6 @@
+# `priority` and the `slow-timeout` table form need nextest 0.9.91 or later.
+nextest-version = "0.9.91"
+
 [profile.default]
 # Kill any test once it crosses 60s.
 slow-timeout = { period = "60s", terminate-after = 1, grace-period = "5s" }
@@ -24,9 +27,69 @@ global-timeout = "90m"
 max-threads = 1
 
 [[profile.default.overrides]]
+# The named preparation tests compile the dependency graphs that the nested
+# Cargo suites would otherwise compile inside their own timed bodies: the
+# `cargo-bdd` fixture, the shared trybuild tree, the UI-lint tree, and the
+# rebuild-invalidation and feature-addition scratch fixtures.
+#
+# Order matters more than usual here. Each preparation test lives in the same
+# test binary as the timed assertions it prepares, so the per-binary overrides
+# below match it too, with 180 s, 20 m or 600 s. nextest applies the first
+# override in file order that configures a setting, so this entry must stay
+# first: anywhere else, the preparation would inherit a timed assertion's
+# budget. `priority` is separate — it is scheduling, not precedence, and it
+# gets these tests started early.
+#
+# This budget is not a deadline on any assertion, and it is not sized to be
+# spent: `make prepare-nested-fixtures` runs these tests before the suite, so a
+# normal lane spends only the stamp read. It bounds the genuinely cold case for
+# a single preparation test; the sibling preparations queue behind it in the
+# `cargo-spawning` group, and nextest starts a test's slow-timeout when the
+# test begins running, not while it waits for the group. Measured on the
+# development host with every nested target empty, the two most expensive
+# families were the server crate's trybuild tree at 864.239 s and the
+# `rstest-bdd` trybuild binary's two graphs at 645.412 s, so a fully cold
+# preparation is comfortably inside 30 minutes. (Those two are single-host
+# figures taken behind a shared compile-admission pool, so they overstate the
+# compiler time and understate a two-vCPU lane's queueing.) The four trybuild
+# binaries share one generated-crate directory, so whichever prepares first
+# warms the dependency graph and the rest stamp it in seconds.
+#
+# The preparation commands this repository spawns itself carry their own bound
+# (`nested_cargo::PREPARATION_COMMAND_TIMEOUT`, 9 m), and
+# `nested_cargo::MAX_SEQUENTIAL_COMMANDS` of them stay inside this period, so a
+# wedged command is reported by name with its captured output rather than as a
+# runner slow-timeout. One command is not bounded that way: `trybuild` spawns its
+# own nested `cargo`, and its API offers no hook to bound or capture that child,
+# so for the trybuild families this period is the only bound. This period also
+# bounds the whole preparation *test*; an overrun spanning several commands is
+# reported by nextest as a slow-timeout rather than by name.
+filter = "test(/nested_fixture_preparation$/)"
+slow-timeout = { period = "30m", terminate-after = 1, grace-period = "5s" }
+test-group = "cargo-spawning"
+priority = 100
+
+[[profile.default.overrides]]
 # `cargo-bdd` CLI smoke tests spawn `cargo` to build fixture crates, which can
 # legitimately exceed the default 60s slow-timeout on cold caches.
 filter = "binary_id(cargo-bdd::cli)"
+slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
+test-group = "cargo-spawning"
+
+[[profile.default.overrides]]
+# `binary_test_support` spawns `cargo` through the shared helper, and
+# `locate_or_build_returns_command_for_workspace_binary` builds the `todo-cli`
+# example from cold, so this binary belongs in the same family as the CLI smoke
+# tests rather than under the default 60 s hang detector.
+#
+# It was missing from this list, and the gap is exactly what #910 describes: on
+# run 43607129223 the lane ran 49 minutes instead of 33, the sibling
+# `nested_fixture_preparation` held the `cargo-spawning` group for 86.6 s while
+# paying for the shared dependency graph, and this test was killed at 60.002 s
+# with no output. Joining the group is as important as the longer period: it
+# makes the wait queueing that does not count against the budget, instead of
+# lock contention that does.
+filter = "binary_id(rstest-bdd-harness::binary_test_support_cargo)"
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 

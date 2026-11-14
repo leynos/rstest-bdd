@@ -32,6 +32,25 @@ pub(crate) struct AdditionOutcome {
     pub(crate) second_run_recompiled: bool,
 }
 
+impl AdditionOutcome {
+    /// The observation of a run that never reached the post-addition phase.
+    ///
+    /// Every flag that the scenario steps assert on stays at its failing
+    /// default, so a run abandoned at any precondition cannot look like a
+    /// satisfied addition assertion. `baseline_output` carries the captured
+    /// baseline output when one exists, and is empty when the run stopped
+    /// before producing any.
+    pub(crate) fn abandoned(reason: String, baseline_output: String) -> Self {
+        Self {
+            baseline_error: Some(reason),
+            baseline_output,
+            new_scenario_ran: false,
+            second_run_output: String::new(),
+            second_run_recompiled: false,
+        }
+    }
+}
+
 static ADDITION: OnceLock<AdditionOutcome> = OnceLock::new();
 
 /// Run the build-script addition experiment, once per process.
@@ -48,57 +67,23 @@ const ADDED_FILE_NAME: &str = "zzz_added.feature";
 const ADDED_TEST_NAME: &str = "zzz_added_the_added_scenario";
 
 fn run_addition_experiment() -> AdditionOutcome {
-    fixtures::ensure_addition_fixture_copied();
-    reset_added_file();
-    if let Err(err) = write_build_script_from_docs() {
-        return AdditionOutcome {
-            baseline_error: Some(err),
-            baseline_output: String::new(),
-            new_scenario_ran: false,
-            second_run_output: String::new(),
-            second_run_recompiled: false,
-        };
-    }
-    let env = process::build_child_env();
-    if let Err(err) = preflight_manifest_lockfile_consistency(&env) {
-        return AdditionOutcome {
-            baseline_error: Some(err),
-            baseline_output: String::new(),
-            new_scenario_ran: false,
-            second_run_output: String::new(),
-            second_run_recompiled: false,
-        };
-    }
-    let outcome = run_cargo(&env, &["test", "--locked", "--offline"]);
-    let (baseline_error, baseline_output) = match outcome {
-        Ok(captured) => (None, captured.stdout),
-        Err(err) => (
-            Some(format!("baseline cargo test failed to run: {err}")),
-            String::new(),
-        ),
+    let env = match prepared_addition_env() {
+        Ok(env) => env,
+        Err(reason) => return AdditionOutcome::abandoned(reason, String::new()),
     };
-    if let Some(reason) = baseline_error.clone() {
-        return AdditionOutcome {
-            baseline_error: Some(reason),
-            baseline_output,
-            new_scenario_ran: false,
-            second_run_output: String::new(),
-            second_run_recompiled: false,
-        };
-    }
+    let baseline_output = match baseline_run(&env) {
+        Ok(output) => output,
+        Err(reason) => return AdditionOutcome::abandoned(reason, String::new()),
+    };
 
     if let Err(err) = add_new_feature_file() {
-        return AdditionOutcome {
-            baseline_error: Some(format!("cannot add the new feature file: {err}")),
+        return AdditionOutcome::abandoned(
+            format!("cannot add the new feature file: {err}"),
             baseline_output,
-            new_scenario_ran: false,
-            second_run_output: String::new(),
-            second_run_recompiled: false,
-        };
+        );
     }
 
-    let second_captured = run_cargo(&env, &["test", "--locked", "--offline"]);
-    let second_captured = match second_captured {
+    let second_captured = match run_cargo(&env, &["test", "--locked", "--offline"]) {
         Ok(captured) => captured,
         Err(err) => panic!("second cargo test failed to run: {err}"),
     };
@@ -113,6 +98,34 @@ fn run_addition_experiment() -> AdditionOutcome {
         new_scenario_ran,
         second_run_output: second_captured.stdout,
         second_run_recompiled,
+    }
+}
+
+/// Gate on preparation, reset the fixture, and build the child environment.
+///
+/// The dependency closure was compiled by the preparation test; this gate only
+/// verifies it, because a timed experiment must not absorb a cold graph build.
+/// The manifest/lockfile preflight runs last, so a fixture directory that is
+/// merely unprepared reports that rather than a lockfile mismatch it cannot
+/// have caused.
+fn prepared_addition_env() -> Result<process::ChildEnv, String> {
+    if let Err(err) = super::preparation::ensure_addition_prepared() {
+        return Err(format!("addition fixture is not prepared: {err}"));
+    }
+    fixtures::ensure_addition_fixture_copied();
+    reset_added_file();
+    write_build_script_from_docs()?;
+    let env = process::build_child_env()
+        .map_err(|err| format!("the child environment could not be built: {err}"))?;
+    preflight_manifest_lockfile_consistency(&env)?;
+    Ok(env)
+}
+
+/// Run the baseline `cargo test` and return its output, or the reason it failed.
+fn baseline_run(env: &process::ChildEnv) -> Result<String, String> {
+    match run_cargo(env, &["test", "--locked", "--offline"]) {
+        Ok(captured) => Ok(captured.stdout),
+        Err(err) => Err(format!("baseline cargo test failed to run: {err}")),
     }
 }
 
@@ -131,7 +144,7 @@ fn run_cargo(env: &process::ChildEnv, args: &[&str]) -> Result<process::Captured
 /// The example is the single source of truth: if the recipe in
 /// `docs/users-guide.md` stops working, this extraction fails (or the
 /// executed recipe fails the behavioural test).
-fn write_build_script_from_docs() -> Result<(), String> {
+pub(crate) fn write_build_script_from_docs() -> Result<(), String> {
     let example = documented_example("scenarios-build-script")
         .map_err(|err| format!("cannot load the documented build-script recipe: {err}"))?;
     if example.language.as_str() != "rust" {
@@ -163,7 +176,7 @@ fn preflight_manifest_lockfile_consistency(env: &process::ChildEnv) -> Result<()
 }
 
 /// Remove a leftover added file so every run observes the same baseline.
-fn reset_added_file() {
+pub(crate) fn reset_added_file() {
     let path = added_file_path();
     if path.exists()
         && let Err(err) = std::fs::remove_file(&path)

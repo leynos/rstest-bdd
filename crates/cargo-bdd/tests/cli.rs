@@ -84,7 +84,7 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     // `LLVM_PROFILE_FILE`: `cargo llvm-cov` only merges the `.profraw` files
     // named by the pattern it exported, and redirecting this one would report
     // its exercised lines as never executed.
-    let child_env = cli_child_environment(env::vars_os().collect());
+    let child_env = cli_child_environment(env::vars_os().collect())?;
     let program = locate_or_build_cargo_bdd_command()?;
     let mut cmd = nested_cargo::filtered_command(
         std::path::Path::new(program.get_program()),
@@ -113,6 +113,13 @@ fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
 #[path = "nested_target/mod.rs"]
 mod nested_target;
 
+// Preparation of the fixture's nested build, kept out of this module so the
+// timed tests and their setup stay separately readable.
+#[path = "cli/preparation.rs"]
+mod preparation;
+
+use preparation::ensure_cli_prepared;
+
 /// Apply the shared isolation policy with this CLI fixture's workspace target.
 ///
 /// Only CLI smoke-test setup owns this fallback; explicit coverage and caller
@@ -120,7 +127,15 @@ mod nested_target;
 ///
 /// For example, `cli_child_environment(Vec::new())` selects the workspace
 /// `target/`; a snapshot containing `CARGO_TARGET_DIR` retains that value.
-fn cli_child_environment(vars: Vec<(OsString, OsString)>) -> nested_cargo::NestedCargoEnv {
+///
+/// # Errors
+///
+/// As [`nested_cargo::env_from_vars`]: a relative target directory that cannot
+/// be resolved against this process's working directory is reported rather than
+/// handed to a child that would resolve it somewhere else.
+fn cli_child_environment(
+    vars: Vec<(OsString, OsString)>,
+) -> std::io::Result<nested_cargo::NestedCargoEnv> {
     nested_cargo::env_from_vars(
         vars,
         Some(&workspace_root().join("target")),
@@ -131,13 +146,30 @@ fn cli_child_environment(vars: Vec<(OsString, OsString)>) -> nested_cargo::Neste
 #[rstest::rstest]
 #[case::workspace_cache(None)]
 #[case::caller_cache(Some("custom-coverage-target"))]
-fn cli_child_environment_reuses_target(#[case] target: Option<&str>) {
+fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io::Result<()> {
     let vars = target
         .map(|value| vec![(OsString::from("CARGO_TARGET_DIR"), OsString::from(value))])
         .unwrap_or_default();
-    let child = cli_child_environment(vars);
-    let expected = target.map_or_else(|| workspace_root().join("target"), PathBuf::from);
+    let child = cli_child_environment(vars)?;
+    // A caller's value is preserved as a *directory*, not necessarily as the
+    // exact string: a relative value names a different place to a child that
+    // runs in the fixture directory, so the helper resolves it against this
+    // process's working directory before handing it over. The workspace
+    // fallback is already absolute.
+    let expected = target.map_or_else(
+        || workspace_root().join("target"),
+        |value| std::env::current_dir().expect("current dir").join(value),
+    );
     assert_eq!(child.get("CARGO_TARGET_DIR"), Some(expected.as_os_str()));
+    assert_eq!(
+        child
+            .target_directory()
+            .expect("a resolved environment should yield its target directory")
+            .as_deref(),
+        Some(expected.as_path()),
+        "the resolved target directory must be the absolute one the child receives"
+    );
+    Ok(())
 }
 
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {
@@ -182,6 +214,7 @@ fn run_cargo_bdd_steps() -> Result<String> { run_cargo_bdd(&["steps"]) }
 #[test]
 #[serial]
 fn list_steps_runs() {
+    ensure_cli_prepared().expect("test setup should succeed");
     let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
     assert!(
         !stdout.is_empty(),
@@ -192,6 +225,7 @@ fn list_steps_runs() {
 #[test]
 #[serial]
 fn steps_skips_test_binaries_without_dump_steps_support() {
+    ensure_cli_prepared().expect("test setup should succeed");
     let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
     assert!(
         stdout.contains("fixture bypassed step"),
@@ -206,6 +240,7 @@ fn steps_skips_test_binaries_without_dump_steps_support() {
 #[test]
 #[serial]
 fn steps_output_includes_skipped_statuses() {
+    ensure_cli_prepared().expect("test setup should succeed");
     let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
     assert!(
         stdout.contains("skipped tests/features/diagnostics.fixture :: fixture skipped scenario"),
@@ -220,6 +255,7 @@ fn steps_output_includes_skipped_statuses() {
 #[test]
 #[serial]
 fn steps_output_marks_forced_failure_skips() {
+    ensure_cli_prepared().expect("test setup should succeed");
     let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
     assert!(
         stdout.contains("[forced failure]"),
@@ -238,6 +274,7 @@ fn steps_output_marks_forced_failure_skips() {
 #[test]
 #[serial]
 fn skipped_subcommand_includes_reasons_and_lines() {
+    ensure_cli_prepared().expect("test setup should succeed");
     let stdout = run_cargo_bdd(&["skipped", "--reasons"]).expect("test setup should succeed");
     assert!(
         stdout.contains("tests/features/diagnostics.fixture:7"),
@@ -253,6 +290,7 @@ fn skipped_subcommand_includes_reasons_and_lines() {
 #[test]
 #[serial]
 fn skipped_subcommand_emits_json() {
+    ensure_cli_prepared().expect("test setup should succeed");
     let stdout = run_cargo_bdd(&["skipped", "--json"]).expect("test setup should succeed");
     let entries: Vec<SkipReport> =
         serde_json::from_str(&stdout).expect("test setup should succeed");
@@ -282,6 +320,7 @@ fn skipped_subcommand_emits_json() {
 #[test]
 #[serial]
 fn steps_skipped_outputs_bypassed_definitions() {
+    ensure_cli_prepared().expect("test setup should succeed");
     let stdout = run_cargo_bdd(&["steps", "--skipped"]).expect("test setup should succeed");
     assert!(stdout.contains("fixture bypassed step"));
     assert!(stdout.contains("fixture skip message"));
@@ -290,6 +329,7 @@ fn steps_skipped_outputs_bypassed_definitions() {
 #[test]
 #[serial]
 fn steps_skipped_emits_json() {
+    ensure_cli_prepared().expect("test setup should succeed");
     let stdout =
         run_cargo_bdd(&["steps", "--skipped", "--json"]).expect("test setup should succeed");
     let entries: Vec<SkipReport> =

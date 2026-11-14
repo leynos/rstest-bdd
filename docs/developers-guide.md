@@ -898,11 +898,278 @@ so they are intended for small, human-readable `.expanded.rs` snapshots.
 
 ### Trybuild crate root resolution
 
-`trybuild_crate_root(manifest_path, target_subdir)` resolves the per-crate
-trybuild scratch directory by querying `cargo metadata` for the workspace
-`target` directory and appending `tests/trybuild/<target_subdir>`. It returns
-`Result<PathBuf, Box<dyn Error>>` and is consumed by
+`trybuild_target_root(manifest_path)` resolves the directory `trybuild` builds
+every generated crate in: it queries `cargo metadata` for the workspace
+`target` directory and appends `tests/trybuild`. That is deliberately the
+shared root rather than a per-crate path, because `trybuild` sets the nested
+build's `CARGO_TARGET_DIR` to exactly this directory. Resolution goes through
+`cargo metadata` for the same reason: metadata reads `CARGO_TARGET_DIR` from
+the environment, so preparation and the timed case describe the same tree.
+
+`trybuild_crate_root(manifest_path, target_subdir)` joins that root with
+`target_subdir`, which is the per-crate scratch directory holding the generated
+`Cargo.toml` and the staged `.feature` files. It is consumed by
 `stage_trybuild_support_files` in each harness crate's `macro_compile.rs` test.
+
+### Trybuild tree preparation
+
+`TrybuildTree::new(crate_root, target_subdir, family, variant)` describes one
+crate's trybuild tree for the shared preparation policy in
+`rstest_bdd_harness::nested_cargo`. `prepare_now` runs a caller-supplied
+closure only when the stamp and the artefacts it vouches for do not already
+match, then stamps the shared directory; `ensure_prepared` fails fast under
+nextest when the stamp is missing or stale and prepares lazily behind a
+process-wide lock under plain `cargo test`. `generated_crate_root` returns the
+per-crate scratch directory the caller stages support files into.
+
+The `family` argument must be distinct per crate, and `variant` must record the
+feature selection the test binary was built with: `trybuild` propagates that
+selection to the generated crate, so a different set of features is a different
+dependency graph. Both feed the stamp's fingerprint, which also covers the
+build-relevant environment, the toolchain identity and the workspace inputs.
+
+The toolchain identity is resolved by running `cargo -vV` and keeping its
+`release:`, `commit-hash:` and `host:` lines. The probe runs on each
+fingerprint computation rather than being cached: it is cheap beside the stamp
+read it accompanies, and a cached value would survive a toolchain change within
+the same process. A toolchain that cannot be identified is a preparation error
+rather than an `"unknown"` fingerprint field: that placeholder is identical on
+every host where identification fails, so a stamp written under it would
+survive a toolchain change, which is exactly the invalidation the field exists
+to force.
+
+The inputs hashed are the workspace manifest and lockfile, the `crates/` tree,
+`vendor/`, and the workspace's Cargo configuration. Hashing `crates/` walks
+roughly 900 files, about 7 MB, once per preparation family; that is the
+deliberate trade for a stamp that cannot survive a change to a workspace crate
+the generated manifest depends on.
+
+### Stamps live inside the artefact directory
+
+A preparation stamp is only meaningful if it is evicted together with the
+artefacts it vouches for. That is why every family stamps the **resolved**
+target directory rather than a fixed workspace path: a nested build preserves
+an inherited `CARGO_TARGET_DIR`, so under `cargo llvm-cov` the artefacts land
+in the coverage driver's target, and a stamp left in the workspace `target/`
+would survive an eviction of that directory and keep matching.
+`Preparation::new` therefore takes the directory the artefacts actually occupy,
+and the harnesses resolve theirs from the same environment snapshot they hand
+the child (`process::child_target_directory` for the rebuild suite,
+`NestedCargoEnv::target_directory` for the CLI suite).
+
+`CARGO_TARGET_DIR` is resolved to an absolute path exactly once, inside
+`NestedCargoEnv::from_vars`, so the value the child receives and the path a
+stamp is derived from are the same place. A relative inherited value would
+otherwise be read twice against two different working directories — the test
+process's and the fixture directory the nested build runs in — and the stamp
+would guard a tree the build never writes. `absolute_target_directory` is the
+shared resolver; `process::child_env_from_vars` applies it to its own snapshot
+for the same reason, because that harness keeps a separate byte-identical
+environment rather than using `NestedCargoEnv` directly.
+
+The rebuild suite keeps two stamps with two jobs, and they are not
+interchangeable: the preparation stamp records which *artefacts* exist, while
+the scratch `.stamp` in `fixtures` records which *fixture source* the scratch
+copy was made from. Evicting the target directory must invalidate the first
+without disturbing the second.
+
+### A stamp only vouches for inputs and environment
+
+A matching stamp answers "the inputs and the environment have not changed", not
+"the compiled units are still there". For the scratch families those are
+different directories: the stamp lives under `<target>/tests/<family>`, while
+the dependency graph lands in `<target>/debug`, so a `cargo clean`, a plain
+`rm -rf <target>/debug`, or any tool that evicts only the profile removes the
+work while leaving the stamp intact.
+
+`Preparation::artefacts` records the directories a stamp vouches for, and
+`ensure_prepared` requires every one of them to hold the artefacts the stamp
+records before it admits a timed assertion. `Preparation::new` derives the list
+as `<resolved target>/debug` (`DEFAULT_PROFILE`). The trybuild and UI-lint
+families stamp the directory that *is* their child's `CARGO_TARGET_DIR`, so
+there the profile is a descendant of the stamp root rather than a sibling —
+either way, the gate names it.
+
+The check does not stop at `is_dir()`. A profile directory can exist and be
+empty, or keep existing after `rm -rf <target>/debug`, and in both cases Cargo
+must rebuild the dependency graph the next time anything links against it. What
+the gate requires is what Cargo itself needs to skip that rebuild: a directory
+holding compiled units, and a non-empty store of the fingerprint records Cargo
+reads to decide those units are current. Evicting either one refuses the
+preparation, which is the behaviour
+`evicting_either_required_half_alone_invalidates_the_preparation` pins in the
+shared policy and in the rebuild harness, alongside
+`an_empty_profile_directory_is_not_a_prepared_family`.
+
+Those directories are discovered rather than named. Cargo's build-directory
+layout is explicitly not a stable interface and has changed under this
+repository already: one release moved every compiled unit from `<profile>/deps`
+to `<profile>/build/<pkg>/<hash>/out`, kept nothing in `deps`, and offered no
+stable opt-out. A check that named `deps` therefore refused every preparation
+on the newer toolchain. The `layout` module walks the profile instead, and keys
+on rustc's own invariant rather than Cargo's placement: rustc writes a unit's
+dep-info record into the `--out-dir` holding that unit's outputs, so a
+directory with `.d` records is a directory holding units wherever Cargo put it.
+Both shapes are covered by `both_cargo_layouts_are_discovered` and, end to end,
+by the CLI preparation test against a real build.
+
+A non-empty unit directory is still not evidence that the work survived, and
+neither is a rule about the form of its file names. The gate therefore records
+what the preparation actually produced. After the preparation command succeeds,
+the module lists the outputs described by the dep-info records it discovered
+and writes those names into the stamp — each qualified by the directory holding
+it, since two units in different directories can share a stem — and the gate
+then requires every one of them to still be present, reporting the ones that
+have gone.
+
+The record exists because no naming rule can decide the question. Removing only
+`lib<stem>.rlib` while `lib<stem>.rmeta` survives makes Cargo recompile that
+unit — measured against a real crate — and the tree left behind is the same
+shape a `cargo check` leaves for a genuine metadata-only unit, which Cargo does
+reuse. Two states with identical file names, one reusable and one not, so any
+predicate over names is either wrong or a guess about a toolchain this code
+does not control. Earlier versions tried both shapes and each refused a genuine
+tree in CI: the first accepted only `rlib` and rejected metadata-only units
+(the commonest form in this workspace's own `target/debug/deps` — 1,061 `rmeta`
+against 739 `rlib`), and the second listed `so` and `dylib` and rejected
+Windows proc-macro units, which are `.dll`.
+
+`is_output_of` survives only to *discover* which entries belong to which
+record, never to decide that a tree is usable: it matches
+`lib<stem>.<extension>` for a library and `<stem>` or `<stem>.<extension>` for
+a linked binary, and refuses to let a record witness itself.
+`pairing_is_by_stem_with_a_separator` pins the rule,
+`a_metadata_only_unit_is_accepted` pins that a crate type emitting only
+metadata is not refused, and
+`a_recorded_output_that_was_removed_is_an_eviction` pins the state no naming
+rule can decide — an `.rlib` gone while its `.rmeta` stayed, recorded as gone
+rather than accepted because a sibling output happens to pair.
+
+The stamp records the names because the profile need not be inside the stamp
+root, so it is one file rather than two: a single rename publishes the
+fingerprint and the names it vouches for together, and no reader can see a new
+fingerprint beside a stale name list. The record is taken from what the command
+left, not from what it was expected to leave.
+
+Reading a stamp back must be exactly the inverse of writing it, and the only
+whitespace the two are allowed to lose is the one line break that terminates
+the fingerprint. `escape` already keeps every recorded value on one line, so
+the terminating break is the whole of the difference between the text `compose`
+produced and the text stored before the separator. Normalizing further — with
+`trim_end`, which the first implementation used — also discards trailing spaces
+belonging to the last field, and the last field is `inputs`. A stamp written
+for an input hash of `h` then admitted a build whose hash was `h` (with one
+trailing space), so a changed fixture kept its prepared artefacts. The
+resolution is deliberately narrow: `strip_line_break` removes that single
+character and nothing else, and
+`a_trailing_space_in_the_inputs_does_not_reuse_another_build_s_stamp` pins it.
+
+The order of the two reads matters as much as their strictness. `parse`
+consumes the expected fingerprint first and only then the separator; it does
+not split on the separator and compare what came before it. Splitting first
+lets a value spell the delimiter, because `render` writes `inputs` verbatim
+ahead of the separator line: an input hash containing `@@ recorded-artefacts`
+split inside the fingerprint itself, and the gate refused the stamp it had
+written moments earlier, so every run prepared the family again.
+`a_stamp_admits_a_fingerprint_that_spells_the_separator` pins that, and the
+property generator draws the delimiter as a value so the round trip is tested
+against it rather than only against well-behaved text.
+
+Consuming the fingerprint is only half of it: the newline after it must be
+**required**, not skipped when absent. `render` always writes that newline,
+whether or not the fingerprint already ends with one, so treating it as
+optional is never more permissive than the writer. It is, however, reachable
+from a value, and that is the whole danger. A stamp written for an `inputs` of
+`h@@ recorded-artefacts` offers the parser, after `inputs: h`, the value's own
+remaining text — which still starts with the delimiter's spelling. An optional
+newline therefore let that stamp satisfy a fingerprint for plain `h`, and the
+longer build's recorded artefacts were still on disk, so the gate accepted a
+preparation whose inputs had genuinely changed.
+`a_stamp_for_inputs_ending_in_the_separator_does_not_admit_the_prefix` pins
+that direction, and the mismatch property derives its second value by appending
+to the first rather than drawing both independently: two independent values are
+almost never related as a value and one of its prefixes, so drawing them
+separately leaves the case unreachable however many cases run.
+
+Two rules, and only two, decide whether a recorded name is still there. Each
+directory in `Preparation::artefacts` must have a non-empty `deps` and a
+non-empty `.fingerprint`; and every name recorded from a dep-info stem must
+still be present in `deps`. The second rule pairs a `.d` record with the
+outputs rustc named for its stem, but that pairing only *discovers* which names
+belong together — it never decides that a tree is usable. `.fingerprint` is
+checked for being non-empty and nothing more: its per-unit records are Cargo's
+business, and re-deriving them here would duplicate Cargo's own format.
+
+Consequently `cargo clean -p <package>` **does** make the gate refuse, and that
+is correct rather than something to work around. It removes that package's `.d`
+records and their outputs from `deps`, so names this module recorded are
+genuinely gone. The rebuild harness relies on this: it consults the gate once
+per process, through `ensure_rebuild_prepared`, *before* its experiment runs,
+and the experiment's own `clean_fixture_units` then deliberately evicts the
+fixture's units to force the baseline rebuild it measures. A later process
+reaches `ensure_prepared` with a stamp that no longer describes the tree and is
+refused, which is why the named preparation test must run first.
+
+The failure message names at most five artefacts before summarizing the rest:
+one `cargo clean` can take hundreds at once, and an earlier version of this
+check printed 108 KB of names in a single line.
+
+`prepare_now` and the lazy path both re-check after the preparation command and
+before writing the stamp. A command that exits zero while leaving no usable
+artefacts is an error naming the missing paths, not a stamp advertising a
+prepared family: Cargo can succeed while a concurrent `cargo clean` takes the
+tree away again.
+
+An empty `artefacts` list is treated as satisfied: a caller that described no
+artefact directories leaves the stamp as the whole gate.
+
+`prepare_now` is idempotent, and that is the point of the separate
+`make prepare-nested-fixtures` target: a warm tree costs one stamp read and one
+directory scan per named profile, however many times it runs. A preparation
+test therefore does not need to know whether CI gave it a cold or a warm cache;
+it prepares only when the fingerprint, the dependency artefacts or the paired
+outputs say the tree is not usable. The scan is bounded by the profile's `deps`
+entry count, which is a few thousand files for this workspace.
+
+### Cargo configuration as a preparation input
+
+Cargo discovers configuration by walking from a command's working directory up
+to the filesystem root, so a nested fixture build beneath the workspace applies
+the committed `.cargo/config.toml`. That file sets development-profile options
+and the Linux linker flags, and changing either rebuilds dependency artefacts
+without changing a fixture source. Every family therefore includes it through
+`nested_cargo::cargo_config_inputs`, which reports `.cargo/config.toml` and the
+legacy `.cargo/config` at the workspace root when they exist. A missing file is
+skipped, but a path that exists and cannot be inspected — a permission denial
+or a symlink loop — is an error rather than an absence: reporting it absent
+would drop the configuration from the input hash and let a stamp survive a
+change the build notices.
+
+Configuration deeper in the tree needs no separate entry — every caller already
+hashes `crates/` and its own fixture directory, and `input_hash` walks both.
+Configuration *above* the workspace (a user's `~/.cargo/config.toml`, or
+`CARGO_HOME`) is host state rather than part of the checkout and is
+deliberately excluded, so a stamp stays reproducible from the repository alone.
+
+### A bound must bound its own bookkeeping
+
+`run_bounded_with_timeout` pipes both streams and drains them on background
+threads, because a chatty cold build would otherwise fill a pipe buffer and
+deadlock. Draining to EOF is the natural terminator and is wrong on the timeout
+path: killing the direct child does not reap its grandchildren, they inherit
+the pipe write ends, and a join waits for *them* rather than for the bound.
+
+This was observed directly: a 540 s preparation bound expired on schedule, the
+nested `rustc` went on writing for another five minutes, and the test runner
+killed the whole test at its own limit with no timeout error in the log — so
+the diagnostic that motivated the bound was never produced.
+
+`nested_cargo::drain::Drain` therefore collects through a channel and stops at
+EOF **or** at a fixed post-kill grace period. Output is complete the moment the
+child exits, so the grace period costs nothing on the normal path and caps the
+path that used to hang. Any future bounded spawner over a process that forks
+needs the same treatment; the shared helper is the only implementation so the
+rule is applied once rather than rediscovered per suite.
 
 ## Rust documentation policy and gates
 
@@ -1056,10 +1323,52 @@ The file sets the timeout policy for the test suite:
   above the largest per-test budget below, or the run is killed before a test
   with that budget can finish;
   `trybuild_nextest_override_preserves_timeout_contract` enforces the ordering.
-- A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
+- The first `[[profile.default.overrides]]` entry gives the named
+  `nested_fixture_preparation` tests a 30 m `slow-timeout` and the highest
+  scheduling `priority`, `100`. Those tests compile the dependency graphs the
+  nested-Cargo suites would otherwise compile inside their own timed bodies: the
+  `cargo-bdd` fixture, the trybuild tree, the UI-lint tree, and the
+  rebuild-invalidation and feature-addition scratch fixtures. This is the one
+  place in the file where a cold dependency build is meant to spend a test's
+  budget, and it is sized for that job rather than for an assertion: with every
+  nested target empty, the most expensive family took 864.239 s on the
+  development host, and the trybuild binary's two graphs took 645.412 s. Both
+  figures sit behind a shared compile-admission pool that the CI runner does
+  not use, so they bound compiler time rather than a two-vCPU lane's queueing.
+
+  Two properties of nextest make its position load-bearing. Override precedence
+  is first match in file order, not `priority`, so the entry must come before
+  the per-binary overrides below — each preparation test lives in the same test
+  binary as the assertions it prepares, and would otherwise inherit their 180
+  s, 20 m or 600 s budget and fail while doing exactly the work that rescues
+  them. `priority` is scheduling instead: it gets the preparations started
+  early. The top-level `nextest-version = "0.9.91"` is what makes nextest read
+  `priority` at all, and
+  `preparation_nextest_override_preserves_timeout_contract` pins the position,
+  the period, the group, the priority and the version.
+
+  Inside that period, each nested preparation command the repository spawns
+  itself carries its own bound, `nested_cargo::PREPARATION_COMMAND_TIMEOUT`,
+  currently 9 minutes. The two are ordered deliberately: the worst preparation
+  test runs `nested_cargo::MAX_SEQUENTIAL_COMMANDS` (three) commands in
+  sequence — the rebuild-invalidation test compiles one fixture, then runs the
+  addition fixture's metadata preflight and its compile — so `3 × 9 m = 27 m`
+  must stay below the 30 m period, and
+  `preparation_command_bound_fires_before_the_runner_kills_the_test` recomputes
+  that inequality from the parsed configuration and both constants. The reason
+  the ordering matters is diagnostic: the per-command path is the only one that
+  reports a wedged command by name with the child's captured stdout and stderr,
+  and a bound at or above the period would let nextest kill the test first and
+  throw that output away.
+
+  One preparation path is not bounded this way. `trybuild` spawns its own nested
+  `cargo`, and its API offers no hook to bound or capture that child, so for
+  the trybuild families the 30 m period is the only bound and a wedged build is
+  reported as a runner slow-timeout without captured output.
+- The second override raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
-- A second override raises the `slow-timeout` further, to 20 minutes, for the
+- The third override raises the `slow-timeout` further, to 20 minutes, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, `rstest-bdd::trybuild_macros`, and
@@ -1072,10 +1381,10 @@ The file sets the timeout policy for the test suite:
   fixture set to rebuild on a cold cache without treating slow, healthy
   compiler work as a hung test. The strict 60 s default remains in force
   elsewhere.
-- A third override raises the `slow-timeout` to 600 s for
+- A fourth override raises the `slow-timeout` to 600 s for
   `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition.
-- All three overrides also place matching tests in a `cargo-spawning` test
+- All four overrides also place matching tests in a `cargo-spawning` test
   group (`max-threads = 1`), so nested Cargo builds do not contend with each
   other. The 90 m `global-timeout` is an operational ceiling sized for the
   nested-fixture lane. R-6 uses `180 + 600 × 4 + 600 × 3 = 4,380 s` as its
@@ -1119,12 +1428,18 @@ Four independent timers can end a test run, and they are set in four different
 places. A run that dies without an obvious cause is nearly always one of them,
 so it is worth knowing which is which and in what order they can fire.
 
-| Tier                     | What it bounds                     | Where it is set                                                 | Current value                                |
-| ------------------------ | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
-| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                                          | 60 s default, 20 m for the trybuild binaries |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 90 m                                         |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                              |
-| Job `timeout-minutes`    | the whole job                      | `ci.yml`, job level                                             | 190 m                                        |
+The preparation budget is not a fifth tier in that ladder: it bounds a
+different test, and it sits below the global timeout rather than above the
+assertion budget. It is listed so that a reader who meets the 30 m period in
+`.config/nextest.toml` can see that no assertion inherited it.
+
+| Tier                     | What it bounds                     | Where it is set                                                 | Current value                                          |
+| ------------------------ | ---------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------ |
+| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                          | 60 s default; 20 m, 600 s or 180 s under the overrides |
+| Preparation budget       | one preparation test               | `.config/nextest.toml`                                          | 30 m                                                   |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 90 m                                                   |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                                        |
+| Job `timeout-minutes`    | the whole job                      | `ci.yml`, job level                                             | 190 m                                                  |
 
 Each tier must sit above the one before it. If the watchdog sits below the
 nextest global timeout, as it did until this was written, the run is killed
@@ -1998,6 +2313,20 @@ Table: Test binaries for `rstest-bdd-harness-tokio` and
 | `rstest-bdd-harness-gpui`  | `stateful_window`            | durable GPUI handles + visual context reconstruction (feature-gated) |
 | `rstest-bdd-harness-gpui`  | `scenario_name_in_logs`      | GPUI step-panic diagnostics include scenario context (feature-gated) |
 | `rstest-bdd-harness-gpui`  | `macro_compile`              | trybuild compile-pass for GPUI fixtures (feature-gated)              |
+
+Both `macro_compile` binaries, `rstest-bdd::trybuild_macros` and
+`rstest-bdd-server::workspace_discovery_compile` compile a generated crate with
+`trybuild`, and all four share one `<target>/tests/trybuild` directory because
+`trybuild` derives it from the workspace target root rather than from the crate
+under test. Each binary therefore has a `nested_fixture_preparation` test that
+compiles a compile-pass fixture and stamps the shared directory under a family
+name of its own: whichever binary prepares first warms the dependency graph and
+the rest find their own stamp missing and add theirs after compiling only what
+their generated manifest adds. The timed case in each binary gates on its own
+stamp, so a cold target fails immediately naming `make prepare-nested-fixtures`
+instead of spending an assertion deadline on the dependency build. See
+`docs/testing-strategy.md`, "Cold fixture builds belong to preparation, not to
+an assertion".
 
 These tests were moved out of `rstest-bdd` in this release to decouple the core
 crate from Tokio and GPUI dev-dependencies, making it publishable to crates.io
@@ -3264,8 +3593,17 @@ whitaker-installer
 `make lint` then runs `make lint-whitaker` after Clippy, which invokes:
 
 ```bash
-RUSTFLAGS="-D warnings" whitaker --all -- --workspace --all-targets --all-features
+RUSTFLAGS="-D warnings" whitaker --lib whitaker_suite -- --workspace --all-targets --all-features
 ```
+
+The aggregated suite is named rather than reached with `--all`. `--all` loads
+every library the installed tree happens to hold, and that tree is written by a
+pinned installer against a rolling release: an installer older than a lint
+cannot prune that lint's standalone library, so both it and the suite register
+the same lint name and rustc panics with `duplicate specification of lint`
+before any of this repository's code is checked. Naming the suite fixes the
+lint set to this repository's intent instead of to installer bookkeeping. See
+leynos/whitaker#565 for the upstream pruning defect.
 
 The repository's ordinary build, test, and Clippy commands remain on the stable
 toolchain. The pinned nightly used by the Dylint driver is managed by

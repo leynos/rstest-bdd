@@ -188,8 +188,11 @@ fn policy_resolution_is_announced_with_its_inputs() {
         } else {
             "false"
         },
-        "`forced_failure` must be `!allow_skipped && fail_on_skipped` (D10), so it cannot be true \
-         for a run that permits skipping",
+        concat!(
+            "`forced_failure` must be `!allow_skipped && fail_on_skipped` (D10), so it cannot be \
+             true ",
+            "for a run that permits skipping"
+        ),
     );
 }
 

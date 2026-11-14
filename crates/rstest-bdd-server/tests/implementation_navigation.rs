@@ -175,8 +175,11 @@ fn implementation_respects_keyword_matching() {
     let (_dir, feature_path, state) = ImplementationTestScenario::new()
         .with_feature(
             "test.feature",
-            "Feature: test\n  Scenario: example\n    Given a step\n    When a step\n    Then a \
-             step\n",
+            concat!(
+                "Feature: test\n  Scenario: example\n    Given a step\n    When a step\n    Then \
+                 a ",
+                "step\n",
+            ),
         )
         .with_rust_steps(
             "steps.rs",
@@ -199,13 +202,18 @@ fn implementation_matches_parameterized_patterns() {
     let (_dir, feature_path, state) = ImplementationTestScenario::new()
         .with_feature(
             "test.feature",
-            "Feature: test\n  Scenario: example\n    Given I have 5 items\n    Given I have 10 \
-             items\n",
+            concat!(
+                "Feature: test\n  Scenario: example\n    Given I have 5 items\n    Given I have \
+                 10 ",
+                "items\n",
+            ),
         )
         .with_rust_steps(
             "steps.rs",
-            "use rstest_bdd_macros::given;\n\n#[given(\"I have {count:u32} items\")]\nfn \
-             have_items(count: u32) {}\n",
+            concat!(
+                "use rstest_bdd_macros::given;\n\n#[given(\"I have {count:u32} items\")]\nfn ",
+                "have_items(count: u32) {}\n",
+            ),
         )
         .build();
 

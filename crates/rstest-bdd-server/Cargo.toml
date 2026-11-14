@@ -1,6 +1,6 @@
 [package]
 name = "rstest-bdd-server"
-version = "0.6.0"
+version = "0.7.0"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -50,6 +50,9 @@ insta = { workspace = true, features = ["filters"] }
 proptest.workspace = true
 rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
+# The shared preparation policy that keeps this crate's trybuild dependency
+# graph out of `workspace_discovery_compile`'s own deadline.
+rstest-bdd-harness.workspace = true
 rstest-bdd-server = { path = ".", features = ["test-support"] }
 tempfile.workspace = true
 trybuild.workspace = true

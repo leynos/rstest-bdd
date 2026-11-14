@@ -96,8 +96,10 @@ fn a_parser_neutral_table_step_checks_its_table(datatable: Vec<Vec<String>>) {
             vec!["alpha".to_owned(), "beta".to_owned()],
             vec!["gamma".to_owned()],
         ],
-        "the step received the plan's rows and cells in order, with the ragged second row \
-         preserved rather than padded or truncated",
+        concat!(
+            "the step received the plan's rows and cells in order, with the ragged second row ",
+            "preserved rather than padded or truncated",
+        ),
     );
 }
 
@@ -157,8 +159,10 @@ fn a_run_executes_its_steps_against_the_context() {
     assert_eq!(
         counter_value(cell),
         4,
-        "the `given` step reset the sentinel to zero and each of the two increment steps ran \
-         once, so the cell reads 4",
+        concat!(
+            "the `given` step reset the sentinel to zero and each of the two increment steps ran ",
+            "once, so the cell reads 4",
+        ),
     );
     assert!(
         outcome

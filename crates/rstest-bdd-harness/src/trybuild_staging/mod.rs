@@ -142,8 +142,10 @@ fn reject_overlapping_copy_dir_tree_paths(source: &Path, destination: &Path) -> 
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "refusing overlapping source {} and destination {} for copy_dir_tree: \
-                 remove_destination would delete paths still required by the source tree",
+                concat!(
+                    "refusing overlapping source {} and destination {} for copy_dir_tree: ",
+                    "remove_destination would delete paths still required by the source tree"
+                ),
                 source.display(),
                 destination.display(),
             ),

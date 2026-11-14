@@ -1157,11 +1157,11 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.14", default-features = false }
-rstest-bdd-harness = "0.6.0"
+rstest-bdd-harness = "0.7.0"
 
 [dev-dependencies]
-rstest-bdd = "0.6.0"
-rstest-bdd-macros = "0.6.0"
+rstest-bdd = "0.7.0"
+rstest-bdd-macros = "0.7.0"
 ```
 
 The harness type must implement `Default` because generated scenario tests
@@ -1331,7 +1331,7 @@ It is available as a dev-dependency:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-harness-tokio = "0.6.0"
+rstest-bdd-harness-tokio = "0.7.0"
 ```
 
 A direct `rstest-bdd-harness` dependency is not required when using
@@ -1370,7 +1370,7 @@ as a dev-dependency:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-harness-gpui = "0.6.0"
+rstest-bdd-harness-gpui = "0.7.0"
 ```
 
 A direct `rstest-bdd-harness` dependency is not required when using
@@ -2744,6 +2744,193 @@ its manifest — as the GPUI adapter does — an in-module `#[cfg(test)]` block 
 never compiled, so the check would silently never run. Put the call in an
 integration test under `tests/` in that case.
 
+### Preparing nested Cargo builds
+
+The `nested_cargo` module of `rstest-bdd-harness` supports tests that spawn a
+nested `cargo` from inside a test run. It addresses two failure modes:
+
+- **Environment isolation.** A coverage run exports `CARGO_MAKEFLAGS`, which
+  names a jobserver the child cannot open, and `cargo-llvm-cov` control
+  variables that redirect the child's build and profile output into the
+  coverage driver. Either can hang a child while appearing to be a normal
+  compile, so the helpers start every child from a filtered environment and
+  resolve `cargo` through the `CARGO` compile-time variable rather than a
+  `PATH` lookup.
+- **Cold builds inside timed assertions.** A nested build that pays for a cold
+  dependency compile can exhaust the test's own deadline even when the
+  assertion is sound. The preparation helpers build those artefacts up front
+  and gate the timed test on a stamp.
+
+The module is available from every build of `rstest-bdd-harness`; it is not
+feature-gated.
+
+Construct the child environment with `build_child_env`, which captures the
+current environment, removes the outer build and coverage variables, and
+resolves the child's target directory to an absolute path, using the
+caller-supplied fallback when the parent names none. `env_from_vars` builds the
+same environment from an explicit variable snapshot, which is intended for
+tests that check the filtering rules without mutating the process environment.
+Both are fallible: a relative `CARGO_TARGET_DIR` is resolved against the
+process's working directory, because the child would resolve it against its
+own, and that lookup is the one step that can fail. `env_for_directory` is
+**internal**: it exists to serve `Preparation::for_fixture`, whose whole point
+is that the stamped directory outranks an inherited `CARGO_TARGET_DIR`, and it
+is not the right constructor for a nested build that should keep the outer
+cache. Then run the command through `run_bounded`, which applies a 300 s
+default bound, or `run_bounded_with_timeout` to size the bound yourself:
+
+```rust,no_run
+use std::path::Path;
+
+use rstest_bdd_harness::nested_cargo::{
+    ProfileDestination, build_child_env, cargo_command, run_bounded,
+};
+
+let env = build_child_env(
+    Path::new("target"),
+    ProfileDestination::ChildScratch,
+);
+let mut cmd = cargo_command(&env, Path::new("fixtures"));
+cmd.args(["check", "--locked"]);
+
+let output = run_bounded(&mut cmd).expect("nested cargo check");
+assert!(output.status.success());
+```
+
+Both output pipes are drained concurrently, so a chatty build cannot fill a
+pipe buffer and deadlock. On timeout the child is killed, both pipes are
+drained with a bounded grace period so the call returns even when a grandchild
+inherited the pipe write ends, and the returned `io::ErrorKind::TimedOut` error
+carries the output captured so far. Pass `ProfileDestination::ChildScratch` for
+a nested build, whose incidental coverage must not merge into the caller's
+gated profile, and `ProfileDestination::Caller` for the process under test,
+whose coverage is the measurement. `filtered_command` applies the same
+environment to a program other than `cargo`, such as a binary under test that
+itself spawns nested builds.
+
+The successful-exit path uses the same bounded collection, and that has a
+consequence worth knowing before relying on the captured text. A drain that
+waited for EOF would block for as long as any descendant kept the inherited
+write ends open, which is unbounded for a process that daemonizes a child and
+exits; so the collector stops a grace period after the direct child exits. A
+descendant that is still writing at that point is *not* waited for, and
+whatever it would have written is absent from both `stdout` and `stderr`. The
+status, and everything the direct child itself wrote before exiting, is intact.
+Treat the captured output as the direct child's, not as the whole process
+tree's: a build that delegates its diagnostics to a long-lived helper may
+report less than you expect. Use an explicit wrapper that waits for the tree
+when that matters.
+
+Preparation moves a cold fixture build out of the timed test body. Name the
+family, a variant label and a caller-supplied hash of the fixture inputs with
+`Sources`, then describe the preparation with `Preparation::new`, which derives
+the artefact directories from the environment's target directory. Both
+`Preparation::new` and the public `Preparation::for_fixture` are fallible for
+that reason: deriving an artefact path from an unresolvable target directory
+would record a relative path that the gate then checks against the wrong root.
+`Preparation::for_fixture` describes a family whose nested builds all run
+against the stamped directory. Build the artefacts in a named preparation test
+with `prepare_now`, and gate the timed test on `ensure_prepared`:
+
+```rust,no_run
+use std::{io, path::PathBuf};
+
+use rstest_bdd_harness::nested_cargo::{
+    NestedCargoEnv, Preparation, PreparationSummary, Sources, ensure_prepared,
+    prepare_now,
+};
+
+fn fixture(env: NestedCargoEnv, inputs: String) -> io::Result<Preparation> {
+    Preparation::new(
+        Sources::new("my-fixture", "all-features", inputs),
+        PathBuf::from("target/tests/my-fixture"),
+        env,
+    )
+}
+
+fn prepare(preparation: &Preparation) -> io::Result<()> {
+    prepare_now(preparation, || {
+        // Run the cold nested build; report what it compiled.
+        Ok(PreparationSummary::default())
+    })
+}
+
+fn timed_test(preparation: &Preparation) -> io::Result<()> {
+    ensure_prepared(preparation, || {
+        // Reached only under plain `cargo test` with no stamp.
+        Ok(PreparationSummary::default())
+    })
+}
+```
+
+A preparation writes a stamp inside `Preparation::directory`, recording a
+fingerprint of the build-relevant environment, the toolchain identity, the
+variant label and the caller's input hash. `input_hash` and
+`cargo_config_inputs` derive that hash from fixture sources and the workspace
+Cargo configuration; the latter returns an error, rather than skipping an
+entry, when a configuration path exists but cannot be inspected. A later run
+trusts the stamp only when the fingerprint matches and every directory in
+`Preparation::artefacts` still holds its outputs. Each preparation command is
+bounded by `PREPARATION_COMMAND_TIMEOUT`, which is deliberately separate from
+every assertion deadline. That constant is a value, not a wrapper: it does not
+bound anything by itself. A caller that spawns a preparation command must pass
+it to `run_bounded_with_timeout`, or the command runs unbounded.
+
+One preparation path cannot be bounded this way. `trybuild` spawns its own
+nested `cargo` and offers no hook to bound or capture that child, so a trybuild
+preparation has **no per-command bound at all**. It is limited only by the test
+runner, which is a distinction that matters in both directions:
+
+- Under `cargo nextest`, `.config/nextest.toml` gives the compile-test binaries
+  a 20-minute `slow-timeout` and the preparation tests a 30-minute one. That
+  runner period is the only limit a trybuild preparation has.
+- Under plain `cargo test` there is no per-command bound *and* no per-test
+  bound, so a wedged trybuild child is limited only by whatever the invocation
+  itself supplies.
+
+That exception is deliberate: the alternative would be re-implementing
+`trybuild`'s spawn, and a wedged trybuild build is reported as a runner
+slow-timeout without captured output.
+
+`prepare_now` is idempotent: when the stamp and artefact checks both pass it
+does not run the build closure, so a warm target directory costs one stamp
+read. Under `cargo nextest`, `ensure_prepared` fails fast with the command that
+prepares the family, `make prepare-nested-fixtures` in this repository, because
+a timed test running in its own process cannot prepare without paying the cost
+it is meant to avoid. Under plain `cargo test` it prepares lazily behind a
+process-wide lock.
+
+The runner limits differ, and a suite that relies on preparing lazily should
+expect that. `.config/nextest.toml` gives the preparation tests a 30-minute
+`slow-timeout` — the budget `PREPARATION_COMMAND_TIMEOUT` and
+`MAX_SEQUENTIAL_COMMANDS` are sized to stay inside. Plain `cargo test` imposes
+no such bound: it has no per-test timeout at all, so a lazy preparation there
+is limited, for a command that goes through `run_bounded_with_timeout`, only by
+`PREPARATION_COMMAND_TIMEOUT` times `MAX_SEQUENTIAL_COMMANDS`, and for a
+trybuild preparation by nothing at all. That is a difference in the runner, not
+in this module, and it is why the named preparation test exists as a separate
+Nextest pass rather than being left to the timed tests.
+
+The artefact check discovers each vouched-for profile's contents rather than
+naming Cargo's directories, because Cargo's build-directory layout is not a
+stable interface: the current layout moved every compiled unit out of
+`<profile>/deps` and left that directory absent. The check requires a directory
+holding rustc dep-info records beside their outputs — that pairing is rustc's,
+not Cargo's, so it holds in every layout — and a non-empty fingerprint store.
+It then requires every output the preparation recorded to still be present. It
+proves that what the preparation produced is still there, not that the whole
+tree is warm for a different feature set or profile.
+
+A toolchain that cannot be identified is reported as a preparation error rather
+than recorded as an `"unknown"` fingerprint field. An `"unknown"` field would
+be identical on every host where identification fails, so a stamp written under
+it would survive a toolchain change — the one invalidation the field exists to
+force. A relative `CARGO_TARGET_DIR` is resolved to an absolute path once,
+before it reaches a child or a stamp, so the stamp continues to describe the
+directory the child actually builds in.
+
+This API exists for test-support code and is not intended for production paths.
+
 ## Running and maintaining tests
 
 Once feature files and step definitions are in place, scenarios run via the
@@ -2764,14 +2951,14 @@ To enable validation, pin a feature in the project's `dev-dependencies`:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-macros = { version = "0.6.0", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.7.0", features = ["compile-time-validation"] }
 ```
 
 For strict checking use:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-macros = { version = "0.6.0", features = ["strict-compile-time-validation"] }
+rstest-bdd-macros = { version = "0.7.0", features = ["strict-compile-time-validation"] }
 ```
 
 Steps are only validated when one of these features is enabled.
@@ -3076,7 +3263,7 @@ Localization tooling can be added to `Cargo.toml` as follows:
 
 ```toml
 [dependencies]
-rstest-bdd = "0.6.0"
+rstest-bdd = "0.7.0"
 i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
 unic-langid = "0.9"
 ```

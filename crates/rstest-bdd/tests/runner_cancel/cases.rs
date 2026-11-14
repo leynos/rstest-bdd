@@ -88,15 +88,21 @@ fn cancelling_during_a_step_drops_it_and_still_cleans_the_scope() {
         assert_eq!(
             observed_before_cancel(),
             Some(7),
-            "the gate must have seen the returned override, not the fixture's own value: \
-             otherwise this run had nothing for cleanup to clear and the assertion below would \
-             hold under a driver that never cleaned up",
+            concat!(
+                "the gate must have seen the returned override, not the fixture's own value: ",
+                "otherwise this run had nothing for cleanup to clear and the assertion below \
+                 would ",
+                "hold under a driver that never cleaned up"
+            ),
         );
         assert_eq!(
             gate_drops(),
             0,
-            "the gate's drop probe fired before the run was dropped, so it cannot evidence that \
-             the drop propagated",
+            concat!(
+                "the gate's drop probe fired before the run was dropped, so it cannot evidence \
+                 that ",
+                "the drop propagated"
+            ),
         );
 
         drop(run);
@@ -112,8 +118,10 @@ fn cancelling_during_a_step_drops_it_and_still_cleans_the_scope() {
     assert_eq!(
         ctx.try_borrow::<Marker>(MARKER).map(|marker| marker.0).ok(),
         Some(0),
-        "cancellation must still clear the step-returned override. Reading the fixture's own \
-         value back means the override map was cleared; a `7` here would mean it survived",
+        concat!(
+            "cancellation must still clear the step-returned override. Reading the fixture's own ",
+            "value back means the override map was cleared; a `7` here would mean it survived"
+        ),
     );
 }
 
@@ -155,8 +163,10 @@ fn a_run_left_alone_completes_and_produces_an_outcome() {
     assert_eq!(
         outcome.status(),
         ScenarioStatus::Passed,
-        "the control must complete normally; otherwise the cancellation cases describe a plan \
-         that was never runnable",
+        concat!(
+            "the control must complete normally; otherwise the cancellation cases describe a plan ",
+            "that was never runnable"
+        ),
     );
     assert_eq!(outcome.steps().len(), 1, "one invocation, one record");
     assert_eq!(

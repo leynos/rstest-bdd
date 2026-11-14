@@ -98,12 +98,36 @@ fn cargo_bin_path_for_integration_tests(binary_name: BinaryName<'_>) -> PathBuf 
 }
 
 fn target_dir_near_current_exe() -> Option<PathBuf> {
-    let mut path = env::current_exe().ok()?;
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    Some(path)
+    target_directory_of(&env::current_exe().ok()?)
+}
+
+/// Cargo's cache-directory tag, written at the root of every target directory.
+///
+/// Cargo emits this once per target directory and nowhere below it, so its
+/// presence identifies the root without relying on any file's placement. That
+/// matters because Cargo's build-directory layout is explicitly not a stable
+/// interface and changed under these helpers once already: 1.100.0 moved every
+/// compiled unit out of `<profile>/deps` into `<profile>/build/<pkg>/<hash>/out`,
+/// so `deps` is no longer a directory that can be named.
+const CACHEDIR_TAG: &str = "CACHEDIR.TAG";
+
+/// The target root that `executable` was built beneath.
+///
+/// Walks up from the executable until it finds the directory holding Cargo's
+/// `CACHEDIR.TAG`. That is the same answer for `<target>/debug/deps/x` under
+/// the classic layout and for `<target>/debug/build/<pkg>/<hash>/out/x` under
+/// the new one, and it also honours a `--target-dir` override such as the
+/// subdirectory `cargo llvm-cov` selects, which `cargo metadata` cannot see.
+///
+/// Returning `None` means no ancestor carried the tag, so the caller must fall
+/// back to metadata rather than guess a directory.
+#[must_use]
+pub fn target_directory_of(executable: &Path) -> Option<PathBuf> {
+    executable
+        .ancestors()
+        .skip(1)
+        .find(|ancestor| ancestor.join(CACHEDIR_TAG).is_file())
+        .map(Path::to_path_buf)
 }
 
 fn try_command_from_cargo_test_bin_layout(binary_name: BinaryName<'_>) -> Option<Command> {

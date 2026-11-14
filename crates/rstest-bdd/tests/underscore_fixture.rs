@@ -16,11 +16,32 @@ fn world() -> StreamingState { StreamingState::default() }
 #[fixture]
 fn _world() -> &'static str { "explicit _world fixture" }
 
+// The step bodies hand the injected fixture to a helper rather than touching
+// it inline. That keeps `clippy::used_underscore_binding` firing on every
+// toolchain, so the `#[expect]` below is fulfilled on all of them: the lint's
+// span moved between compilers, and an `#[expect]` that one toolchain does not
+// trigger is itself an error. `allow` is not an option here, since the
+// workspace denies bare `allow` attributes.
+
 #[given("the streaming world is available")]
-fn world_is_available(_world: &mut StreamingState) { _world.parsed_events = 1; }
+#[expect(
+    clippy::used_underscore_binding,
+    reason = "the test proves underscore-prefixed implicit fixture injection can be used directly"
+)]
+fn world_is_available(_world: &mut StreamingState) { record_first_event(_world); }
 
 #[when("the parser runs once more")]
-fn parser_runs_again(_world: &mut StreamingState) { _world.parsed_events += 1; }
+#[expect(
+    clippy::used_underscore_binding,
+    reason = "the test proves underscore-prefixed implicit fixture injection can be used directly"
+)]
+fn parser_runs_again(_world: &mut StreamingState) { record_another_event(_world); }
+
+/// Mark the world as having handled its first event.
+fn record_first_event(state: &mut StreamingState) { state.parsed_events = 1; }
+
+/// Advance the world by one event.
+fn record_another_event(state: &mut StreamingState) { state.parsed_events += 1; }
 
 #[then("implicit underscore fixture lookup uses the world fixture")]
 #[expect(
