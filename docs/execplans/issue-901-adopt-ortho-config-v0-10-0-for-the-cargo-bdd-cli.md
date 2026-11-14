@@ -1363,8 +1363,9 @@ Hard invariants. Violation requires escalation, not a workaround.
       three required `build-test` lanes green, and CodeScene and Gecko passed
       with it. That closed the last gap the previous status line named. A
       correction followed: the line had said the head's own hosted run was
-      green at `f7fa8cd6`, and no run exists for that revision at all — GitHub
-      records runs only for `dbede7ea`, `f10c0e4d` and `a634e98a`. Both the
+      green at `f7fa8cd6`, and GitHub had recorded no run for that revision —
+      the branch's runs at the time of writing were `dbede7ea`, `f10c0e4d`,
+      `a634e98a`, and the head current then. Both the
       status line and the section 6 checkbox now state the reachability
       properly instead: `a634e98a` carries every line of code the local
       `make test` row was taken on, the two commits after `f7fa8cd6` edit only
