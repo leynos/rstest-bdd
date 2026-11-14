@@ -1982,6 +1982,24 @@ rather than by reading this branch's comments.
   `-c url.git@github.com:.insteadof=https://github.com/`; a read-only
   `ls-remote` under the same override confirms the SSH transport actually
   reaches the repository before a push is trusted.
+- **A test this issue did not write still belonged to its defect class.**
+  `binary_test_support_cargo::locate_or_build_returns_command_for_workspace_binary`
+  builds the `todo-cli` example through the shared helper, so it is a cold
+  nested Cargo build. It had no nextest override and was not in the
+  `cargo-spawning` group, so it competed with the preparations. Run 43607129223
+  killed it at exactly `60.002s` while the sibling `nested_fixture_preparation`
+  held the group for 86.578 s, and the lane took 49 minutes against 33.6 on the
+  prior passing run. Two things had to be true at once: the file is untouched
+  by this PR, so "we did not change it" was the wrong test for whether the
+  failure belongs here, and the failure is the issue's own thesis at a site the
+  plan had not audited. After the override, run 43612678941 passes that test in
+  2.340 s with all 2321 green.
+- **Group membership, not the longer period, is what fixed it.** Nextest does
+  not count time spent waiting for a test group against `slow-timeout`, but it
+  does count time spent blocked on a Cargo lock. Joining `cargo-spawning`
+  converts the contention that killed the test into a queue that cannot; the
+  180 s period is hang detection with headroom to spare, since the test
+  completes in single-digit seconds once the graph is warm.
 
 ## Outcomes & Retrospective
 
