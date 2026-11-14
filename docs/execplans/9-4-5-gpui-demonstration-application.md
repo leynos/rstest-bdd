@@ -48,7 +48,7 @@ the example's BDD scenarios pass, and the full gate set passes: `make fmt`,
 ## Constraints
 
 - Implement only roadmap item 9.4.5 from `docs/roadmap.md`.
-- Preserve Architecture Decision Record (ADR) 0005 boundaries: GPUI
+- Preserve Architecture Decision Record (ADR-0025) boundaries: GPUI
   dependencies remain outside core crates. The example may depend on `gpui` and
   `rstest-bdd-harness-gpui`, but `rstest-bdd`, `rstest-bdd-macros`, and
   `rstest-bdd-harness` must not gain new GPUI-specific responsibilities.

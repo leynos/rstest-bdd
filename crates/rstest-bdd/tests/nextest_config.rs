@@ -1,40 +1,11 @@
-//! Integration contract for the workspace's nextest override and timeout budget
-//! policy.
+//! Integration contracts for workspace nextest overrides and timeout budgets.
 //!
-//! The suite reads `.config/nextest.toml` as data rather than running
-//! cargo-nextest: `nextest_configuration` parses the file with `toml`, and the
-//! tests assert the budget policy a reviewer can see written down there. The
-//! run-level ceiling and the test group's thread limit come from the same
-//! parsed value, read through `default_profile_key` and
-//! `test_group_max_threads` respectively.
-//!
-//! The timeout contracts are pinned:
-//!
-//! * `trybuild_nextest_override_preserves_timeout_contract` requires exactly one override to name
-//!   any of the four compile-test binaries, and that override's filter to name all four and no
-//!   others. It then requires the override to keep a 120 m `slow-timeout` period, `terminate-after
-//!   = 1`, a 5 s grace period and membership of the `cargo-spawning` group, and the default
-//!   profile's `global-timeout` to exceed the period in seconds.
-//! * `feature_rebuild_nextest_override_preserves_timeout_contract` requires exactly one override to
-//!   carry the exact filter `binary_id(rstest-bdd::feature_rebuild_invalidation)`, with the same
-//!   termination settings and group, at a 30 m period.
-//! * `binary_test_support_nextest_override_preserves_timeout_contract` requires the nested-Cargo
-//!   support tests to share the `cargo-spawning` group and to retain enough time for cold Cargo
-//!   metadata/build commands on the shared cache.
-//! * `cargo_bdd_cli_nextest_override_preserves_timeout_contract` requires the CLI smoke tests to
-//!   preserve the same cold-build budget while compiling their fixture targets.
-//! * `nested_cargo_run_retains_cold_build_reserve` recomputes the R-6 sizing scenario (a reference
-//!   lane of `180 + 600 * 4 + 600 * 3` seconds, ten cold nested invocations at 19 s each and a 600
-//!   s reserve) and requires the default profile's `global-timeout` to cover it, and the
-//!   `cargo-spawning` group's `max-threads` to stay at 1 so nested builds keep serializing.
-//!
-//! The overrides, the group and the run-level ceiling are policy that a future
-//! edit could break silently, so these assertions fail loudly instead. They
-//! cover the two nextest tiers of the four-tier timeout budget: a per-test
-//! `slow-timeout` compared against the whole-run `global-timeout`. The
-//! coverage watchdog and the job `timeout-minutes` are the outer two tiers,
-//! covered by the workflow contracts under `tests/workflow_contracts`;
-//! `.config/nextest.toml` asks that suite and this file to be kept in step.
+//! The suite parses `.config/nextest.toml` as data and protects the per-test
+//! limits, profile-wide ceilings, and serialization policy that let nested
+//! Cargo work finish without weakening the default hung-test detector. The
+//! compile-test contract checks that both default and long-profile global
+//! timeouts exceed its 120-minute per-test allowance. Workflow contracts cover
+//! the outer watchdog and job limits.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -105,6 +76,12 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         "the default profile's global timeout ({global_timeout}) must exceed the trybuild slow \
          timeout ({period}); otherwise nextest kills the run before the test the budget exists \
          for can finish, and raising the budget alone rescues nothing",
+    );
+    let long_global_timeout = profile_global_timeout(&configuration, "long")?;
+    assert!(
+        duration_seconds(long_global_timeout)? > duration_seconds(period)?,
+        "the long profile's global timeout ({long_global_timeout}) must exceed the trybuild slow \
+         timeout ({period}); otherwise nextest kills the run before the test budget can finish",
     );
     assert_eq!(
         slow_timeout
@@ -254,25 +231,30 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-fn default_profile_key<'a>(configuration: &'a Value, key: &str) -> Option<&'a Value> {
+fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
+    profile_global_timeout(configuration, "default")
+}
+
+fn profile_global_timeout<'a>(
+    configuration: &'a Value,
+    profile_name: &str,
+) -> Result<&'a str, io::Error> {
     configuration
         .get("profile")
         .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get("default"))
+        .and_then(|profiles| profiles.get(profile_name))
         .and_then(Value::as_table)
-        .and_then(|default_profile| default_profile.get(key))
-}
-
-fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
-    default_profile_key(configuration, "global-timeout")
+        .and_then(|profile| profile.get("global-timeout"))
         .and_then(Value::as_str)
         .ok_or_else(|| {
-            io::Error::other("nextest configuration must set profile.default.global-timeout")
+            io::Error::other(format!(
+                "nextest configuration must set profile.{profile_name}.global-timeout"
+            ))
         })
 }
 
 /// `test-groups` is a top-level nextest table, not a profile key, so it needs
-/// its own lookup rather than `default_profile_key`.
+/// its own lookup rather than `profile_global_timeout`.
 fn test_group_max_threads(configuration: &Value, group_name: &str) -> Result<i64, io::Error> {
     configuration
         .get("test-groups")

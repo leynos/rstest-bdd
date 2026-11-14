@@ -72,4 +72,4 @@ test-group = "cargo-spawning"
 
 [profile.long]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
-global-timeout = "30m"
+global-timeout = "145m"

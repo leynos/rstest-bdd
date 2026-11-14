@@ -26,7 +26,7 @@ After this work:
   compatibility-alias behaviour, and `Context`-based fixture injection.
 - `docs/rstest-bdd-design.md` records the delivered architecture and any
   design decisions taken while tightening the documentation around
-  Architectural Decision Record (ADR) 0005, ADR-0007, and the 9.3.4 codegen
+  Architectural Decision Record (ADR-0025), ADR-0007, and the 9.3.4 codegen
   trust model.
 - Unit tests and behavioural tests validate any examples, emitted attributes,
   and end-to-end documentation claims introduced while updating the docs.
