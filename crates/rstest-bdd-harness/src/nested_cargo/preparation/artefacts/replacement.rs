@@ -50,7 +50,7 @@ fn superseded(recorded: &str, present: &[String]) -> bool {
 
 /// A Cargo unit output name, split into the parts that identify the unit.
 ///
-/// Split so a recompiled unit can be recognised: everything except the hash
+/// Split so a recompiled unit can be recognized: everything except the hash
 /// stays fixed across a recompile, and the hash is precisely what changes.
 /// Names that do not carry Cargo's `<stem>-<hash><suffix>` shape — a build
 /// script's output directory entry, a fingerprint record — parse as `None` and

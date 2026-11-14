@@ -313,13 +313,24 @@ mod tests {
     //! directory that cannot be read. No portable fixture removes the
     //! directory the test process is running in, so the lookup is injected.
 
-    use std::{
-        ffi::OsStr,
-        io,
-        path::{Path, PathBuf},
-    };
+    use std::{ffi::OsStr, io, path::PathBuf};
 
     use super::absolute_target_directory_with;
+
+    /// An absolute path in the form this target actually uses.
+    ///
+    /// A Unix literal is *not* absolute on Windows: `Path::is_absolute` needs a
+    /// prefix there, so `/abs/target` takes the relative branch and the test
+    /// asserted a fact about another platform. Naming the drive here keeps one
+    /// fixture that is genuinely absolute on both, rather than two cases that
+    /// would each only exercise one platform.
+    fn absolute_fixture() -> PathBuf {
+        if cfg!(windows) {
+            PathBuf::from(r"C:\abs\target")
+        } else {
+            PathBuf::from("/abs/target")
+        }
+    }
 
     #[test]
     fn an_absolute_value_never_consults_the_working_directory() {
@@ -328,11 +339,12 @@ mod tests {
         // directory has been deleted still names a perfectly good absolute
         // target. Panicking in the lookup states that rather than asserting
         // the result and hoping.
-        let resolved = absolute_target_directory_with(Path::new("/abs/target").as_os_str(), || {
+        let absolute = absolute_fixture();
+        let resolved = absolute_target_directory_with(absolute.as_os_str(), || {
             panic!("an absolute target directory must not consult the working directory")
         })
         .expect("an absolute path is resolved without any lookup");
-        assert_eq!(resolved, PathBuf::from("/abs/target"));
+        assert_eq!(resolved, absolute);
     }
 
     #[test]

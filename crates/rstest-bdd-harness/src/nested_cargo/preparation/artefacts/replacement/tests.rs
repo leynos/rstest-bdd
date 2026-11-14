@@ -77,7 +77,7 @@ fn a_replacement_in_another_directory_does_not_answer_for_the_name() {
 /// A name that carries no metadata hash is never answered for by a lookalike.
 ///
 /// An unhashed name is not a unit Cargo recompiles under a new hash, so there
-/// is no replacement to recognise. Reading one as replaced would excuse a
+/// is no replacement to recognize. Reading one as replaced would excuse a
 /// genuinely missing artefact on the strength of some other entry that happens
 /// to share its prefix.
 #[test]
