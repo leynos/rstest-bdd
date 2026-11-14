@@ -50,6 +50,11 @@ fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io:
 /// therefore name a directory that exists and holds nothing discovery looks
 /// for, and `XDG_CONFIG_DIRS` must be set rather than absent because absent
 /// means `/etc/xdg`.
+///
+/// `USERPROFILE` is deliberately absent from this list: `HOME` already
+/// outranks it in the discovery order, and redirecting it makes the Windows
+/// profile unresolvable, which breaks the `sccache` compiler wrapper that CI
+/// installs. See `cli_child_environment_keeps_userprofile_inherited`.
 #[cfg(unix)]
 #[test]
 fn cli_child_environment_redirects_every_discovery_root() {
@@ -80,6 +85,30 @@ fn cli_child_environment_redirects_every_discovery_root() {
         roots.len(),
         "each root must name its own directory, or one redirect would shadow another"
     );
+}
+
+/// `USERPROFILE` is carried through untouched, never redirected.
+///
+/// Redirecting it looks like a harmless extension of the home redirect, and it
+/// passed every local gate on Linux. On Windows it removes the only thing the
+/// Known Folder API can resolve a profile from, so `directories::ProjectDirs`
+/// returns `None`, and `sccache` — CI installs it as `RUSTC_WRAPPER` — panics
+/// with "Unable to get config directory" on every nested cargo invocation.
+/// Both Windows CI jobs went red on a tree whose Linux gates were green.
+///
+/// The redirect is also unnecessary: discovery consults `HOME` before
+/// `USERPROFILE` on non-Unix platforms, so redirecting `HOME` already keeps a
+/// developer's home dotfile out of the child.
+///
+/// The assertion is written so a caller-supplied value survives too, because
+/// that is what the helper contract says: it adds redirections, it does not
+/// overwrite the caller's intent.
+#[test]
+fn cli_child_environment_keeps_userprofile_inherited() {
+    let ambient = OsString::from("/home/carried-through");
+    let child = cli_child_environment(vec![(OsString::from("USERPROFILE"), ambient.clone())]);
+
+    assert_eq!(child.get("USERPROFILE"), Some(ambient.as_os_str()));
 }
 
 /// Redirection keeps the nested build's registry and toolchain resolvable.
