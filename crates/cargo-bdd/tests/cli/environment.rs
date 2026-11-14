@@ -12,7 +12,7 @@ use std::{
     io,
 };
 
-use super::{cli_child_environment, workspace_root};
+use super::{cli_child_environment, discovery, workspace_root};
 
 /// The child keeps a caller target directory and otherwise uses the workspace.
 #[rstest::rstest]
@@ -175,22 +175,17 @@ fn cli_child_environment_carries_an_explicit_cargo_home() -> io::Result<()> {
 /// Mirrors the helper's precedence deliberately: an explicit variable wins,
 /// otherwise the location is derived under the toolchain home Cargo itself
 /// would use. That is `USERPROFILE` on Windows and `HOME` elsewhere, because
-/// Cargo resolves it through the `home` crate; deriving it from `HOME`
-/// everywhere would disagree with the helper on a Windows shell that sets both
-/// to different values, which is the defect this case exists to catch.
+/// Cargo resolves it through the `home` crate. The rule lives in
+/// [`discovery::toolchain_home`] rather than here, so this mirror cannot drift
+/// from the helper it is checking.
+///
+/// Without an ambient toolchain home the child would carry no override at all,
+/// so the empty base below yields a path that cannot equal one.
 fn ambient_location(variable: &str, directory: &str) -> std::path::PathBuf {
     if let Some(explicit) = std::env::var_os(variable) {
         return std::path::PathBuf::from(explicit);
     }
-    let names: &[&str] = if cfg!(windows) {
-        &["USERPROFILE", "HOME"]
-    } else {
-        &["HOME", "USERPROFILE"]
-    };
-    let home = names
-        .iter()
-        .find_map(|name| std::env::var_os(name).filter(|value| !value.is_empty()))
-        .unwrap_or_default();
+    let home = discovery::toolchain_home().unwrap_or_default();
     std::path::Path::new(&home).join(directory)
 }
 
