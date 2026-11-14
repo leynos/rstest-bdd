@@ -5,22 +5,25 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IMPLEMENTATION COMPLETE (the head `83a0e488` failed hosted run
-`43596802177` on the required Windows strict lane, and the failing test was
-this branch's own span test. That was a flake in a test this branch added, not
-a regression in the diff: the same code passed the lane at `a634e98a`. It has
-been diagnosed and fixed at the source rather than by loosening the assertion,
-and the fix is measured — see `Progress` and `Surprises & discoveries`. The
-fix's own hosted verdict is run `43604994289` at `0b798c1e` and run
-`43608966901` at `17cf96e7`, which each passed with all three required
-`build-test` jobs green, so the failing lane's verdict has been re-taken for
-the fixed tree and for the pushed head rather than inferred from the earlier
-run. A later plan-only commit, `413b46c3`, then failed the same lane on the
-formatting gate because its own edit needed a rewrap; `2a017af9` applied that
-rewrap and passed run `43617023742` with all three lanes green, so the
-delivered head is that one. Earlier green runs, including `43592197882` at
-`a634e98a` and `f10c0e4d` under `43582906292`, are historical evidence recorded
-in `Progress`; merge pending)
+Status: IMPLEMENTATION COMPLETE on the rebased candidate; the validation
+verdict for the final tree is pending. The branch now stacks on
+`issue-910-test-avoid-cold-nested-cargo-builds-in-timed-suites` instead of
+`main`, so the hosted verdicts recorded later in this document describe the
+pre-rebase tree and are historical. At the rebased head `61104c54`, with
+`REV_START` and `REV_END` both recording that revision, `make check-fmt` (143
+files unchanged), `make markdownlint` (0 errors), `make nixie`, `make lint`
+through all nine steps, and `make typecheck` exited zero. `make test` at that
+revision lost one nested-Cargo test to its own 1,200-second bound on a
+contended host: 2,344 of the 2,345 tests that reached a verdict passed, 7 were
+skipped, and 35 did not run after the timeout.
+
+The `make test` row is taken by a run on the branch's last commit, and its
+verdict is cited in the pull request discussion rather than restated here. A
+verdict recorded in this file costs a commit, and that commit moves the head
+the verdict describes, so the file cannot state a verdict for the tree that
+contains the statement. The Decision log records the choice.
+
+Merge is pending that run and the hosted checks on the head carrying this text.
 
 ## Purpose / big picture
 
@@ -1521,6 +1524,33 @@ Hard invariants. Violation requires escalation, not a workaround.
   names to `preparation::…`; no Nextest filter, workflow or script matches them
   by name, which `rg` confirmed outside this plan.
 
+- [x] (2026-11-14) Gates on the rebased candidate, at `61104c54` with
+      `REV_START` and `REV_END` both recording it. `make check-fmt` exited zero
+      with 143 files unchanged, `make markdownlint` with 0 errors,
+      `make nixie` validated every diagram, `make lint` ran through all nine
+      steps, and `make typecheck` reported `All checks passed!`. `make test`
+      exited 2: 2,344 of the 2,345 tests that reached a verdict passed, seven
+      were skipped, and one timed out at its own 1,200-second bound —
+      `rstest-bdd::trybuild_macros runner::step_macros_compile` — after which 35
+      tests did not run. The log records repeated package-cache waits; the
+      runner was competing with other repositories' compile jobs, which is the
+      condition #910 exists to remove. No assertion failed anywhere in the run.
+
+- [x] (2026-11-14) A focused re-run of `runner::step_macros_compile` at
+      `61104c54` produced no verdict on the test, and the reason is worth
+      keeping. It ran the `trybuild_macros` target with a
+      `test(runner::step_macros_compile)` filter but omitted the recipe's
+      `$(CARGO_FLAGS)`, so the test binary was built with the default feature
+      set while the frozen preparation stamp records
+      `diagnostics,mutable_world_macro,test-support`. The test failed in 0.058 s
+      with the fixture-preparation guard's own message rather than timing out:
+      the stamp fingerprint covers the feature selection, so a narrowed
+      invocation cannot read the stamp. The lesson is that a focused invocation
+      of a prepared test must reproduce the feature selection of the stamp, and
+      that `make prepare-nested-fixtures` is not the workaround here, because
+      the stamp path is family-only and preparing under a different selection
+      would overwrite the stamp the full recipe's leg reads.
+
 ## Surprises & discoveries
 
 - Observation: `make markdownlint` passing is not evidence that a Markdown
@@ -1968,6 +1998,18 @@ Hard invariants. Violation requires escalation, not a workaround.
   fails on the reintroduced redirect and passes without it. Date/Author:
   2026-11-14, implementing agent; from review round 13's CI evidence.
 
+- Decision: cite the final-tree `make test` verdict in the pull request
+  discussion rather than in this file. Rationale: the acceptance row asks for
+  one gate run against the final tree, and a verdict recorded in a tracked file
+  needs a commit. That commit is a new head, so the file would describe a tree
+  other than the one it records, and the two requirements cannot both hold by
+  editing this document. The alternative — writing the verdict before the run —
+  would record a result that has not happened. The pre-rebase verdicts at
+  `f7fa8cd6` and `8a5cb67f` are kept as history, and the current tree's static
+  gates are recorded with `REV_START` and `REV_END` equal to `61104c54`.
+  Date/Author: 2026-11-14, implementing agent; from the pre-merge review
+  thread's demand for a single final-tree run.
+
 ## Outcomes & retrospective
 
 Delivered as specified. `cargo-bdd` resolves settings from `.cargo_bdd.toml`,
@@ -2043,6 +2085,15 @@ this branch's base, still owns the budgets that make those nested-Cargo tests
 slow on this host, but it no longer gates this row. This plan cites the gated
 revision rather than its own commit, and review follow-ups after that revision
 are recorded in the progress log and surprises below.
+
+That verdict belongs to the tree before the rebase onto the #910 branch. Neither
+`8a5cb67f` nor `f7fa8cd6` is an ancestor of this head, and the replay changed
+files the gates read — `Cargo.lock`, `.config/nextest.toml` and the
+`nextest_config` test module among them — so the row is re-taken rather than
+carried forward. At `61104c54` the recipe's Nextest leg lost
+`runner::step_macros_compile` to its own bound under compile contention, as the
+`Progress` log records. The final-tree run and its verdict are cited in the
+pull request discussion, for the reason the `Status` line gives.
 
 At `e28a927a` the hosted Linux coverage lane produced the complete result the
 local runs could not: 2,245 tests run, 2,245 passed, 7 skipped, including
@@ -2421,17 +2472,23 @@ Acceptance means all of the following, in one gate run against the final tree:
   checks `cargo-bdd` with OrthoConfig. These commands test the package-level
   MSRV split directly.
 
-The `make test` row asks for one gate run against the final tree. It is met
-locally at `f7fa8cd6`: the whole recipe ran unfiltered on a clean tree,
-`REV_START` and `REV_END` both `f7fa8cd66b820ea9be1beab079d055e16d329652`, and
-exited zero with 2258 of 2258 nextest tests passing (7 skipped), 788 of 788 doc
-tests passing (7 skipped), and 292 pytest tests passing, with no `FAILED` line
-and no `make: ***` in the log.
+The `make test` row asks for one gate run against the final tree. Before the
+rebase onto the #910 branch it was met locally twice, at `f7fa8cd6` and then at
+`8a5cb67f`; both are historical now, because the replay changed gate inputs and
+neither revision is an ancestor of this head. For `f7fa8cd6` the whole recipe
+ran unfiltered on a clean tree, `REV_START` and `REV_END` both
+`f7fa8cd66b820ea9be1beab079d055e16d329652`, and exited zero with 2258 of 2258
+nextest tests passing (7 skipped), 788 of 788 doc tests passing (7 skipped),
+and 292 pytest tests passing, with no `FAILED` line and no `make: ***` in the
+log.
 
-That run was taken because the commit before it changed production-adjacent
-test code, which is a gate input; the earlier verdict at `404c8861` is kept in
-the history below rather than reused. If a later commit changes a file a gate
-reads, the run has to be re-taken again.
+Each of those runs was taken because the commit before it changed a file a gate
+reads, and a rebase changes gate inputs wholesale. The current arrangement
+keeps that rule and states where its verdict lives: the last commit is the last
+edit any gate reads, the `make test` run follows it, and the verdict is cited
+in the pull request discussion. A tracked file cannot hold a verdict for the
+tree that contains it, because writing the verdict adds the commit that makes
+it stale. The `Status` line and the Decision log record this.
 
 The earlier run at `8a5cb67f` is *historical* by comparison:
 `git rev-list --count 8a5cb67f..41f50191` reports fifteen commits between it
