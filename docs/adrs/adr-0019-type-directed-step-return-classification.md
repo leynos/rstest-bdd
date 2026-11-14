@@ -109,6 +109,6 @@ compatibility problem ADR-0002 removed.
 
 [adr-0002]: adr-0002-stable-step-return-classification.md
 [autoref-specialization]: https://github.com/dtolnay/case-studies/tree/master/autoref-specialization
-[dispatch-tests]: ../crates/rstest-bdd/tests/step_return_dispatch.rs
-[ergonomics]: ergonomics-and-developer-experience.md
+[dispatch-tests]: ../../crates/rstest-bdd/tests/step_return_dispatch.rs
+[ergonomics]: ../ergonomics-and-developer-experience.md
 [method-resolution]: https://doc.rust-lang.org/reference/expressions/method-call-expr.html

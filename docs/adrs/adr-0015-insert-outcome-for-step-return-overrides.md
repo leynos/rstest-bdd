@@ -142,4 +142,4 @@ borrowing redesign related to this ADR's `StepContext` return-value change.
 [adr-0011]: adr-0011-first-party-scenario-state-and-cleanup.md
 [adr-0012]: adr-0012-guard-based-stepcontext-borrowing.md
 [i514]: https://github.com/leynos/rstest-bdd/issues/514
-[migration]: v0-6-0-migration-guide.md
+[migration]: ../v0-6-0-migration-guide.md

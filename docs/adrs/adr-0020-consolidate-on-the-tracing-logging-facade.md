@@ -155,7 +155,7 @@ warning twice.
   current-thread scenario runtime.
 - [ADR 0015: name the step-return override outcome][adr-0015] covers the
   ambiguous-override outcome whose warning this decision reroutes.
-- [Developers' guide observability guidance](developers-guide.md#observability-guidance)
+- [Developers' guide observability guidance](../developers-guide.md#observability-guidance)
   records the emission conventions for harness authors.
 
 [adr-0015]: adr-0015-insert-outcome-for-step-return-overrides.md
