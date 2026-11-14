@@ -29,6 +29,16 @@ raises the floor. Each `Cargo.toml` declares its own `rust-version`, so `cargo`
 will refuse to compile a crate on a compiler older than that crate requires.
 The workspace uses the Rust 2024 edition.
 
+The 1.88 floor describes the libraries' own requirements; a consuming lockfile
+must also resolve their dependencies to releases that keep it satisfied. The
+library crates reach one such dependency through `cargo_metadata`, which
+accepts any `cargo-platform` from v0.3.0 onwards. v0.3.3 of `cargo-platform`
+requires Rust 1.91, so a resolution that selects it raises the floor of a
+workspace that depends on `rstest-bdd` while asking for nothing newer itself.
+This repository's `Cargo.lock` pins v0.3.2, which builds with 1.88. The
+[v0.7.0 migration guide][v0-7-0-migration-guide] repeats the caveat for
+downstream consumers.
+
 `rstest-bdd` builds, tests, and lints on stable Rust. The repository pins that
 toolchain through `rust-toolchain.toml`, so ordinary `cargo` and Clippy
 commands use stable Rust.
