@@ -2000,6 +2000,38 @@ rather than by reading this branch's comments.
   converts the contention that killed the test into a queue that cannot; the
   180 s period is hang detection with headroom to spare, since the test
   completes in single-digit seconds once the graph is warm.
+- **A property generator that writes files must not spell a Windows device.**
+  Run 43617094223's Windows lane failed the new `prop_tests` suite with
+  `input file: Os { code: 3, kind: NotFound }` for minimal input
+  `tree = { "nul/a": [] }`. The segment alphabet is `[a-z][a-z0-9_]{0,6}`,
+  which freely spells `nul`, `con`, `prn`, `aux` and the `com1`–`com9` and
+  `lpt1`–`lpt9` families. Win32 resolves those to devices before NTFS is
+  reached, so `nul/a` is not a rejected name but a device with no directory
+  beneath it, and the failure surfaces from `create_dir_all`, not from a hash
+  comparison. The filter now lives in an `ordinary_segment` strategy so both
+  `input_path` and `excluded_path` inherit it: the excluded path's prefixes are
+  written as directories too, so it had the same exposure and had not failed
+  yet only because the two strategies draw from different sizes.
+- **The regression test is a predicate test, not another property.** A
+  property that happens to draw `nul` proves nothing on a host where `nul`
+  works, and is the test that just failed. The new
+  `windows_device_names_are_the_only_segments_excluded` test pins both halves
+  from a fixed list: the eleven reserved names are excluded, and `nul_`, `null`,
+  `com0`, `com10`, `lpt`, `lpt10` and `target` are not. Mutation-checked by
+  making the predicate return `false`, which fails the test; the first rewrite
+  of the predicate dropped the `len() == 1` check and the test caught that too,
+  as `com10 is an ordinary name`.
+- **A gate can fail for a reason the candidate cannot cause.** `make test`'s
+  leg 3 (`-p rstest-bdd --no-default-features`) timed out
+  `trybuild_macros runner::step_macros_compile` at 1200.004 s. The same test
+  passed at 314.727 s in leg 1 of the same run, at 215.340 s on hosted run
+  43612678941, and the log holds zero assertion failures — its nested
+  `cargo build` was asleep in `futex_do_wait` while `build-limits-status`
+  reported `capacity 4, held 4, healthy` with eighteen queued requests from
+  other agents, and the managed sccache server had stopped serving. The change
+  under test is a `#[cfg(test)]` unit module in `rstest-bdd-harness`, which
+  that leg's fixture graph never builds, so this is queue starvation rather
+  than a defect: report it, do not weaken the 20 m budget to make it green.
 
 ## Outcomes & Retrospective
 
