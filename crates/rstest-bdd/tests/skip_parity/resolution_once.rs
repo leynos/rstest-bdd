@@ -164,86 +164,54 @@ fn the_scopes_ambient_resolution_reads_the_global_once() {
     );
 }
 
-/// INV-9, ambiently: a flip from *inside* a step cannot change the in-flight
-/// run's answer when the scope took its policy from the global.
+/// How a case supplies the policy its scope resolves at construction.
 ///
-/// The explicit-policy row below shows that a flip cannot reach a run whose
-/// answer was overridden. It cannot show the same for the ambient path,
-/// because `with_skip_policy` replaces the value `ScenarioScope::new` read and
-/// the override is then the only input. Without this row a driver that
-/// re-read the global only when the policy was ambient would pass every other
-/// test in this module.
-///
-/// The scope is constructed under an armed `false`, and the handler flips the
-/// global to `true` before skipping. A driver that resolved lazily at skip time
-/// would therefore report a forced failure, while the value the scope stored at
-/// construction says it must not.
-#[test]
-#[serial]
-fn an_ambient_policy_flip_inside_a_step_cannot_change_its_own_run() {
-    let _policy = FailOnSkippedOverride::armed(false);
-    let mut ctx = StepContext::default();
-    let scope = ScenarioScope::new(&mut ctx);
-
-    let outcome = run_scenario(&flipping_plan(), scope);
-    let flipped_global = config::fail_on_skipped();
-
-    assert!(
-        flipped_global,
-        concat!(
-            "the handler must have actually flipped the global, or this test proves nothing about ",
-            "mid-run mutation of the ambient source",
-        ),
-    );
-
-    assert_eq!(
-        outcome.status(),
-        ScenarioStatus::Skipped,
-        "the run still ends in a skip rather than a failure",
-    );
-    let Some(skip) = outcome.skip() else {
-        panic!("the run must carry a skip record: {outcome:?}");
-    };
-    assert!(
-        !skip.forced_failure(),
-        concat!(
-            "the scope resolved `fail_on_skipped = false` from the global before the handler ran, ",
-            "so a driver that re-read the global while building this record would be observable ",
-            "here and only here",
-        ),
-    );
-    assert!(
-        skip.allow_skipped(),
-        concat!(
-            "the record's `allow_skipped` must still be the effective value computed from the ",
-            "scope's resolved policy; a driver that re-read the flipped global would compute ",
-            "`false || !true` and report false here",
-        ),
-    );
+/// The two sources are genuinely different code paths and only the ambient one
+/// can be broken by a driver that re-reads the global, so both stay as named
+/// cases rather than one being dropped. They share every assertion after the
+/// scope is built, which is why this is a parameter rather than a second test
+/// body.
+#[derive(Debug, Clone, Copy)]
+enum PolicySource {
+    /// Take the policy from the process-global `fail_on_skipped`.
+    Ambient,
+    /// Override it with an explicit `false`, replacing the global read.
+    Explicit,
 }
 
 /// INV-9's literal claim: a flip from *inside* a step cannot change the
-/// in-flight run's answer.
+/// in-flight run's answer, whichever source the scope resolved from.
 ///
-/// The other INV-9 tests mutate the global between runs. This one mutates it
-/// during a run, from the handler, and then skips — so the driver's
-/// skip-record construction and the mutation are in the same execution. A
-/// driver that resolved policy lazily, at the point it renders the skip, would
-/// read the flipped value and report a forced failure even though the scope had
-/// already resolved `false`. That is exactly the defect the decision to resolve
-/// once (D10) exists to prevent, and nothing else in this module can observe it.
+/// The other INV-9 tests mutate the global between runs. These cases mutate it
+/// during a run, from the handler, and then skip — so the driver's skip-record
+/// construction and the mutation share one execution. A driver that resolved
+/// policy lazily, at the point it renders the skip, would read the flipped value
+/// and report a forced failure even though the scope had already resolved
+/// `false`. That is exactly the defect the decision to resolve once (D10) exists
+/// to prevent, and nothing else in this module can observe it.
 ///
-/// `allow_skipped` is left at its default (false) and `fail_on_skipped` is
-/// supplied explicitly as false, so the expected answer is "not forced" and the
-/// flipped global — had it been read — would have produced `true`. The
-/// direction matters: with both inputs true the row would agree under every
-/// candidate implementation.
-#[test]
+/// The ambient case is the one that would otherwise be untested:
+/// `with_skip_policy` replaces the value `ScenarioScope::new` read, and the
+/// override is then the only input, so a driver that re-read the global *only*
+/// when the policy was ambient would pass every other test here.
+///
+/// Each scope is constructed under an armed `false`, and the handler flips the
+/// global to `true` before skipping. `allow_skipped` is left at its default
+/// (false) in both cases, so the expected answer is "not forced" and the flipped
+/// global — had it been read — would have produced `true`. The direction
+/// matters: with both inputs true the cases would agree under every candidate
+/// implementation.
+#[rstest::rstest]
+#[case::ambient(PolicySource::Ambient)]
+#[case::explicit(PolicySource::Explicit)]
 #[serial]
-fn a_policy_flip_inside_a_step_cannot_change_its_own_run() {
+fn a_policy_flip_inside_a_step_cannot_change_its_own_run(#[case] source: PolicySource) {
     let _policy = FailOnSkippedOverride::armed(false);
     let mut ctx = StepContext::default();
-    let scope = ScenarioScope::new(&mut ctx).with_skip_policy(false);
+    let scope = match source {
+        PolicySource::Ambient => ScenarioScope::new(&mut ctx),
+        PolicySource::Explicit => ScenarioScope::new(&mut ctx).with_skip_policy(false),
+    };
 
     // The handler flips the global; the guard has not dropped yet, so this still
     // reads the flipped value rather than the cleared one.
@@ -269,7 +237,7 @@ fn a_policy_flip_inside_a_step_cannot_change_its_own_run() {
     assert!(
         !skip.forced_failure(),
         concat!(
-            "the run resolved `fail_on_skipped = false` before the handler ran, so a driver that ",
+            "the scope resolved `fail_on_skipped = false` before the handler ran, so a driver that ",
             "re-read the global while building this record would be observable here and only here",
         ),
     );
@@ -282,6 +250,9 @@ fn a_policy_flip_inside_a_step_cannot_change_its_own_run() {
             "re-read the flipped global would compute `false || !true` and report false here",
         ),
     );
+    // The explicit case has always asserted this and the ambient one has not,
+    // but the reason survives the flip under either source, so both assert it
+    // rather than weakening the shared body to the weaker case.
     assert_eq!(
         skip.message(),
         Some("parity flipped the policy mid-run"),
