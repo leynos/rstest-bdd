@@ -995,17 +995,17 @@ Hard invariants. Violation requires escalation, not a workaround.
       verdicts are recorded below, one entry each.
 
 - [x] (2026-11-13) Finding 1, `no_unwrap_or_else_panic` on
-      `environment.rs:81`, is **not confirmed**. Whitaker's `should_flag`
-      exempts a panic in a test that interpolates only variables
-      (`if summary.is_test && panic_info.is_interpolated_only()`), and the
-      full nine-step `make lint` had already passed on exactly this code.
-      Mutation control: replacing `panic!("{variable} …")` with a plain
-      `panic!("the home …")` made `make lint-whitaker` fail with
-      `no_unwrap_or_else_panic`; restoring it made it pass again. Log:
-      `/tmp/lint-whitaker-mutation-issue-901.out`. The file was restored and
-      `git status` confirmed clean. The lint is a conjunction, so
-      "`unwrap_or_else(|| panic!(…))` is rejected" holds only of the
-      non-interpolated form; the review quoted the rule without its condition.
+      `environment.rs:81`, was first marked **not confirmed** on the strength
+      of Whitaker's `should_flag` exemption and a mutation control: a
+      plain-`panic!` variant of the same line made `make lint-whitaker` fail
+      while the interpolated one passed (`/tmp/lint-whitaker-mutation-issue-901.out`).
+      Round 12 re-raised it citing ADR 013, and that citation is decisive:
+      the ADR says the shape "remains rejected" and that `clippy.toml` permits
+      `.expect(...)` and `panic!(...)` in tests instead. The exemption is an
+      implementation detail of the lint, not a repository policy, so the
+      earlier verdict was wrong in the way that matters. The code now uses
+      `let … else`, which keeps the interpolated message. Grep confirms the
+      repository has no other live instance of the shape.
 
 - [x] (2026-11-13) Finding 2, a custom `CARGO_HOME` or `RUSTUP_HOME`, is
       **confirmed**. The old assertion required the value's last component to
@@ -1077,6 +1077,14 @@ Hard invariants. Violation requires escalation, not a workaround.
       an ambient-policy in-flight mutation row. It is **confirmed** and the row
       was added; see the Progress entry above and the revised Decision log
       entry. The review log is `/tmp/coderabbit-issue-901-r11.out`.
+
+- [x] (2026-11-13) Round 12, on `ea88d0b1`, returned one finding: re-raise the
+      `unwrap_or_else(|| panic!(…))` shape, this time citing ADR 013
+      (`/tmp/coderabbit-issue-901-r12.out`). **Confirmed**, and the round-10
+      verdict is withdrawn — see the amended entry above and the Decision log.
+      The rewrite is `let … else`, not `.expect(…)`: the review offered
+      `expect` as an alternative, but a fixed string cannot name which of the
+      two variables was missing, which is what the interpolated message does.
 
 - [x] (2026-11-13) Gates on the round-11 tree, `REV_START` and `REV_END` both
       `1fcbc3d2eeed03981b4b36f237df792be6bd3c76`. The Rust gate-input hash was
@@ -1435,18 +1443,20 @@ Hard invariants. Violation requires escalation, not a workaround.
   and which `flat_injected_and_real_cargo_forms_share_ the_same_command_help`
   already branches. Date/Author: 2026-11-13, implementing agent.
 
-- Decision: keep the interpolated `unwrap_or_else(|| panic!("{variable} …"))`
-  in `cli/environment.rs` and defend it with a mutation control rather than
-  rewriting it as `.expect(…)`. Rationale: Whitaker's `no_unwrap_or_else_panic`
-  policy flags this shape only when the panic is *not* interpolated-only in a
-  test (`should_flag`:
-  `if summary.is_test && panic_info.is_interpolated_only() { return false; }`).
-  The nine-step `make lint` passes on the code, and the control proves the
-  exemption is load-bearing: a plain-`panic!` mutation of the same line fails
-  the gate. Switching to `.expect(…)` would satisfy the review while deleting
-  the interpolation the failure message needs, and would leave `expect_used`
-  strictness to be re-argued instead. Date/Author: 2026-11-13, implementing
-  agent.
+- Decision: rewrite the interpolated
+  `unwrap_or_else(|| panic!("{variable} …"))` in `cli/environment.rs` as
+  `let … else`, superseding an earlier decision to keep it. Rationale: the
+  first defence rested on Whitaker's `should_flag`, which exempts a test panic
+  that interpolates only variables, plus a mutation control showing that
+  exemption is load-bearing. Both observations are true and both are beside the
+  point: ADR 013 states outright that "`unwrap_or_else(|| panic!(…))` remains
+  rejected", and that `.expect(...)` is what `clippy.toml` permits in tests. A
+  lint that happens not to fire is not a licence, and the repository holds no
+  live instance of the shape — the only two grep hits are comments explaining
+  why it is avoided. `let … else` satisfies the ADR while keeping the
+  interpolated message, which a fixed `expect` string would lose: the message
+  names which of `CARGO_HOME` and `RUSTUP_HOME` failed. Date/Author:
+  2026-11-13, implementing agent; revised after review round 12.
 
 - Decision: add the ambient-mutation row to
   `crates/rstest-bdd/tests/skip_parity/resolution_once.rs`, reversing an
