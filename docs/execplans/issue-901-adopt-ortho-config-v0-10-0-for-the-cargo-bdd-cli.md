@@ -15,8 +15,7 @@ fix's own hosted verdict is run `43604994289` at `0b798c1e` and run
 `43608966901` at `17cf96e7`, which each passed with all three required
 `build-test` jobs green, so the failing lane's verdict has been re-taken for
 the fixed tree and for the pushed head rather than inferred from the earlier
-run.
-Earlier green runs, including `43592197882` at `a634e98a`, `f10c0e4d` under
+run. Earlier green runs, including `43592197882` at `a634e98a`, `f10c0e4d` under
 `43582906292`, and `f93347ef` and `76f8f63e` under `43453087168`, are
 historical evidence recorded in `Progress`; merge pending)
 
