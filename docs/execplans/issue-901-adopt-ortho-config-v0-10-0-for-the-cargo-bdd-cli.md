@@ -2168,19 +2168,25 @@ Acceptance means all of the following, in one gate run against the final tree:
   MSRV split directly.
 
 The `make test` row asks for one gate run against the final tree. It is met
-locally at `404c8861`, the revision this text was written at: the whole recipe
-ran unfiltered on a clean tree, `REV_START` and `REV_END` both
-`404c8861fb8a5e2289cd7049a60febc4bd2d0fb6`, and exited zero with 2258 of 2258
-nextest tests passing (7 skipped), 788 of 788 doc tests passing (7 skipped),
-and 292 pytest tests passing. The earlier run at `8a5cb67f` is *historical* by
-comparison: `git rev-list --count 8a5cb67f..41f50191` reports fifteen commits
-between it and this text. Either way the row asks for a run against the final
-tree, so a commit after `404c8861` would put the verdict out of date and it
-would have to be re-taken at the new head; what this paragraph certifies is
-`404c8861` and nothing later. Every remaining statement in this subsection is
-older evidence still, accumulated before that run; where it says the row is
-unmet or an exception is retained, the later record in
-`Outcomes & retrospective` supersedes it.
+locally at `404c8861`: the whole recipe ran unfiltered on a clean tree,
+`REV_START` and `REV_END` both `404c8861fb8a5e2289cd7049a60febc4bd2d0fb6`, and
+exited zero with 2258 of 2258 nextest tests passing (7 skipped), 788 of 788 doc
+tests passing (7 skipped), and 292 pytest tests passing.
+
+That verdict is anchored to `404c8861`, not to the revision that carries this
+paragraph. `5de5136c` follows it and touches only this document, and no target
+the recipe runs reads `docs/execplans/`: a `grep -rn execplans scripts/*.py`
+returns nothing, and no Rust test or doc test mentions the directory. The
+verdict therefore still describes every input the gates read, which is what the
+row is for; if any commit changes a file a gate does read, the run has to be
+re-taken.
+
+The earlier run at `8a5cb67f` is *historical* by comparison:
+`git rev-list --count 8a5cb67f..41f50191` reports fifteen commits between it
+and this text. Every remaining statement in this subsection is older evidence
+still, accumulated before that run; where it says the row is unmet or an
+exception is retained, the later record in `Outcomes & retrospective`
+supersedes it.
 
 - Hosted run `43386083081` on `e28a927a` passed all three `build-test` jobs.
   The Linux coverage lane ran the full workspace suite with `--all-features` —
