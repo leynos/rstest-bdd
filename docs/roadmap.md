@@ -270,8 +270,8 @@ experience by introducing more powerful and intuitive APIs.
   layers. Finish line: implicit fixture lookup follows one rule in both
   directions, coverage proves the scenario and step paths agree, and the user
   guide documents the rule and its `#[from(...)]` escape hatch. Design Doc:
-  `docs/adr-009-consistent-implicit-fixture-name-normalization.md`.
-  Prerequisite: ADR-009 accepted. (Telefono, Pandalump)
+  `docs/adrs/adr-0009-consistent-implicit-fixture-name-normalization.md`.
+  Prerequisite: ADR-0009 accepted. (Telefono, Pandalump)
 
 ### 5.2. State management and data flow
 
@@ -406,7 +406,7 @@ This phase introduces Tokio-based asynchronous scenario execution, enabling
 async test functions with proper fixture integration under the Tokio runtime.
 Multi-thread mode remains out of scope until the fixture storage model is
 redesigned. For the full architectural decision record, see
-[ADR-001](adr-001-async-fixtures-and-test.md).
+[ADR-0001](adrs/adr-0001-async-fixtures-and-test.md).
 
 > **Note:** This phase includes native async step bodies. Async scenarios await
 > `AsyncStepFn` step handlers sequentially, while synchronous steps run through
@@ -457,7 +457,7 @@ redesigned. For the full architectural decision record, see
 
 ## 9. Harness adapters and attribute plugins
 
-This phase implements ADR-005a by introducing a harness adapter layer and an
+This phase implements ADR-0025 by introducing a harness adapter layer and an
 attribute policy plugin interface, so Tokio and GPUI integrations live in
 opt-in crates rather than the core runtime or macros.
 
@@ -552,8 +552,8 @@ opt-in crates rather than the core runtime or macros.
   extension trait) and select one that works for both GPUI and Bevy. Finish
   line: ADR is merged and the chosen approach is reflected in the
   `HarnessAdapter` trait (or documented as a convention). Delivered via
-  `docs/adr-007-harness-context-injection.md`. Prerequisite: 9.3.4 delivered
-  (attribute wiring unblocks full policy integration). (Telefono)
+  `docs/adrs/adr-0007-harness-context-injection.md`. Prerequisite: 9.3.4
+  delivered (attribute wiring unblocks full policy integration). (Telefono)
 - [x] 9.4.2. Create `rstest-bdd-harness-gpui`.
 - [x] 9.4.3. Execute scenarios inside the GPUI test harness and inject fixtures
   such as `TestAppContext`.
@@ -569,7 +569,7 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.5. Context injection mechanism
 
-- [x] 9.5.1. Write ADR-007: Harness context injection. Evaluate three
+- [x] 9.5.1. Write ADR-0007: Harness context injection. Evaluate three
   approaches — (a) thread-local convention, (b) associated `Context` type on
   `HarnessAdapter`, and (c) `StepContext` extension trait — and select one. The
   recommended direction is an associated `Context` type:
@@ -587,8 +587,8 @@ opt-in crates rather than the core runtime or macros.
   This is a breaking change to the `HarnessAdapter` trait but provides
   type-safe, per-harness fixture injection without thread-local indirection.
   The ADR must address migration of `StdHarness` (where `Context = ()`),
-  `TokioHarness`, and the impact on macro codegen. Finish line: ADR-007 is
-  merged. Delivered via `docs/adr-007-harness-context-injection.md`.
+  `TokioHarness`, and the impact on macro codegen. Finish line: ADR-0007 is
+  merged. Delivered via `docs/adrs/adr-0007-harness-context-injection.md`.
   Prerequisite: 9.4.1 design task complete. (Telefono, Pandalump)
 - [x] 9.5.2. Implement `HarnessAdapter::Context` in `rstest-bdd-harness`.
   Update the trait, `StdHarness` (`Context = ()`), `ScenarioRunRequest`, and
@@ -596,7 +596,7 @@ opt-in crates rather than the core runtime or macros.
   pass with `StdHarness` and `TokioHarness` updated; `Context` is available
   inside the runner closure. Delivered via `HarnessAdapter::Context`,
   `ScenarioRunRequest<'_, C, T>`, and macro harness codegen updates.
-  Prerequisite: ADR-007 merged. (Pandalump)
+  Prerequisite: ADR-0007 merged. (Pandalump)
 - [x] 9.5.3. Update `TokioHarness` to use `Context` (e.g.
   `Context = tokio::runtime::Handle` or `()`) and validate that `spawn_local`
   patterns still work. Finish line: Tokio harness tests pass with the new trait
@@ -608,7 +608,7 @@ opt-in crates rather than the core runtime or macros.
   rather than panicked. Finish line: `HarnessError` type in
   `rstest-bdd-harness`, `HarnessResult` alias re-exported from crate root, all
   first-party harnesses and macro-generated delegation updated,
-  `FailingHarness` integration test added, ADR-007 and user/developer guides
+  `FailingHarness` integration test added, ADR-0007 and user/developer guides
   updated. Closes `#443`. (Pandalump)
 
 ### 9.6. Documentation and validation
@@ -633,41 +633,41 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.7. Harness-led attribute-policy defaults
 
-These items were gated on ADR-008 being accepted. They shipped under maintainer
-authorization before ADR-008 was accepted on 2026-09-14; the prerequisite is
-now satisfied.
+These items were gated on ADR-0008 being accepted. They shipped under
+maintainer authorization before ADR-0008 was accepted on 2026-09-14; the
+prerequisite is now satisfied.
 
 - [x] 9.7.1. Extend first-party policy hint resolution so known harness paths
   can imply default test-attribute hints when `attributes = ...` is omitted.
   Add canonical mappings for `StdHarness`, `TokioHarness`, and `GpuiHarness`,
-  and implement the precedence rules defined in ADR-008. Finish line: shared
+  and implement the precedence rules defined in ADR-0008. Finish line: shared
   helpers resolve the same hint from either the first-party harness path or the
   first-party attribute-policy path, with unit tests for unknown third-party
-  paths and precedence edge cases. Prerequisite: ADR-008 accepted; 9.3.4 and
+  paths and precedence edge cases. Prerequisite: ADR-0008 accepted; 9.3.4 and
   9.4.4 delivered. Design Doc:
-  `docs/adr-008-harness-led-attribute-policy-defaults.md`,
+  `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md`,
   `docs/rstest-bdd-design.md` §2.7.3. Delivered 2026-05-08. The shared policy
   resolver now has regression coverage proving first-party harness paths and
   their matching attribute-policy paths resolve to the same hints. This shipped
-  under maintainer authorization before ADR-008 was accepted on 2026-09-14; the
-  prerequisite is now satisfied. (Pandalump)
+  under maintainer authorization before ADR-0008 was accepted on 2026-09-14;
+  the prerequisite is now satisfied. (Pandalump)
 - [x] 9.7.2. Update `#[scenario]` and `scenarios!` code generation so
   first-party harnesses imply their default attribute policies when
   `attributes = ...` is omitted, while explicit `attributes = ...` remains
   authoritative. Preserve `attributes`-only configuration, harness-only
-  configuration, current attribute de-duplication rules, and the ADR-008
+  configuration, current attribute de-duplication rules, and the ADR-0008
   precedence order. Finish line: generated test attributes for `StdHarness`,
   `TokioHarness`, and `GpuiHarness` match their first-party defaults without
   requiring paired `attributes = ...`, and explicit override scenarios still
   expand correctly. Prerequisite: 9.7.1. Design Doc:
-  `docs/adr-008-harness-led-attribute-policy-defaults.md`,
+  `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md`,
   `docs/rstest-bdd-design.md` §2.7.3. Delivered 2026-05-14. The codegen path
-  already routed both `#[scenario]` and `scenarios!` through the ADR-008
+  already routed both `#[scenario]` and `scenarios!` through the ADR-0008
   resolver; this item adds regression coverage for synchronous Tokio harness
   omission, first-party de-duplication, and harness-only Tokio `scenarios!`
   expansion with an async step. This shipped under maintainer authorization
-  before ADR-008 was accepted on 2026-09-14; the prerequisite is now satisfied.
-  (Pandalump, Doggylump)
+  before ADR-0008 was accepted on 2026-09-14; the prerequisite is now
+  satisfied. (Pandalump, Doggylump)
 - [x] 9.7.3. Add unit, trybuild, and behavioural coverage for harness-led
   defaults and explicit overrides across the first-party harnesses. Cover
   harness-only scenarios, explicit override scenarios, attributes-only
@@ -677,11 +677,12 @@ now satisfied.
   overrides win, `attributes`-only behaviour remains unchanged, harness
   initialization errors propagate before step execution, and harness-dependent
   steps fail loudly when only an attribute policy is supplied. Prerequisite:
-  9.7.2. Design Doc: `docs/adr-008-harness-led-attribute-policy-defaults.md`.
-  Delivered 2026-05-21 with unit coverage for precedence and unknown-path
-  negatives, trybuild fixtures for first-party override and attributes-only
-  expansion, behavioural Tokio and GPUI scenario coverage, and runtime
-  error-path and mismatch coverage added for issue #498. (Buzzy Bee)
+  9.7.2. Design Doc:
+  `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md`. Delivered
+  2026-05-21 with unit coverage for precedence and unknown-path negatives,
+  trybuild fixtures for first-party override and attributes-only expansion,
+  behavioural Tokio and GPUI scenario coverage, and runtime error-path and
+  mismatch coverage added for issue #498. (Buzzy Bee)
 - [x] 9.7.4. Update the user guide, design document, and first-party example
   prose to lead with harness-only configuration once the default-inference
   behaviour lands. Retain `attributes = ...` as an override pattern and keep
@@ -689,10 +690,10 @@ now satisfied.
   and `docs/rstest-bdd-design.md` recommend harness-led defaults for the
   first-party integrations, examples no longer require both parameters by
   default, and `make markdownlint` passes. Prerequisite: 9.7.3. Design Doc:
-  `docs/adr-008-harness-led-attribute-policy-defaults.md`. Delivered 2026-05-26
-  with harness-only Tokio and GPUI example code, updated guide, design, and
-  migration prose, focused example tests, full repository gates, and CodeRabbit
-  review. (Dinolump)
+  `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md`. Delivered
+  2026-05-26 with harness-only Tokio and GPUI example code, updated guide,
+  design, and migration prose, focused example tests, full repository gates,
+  and CodeRabbit review. (Dinolump)
 
 ## 10. First-cut beta feedback: v0.6.0-beta2 quick wins
 
@@ -804,10 +805,10 @@ changing the public trait contracts.
   `unwrap_or_else` escape hatch, and wired Whitaker `no_unwrap_or_else_panic`
   into `make lint`. See
   `docs/execplans/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile.md`
-  and `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`. Follow-up
-  2026-06-24: extracted private helpers for repeated trybuild fixture-file
-  writing and std, Tokio, and GPUI harness execution boilerplate, then
-  restricted root-level pytest collection to `scripts/tests` so Dylint's
+  and `docs/adrs/adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md`.
+  Follow-up 2026-06-24: extracted private helpers for repeated trybuild
+  fixture-file writing and std, Tokio, and GPUI harness execution boilerplate,
+  then restricted root-level pytest collection to `scripts/tests` so Dylint's
   generated Whitaker source under `target/whitaker` is not collected by
   coverage jobs. Validation: root `uv run pytest -v` collected 33
   `scripts/tests` items and no `target/...` files; `make check-fmt`,
@@ -929,29 +930,29 @@ changing the public trait contracts.
 
 This step collects the remaining non-breaking work approved as release
 requirements after downstream beta adoption. The proposed state helpers were
-superseded by ADR-012 before implementation, so the release is ready when
+superseded by ADR-0012 before implementation, so the release is ready when
 feature-file edits cannot leave users running stale scenarios.
 
-- [x] 10.3.1. **Superseded by 12.1.3 before implementation.** ADR-011 proposed
+- [x] 10.3.1. **Superseded by 12.1.3 before implementation.** ADR-0011 proposed
   a generic `ScenarioStore<T>` core (in `rstest-bdd`) to replace per-scenario
   thread-local `RefCell` boilerplate; it would expose `set`, `with`, `with_mut`,
   `take`, and `reset` operations and wrap the two-sided reset protocol,
   alongside a GPUI-specific `GpuiScenarioStore` re-export in
-  `rstest-bdd-harness-gpui`. These helpers did not ship; ADR-012 instead landed
-  framework-managed scenario storage and cleanup, so the v0.6.x thread-local
-  interim pattern is retired by the v0.7.0 lifecycle contract rather than by a
-  first-party store. ADR:
-  `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
+  `rstest-bdd-harness-gpui`. These helpers did not ship; ADR-0012 instead
+  landed framework-managed scenario storage and cleanup, so the v0.6.x
+  thread-local interim pattern is retired by the v0.7.0 lifecycle contract
+  rather than by a first-party store. ADR:
+  `docs/adrs/adr-0011-first-party-scenario-state-and-cleanup.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
-- [x] 10.3.2. **Superseded by 12.1.3 before implementation.** ADR-011 proposed
+- [x] 10.3.2. **Superseded by 12.1.3 before implementation.** ADR-0011 proposed
   a cleanup-guard fixture-generating macro in `rstest-bdd-harness-gpui` to
   produce the `ScenarioStateCleanup` `Drop` guard and the
   `#[fixture] fn scenario_state_cleanup()` function, so GPUI scenarios could
   adopt the two-sided reset protocol with a single macro call. The macro did
-  not ship; ADR-012 instead made cleanup of framework-owned scenario storage
+  not ship; ADR-0012 instead made cleanup of framework-owned scenario storage
   part of the v0.7.0 lifecycle contract, which the existing cleanup-probe suite
   pins across success, assertion failure, and skip. ADR:
-  `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
+  `docs/adrs/adr-0011-first-party-scenario-state-and-cleanup.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Doggylump)
 - [x] 10.3.3. Editing only a `.feature` file triggers a rebuild of the scenario
   binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
@@ -965,10 +966,10 @@ feature-file edits cannot leave users running stale scenarios.
   the missing-`.feature` diagnostic; a redacted `insta` snapshot with semantic
   assertions pins any touched diagnostic wording; no absolute
   `CARGO_MANIFEST_DIR` path appears in the artefact; `make test` is green. ADR:
-  `docs/adr-010-feature-file-change-detection.md` (see its *Testing strategy*).
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6. Before this requirement
-  landed, a caveat in `docs/v0-6-0-migration-guide.md` alerted adopters that
-  `.feature`-only edits did not trigger a rebuild. The
+  `docs/adrs/adr-0010-feature-file-change-detection.md` (see its *Testing
+  strategy*). Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6. Before this
+  requirement landed, a caveat in `docs/v0-6-0-migration-guide.md` alerted
+  adopters that `.feature`-only edits did not trigger a rebuild. The
   [feature-path output and migration guidance](v0-6-0-migration-guide.md#feature-paths-in-diagnostics-and-reports-are-now-manifest-relative)
   documents the related metadata contract. The gauss v0.6.0-beta3 migration
   independently reproduced this failure mode and had to falsify a scenario by
@@ -1032,7 +1033,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   pass using the marker while crate-level tests keep proving the legacy
   spelling still works. See ExecPlan
   `docs/execplans/11-2-1-annotate-parameters-with-harness-context.md` and the
-  ADR-007 addendum.
+  ADR-0007 addendum.
 - [ ] 11.2.2. The public prelude exposes `StepResult`, `Slot`, `ScenarioState`,
   harness-context helpers, and marker attributes from 11.2.1, so examples can
   import one predictable module without hiding the underlying crates. Finish
@@ -1059,18 +1060,18 @@ remove the existing `StepContext`, harness, or macro surfaces.
   ExecPlan records whether full-suite adoption requires a repository-wide
   nightly migration, the accepted subset is enforced in CI, and any deferred
   lints have explicit rationale. Precedent:
-  `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`. Completed
+  `docs/adrs/adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md`. Completed
   2026-07-09: the full suite (installer `0.2.5` as pinned at that date, rolling
   suite) was wired into `make lint` and CI via the `whitaker` wrapper; per-crate
   `no_std_fs_operations` exclusions with rationale live in `dylint.toml`. CI
   has since bumped the pin; the current `WHITAKER_INSTALLER_VERSION` is
-  recorded in the follow-up below and in ADR-013. Follow-up 2026-07-20:
+  recorded in the follow-up below and in ADR-0013. Follow-up 2026-07-20:
   reconciled the Whitaker integration documentation with the current published
   suite after leynos/whitaker#238 advanced the bundled toolchain to
   `nightly-2026-05-28` and Dylint `6.0.1` (`dylint_linting = 6`). Amended
-  `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md` with a validated
-  current compatibility contract, labelled the obsolete `nightly-2025-09-18` /
-  Dylint 5 mechanism in ADR-013 and
+  `docs/adrs/adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md` with a
+  validated current compatibility contract, labelled the obsolete
+  `nightly-2025-09-18` / Dylint 5 mechanism in ADR-0013 and
   `docs/execplans/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile.md`
   as historical, and confirmed the repository consumes the
   `whitaker-installer` flow (CI pins `WHITAKER_INSTALLER_VERSION` at `0.2.7`)
@@ -1082,7 +1083,7 @@ The v0.7.0 line landed the final migration-guide-worthy API cleanup planned
 before v1.0.0. This phase collects changes that were too disruptive for v0.6.x
 but make the v1 surface smaller and more predictable. Following the first
 downstream adopter migration report, the guard-based `StepContext` borrow
-redesign was accepted and implemented through ADR-012.
+redesign was accepted and implemented through ADR-0012.
 
 ### 11.3. Prevent beta3 false greens and generated-result warnings
 
@@ -1098,8 +1099,8 @@ an assertion cannot disappear behind macro classification or generated code.
   line: compile and runtime regressions cover an alias that returns `Err`,
   spelled `Result`, `StepResult`, an alias explicitly marked `result`, and a
   genuine value alias; no `Err` case is boxed and discarded as an opaque
-  payload. ADRs: `docs/adr-002-stable-step-return-classification.md` and
-  `docs/adr-019-type-directed-step-return-classification.md`. Design Doc:
+  payload. ADRs: `docs/adrs/adr-0002-stable-step-return-classification.md` and
+  `docs/adrs/adr-0019-type-directed-step-return-classification.md`. Design Doc:
   `docs/rstest-bdd-design.md` §3.8. Landed in v0.6.0 despite this item's
   physical placement under the v0.7.0 heading. Origin: `leynos/rstest-bdd#573`
   and the gauss v0.6.0-beta3 validation matrix.
@@ -1111,13 +1112,13 @@ an assertion cannot disappear behind macro classification or generated code.
   Finish line: compile-pass tests exercise standard, Tokio, and GPUI harnesses
   with `Result<(), E>` scenario bodies under denied warnings; runtime tests
   prove scenario-body and step errors both fail the test. ADR:
-  `docs/adr-006-fallible-scenario-functions.md`. Design Doc:
+  `docs/adrs/adr-0006-fallible-scenario-functions.md`. Design Doc:
   `docs/rstest-bdd-design.md` §§2.7.2-2.7.4. Origin: `leynos/rstest-bdd#574`
   and the gauss v0.6.0-beta3 validation matrix.
 
-> **Note (ADR-008 follow-up):** Roadmap items 9.7.1–9.7.4 shipped under
-> maintainer authorization before ADR-008 was accepted on 2026-09-14. The
-> prerequisite is now satisfied, and ADR-008 records the accepted harness-led
+> **Note (ADR-0008 follow-up):** Roadmap items 9.7.1–9.7.4 shipped under
+> maintainer authorization before ADR-0008 was accepted on 2026-09-14. The
+> prerequisite is now satisfied, and ADR-0008 records the accepted harness-led
 > attribute-defaults decision.
 
 ### 12.1. Redesign state and context borrowing
@@ -1127,13 +1128,13 @@ an assertion cannot disappear behind macro classification or generated code.
   context and mutable world state when fixture keys differ. `Result`-returning
   `try_borrow`/`try_borrow_mut` APIs carry `FixtureBorrowError`; the
   `Option`-based borrow methods remain as conveniences delegating to them
-  (recorded in ADR-012), with generated-wrapper regression coverage. The v0.6.0
-  migration guide includes the v0.6-to-v0.7 mapping from thread-local
+  (recorded in ADR-0012), with generated-wrapper regression coverage. The
+  v0.6.0 migration guide includes the v0.6-to-v0.7 mapping from thread-local
   durable-handle patterns to framework-managed scenario-boundary cleanup.
   Finish line: runtime unit tests prove concurrent distinct mutable borrows
   succeed, same-fixture conflicts fail, generated-wrapper tests cover harness
   context plus world state, and the migration guide carries the mapping table.
-  ADR: `docs/adr-012-guard-based-stepcontext-borrowing.md`. Design Doc:
+  ADR: `docs/adrs/adr-0012-guard-based-stepcontext-borrowing.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump, Telefono)
 - [x] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
   value-accessor methods while hiding internal enum and representation details.
@@ -1192,7 +1193,7 @@ an assertion cannot disappear behind macro classification or generated code.
   line: an ADR updates the harness contract and migration guidance; compile
   tests accept representative owned contexts and either reject a borrowed
   context with a documented diagnostic or prove the selected borrowing design.
-  ADR: `docs/adr-007-harness-context-injection.md`. Design Doc:
+  ADR: `docs/adrs/adr-0007-harness-context-injection.md`. Design Doc:
   `docs/rstest-bdd-design.md` §§2.7.2-2.7.6.5. (Pandalump, Telefono)
 - [ ] 12.2.5. The generated-test model gives each `#[scenario]`, `scenarios!`,
   scenario, and outline row a readable Rust test name, isolated lifecycle, and
@@ -1217,8 +1218,8 @@ an assertion cannot disappear behind macro classification or generated code.
 This step tests whether reusable domain language can remain deterministic when
 scenarios own an explicit vocabulary and capture aggregates own explicit field
 names. Its results inform the v1 registry and typed-text extension boundaries.
-See [RFC 0001](rfcs/0001-explicit-step-library-scopes.md) and
-[RFC 0002](rfcs/0002-named-step-argument-binding.md).
+See [RFC 0001](rfcs/rfc-0001-explicit-step-library-scopes.md) and
+[RFC 0002](rfcs/rfc-0002-named-step-argument-binding.md).
 
 - [x] 12.3.1. Add closed, lexical step-library selection to `#[scenario]` and
   `scenarios!`, with `#[step_library]` module declarations, a global-library
@@ -1261,7 +1262,7 @@ This step answers whether one additive runtime API can represent both static
 Gherkin-generated scenarios and dynamically parsed input without admitting
 frontend concepts. Its result defines the contract that macro migration and
 external-frontends rely on. See
-`docs/adr-018-parser-neutral-scenario-execution.md` (Decision outcome and
+`docs/adrs/adr-0018-parser-neutral-scenario-execution.md` (Decision outcome and
 proposed direction).
 
 - [x] 13.1.1. Add parser-neutral `ScenarioPlan`, `StepInvocation`, source, and
@@ -1292,7 +1293,8 @@ proposed direction).
     awaited-after guarantee after cancellation. The hook-drop clause and the
     failure-precedence clause it paired with are **not** discharged: both need
     the hooks, which D2 option (ii) struck rather than deferred.
-  - See `docs/adr-018-parser-neutral-scenario-execution.md` (Requirements and
+  - See `docs/adrs/adr-0018-parser-neutral-scenario-execution.md` (Requirements
+    and
     Verification strategy).
 
   Shipped: `rstest_bdd::runner` — `SourcePath`/`SourceLocation`;
@@ -1311,7 +1313,7 @@ proposed direction).
     *unmigrated* macro path deliberately, so a green result cannot mean the
     runner merely agrees with itself.
 
-  **Partial discharge of ADR-018's lifecycle matrix, recorded rather than
+  **Partial discharge of ADR-0018's lifecycle matrix, recorded rather than
     assumed.** The after/cleanup column is discharged exclusively through the
     unconditional synchronous scope drop. The before-hook column, the
     hook-failure rows, and the hook cases of INV-8's precedence matrix are
@@ -1320,12 +1322,12 @@ proposed direction).
     `ScenarioScope::with_hooks`,
     `split`, and the `Before`/`After` `ScenarioFailure` variants do not exist.
     `LifecycleError` and `ScenarioOutcome::cleanup_error()` are consequently not
-    shipped either. Restoring any of it needs an ADR amending ADR-018 first, and
+    shipped either. Restoring any of it needs an ADR amending ADR-0018 first, and
     a replacement roadmap item — there is none today.
 
   **Reconciliation of the tick with the criteria above.** The item is checked
     because everything it names as *in scope* shipped and is proved; it is not
-    a claim that ADR-018 was delivered whole. Three of the criteria in the
+    a claim that ADR-0018 was delivered whole. Three of the criteria in the
     original wording assumed the hooks — the `Make the runner own …` line's
     hook ownership, the lifecycle-tests line's failure precedence and
     hook-drop clause, and the whole of the struck matrix — and those are marked
@@ -1346,7 +1348,8 @@ proposed direction).
   - Success: runtime tests execute plans whose sources are not `.feature`
     files and assert that supplied path, line, and column information remains
     available to the caller.
-  - See `docs/adr-018-parser-neutral-scenario-execution.md` (Source-neutral
+  - See `docs/adrs/adr-0018-parser-neutral-scenario-execution.md`
+    (Source-neutral
     diagnostics).
 
 ### 13.2. Make the Gherkin macros a thin runner frontend
@@ -1364,7 +1367,7 @@ baseline that a non-Gherkin frontend must match.
   - Success: the existing macro compile-pass and compile-fail fixtures remain
     unchanged, and conformance coverage compares step order, fixture errors,
     return propagation, skips, bypassed steps, and failures from both paths.
-  - See `docs/adr-018-parser-neutral-scenario-execution.md` (Gherkin macro
+  - See `docs/adrs/adr-0018-parser-neutral-scenario-execution.md` (Gherkin macro
     integration and Compatibility and migration).
 
   Carried in from 13.1.1, because 13.1.1 wrote the conversion and could not
@@ -1407,7 +1410,7 @@ boundary without importing Trymark's syntax or reporting model into
   - Success: an end-to-end suite executes pass, skip, failure, missing-step,
     and missing-fixture scenarios outside `.feature` files, reports their
     supplied locations, and proves no Rust test crate is generated or compiled.
-  - See `docs/adr-018-parser-neutral-scenario-execution.md` (Extension
+  - See `docs/adrs/adr-0018-parser-neutral-scenario-execution.md` (Extension
     boundary and Compatibility and migration).
 
   Two carried-in obstacles, both of which this milestone is the first to hit.

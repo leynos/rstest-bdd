@@ -16,12 +16,16 @@ from workflow_support import (
 #: Repository-relative locations, read through `repository_file`, the one
 #: boundary that turns a missing or undecodable file into a named contract
 #: failure rather than a raw `OSError`.
-ADR_PARTS = ("docs", "adr-013-adopt-whitaker-no-unwrap-or-else-panic.md")
+ADR_PARTS = (
+    "docs",
+    "adrs",
+    "adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md",
+)
 HISTORICAL_BASELINE_PARTS = (
     "tests",
     "workflow_contracts",
     "data",
-    "adr-013-historical-update.md",
+    "adr-0013-historical-update.md",
 )
 HISTORICAL_UPDATE_HEADING = "## Update (2026-07-20): current compatibility contract"
 RUNNER_ADDENDUM_HEADING = "## Addendum (2026-09-03): Ubicloud CI runner migration"
@@ -32,7 +36,7 @@ FORK_ADDENDUM_HEADING = (
 
 @pytest.fixture(name="document", scope="module")
 def _adr_document() -> str:
-    """Read ADR 013 once for the contracts that assert its text.
+    """Read ADR 0013 once for the contracts that assert its text.
 
     Three contracts read the same document. Reading it per test made the path
     the thing they had in common rather than the document, so a move had to be

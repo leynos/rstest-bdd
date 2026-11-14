@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 005: async step functions
+# Architectural decision record (ADR) 0005: async step functions
 
 ## Status
 

@@ -26,8 +26,8 @@ After this work:
   compatibility-alias behaviour, and `Context`-based fixture injection.
 - `docs/rstest-bdd-design.md` records the delivered architecture and any
   design decisions taken while tightening the documentation around
-  Architectural Decision Record (ADR) 005, ADR-007, and the 9.3.4 codegen trust
-  model.
+  Architectural Decision Record (ADR) 0005, ADR-0007, and the 9.3.4 codegen
+  trust model.
 - Unit tests and behavioural tests validate any examples, emitted attributes,
   and end-to-end documentation claims introduced while updating the docs.
 - `docs/roadmap.md` marks 9.6.1 done only after the documentation, tests, and
@@ -44,7 +44,7 @@ pass: `make check-fmt`, `make lint`, and `make test`.
   change, except to note future work where the docs need to point forward.
 - Treat 9.5.3 as delivered and document the current `HarnessAdapter::Context`
   contract, not speculative alternatives.
-- Keep ADR-005a boundaries intact: framework-specific details belong in opt-in
+- Keep ADR-0025 boundaries intact: framework-specific details belong in opt-in
   crates and documentation must not imply that Tokio or GPUI are built into the
   core runtime.
 - Preserve the documented 9.3.4 trust model: attribute-policy resolution is
@@ -53,7 +53,7 @@ pass: `make check-fmt`, `make lint`, and `make test`.
 - Update `docs/users-guide.md` with concrete usage guidance for both first-
   party harnesses and third-party harness authors.
 - Update `docs/rstest-bdd-design.md` with any design decisions taken while
-  reconciling ADR-005a, ADR-007, and the delivered implementation.
+  reconciling ADR-0025, ADR-0007, and the delivered implementation.
 - Mark roadmap entry 9.6.1 done only after documentation, tests, and gates all
   pass.
 - Because this change edits Markdown, run the documentation gates as well:
@@ -218,8 +218,8 @@ Primary documentation targets:
 
 Primary implementation and test references to verify against while editing:
 
-- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
-- `docs/adr-007-harness-context-injection.md`
+- `docs/adrs/adr-0025-harness-adapter-crates-for-framework-specific-test-integration.md`
+- `docs/adrs/adr-0007-harness-context-injection.md`
 - `crates/rstest-bdd-harness/src/adapter.rs`
 - `crates/rstest-bdd-harness/src/policy.rs`
 - `crates/rstest-bdd-harness/src/runner.rs`
@@ -242,7 +242,7 @@ Reference documents reviewed while drafting this plan:
 - `docs/rust-doctest-dry-guide.md`
 - `docs/complexity-antipatterns-and-refactoring-strategies.md`
 - `docs/gherkin-syntax.md`
-- `docs/adr-007-harness-context-injection.md`
+- `docs/adrs/adr-0007-harness-context-injection.md`
 - `docs/execplans/9-3-4-wire-test-attributes-into-codegen.md`
 - `docs/execplans/9.4.1-fixture-injection-mechanism.md`
 - `docs/execplans/9-4-2-create-rstest-bdd-harness-gpui.md`
@@ -282,14 +282,14 @@ Implementation details:
   - `ScenarioRunRequest<'_, C, T>` and runner context handoff,
   - path-based first-party attribute-policy resolution,
   - first-party Tokio and GPUI plugin crates as opt-in extensions.
-- Remove or rewrite stale speculative wording that predates 9.3.4 or ADR-007.
+- Remove or rewrite stale speculative wording that predates 9.3.4 or ADR-0007.
 - Record any new documentation-level design decision needed to keep the doc
   stable, such as the split between usage guidance and architectural detail.
 
 Go/no-go validation:
 
 - The design doc can be read as an accurate architectural reference without
-  contradicting ADR-005a, ADR-007, or the current implementation.
+  contradicting ADR-0025, ADR-0007, or the current implementation.
 
 ### Stage C: rewrite the user-guide harness chapter and examples
 

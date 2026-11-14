@@ -70,7 +70,7 @@ user-visible commits are produced.
   `StepContext` troubleshooting entry), 10.2.3 (feature-gated test guidance),
   11.x helper APIs, or any 12.x redesign work. Cross-references to those items
   are allowed where they help a reader plan ahead; substantive content is not.
-- Treat the design document and ADR-007 as authoritative. Do not propose a
+- Treat the design document and ADR-0007 as authoritative. Do not propose a
   thread-local-free pattern, a typed harness-context extractor, or any
   alternative the design document defers to v0.6.1 or v0.7.0. The user guide
   playbook should label the thread-local pattern as the interim v0.6 workaround
@@ -360,7 +360,7 @@ intentionally carries no per-step timestamps until implementation begins.
   subsection fits the existing flow and avoids a second table of contents
   entry. Date/author: 2026-06-02 (drafting agent).
 - Decision: skip Firecrawl prior-art research.
-  Rationale: the source material (design §2.7.6.2, ADR-007, and the regression
+  Rationale: the source material (design §2.7.6.2, ADR-0007, and the regression
   suite) is in-tree and complete; external research would not resolve any open
   question. Reopen the decision if the community-of-experts review identifies a
   missing reference. Date/author: 2026-06-02 (drafting agent).
@@ -505,7 +505,7 @@ implementation will follow. No documentation files change during Stage A.
 The agreed playbook structure for `docs/users-guide.md` is:
 
 1. A clearly set-off callout (Markdown admonition or block-quoted note) up
-   front classifying the pattern as the v0.6 interim workaround for ADR-007,
+   front classifying the pattern as the v0.6 interim workaround for ADR-0007,
    naming `docs/rstest-bdd-design.md` §2.7.6.5 and roadmap items 12.1.x as the
    redesign target, and visible to a skim reader. A single opening sentence is
    not sufficient.

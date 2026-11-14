@@ -5,7 +5,7 @@ use quote::quote;
 use super::{RuntimeMode, TestAttrPolicy, generate_test_attrs};
 
 #[rstest::rstest]
-// This table protects the ADR-008 precedence order:
+// This table protects the ADR-0008 precedence order:
 //
 // 1. explicit `attributes = ...` wins, even when it names another first-party policy or an unknown
 //    policy;

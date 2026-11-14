@@ -1026,7 +1026,7 @@ expression.
 The `harness` and `attributes` parameters accept Rust type paths pointing to
 types that implement `HarnessAdapter` and `AttributePolicy` from the
 `rstest-bdd-harness` crate. These enable third-party framework integrations
-(per Architectural Decision Record (ADR-005a)) without coupling the core crates
+(per Architectural Decision Record (ADR-0025)) without coupling the core crates
 to any specific runtime.
 
 Use them in this order of preference:
@@ -1313,7 +1313,7 @@ Harness adapters must faithfully propagate the runner's return value inside
 `Ok(...)`. For fallible scenarios that return `Result<(), E>`, swallowing
 errors would cause tests to pass silently. Use `Err(HarnessError::...)` only
 for harness-level infrastructure failures, not for scenario assertion failures.
-When migrating pre-ADR-007 harness code, update `type Context`, the
+When migrating pre-ADR-0007 harness code, update `type Context`, the
 `ScenarioRunner` constructor signature, and the request execution helper
 together: unit-context harnesses (`StdHarness`, `TokioHarness`, and similar
 adapters using `Context = ()`) should call `run_without_context()`, while
@@ -1421,10 +1421,10 @@ against feature files. For a concrete regression example, see
 >
 > The thread-local scenario-state pattern below worked around the
 > `StepContext::borrow_mut` contract in `rstest-bdd` 0.6.x (selected by
-> [ADR-007][adr-007]), which prevented
+> [ADR-0007][adr-0007]), which prevented
 > one step from borrowing two mutable fixtures (such as mutable harness
 > context plus mutable world state) at once. From v0.7.0, fixture borrowing
-> is guard-based ([ADR-012][adr-012]): steps can take `&mut` parameters for
+> is guard-based ([ADR-0012][adr-0012]): steps can take `&mut` parameters for
 > distinct fixtures — including
 > `#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext`
 > alongside `world: &mut UiWorld` — and the framework builds a fresh
@@ -1804,7 +1804,7 @@ binding name is part of the contract.
 
 - [rstest-bdd design][rstest-bdd-design] §2.7.6.1 and §2.7.6.2 explain
   why the workaround took this shape under the 0.6.x borrow contract.
-- [ADR-012][adr-012] records the v0.7.0 guard-based borrowing redesign that
+- [ADR-0012][adr-0012] records the v0.7.0 guard-based borrowing redesign that
   supersedes the thread-local approach.
 - `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` is the
   executable reference suite. Read it to confirm that the snippet here still
@@ -1847,8 +1847,8 @@ let Some(window) = current_handles() else {
 Under Whitaker's `shadow_reuse` lint, avoid re-using the same name for a
 trimmed or borrowed binding. For example, prefer a fresh guard name such as
 `world_guard` over shadowing `world`. The full Whitaker suite is adopted as the
-current `make lint` gate; [ADR-013][adr-013] records the current compatibility
-contract.
+current `make lint` gate; [ADR-0013][adr-0013] records the current
+compatibility contract.
 
 ### Bulk-migration cookbook
 
@@ -1858,11 +1858,11 @@ scaffolding — into one shared module per consuming crate, rather than copying
 it into every test file. Under the v0.7 model, keep that shared module focused
 on step definitions and fixture constructors. The framework builds a fresh
 `StepContext` for each scenario and drops its owned, scenario-scoped cells at
-the scenario boundary, while ADR-012's guard-based borrowing permits concurrent
-guards for distinct mutable fixtures. Framework-owned scenario state therefore
-needs neither `ScenarioStore<T>` nor a cleanup-guard fixture macro. Fixtures
-supplied by `rstest` keep their own scopes, so an `#[once]` fixture is still
-shared as `rstest` defines it.
+the scenario boundary, while ADR-0012's guard-based borrowing permits
+concurrent guards for distinct mutable fixtures. Framework-owned scenario state
+therefore needs neither `ScenarioStore<T>` nor a cleanup-guard fixture macro.
+Fixtures supplied by `rstest` keep their own scopes, so an `#[once]` fixture is
+still shared as `rstest` defines it.
 
 #### Why one shared module works
 
@@ -2171,7 +2171,7 @@ Markdown, or `.feature` files. It supports a custom frontend — Markdown
 checklists, a bespoke DSL, generated cases — while keeping the step
 definitions, skip policy, and reporting semantics already in place. The
 feasibility work and its constraints are recorded in
-[ADR-018][adr-018-parser-neutral-runtime].
+[ADR-0018][adr-0018-parser-neutral-runtime].
 
 A run is two values. `ScenarioPlan` describes what to execute, and a runner
 turns it into a `ScenarioOutcome`:
@@ -2623,7 +2623,7 @@ fn async_wrapper_with_aliases<'ctx>(
 
 - **Tokio current-thread mode only:** Multi-threaded Tokio mode would require
   `Send` futures, which conflicts with the `RefCell`-backed fixture storage.
-  See [ADR-001][adr-001] for the full design rationale.
+  See [ADR-0001][adr-0001] for the full design rationale.
 - **Nested runtime safeguards:** Async-only steps running in synchronous
   scenarios use a per-step runtime fallback, which refuses to run when a Tokio
   runtime is already active on the current thread.
@@ -2631,7 +2631,7 @@ fn async_wrapper_with_aliases<'ctx>(
 
 ## Harness adapter core APIs
 
-Architectural Decision Record (ADR-005a) introduces a harness adapter layer, so
+Architectural Decision Record (ADR-0025) introduces a harness adapter layer, so
 framework integrations can live in opt-in crates. Phase 9.1 ships the core
 contracts in `rstest-bdd-harness`.
 
@@ -2691,7 +2691,7 @@ synchronously without an async runtime or UI harness.
 This user guide focuses on how to use the delivered harness API. The design
 document records the underlying trust model and architectural rationale, in
 particular the path-based first-party policy mapping and the associated
-`Context` handoff introduced by ADR-007.
+`Context` handoff introduced by ADR-0007.
 
 ### Defining an attribute policy
 
@@ -3557,11 +3557,11 @@ integrate acceptance criteria into their Rust test suites and to engage all
 three amigos in the specification process.
 
 [scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html
-[adr-018-parser-neutral-runtime]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-018-parser-neutral-scenario-execution.md
-[adr-001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-001-async-fixtures-and-test.md
-[adr-007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md
-[adr-012]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-012-guard-based-stepcontext-borrowing.md
-[adr-013]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
+[adr-0018-parser-neutral-runtime]: https://github.com/leynos/rstest-bdd/blob/main/docs/adrs/adr-0018-parser-neutral-scenario-execution.md
+[adr-0001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adrs/adr-0001-async-fixtures-and-test.md
+[adr-0007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adrs/adr-0007-harness-context-injection.md
+[adr-0012]: https://github.com/leynos/rstest-bdd/blob/main/docs/adrs/adr-0012-guard-based-stepcontext-borrowing.md
+[adr-0013]: https://github.com/leynos/rstest-bdd/blob/main/docs/adrs/adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md
 [gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
 [v0-7-0-migration-guide]: https://github.com/leynos/rstest-bdd/blob/main/docs/v0-7-0-migration-guide.md

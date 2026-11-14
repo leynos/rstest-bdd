@@ -1,6 +1,6 @@
 //! Typed error surface for fixture borrowing.
 //!
-//! `StepContext` borrowing is guard-based (ADR-012): every borrow either
+//! `StepContext` borrowing is guard-based (ADR-0012): every borrow either
 //! succeeds with a guard or fails with a [`FixtureBorrowError`] explaining
 //! why. Borrow conflicts are reported as errors instead of `RefCell` panics
 //! so step wrappers and adapters can surface precise diagnostics.

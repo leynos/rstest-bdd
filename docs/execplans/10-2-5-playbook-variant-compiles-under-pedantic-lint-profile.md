@@ -18,8 +18,8 @@ Status: COMPLETE
 > toolchain versions, tag pins, and build-and-copy commands recorded below are
 > retained for the historical record only and no longer describe how the gate
 > runs. For the current compatibility contract see
-> [ADR-013 → Update (2026-07-20)](../adr-013-adopt-whitaker-no-unwrap-or-else-panic.md#update-2026-07-20-current-compatibility-contract)
-> and `docs/developers-guide.md` ("Whitaker Dylint suite lint gate (ADR-013)").
+> [ADR-0013 → Update (2026-07-20)](../adrs/adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md#update-2026-07-20-current-compatibility-contract)
+> and `docs/developers-guide.md` ("Whitaker Dylint suite lint gate (ADR-0013)").
 
 ## Purpose / big picture
 
@@ -204,11 +204,11 @@ Hard invariants; violation requires escalation, not a workaround.
   `make check-fmt`, `make lint`, and `make test` passed. The Dylint run still
   reports the existing Tokio compatibility-alias deprecation warning under the
   nightly driver, but not as a failing diagnostic.
-- [x] (Stage D — docs) design §2.7.6.2, ADR-013, developers' guide, users-guide
+- [x] (Stage D — docs) design §2.7.6.2, ADR-0013, developers' guide, users-guide
   playbook, CI, roadmap tick 10.2.5 + new v0.6.1 item; full gates green;
   CodeRabbit clean. Documentation implementation on 2026-06-21 updated the
   user-guide playbook to make `let … else { panic!(…) }` the primary accessor
-  form, updated design §2.7.6.2, added ADR-013, documented local/CI Whitaker
+  form, updated design §2.7.6.2, added ADR-0013, documented local/CI Whitaker
   setup in the developer guide, ticked roadmap 10.2.5, and added the v0.6.1
   full-Whitaker suite follow-up item. Validation passed with
   `make markdownlint`, `make check-fmt`, `make lint`, `make test`, and
@@ -456,8 +456,8 @@ Roadmap item 10.2.5 is delivered. The workspace no longer contains real Whitaker
 `no_unwrap_or_else_panic` hits, `make lint` now runs the pinned Whitaker lint
 after Clippy, and the GPUI playbook teaches the tested
 `let … else { panic!(…) }` accessor form as primary rather than as a future
-variant. ADR-013 records the decision and contributor tooling cost; the roadmap
-tracks full Whitaker-suite adoption separately under v0.6.1.
+variant. ADR-0013 records the decision and contributor tooling cost; the
+roadmap tracks full Whitaker-suite adoption separately under v0.6.1.
 
 Validation passed on 2026-06-21 with `mbake validate Makefile`,
 `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
@@ -546,8 +546,9 @@ Key pieces:
 - `docs/rstest-bdd-design.md` §2.7.6.2 carries the schematic interim pattern
   (uses `.ok_or`/`unwrap_or_else`) and already mentions a future lint-clean
   variant.
-- `docs/documentation-style-guide.md`: ADR naming `adr-NNN-short-description.md`
-  in `docs/`; next free number is **ADR-013**.
+- `docs/documentation-style-guide.md`: ADR filenames use the
+  `docs/adrs/adr-nnnn-title-slug.md` pattern; the next free number at the time
+  was **ADR-0013**.
 - `docs/developers-guide.md`: home for internally facing conventions (it already
   documents the GPUI mapping-table check); the Whitaker setup/run convention
   belongs here.
@@ -619,19 +620,19 @@ Stage D — docs, ADR, roadmap, CI:
    `.expect()`): `.expect()` is denied here too.
 2. `docs/rstest-bdd-design.md` §2.7.6.2: convert the schematic to the
    `let … else` form and update the lint-clean note to state the gate is
-   delivered; cite ADR-013.
-3. Create `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md` (Y-Statement
-   / style-guide format): Status `Accepted` + date; Context (downstream
-   pedantic profiles; this repo's own `unwrap_or_else(|| panic!())` escape
-   hatch arising from denying `expect`/`unwrap` even in tests; `let … else` is
-   the universal compliant form); Decision (enforce the single Whitaker lint
-   workspace-wide in `make lint` via Dylint, pinned to `v0.2.5`, repo stays on
-   stable; full-suite adoption deferred to v0.6.1); Options Considered (textual
-   proxy — rejected as redundant now the lint exists; full `whitaker --all`
-   suite — deferred; `whitaker-installer` vs `cargo dylint` mechanism — per
-   Stage 0); Consequences (contributor tooling + CI install + pin maintenance);
-   Known Limitations (`unreachable!`/`map_or_else` coverage per Stage 0
-   finding).
+   delivered; cite ADR-0013.
+3. Create `docs/adrs/adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md`
+   (Y-Statement / style-guide format): Status `Accepted` + date; Context
+   (downstream pedantic profiles; this repo's own `unwrap_or_else(|| panic!())`
+   escape hatch arising from denying `expect`/`unwrap` even in tests;
+   `let … else` is the universal compliant form); Decision (enforce the single
+   Whitaker lint workspace-wide in `make lint` via Dylint, pinned to `v0.2.5`,
+   repo stays on stable; full-suite adoption deferred to v0.6.1); Options
+   Considered (textual proxy — rejected as redundant now the lint exists; full
+   `whitaker --all` suite — deferred; `whitaker-installer` vs `cargo dylint`
+   mechanism — per Stage 0); Consequences (contributor tooling + CI install +
+   pin maintenance); Known Limitations (`unreachable!`/`map_or_else` coverage
+   per Stage 0 finding).
 4. `docs/developers-guide.md`: add a section on installing and running Whitaker
    locally (the `cargo install` one-liner or `make` helper, the pinned nightly
    note, and the exact `make lint` behaviour), and the pin-maintenance
@@ -712,7 +713,7 @@ Quality criteria ("done"):
 - Tests: `make test` passes (including the converted GPUI suite); no behaviour
   change.
 - Docs: `make markdownlint` passes; users-guide playbook teaches the
-  `let … else` accessor; design §2.7.6.2, ADR-013, developers' guide updated;
+  `let … else` accessor; design §2.7.6.2, ADR-0013, developers' guide updated;
   roadmap 10.2.5 ticked and the v0.6.1 full-suite item added.
 - No new workspace dependency; no public API change; repo stays on stable.
 
@@ -754,7 +755,7 @@ VisualTestContext::from_window(window, cx).unwrap_or_else(|| panic!("m"))
         else { panic!("m"); };
 ```
 
-Research citations to fold into ADR-013:
+Research citations to fold into ADR-0013:
 
 - Whitaker (Dylint lint library), tag `v0.2.5`, lint `no_unwrap_or_else_panic`
   — <https://github.com/leynos/whitaker>.
@@ -782,7 +783,7 @@ Post-delivery hardening also touched `pyproject.toml`,
 `crates/rstest-bdd-harness-tokio/tests/harness_behaviour.rs`, and
 `crates/rstest-bdd-harness-gpui/tests/harness_behaviour.rs`.
 
-New files: `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`.
+New files: `docs/adrs/adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md`.
 
 Tooling dependencies (dev/CI only, not in the workspace crate graph):
 `cargo-dylint`, `dylint-link`, and the git-sourced Whitaker lint library pinned
@@ -794,8 +795,8 @@ its own nightly driver.
 - Skills: `leta`, `rust-router` (loaded); `execplans` (this doc); `rust-errors`
   (panic boundary / `?` vs panic when converting sites); `rust-unit-testing`
   (if a shared accessor helper warrants happy/unhappy tests);
-  `arch-decision-records` (ADR-013); `commit-message`, `pr-creation` (delivery);
-  `logisphere-design-review` (used to review this plan).
+  `arch-decision-records` (ADR-0013); `commit-message`, `pr-creation`
+  (delivery); `logisphere-design-review` (used to review this plan).
 - Docs: `docs/users-guide.md` (deliverable), `docs/rstest-bdd-design.md`
   §2.7.6.1/§2.7.6.2, `docs/developers-guide.md`,
   `docs/documentation-style-guide.md`,
@@ -819,7 +820,7 @@ a proxy), converts the 38 existing `unwrap_or_else(|| panic!())` sites to
 `let … else { panic!(…) }` (the only form that also satisfies the workspace's
 `expect_used`/`unwrap_used`/`shadow_reuse` profile, since `.expect()`/
 `.unwrap()` are denied even in tests), adds a Stage 0 integration spike to
-de-risk Dylint, keeps the repo on stable, and reframes ADR-013 as "adopt
+de-risk Dylint, keeps the repo on stable, and reframes ADR-0013 as "adopt
 Whitaker no_unwrap_or_else_panic in the lint gate". The bespoke textual
 doc-sync script is dropped. Awaiting user approval before implementation.
 

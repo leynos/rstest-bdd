@@ -1,10 +1,10 @@
-# Architectural decision record (ADR) 002: stable step return classification
+# Architectural decision record (ADR) 0002: stable step return classification
 
 ## Status
 
 Accepted.
 
-> Amended by ADR-019 (2026-08-29). Step wrappers now use type-directed
+> Amended by ADR-0019 (2026-08-29). Step wrappers now use type-directed
 > dispatch for unhinted non-unit returns; the historical macro-only contract
 > below remains to explain the original stable-Rust decision.
 
@@ -60,7 +60,7 @@ type alias the macro cannot resolve, the macro trusts the hint and assumes
 compiler will surface a type error.
 
 Without a hint, an unresolved alias is now sent to the type-directed bridge
-defined by ADR-019. A fallible alias therefore behaves as its underlying
+defined by ADR-0019. A fallible alias therefore behaves as its underlying
 `Result`, while a genuine value alias remains a value. `value` still forces a
 payload interpretation, including for a genuine `Result`.
 
@@ -74,7 +74,7 @@ payload interpretation, including for a genuine `Result`.
   definition, rather than forcing a global nightly toolchain.
 - A downstream v0.6.0-beta3 trial exposed a correctness failure in the former
   best-effort default: a local alias of `Result<T, E>` was classified as a
-  value, so an `Err` became an opaque payload and the scenario passed. ADR-019
+  value, so an `Err` became an opaque payload and the scenario passed. ADR-0019
   closes that false green with inherent-method precedence, while retaining
   explicit hints for deliberate overrides and ambiguous syntactic forms.
 
@@ -87,14 +87,14 @@ payload interpretation, including for a genuine `Result`.
   unnecessarily disruptive for common `Result<T, E>` usage.
 - Wait for stable specialization/negative bounds: rejected because there is no
   stable timeline and it does not address immediate downstream compatibility.
-- Autoref specialization: not considered in 2025-12. ADR-019 evaluates and
+- Autoref specialization: not considered in 2025-12. ADR-0019 evaluates and
   rejects its caller-trait collision risk after an empirical probe.
 
 ## Amendments
 
 ### 2026-08-29: type-directed alias dispatch
 
-ADR-019 supplements macro-time syntax with a hidden runtime bridge for unhinted
-non-unit step returns. It does not reopen the scenario `ReturnKind` contract.
-The new bridge makes local aliases of `Result<T, E>` fallible without
+ADR-0019 supplements macro-time syntax with a hidden runtime bridge for
+unhinted non-unit step returns. It does not reopen the scenario `ReturnKind`
+contract. The new bridge makes local aliases of `Result<T, E>` fallible without
 misclassifying value aliases, and replaces the historical required-hint rule.

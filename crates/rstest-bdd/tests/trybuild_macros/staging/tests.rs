@@ -13,6 +13,10 @@ use super::*;
     "/workspace/target/llvm-cov-target/debug/deps/trybuild_macros-a1b2c3",
     "/workspace/target/llvm-cov-target"
 )]
+#[case::windows_coverage_build_output(
+    "/workspace/target/llvm-cov-target/debug/build/rstest-bdd/a1b2c3/out/trybuild_macros-a1b2c3",
+    "/workspace/target/llvm-cov-target"
+)]
 fn derives_target_root_from_test_executable(#[case] executable: &str, #[case] expected: &str) {
     assert_eq!(
         target_directory_from_test_executable(Utf8Path::new(executable)),
@@ -28,7 +32,7 @@ fn target_directory_uses_running_test_executable() {
         .and_then(Utf8Path::parent)
         .expect("workspace root must be two levels above the manifest directory");
     let expected = target_directory_from_running_test_executable()
-        .expect("integration tests should run from Cargo's `deps` directory");
+        .expect("integration test executable must use a recognized Cargo target layout");
 
     assert_eq!(trybuild_target_directory(workspace_root), expected);
 }

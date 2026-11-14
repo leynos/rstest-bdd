@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 024: Structural usage tracking in registry lookups
+# Architectural decision record (ADR) 0024: Structural usage tracking in registry lookups
 
 ## Status
 

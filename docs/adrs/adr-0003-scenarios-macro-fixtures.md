@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 003: `scenarios!` macro fixture injection
+# Architectural decision record (ADR) 0003: `scenarios!` macro fixture injection
 
 ## Status
 

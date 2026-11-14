@@ -537,8 +537,8 @@ interim thread-local pattern documented under
 > **Note: this is a v0.6 interim shape.**
 >
 > The thread-local scenario-state pattern below works around the v0.6
-> `StepContext::borrow_mut` contract ([ADR-007][adr-007]). The guard-based
-> redesign recorded in [ADR-012][adr-012] shipped in v0.7.0 and supersedes
+> `StepContext::borrow_mut` contract ([ADR-0007][adr-0007]). The guard-based
+> redesign recorded in [ADR-0012][adr-0012] shipped in v0.7.0 and supersedes
 > this workaround; see [Adopt guard-based `StepContext` borrowing
 > (v0.7.0)](#adopt-guard-based-stepcontext-borrowing-v070) for the migration
 > mapping.
@@ -612,9 +612,9 @@ For a worked-out example, see the regression suite at
 [stateful playbook][users-guide-playbook] subsection. The pattern's rationale
 lives in §§2.7.6.1–2.7.6.2 of the [rstest-bdd design](rstest-bdd-design.md).
 
-[adr-007]: adr-007-harness-context-injection.md
+[adr-0007]: adrs/adr-0007-harness-context-injection.md
 
-[adr-012]: adr-012-guard-based-stepcontext-borrowing.md
+[adr-0012]: adrs/adr-0012-guard-based-stepcontext-borrowing.md
 
 [design-beta2-quick-wins]: rstest-bdd-design.md#2763-v060-beta2-quick-wins
 
@@ -642,7 +642,7 @@ users-guide.md#published-gpui-022-stateful-step-variants
 
 > This subsection describes v0.7.0 behaviour, not a v0.6.0 change. It is
 > included here so readers upgrading off 0.6.x can plan the move in one
-> place. [ADR-012][adr-012] is the authoritative record.
+> place. [ADR-0012][adr-0012] is the authoritative record.
 
 `StepContext` borrow methods now take `&self` instead of `&mut self`. Guards
 for distinct fixtures — including multiple mutable guards — can be held
@@ -879,7 +879,7 @@ input set is updated.
 
 > This is a v0.6 interim workaround, superseded from v0.7.0. The limitation
 > is recorded in [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the
-> replacement guard-based borrow model shipped with [ADR-012][adr-012],
+> replacement guard-based borrow model shipped with [ADR-0012][adr-0012],
 > which lets one step borrow distinct mutable fixtures concurrently. Apply
 > the workarounds below only while staying on 0.6.x; on upgrade, declare
 > ordinary `&mut` fixture parameters and delete the thread-local reset
@@ -936,7 +936,7 @@ same shape with different mutability: `borrow_ref` holds a shared `&ctx` guard
 while `borrow_mut` needs an exclusive `&mut ctx` guard.
 
 Design §2.7.6.1 names this as a current `StepContext` design limitation, not a
-GPUI-only behaviour. ADR-007 keeps harness context injection under the reserved
+GPUI-only behaviour. ADR-0007 keeps harness context injection under the reserved
 `rstest_bdd_harness_context` fixture key, so the v0.6 answer is to change the
 step shape. At the Rust-language level, the borrow checker does not treat
 `HashMap` lookups at different keys as automatically disjoint; see the
@@ -981,8 +981,8 @@ the playbook redirect instead.
   state pattern.
 - [rstest-bdd design §2.7.6.5][design-redesign] records the guard-based redesign
   shipped in v0.7.0.
-- [ADR-007][adr-007] records the harness-context injection contract.
-- [ADR-012][adr-012] records the guard-based `StepContext` borrowing redesign;
+- [ADR-0007][adr-0007] records the harness-context injection contract.
+- [ADR-0012][adr-0012] records the guard-based `StepContext` borrowing redesign;
   see also
   [Adopt guard-based `StepContext` borrowing (v0.7.0)](#adopt-guard-based-stepcontext-borrowing-v070)
   in this guide.
@@ -992,6 +992,6 @@ the playbook redirect instead.
 ## Further reading
 
 - [Developer's guide](developers-guide.md)
-- [ADR 006 – Fallible scenario functions](adr-006-fallible-scenario-functions.md)
-- [ADR 007 – Harness context injection](adr-007-harness-context-injection.md)
-- [ADR 009 – Consistent implicit fixture-name normalization](adr-009-consistent-implicit-fixture-name-normalization.md)
+- [ADR 0006 – Fallible scenario functions](adrs/adr-0006-fallible-scenario-functions.md)
+- [ADR 0007 – Harness context injection](adrs/adr-0007-harness-context-injection.md)
+- [ADR 0009 – Consistent implicit fixture-name normalization](adrs/adr-0009-consistent-implicit-fixture-name-normalization.md)

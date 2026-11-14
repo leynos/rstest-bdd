@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 018: expose parser-neutral scenario execution
+# Architectural decision record (ADR) 0018: expose parser-neutral scenario execution
 
 ## Status
 
@@ -53,7 +53,7 @@ the existing Gherkin and rstest integrations.
   a panic boundary.
 - Retain link-time step registration and typed fixture extraction for linked
   Rust step packs.
-- Coordinate the runner with ADR 012's guard-based `StepContext` borrowing and
+- Coordinate the runner with ADR 0012's guard-based `StepContext` borrowing and
   before- and after-scenario lifecycle direction.
 - Keep source locations accurate for frontends whose scenarios do not originate
   in `.feature` files.
@@ -76,7 +76,7 @@ the existing Gherkin and rstest integrations.
    step index and optional reason.
 7. A failure stops later steps and returns a structured failed outcome with the
    step index and execution error.
-8. Before-scenario and after-scenario lifecycle hooks run according to ADR 012,
+8. Before-scenario and after-scenario lifecycle hooks run according to ADR 0012,
    including after failure and skip.
 9. Existing generated tests can translate the structured outcome into their
    current Rust test-harness and reporting behaviour.
@@ -485,7 +485,7 @@ verification must cover policy, not merely API examples.
    `forced_failure` rule. Vary the programmatic, environment, and default
    sources of `fail_on_skipped`, then compare synchronous, asynchronous,
    macro-generated, and external-frontend paths using the same resolved value.
-4. **Lifecycle tests.** In coordination with ADR 012, prove before-scenario and
+4. **Lifecycle tests.** In coordination with ADR 0012, prove before-scenario and
    after-scenario hooks run exactly once on before failure, step pass, skip,
    failure, resolution or fixture failure, and panic or unwind. Assert primary
    failure precedence and secondary cleanup diagnostics.
@@ -531,7 +531,7 @@ lifecycle interactions grow beyond those tests.
   data; a poor ownership design could create copies or awkward lifetimes.
 - The macro migration temporarily maintains two execution paths for parity
   testing.
-- ADR 012's lifecycle work and this runner cannot be designed independently.
+- ADR 0012's lifecycle work and this runner cannot be designed independently.
 - A prebuilt Trymark binary still cannot discover arbitrary Rust step crates at
   runtime; custom Rust extensions require a linked runner.
 
@@ -556,7 +556,7 @@ lifecycle interactions grow beyond those tests.
 These follow-ups do not reopen the accepted contract. They cover delivery and
 packaging details after the Stage 1 compatibility review:
 
-- Choose the release timing for macro migration alongside ADR 012's planned
+- Choose the release timing for macro migration alongside ADR 0012's planned
   v0.7.0 breaking work.
 - Evaluate whether the `gherkin` dependency should become optional after the
   runner lands.

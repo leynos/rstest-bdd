@@ -29,12 +29,12 @@ use std::{
 
 use serde_json::Value;
 
-/// Per-invocation wall-clock bound for each nested `cargo` call. Realistic
-/// warm invocations finish in well under 60 s even on a two-core runner; this
-/// bound exists to turn a hang into a named, readable failure rather than
-/// letting nextest's slow-timeout kill the test with a runner-generated
-/// message.
-const CHILD_TIMEOUT: Duration = Duration::from_secs(300);
+/// Per-invocation wall-clock bound for each nested `cargo` call. Warm
+/// invocations finish in well under 60 s; a cold fixture build can take much
+/// longer while sharing package-cache and compiler admission with other
+/// worktrees. This bound still turns a sustained stall into a named failure
+/// before nextest's outer test timeout expires.
+const CHILD_TIMEOUT: Duration = Duration::from_secs(900);
 
 /// The environment applied to every nested `cargo` invocation, built once so
 /// run 1 and run 2 of the rebuild experiment are byte-identical.

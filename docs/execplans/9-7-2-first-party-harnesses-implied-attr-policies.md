@@ -8,9 +8,9 @@ Status: COMPLETE
 
 This plan covers roadmap item 9.7.2 only. It must be approved before
 implementation begins. While
-`docs/adr-008-harness-led-attribute-policy-defaults.md` remains in `Proposed`
-status, implementation remains contingent unless a maintainer explicitly
-authorizes it.
+`docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` remains in
+`Proposed` status, implementation remains contingent unless a maintainer
+explicitly authorizes it.
 
 ## Purpose / big picture
 
@@ -31,7 +31,7 @@ and the generated test attributes behave as though the caller had also written
 caller supplies an explicit `attributes = ...` override. The same rule applies
 to `rstest_bdd_harness::StdHarness` and `rstest_bdd_harness_gpui::GpuiHarness`.
 
-This matters because Architecture Decision Record (ADR) 008 makes
+This matters because Architecture Decision Record (ADR) 0008 makes
 `harness = ...` the lead user-facing configuration for first-party integrations
 while preserving the architectural split between `HarnessAdapter`, which
 controls runtime delegation, and `AttributePolicy`, which controls emitted test
@@ -48,12 +48,12 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
 
 - Explicit approval was received in this thread on 2026-05-14; continue
   implementation within the tolerances below.
-- Do not implement this plan while ADR-008 is still `Proposed` unless a
+- Do not implement this plan while ADR-0008 is still `Proposed` unless a
   maintainer explicitly authorizes contingent implementation.
 - Keep the scope to roadmap item 9.7.2. Do not complete roadmap items 9.7.3 or
   9.7.4 except for the minimum unit, behavioural, trybuild, and documentation
   updates needed to prove and explain the 9.7.2 behaviour.
-- Preserve the ADR-008 precedence order:
+- Preserve the ADR-0008 precedence order:
   1. explicit `attributes = ...`
   2. known first-party `harness = ...` mapping
   3. deprecated `runtime = "tokio-current-thread"` compatibility alias
@@ -99,7 +99,7 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
 - Interface: if any public trait, macro argument name, or existing public
   function signature must change, stop and escalate before continuing.
 - Dependencies: if a new external crate is required, stop and escalate.
-- Governance: if ADR-008 remains `Proposed`, stop before implementation unless
+- Governance: if ADR-0008 remains `Proposed`, stop before implementation unless
   explicit maintainer authorization is recorded in this plan.
 - Validation: if `make check-fmt`, `make lint`, or `make test` fails for an
   unrelated reason, capture the log path and stop before marking roadmap 9.7.2
@@ -115,7 +115,7 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
 
 ## Risks
 
-- Risk: the current code already appears to contain ADR-008-shaped
+- Risk: the current code already appears to contain ADR-0008-shaped
   `TestAttrPolicy` and harness hint resolution while the roadmap still leaves
   9.7.2 unchecked. Severity: high. Likelihood: high. Mitigation: start with a
   reconciliation milestone that proves whether behaviour is already present
@@ -156,7 +156,7 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
       `firecrawl-mcp` skills for this planning task.
 - [x] Confirmed the current branch is a task branch, not `main`.
 - [x] Reviewed `AGENTS.md`, `docs/roadmap.md`,
-      `docs/adr-008-harness-led-attribute-policy-defaults.md`, and
+      `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md`, and
       `docs/rstest-bdd-design.md` §§2.7.3-2.7.4.
 - [x] Used a Wyvern agent team for planning reconnaissance over the roadmap,
       ADR, design document, existing execplans, macro codegen path, and tests.
@@ -181,7 +181,7 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
 ## Surprises & Discoveries
 
 - The design document already contains a §2.7.4 section describing the
-  ADR-008 codegen refactoring, including `TestAttrPolicy`,
+  ADR-0008 codegen refactoring, including `TestAttrPolicy`,
   `ScenarioConfig.attribute_runtime`, and the shared policy crate lookup. This
   suggests the implementation may be partially or fully present and needs
   evidence reconciliation before further edits.
@@ -191,19 +191,19 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
 - `crates/rstest-bdd-policy/src/lib.rs` already contains canonical mappings
   for `StdHarness`, `TokioHarness`, and `GpuiHarness`.
 - The existing `docs/execplans/9-7-1-first-party-policy-hint-resolution.md`
-  records that 9.7.1 was delivered under maintainer authorization while ADR-008
-  remained `Proposed`; the same governance caveat applies here.
+  records that 9.7.1 was delivered under maintainer authorization while
+  ADR-0008 remained `Proposed`; the same governance caveat applies here.
 - Firecrawl found `https://docs.rs/rstest/latest/rstest/attr.rstest.html`,
   whose search result describes `rstest`'s own default test-attribute
   behaviour. This supports treating harness-led default attributes as prior
   art, but the implementation must still follow this repository's stricter
-  ADR-008 precedence rules.
+  ADR-0008 precedence rules.
 - On 2026-05-14, `leta workspace add .` confirmed the workspace was already
   registered, but `leta grep` could not start `rust-analyzer` through the LSP
   bridge. Reconciliation therefore uses targeted `rg` searches and direct
   symbol-oriented file reads until the local LSP daemon is healthy.
 - On 2026-05-14 at 21:13Z, focused reconciliation showed the production
-  ADR-008 resolver path was already present: `generate_test_attrs` receives
+  ADR-0008 resolver path was already present: `generate_test_attrs` receives
   `TestAttrPolicy` from both regular and outline generation, and `scenarios!`
   threads resolved harness paths while retaining the original runtime for
   attribute fallback. The implementation milestone therefore adds missing
@@ -246,12 +246,12 @@ attribute de-duplication still prevents duplicate `#[tokio::test]` and
 
 - Decision: proceed with contingent implementation on 2026-05-14. Rationale:
   the maintainer explicitly approved implementation in this thread despite the
-  plan's ADR-008 governance caveat.
+  plan's ADR-0008 governance caveat.
 - Decision: make the first implementation milestone a reconciliation pass, not
   an immediate rewrite. Rationale: local code and docs already show the
-  expected ADR-008 resolver shape, and rewriting a working path would increase
+  expected ADR-0008 resolver shape, and rewriting a working path would increase
   risk without improving behaviour.
-- Decision: keep third-party inference out of scope. Rationale: ADR-008
+- Decision: keep third-party inference out of scope. Rationale: ADR-0008
   explicitly limits default inference to known first-party paths because Rust
   procedural macros cannot evaluate arbitrary trait methods during expansion.
 - Decision: treat tests as the likely centre of the change unless
@@ -346,7 +346,7 @@ evidence in `Progress`.
 ### Milestone 2: Complete code generation
 
 If reconciliation shows code is missing or incomplete, update the smallest code
-path that keeps ADR-008 precedence centralized. The preferred shape is:
+path that keeps ADR-0008 precedence centralized. The preferred shape is:
 
 - `ScenarioConfig` continues to carry both `runtime` for execution and
   `attribute_runtime` for attribute fallback.
@@ -428,8 +428,9 @@ these files for accuracy:
   and codegen refactoring description.
 - `docs/developers-guide.md`, especially first-party canonical path and
   trybuild conventions.
-- `docs/adr-008-harness-led-attribute-policy-defaults.md`, only if a design
-  decision changes or the implementation reveals a substantive clarification.
+- `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md`, only if a
+  design decision changes or the implementation reveals a substantive
+  clarification.
 - `docs/roadmap.md`, marking item 9.7.2 done only after implementation,
   documentation, gates, and review are complete.
 
@@ -513,7 +514,7 @@ changes, update this plan before implementing.
 Relevant repository documents:
 
 - `docs/roadmap.md` item 9.7.2 for the requested finish line.
-- `docs/adr-008-harness-led-attribute-policy-defaults.md` for the accepted
+- `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` for the accepted
   precedence model, pending governance status, and first-party mappings.
 - `docs/rstest-bdd-design.md` §§2.7.3-2.7.4 for macro integration and
   codegen structure.
@@ -543,12 +544,12 @@ Relevant skills for implementation:
 ## Outcomes & Retrospective
 
 Roadmap item 9.7.2 is delivered as a coverage-and-documentation completion
-because reconciliation showed the production ADR-008 codegen path already
+because reconciliation showed the production ADR-0008 codegen path already
 implemented the requested precedence order. The branch adds regression tests
 for synchronous Tokio harness omission, first-party attribute de-duplication,
 and harness-only Tokio `scenarios!` expansion with an async step. The roadmap
 entry is marked done with the same "delivered under maintainer authorization
-while ADR-008 remains Proposed" caveat used for 9.7.1.
+while ADR-0008 remains Proposed" caveat used for 9.7.1.
 
 CodeRabbit raised one valid concern during the first milestone: the new Tokio
 `scenarios!` trybuild fixture initially used only synchronous steps. That was

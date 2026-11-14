@@ -8,9 +8,9 @@ Status: COMPLETE
 
 This plan covers roadmap item 9.7.4 only. It must be approved before
 implementation begins. While
-`docs/adr-008-harness-led-attribute-policy-defaults.md` remains in `Proposed`
-status, implementation remains contingent unless a maintainer explicitly
-authorizes it.
+`docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` remains in
+`Proposed` status, implementation remains contingent unless a maintainer
+explicitly authorizes it.
 
 ## Purpose / big picture
 
@@ -42,12 +42,12 @@ repository gates.
 
 - The maintainer approved implementation on 2026-05-26 by asking Codex to
   proceed with the planned functionality.
-- Treat implementation as contingent while ADR-008 remains `Proposed`, unless
+- Treat implementation as contingent while ADR-0008 remains `Proposed`, unless
   the maintainer explicitly authorizes contingent implementation.
 - Keep scope to roadmap item 9.7.4. Do not redesign the harness adapter layer,
   attribute policy resolver, macro argument syntax, or first-party adapter
   crates.
-- Preserve the ADR-008 precedence order:
+- Preserve the ADR-0008 precedence order:
   1. explicit `attributes = ...`
   2. known first-party `harness = ...` mapping
   3. deprecated `runtime = "tokio-current-thread"` compatibility alias
@@ -57,7 +57,7 @@ repository gates.
   `AttributePolicy::test_attributes()` implementations are not evaluated during
   procedural macro expansion, so unknown third-party harnesses must document
   explicit `attributes = ...` use where custom test attributes are required.
-- Preserve ADR-005a crate boundaries. Tokio and GPUI dependencies must remain
+- Preserve ADR-0025 crate boundaries. Tokio and GPUI dependencies must remain
   in opt-in adapter crates, not in `rstest-bdd`, `rstest-bdd-macros`, or
   `rstest-bdd-harness`.
 - Update `docs/v0-6-0-migration-guide.md` for every stage 9.7 change that
@@ -97,7 +97,7 @@ repository gates.
 - Interface: if any public trait, macro argument, crate feature, or documented
   public API signature must change, stop and escalate.
 - Dependencies: if a new external dependency is required, stop and escalate.
-- Governance: if ADR-008 is still `Proposed` at implementation time, stop
+- Governance: if ADR-0008 is still `Proposed` at implementation time, stop
   before changing canonical guidance unless maintainer authorization is
   recorded in `Decision Log`.
 - Validation: if `make check-fmt`, `make lint`, `make typecheck`, or
@@ -109,16 +109,16 @@ repository gates.
   design decision rather than a mechanical documentation fix, record it in
   `Decision Log` and ask for direction.
 - Ambiguity: if `docs/users-guide.md`, `docs/rstest-bdd-design.md`,
-  `docs/v0-6-0-migration-guide.md`, ADR-008, and the implementation disagree on
-  first-party inference or third-party caveats, stop and present the
+  `docs/v0-6-0-migration-guide.md`, ADR-0008, and the implementation disagree
+  on first-party inference or third-party caveats, stop and present the
   interpretations.
 
 ## Risks
 
-- Risk: documentation could overstate ADR-008 while the ADR remains
+- Risk: documentation could overstate ADR-0008 while the ADR remains
   `Proposed`. Severity: high. Likelihood: medium. Mitigation: keep the plan
-  contingent until approval and, during implementation, either wait for ADR-008
-  acceptance or record explicit maintainer authorization.
+  contingent until approval and, during implementation, either wait for
+  ADR-0008 acceptance or record explicit maintainer authorization.
 - Risk: examples could imply all harnesses infer attribute policies.
   Severity: high. Likelihood: medium. Mitigation: keep first-party wording
   narrow and repeat that third-party harnesses need explicit policy guidance
@@ -158,7 +158,7 @@ repository gates.
 - [x] (2026-05-24T16:36:48Z) Created context pack `pk_c63lbw6a` for the
       Wyvern-assisted planning activity.
 - [x] (2026-05-24T16:36:48Z) Used a Wyvern agent team for read-only planning
-      reconnaissance over the roadmap, ADR-008, user guide, design document,
+      reconnaissance over the roadmap, ADR-0008, user guide, design document,
       migration guide, and first-party examples.
 - [x] (2026-05-24T16:36:48Z) Used Firecrawl to verify external tooling
       assumptions for CodeRabbit CLI `--agent` mode and Markdown linting.
@@ -229,9 +229,9 @@ repository gates.
 ## Surprises & discoveries
 
 - Observation: roadmap items 9.7.1, 9.7.2, and 9.7.3 are already marked
-  delivered while ADR-008 remains `Proposed`. Evidence: `docs/roadmap.md`
+  delivered while ADR-0008 remains `Proposed`. Evidence: `docs/roadmap.md`
   records the items as delivered under maintainer authorization;
-  `docs/adr-008-harness-led-attribute-policy-defaults.md` still says
+  `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` still says
   `Status: Proposed`. Impact: this plan keeps implementation contingent and
   avoids marking 9.7.4 done during plan drafting.
 - Observation: `docs/users-guide.md` already recommends harness-led defaults
@@ -267,13 +267,13 @@ repository gates.
   test name macro_compile". Impact: the plan branch includes a separate
   gate-unblocking manifest cleanup so `make check-fmt`, `make lint`,
   `make typecheck`, and `make test` can run.
-- Observation: implementation approval arrived while ADR-008 still says
+- Observation: implementation approval arrived while ADR-0008 still says
   `Status: Proposed`. Evidence: the maintainer asked Codex on 2026-05-26 to
   proceed with this ExecPlan;
-  `docs/adr-008-harness-led-attribute-policy-defaults.md` still has proposed
-  status. Impact: proceed under explicit maintainer authorization and record
-  that the canonical documentation change is still tied to ADR-008's staged
-  rollout.
+  `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` still has
+  proposed status. Impact: proceed under explicit maintainer authorization and
+  record that the canonical documentation change is still tied to ADR-0008's
+  staged rollout.
 - Observation: `docs/users-guide.md` contains duplicated GPUI override snippets
   inside the Tokio harness section and a forward-looking 9.7.4 note. Evidence:
   the audit found repeated `my_gpui_scenario_with_explicit_override` examples
@@ -322,7 +322,7 @@ repository gates.
   new ExecPlan and overlap the documentation implementation area that must wait
   for plan approval. Date/Author: 2026-05-24T16:36:48Z / Codex.
 - Decision: Treat the user's 2026-05-26 "proceed with implementation" request
-  as the required approval gate for the plan and for contingent ADR-008
+  as the required approval gate for the plan and for contingent ADR-0008
   documentation work. Rationale: the request explicitly names this ExecPlan and
   asks for implementation of the planned functionality. Date/Author:
   2026-05-26T00:00:00+02:00 / Codex.
@@ -354,14 +354,14 @@ findings. Roadmap item 9.7.4 is marked done.
 
 ## Context and orientation
 
-The harness adapter architecture comes from [ADR-005a][adr-005a] and is
+The harness adapter architecture comes from [ADR-0025][adr-0025] and is
 documented in the linked decision record. It keeps framework-specific runtime
 integration out of the core runtime and macro crates. The shared
 `rstest-bdd-harness` crate defines `HarnessAdapter`, `ScenarioRunRequest`,
 `ScenarioRunner`, `AttributePolicy`, and `DefaultAttributePolicy`.
 
-ADR-008 proposes the harness-led default rule for first-party integrations. The
-rule keeps `HarnessAdapter` and `AttributePolicy` separate, but it makes
+ADR-0008 proposes the harness-led default rule for first-party integrations.
+The rule keeps `HarnessAdapter` and `AttributePolicy` separate, but it makes
 `harness = ...` the lead user decision for known first-party harnesses. If the
 caller writes `harness = rstest_bdd_harness_tokio::TokioHarness` and omits
 `attributes = ...`, the macro infers the Tokio first-party attribute policy.
@@ -371,14 +371,14 @@ The same model applies to `rstest_bdd_harness_gpui::GpuiHarness`. An explicit
 Roadmap items 9.7.1, 9.7.2, and 9.7.3 have already delivered resolver,
 code-generation, unit, trybuild, and behavioural coverage for the rule. This
 plan updates the documentation and first-party examples so the public guidance
-matches that delivered behaviour once ADR-008 is accepted or explicitly
+matches that delivered behaviour once ADR-0008 is accepted or explicitly
 authorized for contingent documentation.
 
 Important repository files:
 
 - `docs/roadmap.md` contains item 9.7.4 and must be marked done only after
   implementation, validation, and review complete.
-- `docs/adr-008-harness-led-attribute-policy-defaults.md` defines the
+- `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` defines the
   proposed precedence and caveats.
 - `docs/users-guide.md` is the main user-facing guide and currently contains
   mixed harness-led and explicit-pair examples.
@@ -406,10 +406,10 @@ Relevant background documents to signpost during implementation:
 
 ## Plan of work
 
-Stage A is the approval and readiness checkpoint. Confirm whether ADR-008 has
+Stage A is the approval and readiness checkpoint. Confirm whether ADR-0008 has
 been accepted. If it remains `Proposed`, record maintainer authorization before
 implementing documentation that presents harness-led defaults as canonical.
-Re-read `docs/roadmap.md` item 9.7.4, ADR-008, the 9.7.1 to 9.7.3 execplans,
+Re-read `docs/roadmap.md` item 9.7.4, ADR-0008, the 9.7.1 to 9.7.3 execplans,
 and the current guide/design/migration/example surfaces. Do not edit files in
 this stage except for keeping this ExecPlan current.
 
@@ -437,9 +437,9 @@ Stage D updates the design document. In `docs/rstest-bdd-design.md`, align the
 architecture summary and first-party plugin target sections with harness-led
 defaults as the recommended first-party user path. Keep internal details about
 path-based recognition, `TestAttrPolicy`, `resolve_attribute_policy`, and the
-ADR-008 precedence order. If the implementation work requires a substantive new
-design decision, update ADR-008 or create a new ADR before changing the design
-document; otherwise, cite ADR-008 as the governing decision.
+ADR-0008 precedence order. If the implementation work requires a substantive
+new design decision, update ADR-0008 or create a new ADR before changing the
+design document; otherwise, cite ADR-0008 as the governing decision.
 
 Stage E updates first-party examples. In `examples/tokio-reminders/README.md`
 and `examples/gpui-counter/README.md`, replace prose that says examples bind
@@ -529,7 +529,7 @@ cat > "$COMMIT_MSG_DIR/COMMIT_MSG.md" << 'ENDOFMSG'
 Update harness-led defaults guidance
 
 Align the guide, design document, migration guide, and first-party examples
-with the ADR-008 harness-led default configuration model.
+with the ADR-0008 harness-led default configuration model.
 ENDOFMSG
 git commit -F "$COMMIT_MSG_DIR/COMMIT_MSG.md"
 rm -rf "$COMMIT_MSG_DIR"
@@ -581,13 +581,13 @@ to validate the intended files.
 
 If CodeRabbit reports findings, update the relevant documentation or this plan
 and rerun deterministic gates before invoking CodeRabbit again. If a finding
-contradicts ADR-008, record the conflict and ask for maintainer direction.
+contradicts ADR-0008, record the conflict and ask for maintainer direction.
 
 ## Artifacts and notes
 
 Wyvern reconnaissance identified these high-signal planning facts:
 
-- ADR-008 is still `Proposed`, so 9.7.4 is contingent until acceptance or
+- ADR-0008 is still `Proposed`, so 9.7.4 is contingent until acceptance or
   explicit maintainer authorization.
 - 9.7.1, 9.7.2, and 9.7.3 are already delivered, so implementation should not
   change resolver behaviour unless documentation exposes a real mismatch.
@@ -649,8 +649,8 @@ fn my_gpui_scenario_with_explicit_override() {}
 ## Revision note
 
 Initial draft created on 2026-05-24. It captures the plan approval gate,
-ADR-008 contingency, Wyvern reconnaissance, Firecrawl tooling check, expected
+ADR-0008 contingency, Wyvern reconnaissance, Firecrawl tooling check, expected
 documentation surfaces, validation commands, CodeRabbit review points, and the
 pull request requirements for the pre-implementation plan branch.
 
-[adr-005a]: docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md
+[adr-0025]: ../adrs/adr-0025-harness-adapter-crates-for-framework-specific-test-integration.md
