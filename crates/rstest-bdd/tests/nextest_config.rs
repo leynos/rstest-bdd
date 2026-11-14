@@ -56,6 +56,11 @@ const FEATURE_REBUILD_BINARY: &str = "rstest-bdd::feature_rebuild_invalidation";
 const BINARY_TEST_SUPPORT_BINARY: &str = "rstest-bdd-harness::binary_test_support_cargo";
 const CARGO_BDD_CLI_BINARY: &str = "cargo-bdd::cli";
 
+struct ExpectedCargoSpawningOverride {
+    binary_id: &'static str,
+    period: &'static str,
+}
+
 #[test]
 fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;
@@ -124,26 +129,34 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
 
 #[test]
 fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
-    assert_cargo_spawning_override(FEATURE_REBUILD_BINARY, "30m")
+    assert_cargo_spawning_override(&ExpectedCargoSpawningOverride {
+        binary_id: FEATURE_REBUILD_BINARY,
+        period: "30m",
+    })
 }
 
 #[test]
 fn binary_test_support_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
-    assert_cargo_spawning_override(BINARY_TEST_SUPPORT_BINARY, "20m")
+    assert_cargo_spawning_override(&ExpectedCargoSpawningOverride {
+        binary_id: BINARY_TEST_SUPPORT_BINARY,
+        period: "20m",
+    })
 }
 
 #[test]
 fn cargo_bdd_cli_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
-    assert_cargo_spawning_override(CARGO_BDD_CLI_BINARY, "20m")
+    assert_cargo_spawning_override(&ExpectedCargoSpawningOverride {
+        binary_id: CARGO_BDD_CLI_BINARY,
+        period: "20m",
+    })
 }
 
 fn assert_cargo_spawning_override(
-    binary_id: &str,
-    expected_period: &str,
+    expected: &ExpectedCargoSpawningOverride,
 ) -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;
     let overrides = default_overrides(&configuration)?;
-    let filter = format!("binary_id({binary_id})");
+    let filter = format!("binary_id({})", expected.binary_id);
     let matching = overrides
         .iter()
         .filter(|override_value| {
@@ -153,7 +166,8 @@ fn assert_cargo_spawning_override(
     assert_eq!(
         matching.len(),
         1,
-        "{binary_id} must have exactly one exact nextest override",
+        "{} must have exactly one exact nextest override",
+        expected.binary_id,
     );
     let override_value = matching
         .first()
@@ -164,7 +178,7 @@ fn assert_cargo_spawning_override(
         .ok_or_else(|| io::Error::other("cargo-spawning override must set slow-timeout"))?;
     assert_eq!(
         slow_timeout.get("period").and_then(Value::as_str),
-        Some(expected_period)
+        Some(expected.period)
     );
     assert_eq!(
         slow_timeout
@@ -182,9 +196,10 @@ fn assert_cargo_spawning_override(
     );
     let global_timeout = default_global_timeout(&configuration)?;
     assert!(
-        duration_seconds(global_timeout)? > duration_seconds(expected_period)?,
+        duration_seconds(global_timeout)? > duration_seconds(expected.period)?,
         "the default profile's global timeout ({global_timeout}) must exceed the cargo-spawning \
-         timeout ({expected_period})",
+         timeout ({})",
+        expected.period,
     );
     Ok(())
 }

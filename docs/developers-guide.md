@@ -905,6 +905,13 @@ trybuild scratch directory by querying `cargo metadata` for the workspace
 `Result<PathBuf, Box<dyn Error>>` and is consumed by
 `stage_trybuild_support_files` in each harness crate's `macro_compile.rs` test.
 
+The core `rstest-bdd` trybuild support derives its target root from the running
+test executable because `cargo metadata` cannot see a `cargo llvm-cov`
+`--target-dir` override. It recognizes Cargo's usual `debug/deps` layout and
+the Windows coverage layout `debug/build/<package>/<hash>/out`. The
+`derives_target_root_from_test_executable` contract covers both; keep this
+layout handling private to `crates/rstest-bdd/tests/trybuild_macros/staging.rs`.
+
 ## Rust documentation policy and gates
 
 The workspace denies missing documentation on Rust items and crate roots. It
@@ -1057,10 +1064,14 @@ The file sets the timeout policy for the test suite:
   timeout must stay above the largest per-test budget below, or the run is
   killed before a test with that budget can finish;
   `trybuild_nextest_override_preserves_timeout_contract` enforces the ordering.
-- A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 20
-  minutes for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build
+- The first `[[profile.default.overrides]]` entry raises the `slow-timeout` to
+  20 minutes for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build
   fixture crates and can legitimately exceed 60 s on cold caches.
-- A second override raises the `slow-timeout` further, to 40 minutes, for the
+- A second override raises the `slow-timeout` to 20 minutes for
+  `rstest-bdd-harness::binary_test_support_cargo`. These support tests invoke
+  nested Cargo metadata and build commands, including from failure cases, and
+  need time to finish while the shared package cache or compiler slots are busy.
+- A third override raises the `slow-timeout` to 120 minutes for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, `rstest-bdd::trybuild_macros`, and
@@ -1074,7 +1085,7 @@ The file sets the timeout policy for the test suite:
   sequence, so the 120-minute allowance covers a full cold-cache rebuild under
   that contention without treating slow, healthy compiler work as a hung test.
   The strict 60 s default remains in force elsewhere.
-- A third override raises the `slow-timeout` to 30 minutes for
+- A fourth override raises the `slow-timeout` to 30 minutes for
   `rstest-bdd::feature_rebuild_invalidation`, whose scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition. Each
   nested invocation has a 900 s child bound. A 2026-11-13 run exceeded the
@@ -1089,6 +1100,12 @@ The file sets the timeout policy for the test suite:
   of roughly ten nested invocations, or 4,570 s total. An 8,700 s ceiling
   therefore leaves 4,130 s above that projection, exceeding the required 600 s
   reserve.
+
+The Rust contract in `crates/rstest-bdd/tests/nextest_config.rs` checks these
+exact filters and periods. Its private `ExpectedCargoSpawningOverride` value
+pairs a binary ID with its period for the three shared assertions; keep that
+value within the test module rather than using it as a general configuration
+model.
 
   Milestone 1 of that risk measured a cold nested-fixture build before and
   after the alignment work. The "before" figure is a fixture resolving 30
@@ -1798,7 +1815,9 @@ its own contract test, driven over documents written for each form it reads.
   session-scoped `tmp_path_factory` so the property needs no
   `function_scoped_fixture` suppression, and `lockfile_refresh_support_test.py`
   holds its guarantees, and the property's `deadline=None` with no suppressed
-  health check, as contracts.
+  health check, as contracts. The module's `run_fragment` helper removes
+  `BASH_ENV` from its child environment so a host Bash startup file cannot
+  rewrite `PATH` and bypass the recording Git stub.
 - `pr_concurrency_support` answers whether a pull request can start a
   workflow (`is_pull_request_startable`, through `pull_request_reach`'s trigger
   reader) and what is wrong with its `concurrency` block
