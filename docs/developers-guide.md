@@ -912,6 +912,13 @@ the environment, so preparation and the timed case describe the same tree.
 `Cargo.toml` and the staged `.feature` files. It is consumed by
 `stage_trybuild_support_files` in each harness crate's `macro_compile.rs` test.
 
+The core `rstest-bdd` trybuild support derives its target root from the running
+test executable because `cargo metadata` cannot see a `cargo llvm-cov`
+`--target-dir` override. It recognizes Cargo's usual `debug/deps` layout and
+the Windows coverage layout `debug/build/<package>/<hash>/out`. The
+`derives_target_root_from_test_executable` contract covers both; keep this
+layout handling private to `crates/rstest-bdd/tests/trybuild_macros/staging.rs`.
+
 ### Trybuild tree preparation
 
 `TrybuildTree::new(crate_root, target_subdir, family, variant)` describes one
@@ -1535,6 +1542,12 @@ The file sets the timeout policy for the test suite:
   of roughly ten nested invocations, or 4,570 s total. An 8,700 s ceiling
   therefore leaves 4,130 s above that projection, exceeding the required 600 s
   reserve.
+
+The Rust contract in `crates/rstest-bdd/tests/nextest_config.rs` checks these
+exact filters and periods. Its private `ExpectedCargoSpawningOverride` value
+pairs a binary ID with its period for the three shared assertions; keep that
+value within the test module rather than using it as a general configuration
+model.
 
   Milestone 1 of that risk measured a cold nested-fixture build before and
   after the alignment work. The "before" figure is a fixture resolving 30
@@ -2256,7 +2269,9 @@ its own contract test, driven over documents written for each form it reads.
   session-scoped `tmp_path_factory` so the property needs no
   `function_scoped_fixture` suppression, and `lockfile_refresh_support_test.py`
   holds its guarantees, and the property's `deadline=None` with no suppressed
-  health check, as contracts.
+  health check, as contracts. The module's `run_fragment` helper removes
+  `BASH_ENV` from its child environment so a host Bash startup file cannot
+  rewrite `PATH` and bypass the recording Git stub.
 - `pr_concurrency_support` answers whether a pull request can start a
   workflow (`is_pull_request_startable`, through `pull_request_reach`'s trigger
   reader) and what is wrong with its `concurrency` block
