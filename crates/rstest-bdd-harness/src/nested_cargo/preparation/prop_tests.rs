@@ -38,15 +38,57 @@ type Tree = BTreeMap<String, Vec<u8>>;
 /// producing another ordinary file.
 const EXCLUDED: [&str; 3] = ["target", "wip", ".git"];
 
+/// A lowercase segment that can be created as a file or directory on every
+/// platform the suite runs on.
+///
+/// The filter belongs to the strategy rather than to its callers so a path
+/// cannot be built from a segment no filesystem will accept. See
+/// [`is_windows_reserved`].
+fn ordinary_segment() -> impl Strategy<Value = String> {
+    "[a-z][a-z0-9_]{0,6}".prop_filter("a segment must name an ordinary file", |segment| {
+        !is_windows_reserved(segment)
+    })
+}
+
+/// Whether `segment` names a Windows device rather than a file.
+///
+/// `write_tree` really creates these paths, so the alphabet has to exclude a
+/// name no Windows filesystem can hold. `CON`, `PRN`, `AUX`, `NUL`, `COM1` to
+/// `COM9` and `LPT1` to `LPT9` are reserved by the Win32 path parser, which
+/// maps them to devices before NTFS is reached; the match is case-insensitive
+/// and survives an extension. Creating `nul/a` on Windows therefore fails with
+/// `ERROR_PATH_NOT_FOUND`, not by rejecting the name: the reserved name is
+/// resolved as a device, so it has no directory to descend into. That is what
+/// run 43617094223's `build-test (windows, default features)` lane reported as
+/// `input file: Os { code: 3, kind: NotFound }` for its minimal input
+/// `tree = { "nul/a": [] }`.
+///
+/// Filtering here rather than at the call site keeps both strategies honest:
+/// `excluded_path` writes entries too, so a reserved name there fails the same
+/// way.
+fn is_windows_reserved(segment: &str) -> bool {
+    let lowered = segment.to_ascii_lowercase();
+    if ["con", "prn", "aux", "nul"].contains(&lowered.as_str()) {
+        return true;
+    }
+    ["com", "lpt"].iter().any(|family| {
+        lowered.strip_prefix(family).is_some_and(|digit| {
+            digit.len() == 1 && digit.chars().next().is_some_and(|n| matches!(n, '1'..='9'))
+        })
+    })
+}
+
 /// A relative path of one to three segments, none of them excluded.
 ///
 /// The segment alphabet can spell `target` and `wip`, so a filter is required
 /// rather than merely tidy: an "input" carrying a build-output name is not an
 /// input at all, and a property that picked it would compare two hashes that
 /// are equal because both were skipped.
+///
+/// Segments come from [`ordinary_segment`], so the alphabet cannot spell a
+/// Windows device name either. See [`is_windows_reserved`].
 fn input_path() -> impl Strategy<Value = String> {
-    let segment = "[a-z][a-z0-9_]{0,6}";
-    proptest::collection::vec(segment, 1..=3)
+    proptest::collection::vec(ordinary_segment(), 1..=3)
         .prop_map(|segments| segments.join("/"))
         .prop_filter(
             "an input path must not carry a build-output segment",
@@ -61,12 +103,15 @@ fn input_path() -> impl Strategy<Value = String> {
 /// excluded alike. A generator that only ever produced a root-level name would
 /// leave the recursive half of that rule untested, which is why a prefix of up
 /// to two ordinary segments is generated too.
+///
+/// Those prefixes are written to disk as directories, so they carry the same
+/// reserved-name exclusion as [`input_path`]: a `nul/target` entry fails to
+/// create on Windows before the hash is ever compared.
 fn excluded_path() -> impl Strategy<Value = String> {
-    let leaf = "[a-z][a-z0-9_]{0,6}";
     let (prefix, root, tail) = (
-        proptest::collection::vec(leaf, 0..=2),
+        proptest::collection::vec(ordinary_segment(), 0..=2),
         proptest::sample::select(EXCLUDED.as_slice()),
-        proptest::collection::vec(leaf, 0..=2),
+        proptest::collection::vec(ordinary_segment(), 0..=2),
     );
     (prefix, root, tail).prop_map(|(prefix, root, tail)| {
         prefix
@@ -248,6 +293,35 @@ proptest! {
 /// the first segment would make every property here agree with a rule the
 /// implementation does not have.
 fn is_excluded(path: &str) -> bool { path.split('/').any(|segment| EXCLUDED.contains(&segment)) }
+
+/// The generator refuses exactly the Windows device names, and no others.
+///
+/// Run 43617094223 failed on `tree = { "nul/a": [] }`: `write_tree` reached
+/// `fs::write` and Windows resolved `nul` as a device, so no directory could be
+/// created for it. A property generator that can spell such a name will
+/// eventually spell it, so the exclusion has to be complete rather than lucky.
+/// The positive half is what keeps the filter from over-reaching: `nul_`,
+/// `null`, `com0` and `lpt` are ordinary names, and rejecting them would lose
+/// real coverage.
+#[test]
+fn windows_device_names_are_the_only_segments_excluded() {
+    for reserved in [
+        "con", "prn", "aux", "nul", "com1", "com9", "lpt1", "lpt9", "CON", "Nul", "COM5",
+    ] {
+        assert!(
+            is_windows_reserved(reserved),
+            "{reserved} is a Windows device name and cannot be created as a file"
+        );
+    }
+    for ordinary in [
+        "nul_", "null", "con_", "console", "com0", "com10", "lpt", "lpt0", "lpt10", "a", "target",
+    ] {
+        assert!(
+            !is_windows_reserved(ordinary),
+            "{ordinary} is an ordinary name and excluding it would lose coverage"
+        );
+    }
+}
 
 /// The stamp's own file is not an input, so a family that stamps a root does
 /// not thereby invalidate its own fingerprint.
