@@ -145,7 +145,7 @@ fn configuration_reaches_the_handlers_from_every_source(
         variables: case.variables,
     })?;
 
-    assert_successful_json_listing(&output);
+    assert_successful_json_listing!(&output);
     Ok(())
 }
 
@@ -173,6 +173,6 @@ fn configuration_rejects_json_without_skipped_from_every_source(
         variables: case.variables,
     })?;
 
-    assert_invalid_configuration_error(&output);
+    assert_invalid_configuration_error!(&output);
     Ok(())
 }
