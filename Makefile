@@ -209,7 +209,7 @@ typecheck: build-python ## Run cargo and Python type checks with warnings denied
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
 PUBLISHED_GPUI_E2E_DIR := tests/fixtures/published-gpui-e2e
 PUBLISHED_GPUI_E2E_STAGE_DIR := target/published-gpui-e2e
-PUBLISHED_GPUI_E2E_VERSION := 0.6.0
+PUBLISHED_GPUI_E2E_VERSION := 0.7.0
 PUBLISHED_GPUI_E2E_PACKAGES := \
 	rstest-bdd-patterns \
 	rstest-bdd-policy \
