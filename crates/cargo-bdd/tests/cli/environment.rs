@@ -7,7 +7,7 @@
 //! compiled units, and any inherited `CARGO_BDD_*` variable must be dropped
 //! because the binary reads that prefix as a configuration tier.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 
 use super::{cli_child_environment, workspace_root};
 
@@ -57,8 +57,8 @@ fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io:
 /// installs. See `cli_child_environment_keeps_userprofile_inherited`.
 #[cfg(unix)]
 #[test]
-fn cli_child_environment_redirects_every_discovery_root() {
-    let child = cli_child_environment(Vec::new());
+fn cli_child_environment_redirects_every_discovery_root() -> std::io::Result<()> {
+    let child = cli_child_environment(Vec::new())?;
 
     let mut roots = Vec::new();
     for variable in ["HOME", "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS"] {
@@ -85,6 +85,7 @@ fn cli_child_environment_redirects_every_discovery_root() {
         roots.len(),
         "each root must name its own directory, or one redirect would shadow another"
     );
+    Ok(())
 }
 
 /// `USERPROFILE` is carried through untouched, never redirected.
@@ -104,11 +105,12 @@ fn cli_child_environment_redirects_every_discovery_root() {
 /// that is what the helper contract says: it adds redirections, it does not
 /// overwrite the caller's intent.
 #[test]
-fn cli_child_environment_keeps_userprofile_inherited() {
+fn cli_child_environment_keeps_userprofile_inherited() -> std::io::Result<()> {
     let ambient = OsString::from("/home/carried-through");
-    let child = cli_child_environment(vec![(OsString::from("USERPROFILE"), ambient.clone())]);
+    let child = cli_child_environment(vec![(OsString::from("USERPROFILE"), ambient.clone())])?;
 
     assert_eq!(child.get("USERPROFILE"), Some(ambient.as_os_str()));
+    Ok(())
 }
 
 /// Redirection keeps the nested build's registry and toolchain resolvable.
@@ -125,8 +127,8 @@ fn cli_child_environment_keeps_userprofile_inherited() {
 /// here; the explicit branch is covered by
 /// `cli_child_environment_carries_an_explicit_cargo_home` below.
 #[test]
-fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() {
-    let child = cli_child_environment(Vec::new());
+fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() -> std::io::Result<()> {
+    let child = cli_child_environment(Vec::new())?;
     let home = child.get("HOME").expect("HOME is redirected");
 
     for (variable, directory) in [("CARGO_HOME", ".cargo"), ("RUSTUP_HOME", ".rustup")] {
@@ -147,6 +149,7 @@ fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() {
             "{variable} must name the ambient location, not a derived one"
         );
     }
+    Ok(())
 }
 
 /// An explicit `CARGO_HOME` survives the redirect unchanged.
@@ -156,11 +159,12 @@ fn cli_child_environment_keeps_cargo_homes_out_of_the_redirect() {
 /// all. Asserting only the default's shape would let a rewrite of the explicit
 /// value pass unnoticed.
 #[test]
-fn cli_child_environment_carries_an_explicit_cargo_home() {
+fn cli_child_environment_carries_an_explicit_cargo_home() -> std::io::Result<()> {
     let custom = OsStr::new("/opt/cargo-cache");
-    let child = cli_child_environment(vec![(OsString::from("CARGO_HOME"), custom.to_owned())]);
+    let child = cli_child_environment(vec![(OsString::from("CARGO_HOME"), custom.to_owned())])?;
 
     assert_eq!(child.get("CARGO_HOME"), Some(custom));
+    Ok(())
 }
 
 /// The ambient value a Cargo home variable should carry into the child.
@@ -223,3 +227,57 @@ fn cli_child_environment_drops_inherited_configuration_variables() -> std::io::R
 /// `OsStr` is referenced through the imported alias above.
 #[allow(dead_code)]
 fn _assert_os_str_alias(_: &OsStr) {}
+
+/// Windows resolves a differently-spelled configuration name, so drop it too.
+///
+/// Variable names on Windows are case-insensitive but keep the spelling they
+/// were set with, and `std::env::vars_os` returns that spelling. The binary
+/// looks `CARGO_BDD_LOG` up literally and the operating system resolves an
+/// inherited `cargo_bdd_log` to it, so an exact-case filter would forward a
+/// setting the binary genuinely reads and an inherited mixed-case logging
+/// export could change smoke-test output on stderr.
+///
+/// This is `cfg(windows)` because the requirement is Windows' alone: on a
+/// case-sensitive platform the two names are different variables and dropping
+/// the lowercase one would be wrong. The shared case above cannot carry the
+/// assertion for that reason, so the drop is asserted here instead of being
+/// left to the Windows lane to notice on its own.
+#[cfg(windows)]
+#[test]
+fn cli_child_environment_drops_a_differently_spelled_configuration_variable() -> std::io::Result<()>
+{
+    let child = cli_child_environment(vec![(
+        OsString::from("cargo_bdd_log"),
+        OsString::from("debug"),
+    )])?;
+
+    assert_eq!(child.get("cargo_bdd_log"), None);
+    Ok(())
+}
+
+/// The configuration filter leaves a name that is merely similar alone.
+///
+/// The prefix test is case-insensitive on Windows, so it must not also ignore
+/// the boundary. `CARGO_BDD` without the trailing underscore, and a name
+/// sharing only the `CARGO_BDD` stem, are not configuration variables the
+/// binary reads and have to survive. Without this case the comparison could
+/// widen to the whole stem and the drop test would not notice.
+#[test]
+fn cli_child_environment_keeps_names_that_do_not_carry_the_prefix() -> std::io::Result<()> {
+    let kept = ["CARGO_BDD", "CARGO_BDX_LOG", "cargo_bddx_log"];
+    let vars: Vec<(OsString, OsString)> = kept
+        .iter()
+        .map(|name| (OsString::from(name), OsString::from("kept")))
+        .collect();
+
+    let child = cli_child_environment(vars)?;
+
+    for name in kept {
+        assert_eq!(
+            child.get(name),
+            Some(OsStr::new("kept")),
+            "`{name}` carries no `CARGO_BDD_` prefix and must survive the filter",
+        );
+    }
+    Ok(())
+}

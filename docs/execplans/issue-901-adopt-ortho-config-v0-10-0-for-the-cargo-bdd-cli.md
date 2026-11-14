@@ -5,10 +5,13 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IMPLEMENTATION COMPLETE (hosted CI green on the current head
-`76f8f63e`, run `43453087168`, with all three required jobs and both coverage
-ratchets passing; the single-invocation `make test` form has a local green
-verdict at `8a5cb67f`; merge pending)
+Status: IMPLEMENTATION COMPLETE (latest *completed* hosted verdict is
+`f93347ef`: all three `build-test` jobs pass, including both Windows jobs and
+the Linux job whose earlier timeout was diagnosed as host contention. The
+current head `0952d888` has its `build-test` suite in progress and no verdict
+yet, so this line claims nothing about it. Earlier green runs, including
+`76f8f63e` under run `43453087168`, are historical evidence recorded in
+`Progress`; merge pending)
 
 ## Purpose / big picture
 
@@ -1218,6 +1221,35 @@ Hard invariants. Violation requires escalation, not a workaround.
       this entry. The earlier Progress entries that describe the redirect as it
       was are left as written, because they record what was true at the time.
 
+- [x] (2026-11-14) The re-run of the failed Linux job confirms the contention
+      diagnosis: `f93347ef`'s `build-test` suite completes **SUCCESS** on all
+      three jobs, Linux included, with no code change to the test that timed
+      out. That makes `f93347ef` the latest completed hosted verdict, and the
+      status line now names it rather than the earlier `76f8f63e`. The
+      superseded `8a532cac` suite shows `CANCELLED`, which is the PR-scoped
+      concurrency rule cancelling a head's run when the next push arrives, not
+      a failure.
+
+- [x] (2026-11-14) CodeRabbit round 16 raised two findings, both actioned.
+      The first was a real defect in this branch's own test harness: the
+      `CARGO_BDD_` isolation filter in `crates/cargo-bdd/tests/cli.rs` compared
+      the prefix case-sensitively, while Windows resolves variable names
+      case-insensitively and `std::env::vars_os` returns the parent's spelling.
+      An inherited `cargo_bdd_log` therefore reached the binary's literal
+      `CARGO_BDD_LOG` lookup in `observability.rs` and could turn on stderr
+      tracing during a smoke test. The filter now compares
+      `eq_ignore_ascii_case` on Windows and stays exact elsewhere, with a
+      `cfg(windows)` regression case and a prefix-boundary case that proves the
+      comparison did not widen to the `CARGO_BDD` stem.
+
+- [x] (2026-11-14) The second finding was correct about the symptom and stale
+      about its premise. It reported that no later hosted run turned the Linux
+      job green; in fact `f93347ef`'s re-run did, as the entry above records.
+      The status line was nevertheless out of date in naming `76f8f63e`, so it
+      was corrected. The current head's suite was still in progress when it was
+      read, so the line names `f93347ef` as the latest *completed* verdict and
+      claims nothing about `0952d888`.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -1438,6 +1470,26 @@ Hard invariants. Violation requires escalation, not a workaround.
   which asserts the *shape* of the map rather than the outcome in a child. That
   is deliberate — it is the strongest assertion available without reproducing
   the Windows toolchain.
+
+- Observation: case-insensitivity is a property of the *platform*, not of the
+  comparison the filter happens to use. The first draft of the mixed-case
+  regression case asserted the variable was dropped on every host, and failed
+  here on Linux, where the two names are genuinely different variables. Impact:
+  a host-behaviour assertion belongs in a `cfg`-gated case, and the ungated
+  test should assert only what holds everywhere. Because a `cfg(windows)` case
+  runs nowhere on this repository's Linux lane, its non-vacuity was established
+  by forcing the Windows arm in a scratch harness: with the pre-fix exact-case
+  filter, the assertion it makes fails, so it is a real witness rather than a
+  test that would pass against any implementation.
+
+- Observation: a review finding can be right about the symptom and wrong about
+  its premise, and the premise has to be checked rather than inherited. The
+  round-16 finding reported no hosted run turning the Linux job green; the
+  branch's own re-run had done exactly that. Impact: the status line was still
+  stale in a different way (it named an older head), so the fix was to name the
+  latest *completed* verdict and explicitly claim nothing about the in-progress
+  head. Accepting either the finding or the document as read would have written
+  a false statement into the living record.
 
 ## Decision log
 
