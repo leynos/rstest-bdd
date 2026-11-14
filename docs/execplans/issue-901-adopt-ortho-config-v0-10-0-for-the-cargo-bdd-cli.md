@@ -5,13 +5,15 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IMPLEMENTATION COMPLETE (latest *completed* hosted verdict is CI run
-`43592197882` at `a634e98a`: all three required `build-test` jobs pass,
-including both Windows jobs and the Linux job whose earlier timeout was
-diagnosed as host contention. The local `make test` row was taken one commit
-earlier at `f7fa8cd6`, and the commits after it edit only this plan, so that
-row's input has not moved. The Markdown gates were re-run at the head, since
-they do read this file. Earlier green runs, including `f10c0e4d` under run
+Status: IMPLEMENTATION COMPLETE (the head `83a0e488` failed hosted run
+`43596802177` on the required Windows strict lane, and the failing test was
+this branch's own span test. That was a flake in a test this branch added, not
+a regression in the diff: the same code passed the lane at `a634e98a`. It has
+been diagnosed and fixed at the source rather than by loosening the assertion,
+and the fix is measured — see `Progress` and `Surprises & discoveries`. A
+hosted verdict for the fix is pending, so the latest *green* hosted verdict
+remains CI run `43592197882` at `a634e98a`, where all three required
+`build-test` jobs passed. Earlier green runs, including `f10c0e4d` under run
 `43582906292` and `f93347ef` and `76f8f63e` under run `43453087168`, are
 historical evidence recorded in `Progress`; merge pending)
 
@@ -546,13 +548,15 @@ Hard invariants. Violation requires escalation, not a workaround.
       Gecko Security passed. CodeRabbit, Sourcery and automerge were skipped.
 - [ ] §6: documentation, gates, follow-up review, commit, push, hosted CI,
       review reconciliation, and merge. Merge is still pending: this box stays
-      unchecked until the pull request lands on `main`. The latest *completed*
-      hosted verdict is CI run `43592197882` at `a634e98a`, where all three
-      `build-test` jobs passed. The `make test` row is met locally at
-      `f7fa8cd6`, and the two commits after it edit only this plan, which no
-      Rust gate reads, so that row's input has not moved. The Markdown gates
-      do read this file, and were re-run at the head. No verdict evidence
-      remains outstanding; merge is the only unchecked item.
+      unchecked until the pull request lands on `main`. The head `83a0e488`
+      failed hosted run `43596802177` on the required Windows strict lane, in
+      this branch's own span test; that flake is diagnosed and fixed at its
+      source (see `Progress`), and a hosted verdict for the fix is pending. The
+      latest *green* hosted verdict remains CI run `43592197882` at
+      `a634e98a`, where all three `build-test` jobs passed. The `make test`
+      row is met locally at `f7fa8cd6`, and the commits after it edit only this
+      plan, which no Rust gate reads, so that row's input has not moved. The
+      Markdown gates do read this file, and were re-run at the head.
       The candidate was rebased onto `origin/main`
       (`693bba91`) and gated at revision `96e38df8`; the rebase described in
       `Outcomes & retrospective` is the later one.
@@ -1380,6 +1384,48 @@ Hard invariants. Violation requires escalation, not a workaround.
       round's work, and no `convert_to_draft` event. The brief asked for a
       draft PR, so the state is recorded here rather than silently reversed.
 
+- [x] (2026-11-14) Hosted CI run `43596802177` failed at the then-head
+      `83a0e488` on the required
+      `build-test (windows, strict-compile-time-validation)` lane: one test
+      failed and 44 passed, in
+      `config::tests::observability::both_loaders_emit_one_bounded_configuration_span`,
+      with `left: 1` against `right: 2`. The same code had passed the hosted
+      lane at `a634e98a`, so the assertion was reporting a flake rather than a
+      regression in the diff. The flake was reproduced locally before anything
+      was changed — 1 failure in 25 runs of the `cargo-bdd` unit-test binary,
+      and 0 in 80 runs of the test on its own — and diagnosed rather than
+      papered over.
+      A first hypothesis was that the callsite's cached interest went stale,
+      and that `tracing::callsite::rebuild_interest_cache` inside the
+      `with_default` scope would fix it. It was written, and then measured: 5
+      failures in 60 runs, worse than the unmodified test's rate. The rebuild
+      is not the fix, so it was not kept. The failing capture was then made to
+      report the command label and the process-global `LevelFilter`. The
+      `LevelFilter` stayed `TRACE` in every failing run, which rules out level
+      gating, and the label showed that *either* loader could be the missing
+      one. The remaining mechanism is callsite interest, which is process-wide
+      while the dispatcher that computes it is per-thread.
+      `DefaultCallsite::register` resolves interest through
+      `dispatcher::get_default`, i.e. the calling thread's default falling
+      back to the global one; `tracing::subscriber::with_default` installs a
+      thread-local default without recomputing anything. A sibling test that
+      reaches one of these loaders on its own thread therefore caches an
+      interest computed against the process-wide `NoSubscriber`, and the
+      loader that loses that race opens a disabled span no layer ever sees.
+      The fix installs the capturing subscriber with
+      `tracing::subscriber::set_global_default`, so no thread falls back to
+      `NoSubscriber`. Because that makes the capture process-wide, each
+      captured span now records its `ThreadId` and the assertions read back
+      only the calling thread's spans, which keeps a concurrent sibling's span
+      from being counted as this test's. The fix was confirmed load-bearing by
+      a control: the same body with a thread-local `with_default` restored
+      failed 6 of 60 runs, while the global-default version failed 0 of 200
+      (0 of 150 before that). The exact lane that failed was then reproduced
+      with its own command shape — `cargo test --tests --workspace
+      --no-default-features --features 'rstest-bdd/diagnostics
+      rstest-bdd-server/test-support strict-compile-time-validation'` — and
+      exited zero with 2214 passed, 0 failed and 7 ignored.
+
 ## Surprises & discoveries
 
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — was rejected
@@ -1407,6 +1453,25 @@ Hard invariants. Violation requires escalation, not a workaround.
   `ortho_config_macros-0.10.0/src/selected_subcommand_merge.rs`. Impact: the
   derive cannot be applied to `Commands` without reshaping two variants. See
   Decision log.
+
+- Observation: a `tracing` callsite's cached `Interest` is process-wide while
+  the dispatcher that computes it is per-thread, so
+  `tracing::subscriber::with_default` cannot make span capture deterministic in
+  a multi-threaded test binary. Evidence: the hosted Windows strict lane failed
+  on this branch's own span test at `83a0e488`; locally it failed 1 run in 25
+  while passing 80 of 80 in isolation. `DefaultCallsite::register` resolves
+  interest through `dispatcher::get_default`, which is the calling thread's
+  default falling back to the global one, and `with_default` installs a
+  thread-local default without recomputing anything. A sibling test that
+  reaches an instrumented function on its own thread therefore caches an
+  interest computed against `NoSubscriber`, and whichever loader loses that
+  race opens a span no layer sees. Impact: such a test must install its
+  subscriber with `set_global_default`, and must then read back only its own
+  thread's spans, because the capture now sees the whole binary's spans. An
+  in-scope `rebuild_interest_cache` is not a fix — it was measured at 5
+  failures in 60 runs — and the process-global `LevelFilter` was `TRACE` in
+  every failing run, so the level gate is not involved. The control that
+  settles it: thread-local 6 failures in 60 runs, global default 0 in 200.
 
 - Observation: `#[derive(OrthoConfig)]` emits a *separate hidden* CLI struct
   (named from the config struct) rather than adding fields to the user's
