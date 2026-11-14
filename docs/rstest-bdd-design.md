@@ -2855,6 +2855,226 @@ now include:
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.
 
+### 3.6a `cargo-bdd` configuration boundary (ADR-025)
+
+`crates/cargo-bdd` is a driving adapter. It is the only workspace member with a
+command line, and therefore the only member that layers settings from a
+command-line configuration source. The library crates describe behaviour and
+never learn where a setting came from. This section records the shape of that
+boundary; [ADR 025](adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md)
+records why OrthoConfig was chosen over the alternatives.
+
+The adopted dependency is `ortho_config` v0.10.0, taken with default features
+enabled. Default features matter: v0.10.0 does not build with
+`default-features = false` (leynos/ortho-config#627), and the `json`, `json5`
+and `yaml` configuration extensions are feature-gated anyway, so only TOML
+files are discovered. No other member gains the dependency.
+
+The lockfile resolves `cargo-platform` to v0.3.2 so library crates that depend
+on `cargo_metadata` can retain the workspace's Rust 1.88 MSRV. The locked
+v0.3.3 release raises its floor to Rust 1.91; `cargo_metadata` v0.23.1 accepts
+the v0.3.2 release under its `0.3.0` requirement. The direct MSRV check covers
+this lockfile constraint.
+
+#### Configurable and command-line-only settings
+
+The settings that can come from a file or the environment are exactly the
+toggles that already exist, and nothing else:
+
+| Subcommand | Flag        | File key  | Environment variable             |
+| ---------- | ----------- | --------- | -------------------------------- |
+| `steps`    | `--skipped` | `skipped` | `CARGO_BDD_CMDS_STEPS_SKIPPED`   |
+| `steps`    | `--json`    | `json`    | `CARGO_BDD_CMDS_STEPS_JSON`      |
+| `skipped`  | `--reasons` | `reasons` | `CARGO_BDD_CMDS_SKIPPED_REASONS` |
+| `skipped`  | `--json`    | `json`    | `CARGO_BDD_CMDS_SKIPPED_JSON`    |
+
+*Table 1: Configurable settings per subcommand.*
+
+The choice of subcommand, help, and version remain command-line-only. The
+`steps` JSON constraint applies to resolved settings across every source:
+`json = true` requires `skipped = true`, whether that value comes from TOML,
+the environment, or the command line. The application calls `validate_steps`
+after merging all sources, so a file or environment setting can satisfy an
+explicit `--json`. A configuration source that enables JSON without enabling
+skipped steps receives an actionable configuration error.
+
+To preserve the existing no-configuration contract, an explicit `--json` with
+no effective `skipped = true` makes the CLI adapter invoke Clap again only to
+reproduce the old parse failure, including its status and output stream. Clap
+does not reject the first parse, which lets configuration sources contribute to
+the resolved requirement before validation.
+
+#### File name, discovery, and formats
+
+Configuration files are TOML, and a file's settings for a subcommand live in a
+`[cmds.<subcommand>]` table:
+
+```toml
+[cmds.steps]
+skipped = true
+json = true
+
+[cmds.skipped]
+reasons = true
+```
+
+The table path is not an arbitrary convention: it is the path the derive builds
+from `clap`'s own command name, so the file spelling and the parser cannot
+drift apart. The derived command name is fixed with an explicit
+`#[command(name = "…")]` on each argument struct rather than left to the crate
+name.
+
+The subcommand loader derives its file stem from the normalized prefix
+`cargo_bdd`. On Unix and Redox, it checks these locations in order:
+
+1. `$HOME/.cargo_bdd.toml`, when `HOME` is available.
+2. The first existing `config.toml` under the ordered XDG bases:
+   `$XDG_CONFIG_HOME/cargo_bdd`, or `$HOME/.config/cargo_bdd` when
+   `XDG_CONFIG_HOME` is unset or not absolute; then each absolute entry of
+   `$XDG_CONFIG_DIRS/cargo_bdd`. If no absolute `XDG_CONFIG_DIRS` entry is
+   available, `/etc/xdg/cargo_bdd` is used.
+3. `./.cargo_bdd.toml` under the current working directory.
+
+On other platforms, discovery checks `.cargo_bdd.toml` under `HOME` or
+`USERPROFILE` (falling back to the platform home directory), then `config.toml`
+under the native `cargo_bdd` configuration directory, then `./.cargo_bdd.toml`
+under the working directory. On Windows the native configuration directory is
+`%APPDATA%`.
+
+The home dotfile, the selected XDG or native configuration file, and the
+working-directory dotfile are merged in that order. Missing optional files
+contribute nothing. A malformed or unreadable file that is found is reported;
+on Unix and Redox, an XDG metadata probe that fails for a reason other than
+absence is also reported rather than treated as a missing file.
+
+This subcommand loader does not expose OrthoConfig's hidden `--config-path`
+option or a `CARGO_BDD_CONFIG_PATH` selector. Its file inputs are the default
+discovery locations above.
+
+One comment in the imported OrthoConfig guide overstates its isolation. The
+`guide-subcommand-sources` example supplies a map holding only
+`XDG_CONFIG_HOME` and `XDG_CONFIG_DIRS`, and its comment says "nothing outside
+this map and the explicit base is consulted". That is true on Unix and Redox,
+where those are the whole search. It is not true elsewhere: on non-Unix targets
+the same example still consults `HOME`/`USERPROFILE` or the platform home
+fallback, and `EnvSource::config_dir_fallback` when available, so a reader who
+copies it on Windows does not get the isolation the comment promises. The
+repository imports the guide verbatim and does not correct it in place; see
+[the provenance record](ortho-config-v0-10-0-provenance.md). Supplying a home
+alongside the XDG variables is what closes that part of the gap, and
+`empty_configuration_home_variables` does it for the CLI tests described below.
+
+That closes the home dotfile and nothing more. The two test fixtures redirect
+different amounts. `empty_configuration_home_variables` sets `HOME` and leaves
+`USERPROFILE` inherited, because the Windows profile Known Folder API resolves
+from it and `sccache` panics when it cannot; the separate native configuration
+directory comes from that API rather than from `APPDATA`, so no variable
+redirects it, and that fixture remains non-hermetic on Windows as `V5` records.
+The invocation fixture clears the environment and sets both `HOME` and
+`USERPROFILE`, which covers the native lookup as far as any variable can. Both
+are the best isolation their platform permits, not full isolation; only Unix
+and Redox, where the XDG bases are the whole search, are fully isolated.
+
+#### Environment prefix and legacy names
+
+The prefix is `CARGO_BDD_`. A subcommand setting is spelled
+`CARGO_BDD_CMDS_<SUBCOMMAND>_<FIELD>`, with the subcommand and field names
+upper-cased and hyphens turned into underscores. There are no legacy variables
+and no legacy file names to honour, because `cargo-bdd` has never been
+configurable; the prefix is introduced whole, so no compatibility alias is
+warranted.
+
+#### Precedence and `cli_default_as_absent`
+
+Precedence runs from lowest to highest: the struct's `Default` implementation,
+then configuration files, then the environment, then the command line.
+
+Command-line precedence needs one explicit marker. A `bool` argument is not
+nullable: clap gives it `false` when the flag is absent, and `false` is a real
+value, so a naive merge would let an untyped flag outrank a file that says
+`true`. Each configurable field is therefore annotated with
+`#[ortho_config(cli_default_as_absent)]`, which makes the derive ask the
+`ArgMatches` whether the value came from the command line rather than from
+clap's default. Only a value the user actually typed joins the command-line
+tier. The loaders that do this are the `_with_matches` family; the plain
+`load_and_merge` cannot distinguish the two cases and is not used.
+
+Because the subcommand merge starts from `Default`, each struct's `Default`
+implementation must agree with its clap defaults. Today all four fields default
+to `false`, and `Default` says the same.
+
+#### Per-subcommand namespaces
+
+Each subcommand gets its own namespace rather than sharing one flat table. A
+repository that always wants JSON from `skipped` but not from `steps` writes
+`[cmds.skipped] json = true` and stops there. The environment mirrors the same
+split, so a CI variable can be scoped to one subcommand.
+
+#### Help and parse-failure localization
+
+Help text and parse failures stay English. No localizer is installed, so
+OrthoConfig's `NoOpLocalizer` remains in force. This is a deliberate choice
+rather than an omission: the workspace's localization roadmap targets library
+messages, and substituting localized help would change the wording the
+command-line contract already freezes.
+
+#### Profiles
+
+There are no configuration profiles and no `--profile` flag. OrthoConfig
+v0.10.0's subcommand path does not load profiles; adding a repository-side
+profile tier would mean hand-writing a layer upstream does not provide, for a
+tool with four booleans.
+
+#### Cargo external-subcommand entry shape
+
+Cargo runs `cargo bdd steps` by executing `cargo-bdd` with the subcommand name
+injected, so the process sees `cargo-bdd bdd steps`. Before this change, that
+invocation is rejected with `error: unrecognized subcommand 'bdd'`, exit 2,
+nothing on stdout and the message on stderr, which is why the flat
+`cargo-bdd steps` contract could not be reached through `cargo bdd` at all.
+
+Two parser shapes are needed, not one. The flat form `cargo-bdd steps` is the
+existing contract: `crates/cargo-bdd/tests/cli.rs` exercises successful listing
+output and must pass unmodified, while the captured help and parser failures
+are pinned by new byte-level tests. The helper
+`ortho_config::cargo::external_subcommand` necessarily wraps the inner command
+in a synthetic `cargo` parent, renames it, and resets its `bin_name`, so
+routing the flat form through it would change the very text that must not move.
+The entry point therefore selects a parser by invocation form:
+
+- If the first argument is `bdd`, the arguments are the Cargo form. They are
+  parsed through `external_subcommand("cargo-bdd", "bdd", Cli::command())`,
+  which consumes the injected token and leaves the tool's own subcommands one
+  level down.
+- Otherwise the arguments are the flat form and are parsed by the existing
+  `Cli` parser, untouched.
+
+Both branches yield the same `Cli` value, so dispatch is written once. The
+upstream invocation hint — which tells the user to invoke the tool via
+`cargo <name>` or `cargo-<name> <name>` — is deliberately not installed,
+because it would omit the flat form that remains first-class here and would
+therefore mislead.
+
+`--config-path` is not offered. The derive generates that flag only on its own
+hidden CLI struct, and no subcommand loader consults it, so accepting it on
+`cargo-bdd` would mean either wiring it by hand or shipping a flag that
+silently does nothing. The discovery locations and the environment variable
+cover the need instead.
+
+#### Settings handed to the domain
+
+The configuration layer stops at the argument structs. Dispatch merges and
+validates them into `StepsSettings` and `SkippedSettings`, and hands those
+validated settings to the handlers. The handlers are the only callers that see
+a settings type: `handle_steps` reads `skipped` to choose between the filtered
+listing and the bypassed listing, and `handle_skipped` reads `reasons` and
+`json`. Both then forward only individual booleans to `src/output.rs` — the
+JSON mode, the reason mode and the scenario display options — so the output
+module receives no settings struct. The registry module receives no settings at
+all. Neither module reads process sources nor handles a configuration error;
+every such failure stops at dispatch and is rendered by the application
+boundary.
+
 ### 3.7 Initial scenario macro implementation
 
 The first implementation of the `#[scenario]` macro kept the scope narrow to

@@ -70,8 +70,10 @@ fn path_penultimate_ident_matches(path: &syn::Path, expected: &str) -> bool {
 fn first_party_adapter_fallback_message(spec: &CrateSpec) -> String {
     format!(
         concat!(
-            "rstest-bdd could not identify this harness or attribute-policy path as a first-party \
-             adapter; ",
+            concat!(
+                "rstest-bdd could not identify this harness or attribute-policy path as a first-party ",
+                "adapter; ",
+            ),
             "falling back to `rstest-bdd-harness` for base harness API types. ",
             "Use the canonical crate-root path, ensure `{}` is directly resolvable as `{}`, ",
             "or add `rstest-bdd-harness` as a direct dev-dependency."

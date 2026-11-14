@@ -226,8 +226,7 @@ impl GpuiHarness {
         let output = output.into_inner().unwrap_or_else(PoisonError::into_inner);
         let Some(output) = output else {
             panic!(
-                "rstest-bdd-harness-gpui: test harness produced no scenario result: \
-                 {scenario_name}"
+                "rstest-bdd-harness-gpui: test harness produced no scenario result: {scenario_name}"
             );
         };
         output
@@ -279,8 +278,7 @@ impl GpuiHarness {
     fn augmented_panic_message(payload: &(dyn Any + Send), metadata: &ScenarioMetadata) -> String {
         let message = panic_message(payload);
         format!(
-            "rstest-bdd-harness-gpui scenario panicked: feature={feature_path}:{scenario_line}, \
-             scenario={scenario_name:?}: {message}",
+            "rstest-bdd-harness-gpui scenario panicked: feature={feature_path}:{scenario_line}, scenario={scenario_name:?}: {message}",
             feature_path = metadata.feature_path(),
             scenario_line = metadata.scenario_line(),
             scenario_name = metadata.scenario_name(),

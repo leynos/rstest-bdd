@@ -1366,8 +1366,9 @@ The file sets the timeout policy for the test suite:
   the trybuild families the 30 m period is the only bound and a wedged build is
   reported as a runner slow-timeout without captured output.
 - The second override raises the `slow-timeout` to 180 s
-  for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
-  and can legitimately exceed 60 s on cold caches.
+  for `cargo-bdd::cli` and `cargo-bdd::invocation`. The smoke tests build
+  fixture crates, and the invocation test checks Cargo's external-subcommand
+  dispatch; both use the `cargo-spawning` group.
 - The third override raises the `slow-timeout` further, to 20 minutes, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
@@ -1671,10 +1672,10 @@ Mitigation:
   `rstest-bdd-server::workspace_discovery_compile`) to 20 minutes as a
   local-development safety net. This does not fix the deadlock; it only delays
   termination to allow the build to complete on fast machines.
-- `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild
-  binaries in a `cargo-spawning` test group with `max-threads = 1`, so these
-  cargo-spawning tests run one at a time rather than contending for the
-  package-cache lock and build parallelism.
+- `.config/nextest.toml` also places the `cargo-bdd::cli`,
+  `cargo-bdd::invocation`, and trybuild binaries in a `cargo-spawning` test
+  group with `max-threads = 1`, so these cargo-spawning tests run one at a time
+  rather than contending for the package-cache lock and build parallelism.
 - Do not add `macro_compile`-style tests (tests that spawn `cargo` via
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
   on Windows.
@@ -3351,6 +3352,64 @@ descriptor form. With the `diagnostics` feature disabled, the function remains
 callable and drops the iterator without iterating it, keeping generated
 wrappers feature-independent.
 
+## cargo-bdd configuration boundary
+
+The `cargo-bdd` application is the only crate that reads command-line,
+configuration-file and environment settings. Its `src/config.rs` module owns
+the OrthoConfig-derived parsing types and the validated `StepsSettings` and
+`SkippedSettings` passed to command handlers. Those handlers in `src/cli.rs`
+are the only holders of the settings; they forward individual booleans, such as
+the JSON mode and the scenario display options, to `src/output.rs`, and
+`src/registry/` receives no settings at all. `src/output.rs` and
+`src/registry/` read no process sources and handle no configuration errors.
+
+Both configuration loaders are instrumented with a `cargo_bdd.configuration`
+span named for the command they serve. The span records only that command name;
+configuration values, file paths and environment variable values stay out of
+the trace so a subscriber cannot leak them into logs.
+
+`src/observability.rs` owns the only subscriber the binary installs, and it
+does so only when `CARGO_BDD_LOG` is set; `RUST_LOG` is deliberately ignored so
+a host toolchain or wrapper cannot change this binary's output. The subscriber
+renders span *close* events (`FmtSpan::CLOSE`), because the loaders record no
+events of their own and the close line is what exposes the per-command timing.
+Close events inherit the span's `INFO` level, so `CARGO_BDD_LOG=info` is enough
+to see them. Any new instrumentation added to the binary must keep the
+no-values, no-paths rule above; the child-process tests in
+`crates/cargo-bdd/tests/invocation/observability.rs` enforce it for both
+command labels.
+
+Keep OrthoConfig within `crates/cargo-bdd`. Reusable library crates stay free
+of the dependency and retain the workspace Rust 1.88 MSRV; only the binary
+crate requires Rust 1.89. When adding a configurable option, first record its
+scope, file and environment names, precedence, and domain validation in
+[design §3.6a](rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-025)
+and [ADR 025](adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md). Keep
+configuration types in the application crate and pass validated values into
+existing handlers.
+
+The workspace lockfile keeps `cargo-platform` at v0.3.2 because v0.3.3 raises
+the MSRV of library crates that reach it through `cargo_metadata`. This holds
+only for builds that resolve through this repository's lockfile: a downstream
+consumer has its own, in which the caret requirement still admits v0.3.3.
+Re-run the Rust 1.88 library check before updating this transitive dependency.
+
+Configuration unit tests use OrthoConfig's `_with_sources` entry points,
+`MapEnv`, and an explicit file-discovery context. Binary-level checks launch
+isolated child processes, so tests never mutate the test runner's environment.
+The `ConfigFixture` in `crates/cargo-bdd/src/config/tests.rs` and the
+`IsolatedWorkspace` fixture in `crates/cargo-bdd/tests/invocation.rs` are
+private to their respective test modules; keep them local rather than promoting
+them to shared test support. The baseline fixture pins the existing flat CLI's
+exact output, status and streams when no configuration is present.
+
+The binary accepts three useful spellings: `cargo bdd <subcommand>`, the
+injected form `cargo-bdd bdd <subcommand>`, and the existing flat
+`cargo-bdd <subcommand>` form. The flat form must continue through its original
+Clap parser so help and error text stay byte-for-byte stable. The Cargo forms
+use the single-variant external-subcommand wrapper; both parser paths dispatch
+through the same handlers.
+
 ## cargo-bdd scenario output formatting
 
 `crates/cargo-bdd/src/output.rs` owns the rendering of skipped-scenario and
@@ -3615,6 +3674,24 @@ In-source `allow`/`expect` attributes do not suppress `no_std_fs_operations`
 findings, so exclusions are the only sanctioned escape hatch for
 legitimately-ambient code such as test-support crates and integration test
 crates.
+
+#### String continuation style
+
+The suite enforces `string_continuation_style`, which rejects a string literal
+continued onto the next source line with a trailing backslash. Write such a
+literal as `concat!` arguments, one per source line: the call keeps the joined
+value and gives each line its own literal.
+
+`.rustfmt.toml` deliberately leaves `format_strings` unset. While it was
+enabled, `cargo fmt` rewrapped any literal past the maximum width with that
+same trailing backslash, including inside a `concat!` argument, so the
+formatter produced what the lint rejects.
+
+Two classes stay on one source line. An attribute argument — `#[error("...")]`,
+`#[expect(reason = "...")]` or `#[should_panic(expected = "...")]` — accepts
+only a literal, never a macro call. A literal that relies on implicitly
+captured format arguments also stays whole, because implicit capture reads only
+a literal.
 
 #### Fixture-expansion lint allowance
 

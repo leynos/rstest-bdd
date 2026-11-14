@@ -148,8 +148,7 @@ fn build_lint_attributes(fixtures: &[FixtureSpec]) -> Vec<syn::Attribute> {
         vec![syn::parse_quote! {
             #[expect(
                 unused_variables,
-                reason = "fixture variables are consumed via StepContext, \
-                          not referenced directly in the scenario test body"
+                reason = "fixture variables are consumed via StepContext, not referenced directly in the scenario test body"
             )]
         }]
     }

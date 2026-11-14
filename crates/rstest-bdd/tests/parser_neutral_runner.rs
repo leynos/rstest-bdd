@@ -92,8 +92,7 @@ fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) 
         rebuilt.tags().collect::<Vec<_>>(),
         plan.tags().collect::<Vec<_>>(),
         concat!(
-            "the rebuild must carry every tag the plan had; the seed reads the plan's own fields, \
-             so ",
+            "the rebuild must carry every tag the plan had; the seed reads the plan's own fields, so ",
             "a field it omits is lost without any other assertion noticing",
         ),
     );
@@ -219,8 +218,7 @@ fn step_is_recorded_as_bypassed(bench: &RefCell<Bench>, index: usize) {
         outcome.steps().get(index).map(StepOutcome::status),
         Some(StepStatus::Bypassed),
         concat!(
-            "the step after the skip must be reported, not omitted; a frontend's report is built \
-             by ",
+            "the step after the skip must be reported, not omitted; a frontend's report is built by ",
             "walking `steps()`",
         ),
     );
@@ -238,10 +236,8 @@ fn every_step_reports_its_source_line(bench: &RefCell<Bench>) {
         lines,
         vec![Some(12), Some(13), Some(14)],
         concat!(
-            "each record carries the line its own invocation was built with — the feature \
-             supplies ",
-            "three distinct ones so a runner that copied the plan's line, or renumbered from \
-             zero, ",
+            "each record carries the line its own invocation was built with — the feature supplies ",
+            "three distinct ones so a runner that copied the plan's line, or renumbered from zero, ",
             "would fail here",
         ),
     );
@@ -269,8 +265,7 @@ fn no_panic_was_raised(bench: &RefCell<Bench>) {
     assert!(
         !bench.borrow().unwound,
         concat!(
-            "the runner returned an outcome, so the step's panic did not reach the harness; a \
-             runner ",
+            "the runner returned an outcome, so the step's panic did not reach the harness; a runner ",
             "that re-threw would be caught by the `When` step",
         ),
     );
@@ -282,8 +277,7 @@ fn folding_yields_an_error(bench: &RefCell<Bench>) {
     assert!(
         outcome.into_harness_result().is_err(),
         concat!(
-            "the fold is what turns an outcome into a test result, and a failed run must not fold \
-             to ",
+            "the fold is what turns an outcome into a test result, and a failed run must not fold to ",
             "a pass",
         ),
     );
@@ -304,8 +298,7 @@ fn the_two_outcomes_are_equal(bench: &RefCell<Bench>) {
     assert_eq!(
         sync, asynchronous,
         concat!(
-            "INV-5: for a plan whose every step is registered in `StepExecutionMode::Both`, the \
-             two ",
+            "INV-5: for a plan whose every step is registered in `StepExecutionMode::Both`, the two ",
             "runners must produce equal outcomes — compared whole, because a projection chosen by ",
             "this test could omit exactly the field that differs",
         ),
@@ -317,8 +310,7 @@ fn neither_runner_unwound(bench: &RefCell<Bench>) {
     assert!(
         !bench.borrow().unwound,
         concat!(
-            "both runners returned an outcome, so neither re-threw; a runner that unwound would \
-             have ",
+            "both runners returned an outcome, so neither re-threw; a runner that unwound would have ",
             "been caught by the `When` step",
         ),
     );

@@ -257,8 +257,10 @@ fn a_foreign_payload_becomes_a_panic_error_identifying_the_step() {
     );
     assert_eq!(
         function, "notes/unwind.rs:118",
-        "the function field renders the step's file and line, since a raw registration records no \
-         handler name",
+        concat!(
+            "the function field renders the step's file and line, since a raw registration records no ",
+            "handler name",
+        ),
     );
 }
 
@@ -333,15 +335,16 @@ fn a_panic_while_building_an_async_future_is_caught() {
     });
     let Some(outcome) = outcome else {
         panic!(
-            "the construction panics before it can suspend, so the guard must resolve on the \
-             first poll rather than staying pending for {MAX_POLLS}"
+            "the construction panics before it can suspend, so the guard must resolve on the first poll rather than staying pending for {MAX_POLLS}"
         );
     };
 
     assert_eq!(
         panic_message_of(outcome).as_deref(),
         Some("the constructor panicked before any future existed"),
-        "a panic while building the future must be classified as a PanicError, exactly as a \
-         poll-time panic is",
+        concat!(
+            "a panic while building the future must be classified as a PanicError, exactly as a ",
+            "poll-time panic is",
+        ),
     );
 }

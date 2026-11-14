@@ -239,20 +239,22 @@ fn untrackable_error(untrackable: Untrackable, span: Span) -> TokenStream {
         Untrackable::UnrelatableRoot(path) => {
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
             format!(
-                "feature file `{}` shares no filesystem root with the crate manifest directory \
-                 (`{manifest}`), so it cannot be registered as a Cargo rebuild dependency. Use a \
-                 manifest-relative path, or a path on the same filesystem root.",
+                "feature file `{}` shares no filesystem root with the crate manifest directory (`{manifest}`), so it cannot be registered as a Cargo rebuild dependency. Use a manifest-relative path, or a path on the same filesystem root.",
                 path.display()
             )
         }
         Untrackable::NonUtf8(path) => format!(
-            "feature file path `{}` is not valid UTF-8, so it cannot be registered as a Cargo \
-             rebuild dependency.",
+            concat!(
+                "feature file path `{}` is not valid UTF-8, so it cannot be registered as a Cargo ",
+                "rebuild dependency.",
+            ),
             path.display()
         ),
-        Untrackable::Empty => "feature file path is empty, so it cannot be registered as a Cargo \
-                               rebuild dependency."
-            .to_owned(),
+        Untrackable::Empty => concat!(
+            "feature file path is empty, so it cannot be registered as a Cargo ",
+            "rebuild dependency.",
+        )
+        .to_owned(),
     };
     syn::Error::new(span, message).into_compile_error()
 }

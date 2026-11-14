@@ -218,8 +218,10 @@ fn extraction_reports_invalid_placeholder_error() {
     assert!(matches!(err, PlaceholderError::InvalidPlaceholder(_)));
     assert_eq!(
         strip_directional_isolates(&err.to_string()),
-        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) \
-         for placeholder 'n'",
+        concat!(
+            "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) ",
+            "for placeholder 'n'",
+        ),
     );
 }
 

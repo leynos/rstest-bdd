@@ -32,7 +32,7 @@
 //! map's precedence is asserted separately by
 //! `cli_child_environment_reuses_target`.
 
-use std::{env, ffi::OsString, path::PathBuf, process::ExitStatus, str};
+use std::{env, path::PathBuf, process::ExitStatus, str};
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
@@ -71,8 +71,14 @@ fn fixture_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal")
 }
 
-/// Execute cargo-bdd with the given arguments and return the raw output.
-fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
+/// Execute cargo-bdd with extra environment variables and return the output.
+///
+/// Configuration tests use this to exercise the `CARGO_BDD_` environment
+/// tier without changing the ambient environment of the test process.
+fn run_cargo_bdd_raw_with_env(
+    args: &[&str],
+    extra_environment: &[(&str, &str)],
+) -> Result<std::process::Output> {
     let fixture_dir = fixture_dir();
     // Preserve the caller's target directory (cargo llvm-cov's
     // `target/llvm-cov-target` when coverage is running) so the fixture build
@@ -92,9 +98,13 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
         &fixture_dir,
     );
     cmd.args(args);
+    for (key, value) in extra_environment {
+        cmd.env(key, value);
+    }
     Ok(cmd.output()?)
 }
 
+/// Locate the workspace-built binary, building it when absent.
 fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     let root = workspace_root();
     locate_or_build_binary(
@@ -106,6 +116,7 @@ fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     .map_err(|e| eyre::eyre!(e))
 }
 
+/// Repository root the CLI fixture and nested builds live under.
 fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..") }
 
 // The nested-build target policy has its own behavioural coverage; it lives in
@@ -120,60 +131,45 @@ mod preparation;
 
 use preparation::ensure_cli_prepared;
 
-/// Apply the shared isolation policy with this CLI fixture's workspace target.
-///
-/// Only CLI smoke-test setup owns this fallback; explicit coverage and caller
-/// target directories continue to take precedence.
-///
-/// For example, `cli_child_environment(Vec::new())` selects the workspace
-/// `target/`; a snapshot containing `CARGO_TARGET_DIR` retains that value.
-///
-/// # Errors
-///
-/// As [`nested_cargo::env_from_vars`]: a relative target directory that cannot
-/// be resolved against this process's working directory is reported rather than
-/// handed to a child that would resolve it somewhere else.
-fn cli_child_environment(
-    vars: Vec<(OsString, OsString)>,
-) -> std::io::Result<nested_cargo::NestedCargoEnv> {
-    nested_cargo::env_from_vars(
-        vars,
-        Some(&workspace_root().join("target")),
-        nested_cargo::ProfileDestination::Caller,
-    )
-}
+// The file-tier configuration case lives beside this target for the same
+// reason: Cargo must not discover it as a second test target.
+#[path = "cli/configuration.rs"]
+mod configuration;
 
-#[rstest::rstest]
-#[case::workspace_cache(None)]
-#[case::caller_cache(Some("custom-coverage-target"))]
-fn cli_child_environment_reuses_target(#[case] target: Option<&str>) -> std::io::Result<()> {
-    let vars = target
-        .map(|value| vec![(OsString::from("CARGO_TARGET_DIR"), OsString::from(value))])
-        .unwrap_or_default();
-    let child = cli_child_environment(vars)?;
-    // A caller's value is preserved as a *directory*, not necessarily as the
-    // exact string: a relative value names a different place to a child that
-    // runs in the fixture directory, so the helper resolves it against this
-    // process's working directory before handing it over. The workspace
-    // fallback is already absolute.
-    let expected = target.map_or_else(
-        || workspace_root().join("target"),
-        |value| std::env::current_dir().expect("current dir").join(value),
-    );
-    assert_eq!(child.get("CARGO_TARGET_DIR"), Some(expected.as_os_str()));
-    assert_eq!(
-        child
-            .target_directory()
-            .expect("a resolved environment should yield its target directory")
-            .as_deref(),
-        Some(expected.as_path()),
-        "the resolved target directory must be the absolute one the child receives"
-    );
-    Ok(())
-}
+// The prefix test is its own concern; its documentation gives the Windows
+// case-insensitivity reasoning.
+#[path = "cli/isolation.rs"]
+mod isolation;
 
+// The map is built once here and asserted on by the `environment` module.
+#[path = "cli/child_environment.rs"]
+mod child_environment;
+
+use child_environment::cli_child_environment;
+
+// The discovery-root redirection is a cohesion split: it owns the file tier's
+// environment policy, and the sibling `environment` module asserts the map this
+// helper produces. It lives beside this target for the same reason as the
+// modules above, so Cargo does not also compile it as a test target.
+#[path = "cli/discovery.rs"]
+mod discovery;
+
+// The child-environment policy has behavioural coverage of its own; it lives
+// beside this target so Cargo does not also discover it as a test target.
+#[path = "cli/environment.rs"]
+mod environment;
+
+/// Execute `cargo bdd` and capture its status and streams as text.
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {
-    let output = run_cargo_bdd_raw(args)?;
+    run_cargo_bdd_captured_with_env(args, &[])
+}
+
+/// Execute cargo-bdd with extra environment variables and capture its streams.
+fn run_cargo_bdd_captured_with_env(
+    args: &[&str],
+    extra_environment: &[(&str, &str)],
+) -> Result<(ExitStatus, String, String)> {
+    let output = run_cargo_bdd_raw_with_env(args, extra_environment)?;
     let args_debug = args.join(" ");
     let status = output.status;
     let stdout = str::from_utf8(&output.stdout).wrap_err_with(|| {
@@ -189,6 +185,7 @@ fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)>
     Ok((status, stdout.to_owned(), stderr.to_owned()))
 }
 
+/// Execute `cargo bdd` with no extra environment and return stdout.
 fn run_cargo_bdd(args: &[&str]) -> Result<String> {
     let args_debug = args.join(" ");
     let (status, stdout, _stderr) = run_cargo_bdd_captured(args)?;
@@ -271,6 +268,7 @@ fn steps_output_marks_forced_failure_skips() {
     );
 }
 
+/// Text output includes the feature location, reason and annotations.
 #[test]
 #[serial]
 fn skipped_subcommand_includes_reasons_and_lines() {
@@ -287,6 +285,7 @@ fn skipped_subcommand_includes_reasons_and_lines() {
     assert!(stdout.contains("[forced failure]"));
 }
 
+/// The JSON listing describes the fixture's skipped scenario.
 #[test]
 #[serial]
 fn skipped_subcommand_emits_json() {

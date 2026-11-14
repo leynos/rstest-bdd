@@ -308,10 +308,12 @@ fn the_outcome_accessors_agree_with_the_records_on_a_failing_run() {
     assert_eq!(
         first.failure_kind(),
         Some(rstest_bdd::runner::FailureKind::Panic),
-        "a failing `assert_eq!` in a step body is a *panic* by the time the runner sees it: the \
-         macro wrapper catches it and builds a `PanicError`. `Assertion` is the label for a \
-         handler that *returns* a `StepError`, so a boundary that swallowed the panic and \
-         relabelled it as a returned error would fail here",
+        concat!(
+            "a failing `assert_eq!` in a step body is a *panic* by the time the runner sees it: the ",
+            "macro wrapper catches it and builds a `PanicError`. `Assertion` is the label for a ",
+            "handler that *returns* a `StepError`, so a boundary that swallowed the panic and ",
+            "relabelled it as a returned error would fail here",
+        ),
     );
     let Some(second) = outcome.steps().get(1) else {
         panic!("the second invocation must be recorded even though it never ran");

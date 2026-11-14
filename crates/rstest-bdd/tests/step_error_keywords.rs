@@ -53,8 +53,7 @@ fn assert_step_error(
             assert_eq!(step, expected_step);
         }
         (other_actual, other_expected) => panic!(
-            "unexpected error for {step_pattern}: got {other_actual:?}, expected \
-             {other_expected:?}"
+            "unexpected error for {step_pattern}: got {other_actual:?}, expected {other_expected:?}"
         ),
     }
 }

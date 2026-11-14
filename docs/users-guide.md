@@ -23,10 +23,21 @@ owner, the developer, and the tester.
 
 ## Toolchain requirements
 
-`rstest-bdd` targets Rust 1.88 or newer across every crate in the workspace.
-Each `Cargo.toml` declares `rust-version = "1.88"`, so `cargo` will refuse to
-compile the project on older compilers. The workspace uses the Rust 2024
-edition.
+The reusable `rstest-bdd` library crates target Rust 1.88 or newer. Building the
+`cargo-bdd` binary needs Rust 1.89, because its configuration dependency
+raises the floor. Each `Cargo.toml` declares its own `rust-version`, so `cargo`
+will refuse to compile a crate on a compiler older than that crate requires.
+The workspace uses the Rust 2024 edition.
+
+The 1.88 floor describes the libraries' own requirements; a consuming lockfile
+must also resolve their dependencies to releases that keep it satisfied. The
+library crates reach one such dependency through `cargo_metadata`, which
+accepts any `cargo-platform` from v0.3.0 onwards. v0.3.3 of `cargo-platform`
+requires Rust 1.91, so a resolution that selects it raises the floor of a
+workspace that depends on `rstest-bdd` while asking for nothing newer itself.
+This repository's `Cargo.lock` pins v0.3.2, which builds with 1.88. The
+[v0.7.0 migration guide][v0-7-0-migration-guide] repeats the caveat for
+downstream consumers.
 
 `rstest-bdd` builds, tests, and lints on stable Rust. The repository pins that
 toolchain through `rust-toolchain.toml`, so ordinary `cargo` and Clippy
@@ -3312,11 +3323,14 @@ Examples
 
 - `cargo bdd steps`
 - `cargo bdd steps --skipped --json`
-- `cargo bdd unused --quiet`
-- `cargo bdd duplicates --json`
+- `cargo bdd unused`
+- `cargo bdd duplicates`
 - `cargo bdd skipped --reasons`
-- `cargo bdd steps --skipped --json` must be paired; using `--json` without
-  `--skipped` is rejected by the CLI, so invalid combinations fail fast.
+- `cargo bdd skipped --json`
+- `cargo-bdd bdd steps --skipped --json`
+- `cargo bdd steps --json` requires an effective `skipped = true` setting.
+  This may come from a configuration file or environment variable; otherwise
+  the CLI reports its existing missing-`--skipped` parse error.
 
 The tool inspects the runtime step registry and offers four commands:
 
@@ -3359,6 +3373,95 @@ The runtime registry dump consumed by `cargo bdd` uses the same identities:
 each step and bypassed-step entry has a `library` field, and each scenario and
 bypassed-step entry has a `libraries` array. When these fields are absent from
 an older dump, the CLI treats the entry as belonging to `rstest_bdd::global`.
+
+### Configuration files and environment
+
+The `steps` options `--skipped` and `--json`, and the `skipped` options
+`--reasons` and `--json`, can be set in TOML or with environment variables. The
+default for each option is `false`, so runs without configuration keep their
+existing flags, output, exit statuses and streams.
+
+Put settings under the matching subcommand table:
+
+```toml
+[cmds.steps]
+skipped = true
+json = true
+
+[cmds.skipped]
+reasons = true
+json = true
+```
+
+On Unix and Redox, `cargo-bdd` merges `~/.cargo_bdd.toml`, one XDG
+`cargo_bdd/config.toml`, and `./.cargo_bdd.toml`, in that order. The XDG file
+is chosen rather than merged: the search order is `$XDG_CONFIG_HOME/cargo_bdd`
+(when `XDG_CONFIG_HOME` is an absolute path, and otherwise
+`$HOME/.config/cargo_bdd`), then every absolute directory in `XDG_CONFIG_DIRS`
+in the order listed, then `/etc/xdg/cargo_bdd` if `XDG_CONFIG_DIRS` is unset,
+empty, or holds no absolute directory. The first base that contains
+`config.toml` supplies the XDG file and later bases are not read, so a file in
+a later base is ignored entirely when an earlier base has one, even if the
+earlier file omits the setting you are looking for.
+
+On other platforms, it checks the home `.cargo_bdd.toml`, the native
+`cargo_bdd/config.toml` directory, then the working-directory
+`.cargo_bdd.toml`. On Windows the native directory is under `%APPDATA%`.
+Missing optional files are ignored. A discovered file that is unreadable or
+malformed stops the command with an error. Unknown keys are ignored, so check
+table and field names carefully when a setting has no effect.
+
+The environment prefix is `CARGO_BDD_`:
+
+```sh
+export CARGO_BDD_CMDS_STEPS_SKIPPED=true
+export CARGO_BDD_CMDS_STEPS_JSON=true
+export CARGO_BDD_CMDS_SKIPPED_REASONS=true
+export CARGO_BDD_CMDS_SKIPPED_JSON=true
+```
+
+Values are resolved in this order: defaults, configuration files, environment,
+then explicitly supplied command-line flags. The CLI exposes these as
+positive-only flags, while environment values accept `true` or `false` and
+override file values. For one non-JSON run when TOML enables both `steps`
+settings, set both environment values to `false`:
+
+```sh
+CARGO_BDD_CMDS_STEPS_SKIPPED=false \
+  CARGO_BDD_CMDS_STEPS_JSON=false cargo bdd steps
+```
+
+Unset both variables to use the TOML values again. The `steps` JSON output
+still requires `skipped = true`, whether those values come from TOML, the
+environment or the CLI.
+
+#### Tracing configuration loading
+
+`CARGO_BDD_LOG` opts in to tracing output on stderr. It is unset by default, so
+runs without it keep their existing output, exit statuses and streams.
+`RUST_LOG` is ignored, so a host toolchain or wrapper script cannot change this
+binary's output. The value is an `EnvFilter` directive set, such as `info`, or
+a target-scoped directive such as `cargo_bdd=trace`.
+
+Each command emits one close line per configuration load, naming the command
+and the time spent resolving its sources:
+
+```text
+INFO cargo_bdd.configuration{command="steps"}: cargo_bdd::config: close time.busy=… time.idle=…
+```
+
+The span records only the command name. Configuration values, discovered file
+paths and environment lookups are not logged, so the trace is safe to share
+when reporting a slow or surprising configuration load. Colour is used only
+when stderr is a terminal, so redirected logs and CI captures stay plain text.
+
+Both `cargo bdd <subcommand>` and `cargo-bdd bdd <subcommand>` consume Cargo's
+injected `bdd` token. The original flat form, `cargo-bdd <subcommand>`,
+continues to work as well. There is no `--config-path` option or profile
+support. Help and command-line parse errors remain in English.
+
+Building `cargo-bdd` requires Rust 1.89 because of its configuration
+dependency. The reusable library crates retain their Rust 1.88 minimum.
 
 ### Scenario report writers
 

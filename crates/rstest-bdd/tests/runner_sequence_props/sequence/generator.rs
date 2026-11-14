@@ -195,9 +195,7 @@ impl Terminal {
     fn asserted(self) -> Kind {
         let Some(kind) = self.kind() else {
             panic!(
-                "no kind in {KIND_ALL:?} classifies as {self:?}, so the crafted shape naming it \
-                 would build a plan with no terminal at all — which every property accepts \
-                 vacuously",
+                "no kind in {KIND_ALL:?} classifies as {self:?}, so the crafted shape naming it would build a plan with no terminal at all — which every property accepts vacuously",
                 KIND_ALL = Kind::ALL
             );
         };
@@ -311,10 +309,7 @@ fn build(shape: Shape) -> Vec<Kind> {
         .find(|kind| kind.returns_a_matchable_value())
     else {
         panic!(
-            "no kind in {KIND_ALL:?} returns a value a probe fixture can match, so the crafted \
-             shape's observer would be watching a producer it can never see — leaving INV-3's \
-             visibility witness true of every driver, which is the incidental evidence it exists \
-             to reject and would accept vacuously",
+            "no kind in {KIND_ALL:?} returns a value a probe fixture can match, so the crafted shape's observer would be watching a producer it can never see — leaving INV-3's visibility witness true of every driver, which is the incidental evidence it exists to reject and would accept vacuously",
             KIND_ALL = Kind::ALL
         );
     };
@@ -343,9 +338,7 @@ fn build(shape: Shape) -> Vec<Kind> {
     // as an over-long shape. Failing here names the cause.
     assert!(
         kinds.len() <= MAX_STEPS,
-        "shape {shape:?} builds {} invocations, over the MAX_STEPS bound of {MAX_STEPS}; the \
-         bound is not a budget for crafted shapes — trim the shape, or raise MAX_STEPS and \
-         re-check the uniform strategy's cost",
+        "shape {shape:?} builds {} invocations, over the MAX_STEPS bound of {MAX_STEPS}; the bound is not a budget for crafted shapes — trim the shape, or raise MAX_STEPS and re-check the uniform strategy's cost",
         kinds.len(),
     );
     kinds

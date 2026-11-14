@@ -5,11 +5,21 @@ use std::{
     io::{self, Write},
 };
 
-use clap::{Args, Parser, Subcommand};
+use clap::{ArgMatches, Parser, Subcommand};
 use eyre::{Context, Result, bail};
 use serde::Serialize;
 
 use crate::{
+    config::{
+        ConfigSources,
+        SkippedConfig,
+        SkippedSettings,
+        StepsConfig,
+        StepsSettings,
+        merge_steps,
+        resolve_skipped,
+        validate_steps,
+    },
     output::{
         ScenarioDisplayOptions,
         write_bypassed_steps,
@@ -17,8 +27,13 @@ use crate::{
         write_scenarios,
         write_step,
     },
-    registry::{BypassedStep, Scenario, ScenarioOutcome, Step, collect_registry},
+    registry::{BypassedStep, RegistryDump, Scenario, ScenarioOutcome, Step, collect_registry},
 };
+
+mod invocation;
+
+pub(crate) use invocation::CliError;
+use invocation::{InvocationForm, missing_required_skipped_error, parse_command_line};
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
 #[derive(Parser)]
@@ -33,35 +48,13 @@ pub(crate) struct Cli {
 #[derive(Subcommand)]
 pub(crate) enum Commands {
     /// List all registered steps.
-    Steps(StepsArgs),
+    Steps(StepsConfig),
     /// List registered steps that were never executed.
     Unused,
     /// List step definitions that share the same keyword and pattern.
     Duplicates,
     /// List skipped scenarios and their reasons.
-    Skipped(SkippedArgs),
-}
-
-#[derive(Args)]
-/// Options for listing registered steps.
-pub(crate) struct StepsArgs {
-    /// Filter for step definitions bypassed when scenarios were skipped.
-    #[arg(long)]
-    pub skipped: bool,
-    /// Emit JSON instead of human-readable text.
-    #[arg(long, requires = "skipped")]
-    pub json: bool,
-}
-
-#[derive(Args)]
-/// Options for listing skipped scenarios.
-pub(crate) struct SkippedArgs {
-    /// Include file/line information and skip reasons.
-    #[arg(long)]
-    pub reasons: bool,
-    /// Emit JSON instead of human-readable text.
-    #[arg(long)]
-    pub json: bool,
+    Skipped(SkippedConfig),
 }
 
 #[derive(Serialize)]
@@ -101,6 +94,7 @@ struct SkippedDefinition<'a> {
 }
 
 impl<'a> From<&'a Scenario> for SkipReport<'a> {
+    /// Project a skipped scenario into its report representation.
     fn from(scenario: &'a Scenario) -> Self {
         Self {
             feature: &scenario.feature_path,
@@ -115,6 +109,7 @@ impl<'a> From<&'a Scenario> for SkipReport<'a> {
 }
 
 impl<'a> From<&'a BypassedStep> for SkipReport<'a> {
+    /// Project a bypassed step into its report representation.
     fn from(step: &'a BypassedStep) -> Self {
         Self {
             feature: &step.feature_path,
@@ -135,18 +130,58 @@ impl<'a> From<&'a BypassedStep> for SkipReport<'a> {
 }
 
 /// Parse the command line and dispatch the selected diagnostic.
-pub(crate) fn run() -> Result<()> {
-    match Cli::parse().command {
-        Commands::Steps(args) => handle_steps(&args)?,
+///
+/// A Clap parse failure is returned rather than printed here, so the
+/// application boundary owns the process exit while the rendered message and
+/// exit status stay exactly as Clap produced them.
+pub(crate) fn run() -> std::result::Result<(), CliError> {
+    let (cli, matches, invocation_form) = parse_command_line(std::env::args_os())?;
+    // The application edge owns the process-backed sources; the resolvers
+    // below receive them, so tests can drive the same code with isolated ones.
+    let sources = ConfigSources::process();
+    match cli.command {
+        Commands::Steps(config) => {
+            handle_steps(&resolve_steps_settings(
+                &config,
+                &matches,
+                invocation_form,
+                &sources,
+            )?)?;
+        }
         Commands::Unused => handle_unused()?,
         Commands::Duplicates => handle_duplicates()?,
-        Commands::Skipped(args) => handle_skipped(&args)?,
+        Commands::Skipped(config) => {
+            let command_matches = selected_matches(&matches, "skipped")?;
+            handle_skipped(&resolve_skipped(&config, command_matches, &sources)?)?;
+        }
     }
     Ok(())
 }
 
+/// Merge and validate `steps` settings before passing them to the handler.
+fn resolve_steps_settings(
+    config: &StepsConfig,
+    matches: &ArgMatches,
+    invocation_form: InvocationForm,
+    sources: &ConfigSources,
+) -> std::result::Result<StepsSettings, CliError> {
+    let command_matches = selected_matches(matches, "steps")?;
+    let merged = merge_steps(config, command_matches, sources)?;
+    if command_matches.get_flag("json") && !merged.skipped {
+        return Err(missing_required_skipped_error(invocation_form));
+    }
+    Ok(validate_steps(&merged)?)
+}
+
+/// Return the clap matches for a selected subcommand.
+fn selected_matches<'a>(matches: &'a ArgMatches, name: &str) -> Result<&'a ArgMatches> {
+    matches
+        .subcommand_matches(name)
+        .ok_or_else(|| eyre::eyre!("the parsed command did not include `{name}` matches"))
+}
+
 /// Handle the `steps` diagnostic, including its optional JSON mode.
-fn handle_steps(args: &StepsArgs) -> Result<()> {
+fn handle_steps(args: &StepsSettings) -> Result<()> {
     if args.skipped {
         return handle_bypassed_steps(args.json);
     }
@@ -160,21 +195,38 @@ fn handle_steps(args: &StepsArgs) -> Result<()> {
 }
 
 /// Handle the `steps --unused` diagnostic.
-fn handle_unused() -> Result<()> { write_filtered_steps(|step| !step.used, None) }
+fn handle_unused() -> Result<()> {
+    write_listing(|registry, stdout| write_unused_steps(stdout, &registry.steps))
+}
 
 /// Handle the `steps --duplicates` diagnostic.
 fn handle_duplicates() -> Result<()> {
-    let groups = group_duplicate_steps(collect_registry()?.steps);
-    let mut stdout = io::stdout();
-    for group in groups {
+    write_listing(|registry, stdout| write_duplicate_groups(stdout, &registry.steps))
+}
+
+/// Write the unused-step listing for `steps` to `writer`.
+///
+/// Extracted from the handler so the selection rule is covered without
+/// building a workspace registry.
+fn write_unused_steps(writer: &mut dyn Write, steps: &[Step]) -> Result<()> {
+    steps
+        .iter()
+        .filter(|step| !step.used)
+        .try_for_each(|step| write_step(writer, step))
+}
+
+/// Write the duplicate-step listing for `steps` to `writer`.
+///
+/// Groups are separated by [`write_group_separator`], matching the CLI form
+/// that operators and the checked-in baseline already expect.
+fn write_duplicate_groups(writer: &mut dyn Write, steps: &[Step]) -> Result<()> {
+    for group in group_duplicate_steps(steps.iter().cloned()) {
         for step in &group {
-            write_step(&mut stdout, step)?;
+            write_step(writer, step)?;
         }
-        write_group_separator(&mut stdout)?;
+        write_group_separator(writer)?;
     }
-    stdout
-        .flush()
-        .wrap_err("failed to flush duplicate listing to stdout")
+    Ok(())
 }
 
 /// Group steps by the library-local identity used for duplicate diagnostics.
@@ -198,28 +250,36 @@ fn group_duplicate_steps(steps: impl IntoIterator<Item = Step>) -> Vec<Vec<Step>
 
 /// Handle the `steps --skipped` diagnostic.
 fn handle_bypassed_steps(json: bool) -> Result<()> {
-    let registry = collect_registry()?;
-    if json {
-        let reports: Vec<_> = registry
-            .bypassed_steps
-            .iter()
-            .map(SkipReport::from)
-            .collect();
-        return write_skip_reports_json(&reports);
-    }
+    write_listing(|registry, stdout| {
+        write_bypassed_steps_listing(stdout, &registry.bypassed_steps, json)
+    })
+}
 
-    let mut stdout = io::stdout();
-    write_bypassed_steps(&mut stdout, &registry.bypassed_steps)?;
-    stdout
-        .flush()
-        .wrap_err("failed to flush bypassed step listing")
+/// Write the bypassed-step listing, as JSON or as text.
+fn write_bypassed_steps_listing(
+    writer: &mut dyn Write,
+    steps: &[BypassedStep],
+    json: bool,
+) -> Result<()> {
+    if json {
+        let reports: Vec<_> = steps.iter().map(SkipReport::from).collect();
+        return write_skip_reports_json(writer, &reports);
+    }
+    write_bypassed_steps(writer, steps)
 }
 
 /// Handle the `skipped` diagnostic.
-fn handle_skipped(args: &SkippedArgs) -> Result<()> {
-    let registry = collect_registry()?;
-    let skipped: Vec<_> = registry
-        .scenarios
+fn handle_skipped(args: &SkippedSettings) -> Result<()> {
+    write_listing(|registry, stdout| write_skipped_listing(stdout, &registry.scenarios, args))
+}
+
+/// Write the skipped-scenario listing, as JSON or as text.
+fn write_skipped_listing(
+    writer: &mut dyn Write,
+    scenarios: &[Scenario],
+    args: &SkippedSettings,
+) -> Result<()> {
+    let skipped: Vec<_> = scenarios
         .iter()
         .filter(|scenario| scenario.status == ScenarioOutcome::Skipped)
         .collect();
@@ -229,7 +289,7 @@ fn handle_skipped(args: &SkippedArgs) -> Result<()> {
             .iter()
             .map(|scenario| SkipReport::from(*scenario))
             .collect();
-        return write_skip_reports_json(&reports);
+        return write_skip_reports_json(writer, &reports);
     }
 
     let options = if args.reasons {
@@ -237,12 +297,25 @@ fn handle_skipped(args: &SkippedArgs) -> Result<()> {
     } else {
         ScenarioDisplayOptions::compact()
     };
+    write_scenarios(writer, scenarios, options)
+}
 
+/// Collect the registry, render a listing through `render`, and flush it.
+///
+/// Every diagnostic writes to stdout and must report a flush failure against
+/// the same boundary, so the collection and flush live here once. `render`
+/// receives the registry and the stdout handle, which keeps each listing's
+/// selection rule directly testable against a buffer.
+fn write_listing<F>(render: F) -> Result<()>
+where
+    F: FnOnce(&RegistryDump, &mut dyn Write) -> Result<()>,
+{
+    let registry = collect_registry()?;
     let mut stdout = io::stdout();
-    write_scenarios(&mut stdout, &registry.scenarios, options)?;
+    render(&registry, &mut stdout)?;
     stdout
         .flush()
-        .wrap_err("failed to flush skipped scenario listing")
+        .wrap_err("failed to flush step listing to stdout")
 }
 
 /// Write steps selected by `filter`, optionally followed by scenarios.
@@ -250,30 +323,26 @@ fn write_filtered_steps<F>(filter: F, scenarios: Option<ScenarioDisplayOptions>)
 where
     F: Fn(&Step) -> bool,
 {
-    let registry = collect_registry()?;
-    let mut stdout = io::stdout();
-    registry
-        .steps
-        .iter()
-        .filter(|&step| filter(step))
-        .try_for_each(|step| write_step(&mut stdout, step))?;
-    if let Some(options) = scenarios {
-        write_scenarios(&mut stdout, &registry.scenarios, options)?;
-    }
-    stdout
-        .flush()
-        .wrap_err("failed to flush step listing to stdout")
+    write_listing(|registry, stdout| {
+        registry
+            .steps
+            .iter()
+            .filter(|&step| filter(step))
+            .try_for_each(|step| write_step(stdout, step))?;
+        if let Some(options) = scenarios {
+            write_scenarios(stdout, &registry.scenarios, options)?;
+        }
+        Ok(())
+    })
 }
 
 /// Serialize skip reports as newline-terminated JSON.
-fn write_skip_reports_json(reports: &[SkipReport<'_>]) -> Result<()> {
-    let mut stdout = io::stdout();
-    serde_json::to_writer(&mut stdout, reports)
+fn write_skip_reports_json(writer: &mut dyn Write, reports: &[SkipReport<'_>]) -> Result<()> {
+    serde_json::to_writer(&mut *writer, reports)
         .wrap_err("failed to serialize skip diagnostics to JSON")?;
-    stdout
+    writer
         .write_all(b"\n")
-        .wrap_err("failed to terminate JSON output with newline")?;
-    stdout.flush().wrap_err("failed to flush JSON output")
+        .wrap_err("failed to terminate JSON output with newline")
 }
 
 #[cfg(test)]

@@ -7,10 +7,17 @@ workspace lint gate for panic-only `unwrap_or_else` closures.
 
 Amended (2026-07-20): the delivery mechanism and pinned toolchain recorded
 below describe the original 2026-06-21 delivery and are retained as a
-historical record. The current operational contract is captured in
-[Update (2026-07-20): current compatibility contract](#update-2026-07-20-current-compatibility-contract),
-which supersedes the toolchain and mechanism details in the *Decision outcome*
-and *Consequences* sections.
+historical record. The 2026-07-20 update in
+[Update (2026-07-20): current compatibility contract](#update-2026-07-20-current-compatibility-contract)
+supersedes the toolchain and mechanism details in the *Decision outcome* and
+*Consequences* sections, and is itself a historical record of the invocation in
+force on that date. That heading is frozen by a repository contract test, so it
+keeps its original wording.
+
+Amended (2026-11-08): the lint gate no longer invokes `whitaker --all`; it
+names the aggregated suite it installs. The current invocation contract is
+[Addendum (2026-11-08): the lint gate names the aggregated suite](#addendum-2026-11-08-the-lint-gate-names-the-aggregated-suite).
+The adopted lint set is unchanged.
 
 ## Date
 
@@ -388,6 +395,61 @@ passes the rejected `installer-checksum` input. The 2026-09-03 statements that
 the ratchet write and CodeScene upload live in `ci.yml` are historical.
 `docs/developers-guide.md`, "CodeScene publication belongs to main", is the
 operational guide.
+
+## Addendum (2026-11-08): the lint gate names the aggregated suite
+
+The 2026-07-20 record describes the gate as `whitaker --all`. The invocation
+now names the library it installs:
+
+```bash
+RUSTFLAGS="-D warnings" whitaker --lib whitaker_suite -- --workspace --all-targets --all-features
+```
+
+The adopted lint set was unchanged by that rewrite: the aggregated suite
+registers every constituent lint, and the installer's default request is the
+suite alone. What changed is what the selection depends on. `--all` loads every
+library the installed tree happens to hold, and that tree is written by a
+versioned installer against a rolling release. An installer older than a lint
+cannot prune that lint's standalone library, so the library stays beside the
+suite and both register the same lint name; rustc then panics with
+`duplicate specification of lint` before any repository source is checked. This
+occurred with installer `0.2.11` once the rolling suite gained
+`string_continuation_style`, and it breaks every consumer of the shared
+installer action rather than this repository alone
+([leynos/whitaker#565](https://github.com/leynos/whitaker/issues/565)).
+
+Naming the suite keeps the lint set fixed by this repository's intent rather
+than by the installed tree's bookkeeping, and leaves the installer free to
+repair its pruning. `docs/developers-guide.md`, "Whitaker Dylint suite lint
+gate (ADR-013)", is the operational guide.
+
+The installer has since gained pruning by staged file name: `0.2.12`, which
+`main` pinned on 2026-11-12, no longer leaves a standalone library beside the
+suite. That removes the CI trigger recorded above but not the reason for the
+invocation. `--all` still ties the lint set to whatever an individual
+installation holds, so naming the suite remains the deliberate choice.
+
+## Addendum (2026-11-08): adopting `string_continuation_style`
+
+The rolling suite gained `string_continuation_style` after the invocation
+addendum above was written. Naming the suite selects whatever the suite
+registers, so the lint now runs as part of `make lint-whitaker`, and this
+repository adopts it rather than suppressing it. That is the same posture the
+earlier addendum describes; it does not make the lint set permanently fixed.
+
+The lint rejects a string literal continued onto the next source line with a
+trailing backslash. 162 such literals across 81 files became `concat!` calls
+with one argument per line, which keeps the joined value and gives each line
+its own literal. `.rustfmt.toml` no longer sets `format_strings`, because that
+option rewrapped any literal past the maximum width with the very backslash
+continuation the lint rejects, including inside `concat!` arguments; leaving it
+off makes the formatter and the lint agree.
+
+Two classes stay on one source line. An attribute argument — `#[error("...")]`,
+`#[expect(reason = "...")]` or `#[should_panic(expected = "...")]` — accepts
+only a literal, never a macro call. A literal that relies on implicitly
+captured format arguments also stays whole: `concat!` is a macro call, and
+implicit capture reads only a literal.
 
 ## Known limitations
 

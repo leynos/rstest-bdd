@@ -10,23 +10,28 @@ homepage.workspace = true
 repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
-rust-version.workspace = true
+rust-version = "1.89"
 
 [lints]
 workspace = true
 
 [dependencies]
+camino.workspace = true
 clap = { version = "4.5", features = ["derive"] }
+ortho_config.workspace = true
 rstest-bdd = { workspace = true, features = ["diagnostics"] }
 cargo_metadata.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 eyre.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
 rstest-bdd-harness.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2"
+camino.workspace = true
+cap-std.workspace = true
 insta.workspace = true
 proptest.workspace = true
 rstest.workspace = true

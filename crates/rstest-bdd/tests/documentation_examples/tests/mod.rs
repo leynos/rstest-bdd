@@ -27,10 +27,10 @@ fn lines(text: &str) -> Vec<&str> { text.lines().collect() }
 
 #[test]
 fn region_runs_from_heading_to_next_same_or_higher_level() {
-    let text = lines(
-        "## Top\n\n### Feature file rebuild invalidation\n\nsome text\n\n```rust\nx\n```\n\n### \
-         Next\n\ntext\n",
-    );
+    let text = lines(concat!(
+        "## Top\n\n### Feature file rebuild invalidation\n\nsome text\n\n```rust\nx\n```\n\n### ",
+        "Next\n\ntext\n",
+    ));
     let (start, end) =
         find_region_bounds(&text, SectionHeading("Feature file rebuild invalidation"))
             .expect("the section must exist");

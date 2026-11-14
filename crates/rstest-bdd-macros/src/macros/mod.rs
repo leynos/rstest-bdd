@@ -145,8 +145,10 @@ fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> Strin
 
     if err_message.contains("unsupported parameter pattern") {
         return concat!(
-            "Bind the parameter to a simple identifier (e.g., `tuple: (i32, i32)` or `user: \
-             User`) ",
+            concat!(
+                "Bind the parameter to a simple identifier (e.g., `tuple: (i32, i32)` or `user: ",
+                "User`) ",
+            ),
             "and destructure it inside the step body."
         )
         .to_owned();
@@ -158,9 +160,7 @@ fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> Strin
 
     let kw_name = keyword_name(keyword);
     format!(
-        "Use a step attribute (such as `#[{kw_name}]`) on `fn name(...args...)` with supported \
-         step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); \
-         remove `self` if present."
+        "Use a step attribute (such as `#[{kw_name}]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present."
     )
 }
 

@@ -48,8 +48,7 @@ pub fn write<W: Write>(writer: &mut W, records: &[ScenarioRecord]) -> fmt::Resul
     writer.write_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")?;
     writeln!(
         writer,
-        "<testsuite name=\"rstest-bdd\" tests=\"{tests}\" failures=\"{failures}\" \
-         skipped=\"{skipped}\">",
+        "<testsuite name=\"rstest-bdd\" tests=\"{tests}\" failures=\"{failures}\" skipped=\"{skipped}\">",
     )?;
     for record in records {
         writer.write_str("  <testcase name=\"")?;

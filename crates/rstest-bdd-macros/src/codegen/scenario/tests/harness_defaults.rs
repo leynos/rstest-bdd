@@ -138,14 +138,12 @@ fn generate_test_attrs_honours_harness_precedence(
     assert_eq!(
         output.contains("tokio :: test"),
         expect_tokio_test,
-        "tokio::test presence mismatch for runtime={runtime:?}, harness={harness_path:?}, \
-         policy={policy_path:?}: {output}"
+        "tokio::test presence mismatch for runtime={runtime:?}, harness={harness_path:?}, policy={policy_path:?}: {output}"
     );
     assert_eq!(
         output.contains("gpui :: test"),
         expect_gpui_test,
-        "gpui::test presence mismatch for runtime={runtime:?}, harness={harness_path:?}, \
-         policy={policy_path:?}: {output}"
+        "gpui::test presence mismatch for runtime={runtime:?}, harness={harness_path:?}, policy={policy_path:?}: {output}"
     );
 }
 
