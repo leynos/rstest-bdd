@@ -1461,6 +1461,38 @@ Hard invariants. Violation requires escalation, not a workaround.
       `make check-fmt` is the gate the hosted lane runs first and the file
       being edited is its input.
 
+- [x] (2026-11-14) Rebased the branch onto
+      `issue-910-test-avoid-cold-nested-cargo-builds-in-timed-suites` (target
+      `34f29ce7`), so this pull request now stacks on #910's branch instead of
+      `main`. Both branches had independently solved three of the same
+      problems, and the rebase kept the #910 implementation in each case rather
+      than duplicating it: the nested-Cargo environment and preparation
+      plumbing in `rstest_bdd_harness::nested_cargo`, including the fallible
+      target-directory resolution; the layout-agnostic target root discovered
+      through `CACHEDIR.TAG`, which replaced this branch's build-dir detection;
+      and the `test(/nested_fixture_preparation$/)` Nextest override.
+
+  The two branches also rewrote the same string literals independently to
+  satisfy `string_continuation_style`; those files take whichever side had
+  already joined the continuation, verified by a tree-wide search for a trailing
+  `\` inside a string literal. `Cargo.lock` was taken from the target and
+  rebuilt with `cargo metadata --offline`, which keeps the target's
+  `cargo-platform 0.3.3` and adds only this branch's dependencies. The branch's
+  `.config/nextest.toml` edit, widening the 180-second override to
+  `binary_id(cargo-bdd::cli) | binary_id(cargo-bdd::invocation)`, is what the
+  merged `nextest_config` contract asserts, so it is retained.
+
+  The replay covers every commit published to this branch, not only the commits
+  it carried when this work started, so nothing pushed in the meantime is
+  dropped. Three replayed commits conflicted, in four files, and each was
+  resolved rather than taken from one side. The CLI fixture's child-environment
+  helper keeps this base's fallible `nested_cargo::env_from_vars` threaded
+  through the helper and every assertion of it. The split of that policy into
+  `cli/isolation.rs` and `cli/child_environment.rs` is kept, with both made
+  fallible. The toolchain-home commit is kept, including its Windows ordering of
+  `USERPROFILE` before `HOME`, with this base's relative-target resolution
+  applied on top of it.
+
 ## Surprises & discoveries
 
 - Observation: `make markdownlint` passing is not evidence that a Markdown
@@ -1978,11 +2010,11 @@ PASS [ 279.498s] (770/787) rstest-bdd::trybuild_macros runner::step_macros_compi
 MAKE_TEST_EXIT=0
 ```
 
-No `FAILED` line, no `^error`, and no `make: ***` appears in the log. `#910`
-still owns the budgets that make those nested-Cargo tests slow on this host,
-but it no longer gates this row. This plan cites the gated revision rather than
-its own commit, and review follow-ups after that revision are recorded in the
-progress log and surprises below.
+No `FAILED` line, no `^error`, and no `make: ***` appears in the log. `#910`,
+this branch's base, still owns the budgets that make those nested-Cargo tests
+slow on this host, but it no longer gates this row. This plan cites the gated
+revision rather than its own commit, and review follow-ups after that revision
+are recorded in the progress log and surprises below.
 
 At `e28a927a` the hosted Linux coverage lane produced the complete result the
 local runs could not: 2,245 tests run, 2,245 passed, 7 skipped, including
@@ -2014,8 +2046,9 @@ Both are covered by the hosted run above.
 
 That exception is superseded by the later record in `Outcomes & retrospective`:
 the whole recipe was run once at `8a5cb67f` with no filter and exited zero, so
-its two conditions are now met locally. Issue #910 still owns the budgets that
-make the nested-Cargo tests slow here, but it no longer gates the row.
+its two conditions are now met locally. Issue #910, this branch's base, still
+owns the budgets that make the nested-Cargo tests slow here, but it no longer
+gates the row.
 
 ## Context and orientation
 
@@ -2406,9 +2439,9 @@ That exception has since been cleared by running the whole recipe once at
 `8a5cb67f`, sequentially, with no `-E` filter and no test excluded. It exited
 zero. Both nextest legs ran `runner::step_macros_compile` to completion (275.0
 s and 279.5 s) and the recipe's remaining steps finished behind them.
-[#910](https://github.com/leynos/rstest-bdd/issues/910) still owns the budgets
-that make those nested-Cargo tests slow on this host, but the row is no longer
-blocked on it. This is recorded rather than waived.
+[#910](https://github.com/leynos/rstest-bdd/issues/910), this branch's base,
+still owns the budgets that make those nested-Cargo tests slow on this host,
+but the row is no longer blocked on it. This is recorded rather than waived.
 
 There is no dedicated MSRV CI job in this repository. Report the direct local
 MSRV checks above and do not imply a pipeline covers them.
