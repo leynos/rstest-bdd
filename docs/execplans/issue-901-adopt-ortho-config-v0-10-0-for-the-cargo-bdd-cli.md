@@ -6,13 +6,13 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 be kept up to date as work proceeds.
 
 Status: IMPLEMENTATION COMPLETE (latest *completed* hosted verdict is CI run
-`43582906292` at `f10c0e4d`: all three required `build-test` jobs pass,
+`43592197882` at `a634e98a`: all three required `build-test` jobs pass,
 including both Windows jobs and the Linux job whose earlier timeout was
-diagnosed as host contention. The head carrying this text is `f7fa8cd6`, three
-commits later and still awaiting a hosted verdict of its own, so this line
-claims nothing about it. Earlier green runs, including `f93347ef` and
-`76f8f63e` under run `43453087168`, are historical evidence recorded in
-`Progress`; merge pending)
+diagnosed as host contention. That revision carries this text's code and its own
+`make test` row, so no gate evidence is outstanding. Earlier green runs,
+including `f10c0e4d` under run `43582906292` and `f93347ef` and `76f8f63e`
+under run `43453087168`, are historical evidence recorded in `Progress`; merge
+pending)
 
 ## Purpose / big picture
 
@@ -546,11 +546,10 @@ Hard invariants. Violation requires escalation, not a workaround.
 - [ ] §6: documentation, gates, follow-up review, commit, push, hosted CI,
       review reconciliation, and merge. Merge is still pending: this box stays
       unchecked until the pull request lands on `main`. The latest *completed*
-      hosted verdict is CI run `43582906292` at `f10c0e4d`, where all three
-      `build-test` jobs passed; the head after it has no recorded verdict yet,
-      so this entry claims nothing about it. The `make test` row is met locally
-      at `f7fa8cd6`, and a hosted verdict for a head at or after that revision
-      is the remaining evidence this section names.
+      hosted verdict is CI run `43592197882` at `a634e98a`, where all three
+      `build-test` jobs passed. The `make test` row is met locally at
+      `f7fa8cd6`, and that head's own hosted run is green, so no verdict
+      evidence remains outstanding. Merge is the only unchecked item.
       The candidate was rebased onto `origin/main`
       (`693bba91`) and gated at revision `96e38df8`; the rebase described in
       `Outcomes & retrospective` is the later one.
