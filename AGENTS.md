@@ -524,9 +524,10 @@ Additional docs:
 `make dev-build` and `make dev-test` compile with the opt-in Cranelift backend
 configured in `tools/dev-fast/config.toml`, which also selects the mold linker
 for Linux targets only. An inherited `RUSTFLAGS` or `CARGO_ENCODED_RUSTFLAGS`
-overrides that configuration, linker selection included. They require a nightly
-toolchain with the `rustc-codegen-cranelift-preview` component and, on Linux, a
-`mold` binary on the `PATH`. Install the selected toolchain and component with:
+overrides the configured `rustflags`, linker flag included, but not the
+separate Cranelift profile setting. They require a nightly toolchain with the
+`rustc-codegen-cranelift-preview` component and, on Linux, a `mold` binary on
+the `PATH`. Install the selected toolchain and component with:
 
 ```sh
 rustup toolchain install nightly-2026-08-16 \
