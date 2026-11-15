@@ -13,6 +13,10 @@ use crate::{
     server::ServerState,
 };
 
+/// Tracing target these events carried before they moved out of the parent
+/// module, so target-specific subscribers keep matching them.
+const LOG_TARGET: &str = "rstest_bdd_server::handlers::text_document";
+
 /// Apply a Rust indexing result and publish its diagnostics.
 pub(in crate::handlers) fn apply_rust_index_result(
     state: &mut ServerState,
@@ -36,6 +40,7 @@ fn apply_rust_index_success(
     record_rust_success_metrics(result.diagnostics.len());
     let index = result.index;
     debug!(
+        target: LOG_TARGET,
         path = %path.display(),
         steps = index.step_definitions.len(),
         "indexed rust step file"
@@ -62,7 +67,7 @@ fn record_rust_success_metrics(diagnostic_count: usize) {
 /// Log each recoverable diagnostic raised while indexing a Rust file.
 fn warn_rust_step_diagnostics(path: &std::path::Path, diagnostics: &[RustStepIndexDiagnostic]) {
     for diagnostic in diagnostics {
-        warn!(path = %path.display(), error = %diagnostic, "indexed Rust file with a step diagnostic");
+        warn!(target: LOG_TARGET, path = %path.display(), error = %diagnostic, "indexed Rust file with a step diagnostic");
     }
 }
 
@@ -75,5 +80,5 @@ fn apply_rust_index_failure(
     record_indexing_outcome("rust", rust_indexing_outcome(err));
     state.remove_rust_step_index(path);
     clear_rust_index_diagnostics(state, path);
-    warn!(path = %path.display(), error = %err, "failed to index rust step file");
+    warn!(target: LOG_TARGET, path = %path.display(), error = %err, "failed to index rust step file");
 }

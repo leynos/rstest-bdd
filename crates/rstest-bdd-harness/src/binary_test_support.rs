@@ -104,7 +104,8 @@ fn target_dir_near_current_exe() -> Option<PathBuf> {
 /// Locate the profile directory that holds workspace binaries, given a test
 /// executable's path. Pure computation: no I/O. An executable outside Cargo's
 /// `deps` and `build/<package>/<hash>/out` layouts resolves to its own parent
-/// directory, so the caller's `is_file` probe simply misses.
+/// directory; the caller's `is_file` probe then finds a workspace binary only if
+/// one happens to sit beside the test executable, and otherwise misses.
 fn profile_dir_of_test_executable(executable: &Path) -> PathBuf {
     let mut path = executable.to_path_buf();
     path.pop();
