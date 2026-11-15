@@ -239,35 +239,34 @@ fn profile_global_timeout<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a str, io::Error> {
-    configuration
-        .get("profile")
-        .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get(profile_name))
-        .and_then(Value::as_table)
-        .and_then(|profile| profile.get("global-timeout"))
-        .and_then(Value::as_str)
+    nextest_value_at_path(
+        configuration,
+        &["profile", profile_name, "global-timeout"],
+        Value::as_str,
+    )
+}
+
+fn nextest_value_at_path<'a, T>(
+    configuration: &'a Value,
+    path: &[&str],
+    decode: impl FnOnce(&'a Value) -> Option<T>,
+) -> Result<T, io::Error> {
+    path.iter()
+        .try_fold(configuration, |value, key| value.get(*key))
+        .and_then(decode)
         .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must set profile.{profile_name}.global-timeout"
-            ))
+            io::Error::other(format!("nextest configuration must set {}", path.join(".")))
         })
 }
 
 /// `test-groups` is a top-level nextest table, not a profile key, so it needs
 /// its own lookup rather than `profile_global_timeout`.
 fn test_group_max_threads(configuration: &Value, group_name: &str) -> Result<i64, io::Error> {
-    configuration
-        .get("test-groups")
-        .and_then(Value::as_table)
-        .and_then(|groups| groups.get(group_name))
-        .and_then(Value::as_table)
-        .and_then(|group| group.get("max-threads"))
-        .and_then(Value::as_integer)
-        .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must set test-groups.{group_name}.max-threads"
-            ))
-        })
+    nextest_value_at_path(
+        configuration,
+        &["test-groups", group_name, "max-threads"],
+        Value::as_integer,
+    )
 }
 
 fn duration_seconds(duration: &str) -> Result<u64, io::Error> {
