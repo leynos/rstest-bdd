@@ -96,7 +96,7 @@ fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() {
 /// The control: a rebuild the stamp never recorded *is* accepted.
 ///
 /// Without this, the case above would pass for a check that had simply stopped
-/// recognising replacements altogether — every rebuilt unit would then be
+/// treating a new generation as a replacement — every rebuilt unit would then be
 /// reported missing, and the rebuild experiment the scratch families exist for
 /// could never run. Together the pair shows the call site excludes recorded
 /// names without excluding the rebuilds it is supposed to accept.
