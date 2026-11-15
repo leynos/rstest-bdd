@@ -116,8 +116,7 @@ fn cargo_bin_path_for_integration_tests(binary_name: BinaryName<'_>) -> PathBuf 
 /// lets a test drive the whole fallback, including the `.` default, without
 /// spawning a binary.
 fn fallback_binary_path(binary_name: BinaryName<'_>, executable: Option<&Path>) -> PathBuf {
-    let profile =
-        executable.map_or_else(|| PathBuf::from("."), profile_dir_of_test_executable);
+    let profile = executable.map_or_else(|| PathBuf::from("."), profile_dir_of_test_executable);
     profile.join(format!("{binary_name}{}", env::consts::EXE_SUFFIX))
 }
 
@@ -317,7 +316,10 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        BinaryName, binary_path_in_target_dir, fallback_binary_path, profile_dir_of_test_executable,
+        BinaryName,
+        binary_path_in_target_dir,
+        fallback_binary_path,
+        profile_dir_of_test_executable,
     };
 
     // ── profile_dir_of_test_executable ─────────────────────────────────────

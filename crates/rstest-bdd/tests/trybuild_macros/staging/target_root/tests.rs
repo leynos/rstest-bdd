@@ -105,9 +105,9 @@ fn an_untagged_layout_yields_no_root(#[case] structure: &[&str]) {
     std::fs::write(&executable, b"binary").expect("executable");
 
     assert_eq!(
-        target_directory_from_test_executable(
-            Utf8Path::new(executable.to_str().expect("utf-8 path"))
-        ),
+        target_directory_from_test_executable(Utf8Path::new(
+            executable.to_str().expect("utf-8 path")
+        )),
         None,
         "without a tag above it, {executable:?} must yield no root"
     );
