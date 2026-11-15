@@ -742,7 +742,7 @@ The `example_crate` name below is a placeholder; replace it with the crate name.
 ///
 /// # Examples
 ///
-/// ```rust,ignore
+/// ```rust
 /// use example_crate::add;
 /// assert_eq!(add(2, 3), 5);
 /// ```
