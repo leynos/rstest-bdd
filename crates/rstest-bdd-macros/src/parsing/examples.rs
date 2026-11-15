@@ -51,6 +51,28 @@ fn get_first_examples_table(scenario: &gherkin::Scenario) -> Result<&gherkin::Ta
         })
 }
 
+/// Build one merged tag set per data row, in row order across Examples blocks.
+///
+/// Each Examples block contributes its own tags merged with `base_tags` for
+/// every row after its header; blocks without a table contribute nothing.
+fn collect_row_tags(
+    scenario: &gherkin::Scenario,
+    base_tags: &[String],
+    row_count: usize,
+) -> Vec<Vec<String>> {
+    let mut row_tags = Vec::with_capacity(row_count);
+    for (table, ex_tags) in scenario
+        .examples
+        .iter()
+        .filter_map(|ex| ex.table.as_ref().map(|table| (table, &ex.tags)))
+    {
+        let examples_tags = crate::parsing::tags::merge_tag_sets(base_tags, ex_tags);
+        let data_rows = table.rows.len().saturating_sub(1);
+        row_tags.extend(std::iter::repeat_n(examples_tags, data_rows));
+    }
+    row_tags
+}
+
 /// Extract examples table data from a scenario if present.
 pub(crate) fn extract_examples(
     scenario: &gherkin::Scenario,
@@ -65,16 +87,7 @@ pub(crate) fn extract_examples(
     validate_header_consistency(scenario, &headers)?;
     let rows = flatten_and_validate_rows(scenario, headers.len())?;
 
-    let mut row_tags = Vec::with_capacity(rows.len());
-    for ex in &scenario.examples {
-        let Some(table) = ex.table.as_ref() else {
-            continue;
-        };
-        let examples_tags = crate::parsing::tags::merge_tag_sets(base_tags, &ex.tags);
-        for _ in table.rows.iter().skip(1) {
-            row_tags.push(examples_tags.clone());
-        }
-    }
+    let row_tags = collect_row_tags(scenario, base_tags, rows.len());
 
     debug_assert_eq!(
         row_tags.len(),

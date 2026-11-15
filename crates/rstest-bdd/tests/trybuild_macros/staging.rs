@@ -7,12 +7,17 @@ use std::{env, io, path::Path as StdPath};
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 
+#[path = "staging/snapshot_io.rs"]
+mod snapshot_io;
+use snapshot_io::{read_snapshot_originals, workspace_root_of};
+
 #[path = "staging/target_root.rs"]
 mod target_root;
 pub(crate) use target_root::trybuild_target_directory;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
+
 const FEATURES_AUTO_DIR: &str = "tests/features/auto";
 
 const TARGET_ROOT_SNAPSHOTS: &[&str] = &[
@@ -21,8 +26,10 @@ const TARGET_ROOT_SNAPSHOTS: &[&str] = &[
     "tests/fixtures_macros/scenarios_missing_dir.stderr",
     "tests/fixtures_macros/scenario_unrelatable_path.stderr",
 ];
+
 #[cfg(windows)]
 const UNRELATABLE_FEATURE_PATH: &str = r"C:\Users\Public\rstest-bdd-unrelatable\x.feature";
+
 /// A staged feature file on Windows' `C:` root.
 ///
 /// Keeping the file alive through the compile-fail invocation ensures the macro
@@ -41,6 +48,7 @@ impl Drop for AlternateFeatureRoot {
         }
     }
 }
+
 /// Returns the path to a macro fixture file, staging support files first.
 ///
 /// Ensures that feature files are staged to the trybuild test environment
@@ -107,6 +115,7 @@ pub(crate) fn stage_unrelatable_feature_root() -> io::Result<Option<AlternateFea
     std::fs::copy(&source, destination)?;
     Ok(Some(AlternateFeatureRoot))
 }
+
 #[expect(clippy::expect_used, reason = "test setup failure should panic")]
 fn ensure_trybuild_support_files() {
     use std::sync::OnceLock;
@@ -252,20 +261,11 @@ fn apply_snapshot_target_root(original: &str, rendered_target_root: &str) -> Str
 /// Stage temporary target-root-specific snapshots for a trybuild run.
 pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuard> {
     let crate_root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = crate_root
-        .parent()
-        .and_then(Utf8Path::parent)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
+    let workspace_root = workspace_root_of(&crate_root)?;
     let target_root = trybuild_target_directory(workspace_root);
     let snapshot_target_root = snapshot_target_root(&target_root, workspace_root);
     let crate_dir = Dir::open_ambient_dir(crate_root.as_std_path(), ambient_authority())?;
-    let mut originals = Vec::new();
-
-    for path in TARGET_ROOT_SNAPSHOTS {
-        let path = Utf8PathBuf::from(path);
-        let original = crate_dir.read_to_string(path.as_std_path())?;
-        originals.push((path, original));
-    }
+    let originals = read_snapshot_originals(&crate_dir)?;
 
     let guard = TargetRootSnapshotGuard {
         crate_root,
@@ -277,6 +277,7 @@ pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuar
     }
     Ok(guard)
 }
+
 fn write_feature_files(
     root: &Dir,
     destination_root: &StdPath,

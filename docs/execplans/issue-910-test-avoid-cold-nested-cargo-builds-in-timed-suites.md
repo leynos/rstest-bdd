@@ -1424,6 +1424,35 @@ rather than by reading this branch's comments.
       `runs_over_two_calls`. Coverage is unchanged — 110 preparation tests and
       33 `feature_rebuild_invalidation` tests pass — and the commit is
       `aec0c202`.
+- [x] Spell the two names the spelling gate refused. `recognised` became
+      `recognized` and `familys` became `family_s`, both in test names rather
+      than in prose, so the fix is the name and not a local allowlist entry.
+      The gate's dictionary resolves the `-ise` form to `-ize` here, which is
+      the opposite direction from the en-GB-oxendict rule the repository
+      otherwise follows; that is a dictionary question, so it is left as the
+      dictionary decides. Commit `770d8616`.
+- [x] Merge `origin/main` after #945 landed. That PR fixed the same two Cargo
+      1.100 layout problems this branch had worked around independently, so
+      three files conflicted. Each was resolved by keeping the stronger
+      solution: main's pure `profile_dir_of_test_executable` for the profile
+      question, with this branch's `fallback_binary_path` delegating to it;
+      this branch's `staging/target_root.rs` module, with main's extra layout
+      cases ported into its test file against a real tagged tree; and this
+      branch's `underscore_fixture.rs`, which keeps the lint firing on every
+      toolchain. Main's `staging/executable_layout.rs` is dropped as
+      superseded. `cargo check --workspace --all-targets --all-features`
+      passes on the merge. Commit `b4d0ecef`.
+- [ ] Re-run the full gate sequence on the merged head through the
+      scrutineer, sequentially and without a competing run in this worktree.
+      The earlier `make test` failure at `2afbbf91` in
+      `feature_edit_forces_rebuild_and_fresh_failure` was a stamp refusal
+      naming two fingerprint generations absent from the tree, and it did not
+      reproduce: a serialized run of the preparation plus all three
+      `feature_rebuild_invalidation` scenarios passed 4/4 in 305 s. That run
+      overlapped this worktree with the gate itself, and both processes run
+      `cargo clean -p rstest-bdd-rebuild-invalidation-fixture` before their
+      baselines, so the overlap is the leading explanation. The merged head
+      needs a clean serialized run to confirm it rather than assume it.
 
 ## Surprises & Discoveries
 

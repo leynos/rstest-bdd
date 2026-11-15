@@ -74,31 +74,49 @@ where
 
     fn try_from(table: Vec<Vec<String>>) -> Result<Self, Self::Error> {
         let mut rows_iter = table.into_iter();
-        let mut row_number = 1;
-        let header = if T::REQUIRES_HEADER {
-            let header_row = rows_iter.next().ok_or(DataTableError::MissingHeader)?;
-            let spec = HeaderSpec::new(header_row)?;
-            row_number += 1;
-            Some(spec)
-        } else {
-            None
-        };
+        let header = read_header::<T>(&mut rows_iter)?;
+        // Row numbers are one-based; the header, when present, occupies row 1.
+        let first_data_row = if header.is_some() { 2 } else { 1 };
         let (lower, _) = rows_iter.size_hint();
         let mut parsed_rows = Vec::with_capacity(lower);
         for (index, row) in rows_iter.enumerate() {
-            if let Some(ref header) = header
-                && row.len() != header.len()
-            {
-                return Err(DataTableError::UnevenRow {
-                    row_number: row_number + index,
-                    expected: header.len(),
-                    actual: row.len(),
-                });
-            }
-            let spec = RowSpec::new(header.as_ref(), row_number + index, index, row);
-            let parsed = T::parse_row(spec)?;
-            parsed_rows.push(parsed);
+            parsed_rows.push(parse_data_row::<T>(
+                header.as_ref(),
+                first_data_row + index,
+                index,
+                row,
+            )?);
         }
         Ok(Self(parsed_rows))
     }
+}
+
+/// Consume the header row when `T` requires one.
+fn read_header<T: DataTableRow>(
+    rows: &mut impl Iterator<Item = Vec<String>>,
+) -> Result<Option<HeaderSpec>, DataTableError> {
+    if !T::REQUIRES_HEADER {
+        return Ok(None);
+    }
+    let header_row = rows.next().ok_or(DataTableError::MissingHeader)?;
+    HeaderSpec::new(header_row).map(Some)
+}
+
+/// Check a data row against the header width and parse it into `T`.
+fn parse_data_row<T: DataTableRow>(
+    header: Option<&HeaderSpec>,
+    row_number: usize,
+    index: usize,
+    row: Vec<String>,
+) -> Result<T, DataTableError> {
+    if let Some(header) = header
+        && row.len() != header.len()
+    {
+        return Err(DataTableError::UnevenRow {
+            row_number,
+            expected: header.len(),
+            actual: row.len(),
+        });
+    }
+    T::parse_row(RowSpec::new(header, row_number, index, row))
 }

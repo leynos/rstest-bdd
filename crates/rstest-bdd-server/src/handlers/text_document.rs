@@ -4,17 +4,13 @@ use tracing::{debug, warn};
 use crate::lsp::DidSaveTextDocumentParams;
 
 mod indexing_metrics;
+mod rust_index_result;
 
-use indexing_metrics::{feature_indexing_outcome, record_indexing_outcome, rust_indexing_outcome};
+use indexing_metrics::{feature_indexing_outcome, record_indexing_outcome};
+use rust_index_result::apply_rust_index_result;
 
 use super::{
-    diagnostics::{
-        FeatureDiagnosticPublication,
-        clear_rust_index_diagnostics,
-        publish_all_feature_diagnostics,
-        publish_feature_diagnostics,
-        publish_rust_index_result_diagnostics,
-    },
+    diagnostics::{FeatureDiagnosticPublication, publish_feature_diagnostics},
     util::has_extension,
     workspace_metrics::{record_deferred_save_depth, record_workspace_outcome},
 };
@@ -187,46 +183,6 @@ pub(super) fn apply_rust_source_index_result(
         }
     };
     apply_rust_index_result(state, path, step_result, diagnostic_publication);
-}
-
-/// Apply a Rust indexing result and publish its diagnostics.
-pub(super) fn apply_rust_index_result(
-    state: &mut ServerState,
-    path: &std::path::Path,
-    index_result: Result<crate::indexing::RustStepIndexResult, RustStepIndexError>,
-    diagnostic_publication: FeatureDiagnosticPublication,
-) {
-    match index_result {
-        Ok(result) => {
-            record_indexing_outcome("rust", "success");
-            for _ in &result.diagnostics {
-                record_indexing_outcome("rust", "recoverable-diagnostic");
-            }
-            let index = result.index;
-            debug!(
-                path = %path.display(),
-                steps = index.step_definitions.len(),
-                "indexed rust step file"
-            );
-            state.upsert_rust_step_index(index);
-            publish_rust_index_result_diagnostics(state, path, &result.diagnostics);
-            for diagnostic in result.diagnostics {
-                warn!(path = %path.display(), error = %diagnostic, "indexed Rust file with a step diagnostic");
-            }
-            if matches!(
-                diagnostic_publication,
-                FeatureDiagnosticPublication::Immediate
-            ) {
-                publish_all_feature_diagnostics(state);
-            }
-        }
-        Err(err) => {
-            record_indexing_outcome("rust", rust_indexing_outcome(&err));
-            state.remove_rust_step_index(path);
-            clear_rust_index_diagnostics(state, path);
-            warn!(path = %path.display(), error = %err, "failed to index rust step file");
-        }
-    }
 }
 
 #[cfg(test)]

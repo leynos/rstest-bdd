@@ -102,34 +102,23 @@ fn cargo_bin_path_for_integration_tests(binary_name: BinaryName<'_>) -> PathBuf 
 ///
 /// Integration tests are linked into `<profile>/deps` and run from there, so
 /// the binary a sibling crate produced is `<profile>/<name>`, not
-/// `<profile>/deps/<name>` and not `<target>/<name>`. This walked that way
-/// before [`target_directory_of`] took over the layout question, and dropping
-/// it silently moved the search up two levels: the fallback then looked for
+/// `<profile>/deps/<name>` and not `<target>/<name>`. Dropping this path
+/// silently moved the search up two levels: the fallback then looked for
 /// `<target>/<name>`, missed, and fell through to `cargo metadata`, which
 /// reports the *default* target directory and can hand back a binary from a
-/// different one. The tag lookup answers "where is the target root"; the
-/// profile is the parent of the directory the test binary sits in, which is a
-/// separate question.
+/// different one. The tag lookup in [`target_directory_of`] answers "where is
+/// the target root"; the profile is the parent of the directory the test
+/// binary sits in, which is a separate question.
 ///
-/// Taking the executable as a parameter rather than reading `current_exe`
-/// here is what lets a test drive the whole fallback, including the `.`
-/// default and the `deps` stripping, without spawning a binary.
+/// The layout question is [`profile_dir_of_test_executable`]'s, so this
+/// function only chooses the default for an absent executable. Taking the
+/// executable as a parameter rather than reading `current_exe` here is what
+/// lets a test drive the whole fallback, including the `.` default, without
+/// spawning a binary.
 fn fallback_binary_path(binary_name: BinaryName<'_>, executable: Option<&Path>) -> PathBuf {
-    let profile = executable.map_or_else(|| PathBuf::from("."), profile_of_binary);
+    let profile =
+        executable.map_or_else(|| PathBuf::from("."), profile_dir_of_test_executable);
     profile.join(format!("{binary_name}{}", env::consts::EXE_SUFFIX))
-}
-
-/// The profile directory holding `executable`.
-///
-/// A test binary lives in `deps`; a plain binary lives directly in the
-/// profile. Both are anchored on the profile once `deps` is stripped.
-fn profile_of_binary(executable: &Path) -> PathBuf {
-    let mut path = executable.to_path_buf();
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path
 }
 
 /// Cargo's cache-directory tag, written at the root of every target directory.
@@ -159,6 +148,33 @@ pub fn target_directory_of(executable: &Path) -> Option<PathBuf> {
         .skip(1)
         .find(|ancestor| ancestor.join(CACHEDIR_TAG).is_file())
         .map(Path::to_path_buf)
+}
+
+/// Locate the profile directory that holds workspace binaries, given a test
+/// executable's path. Pure computation: no I/O. An executable outside Cargo's
+/// `deps` and `build/<package>/<hash>/out` layouts resolves to its own parent
+/// directory; the caller's `is_file` probe then finds a workspace binary only if
+/// one happens to sit beside the test executable, and otherwise misses.
+fn profile_dir_of_test_executable(executable: &Path) -> PathBuf {
+    let mut path = executable.to_path_buf();
+    path.pop();
+    if path.ends_with("deps") {
+        path.pop();
+    } else if path.ends_with("out") {
+        // Cargo's per-package build-directory layout places test executables
+        // at `<profile>/build/<package>/<hash>/out/<exe>`; pop `out`, the
+        // hash, the package, and `build` to reach the profile directory.
+        let layout_is_build_directory = path
+            .ancestors()
+            .nth(3)
+            .is_some_and(|build| build.ends_with("build"));
+        if layout_is_build_directory {
+            for _ in 0..4 {
+                path.pop();
+            }
+        }
+    }
+    path
 }
 
 fn try_command_from_cargo_test_bin_layout(binary_name: BinaryName<'_>) -> Option<Command> {
@@ -300,7 +316,35 @@ mod tests {
 
     use std::path::Path;
 
-    use super::{BinaryName, binary_path_in_target_dir, fallback_binary_path};
+    use super::{
+        BinaryName, binary_path_in_target_dir, fallback_binary_path, profile_dir_of_test_executable,
+    };
+
+    // ── profile_dir_of_test_executable ─────────────────────────────────────
+
+    #[rstest::rstest]
+    #[case::classic_layout("/t/debug/deps/it-abc", "/t/debug")]
+    #[case::build_directory_layout("/t/debug/build/pkg/abc/out/it-abc", "/t/debug")]
+    #[case::classic_layout_coverage_target(
+        "/t/llvm-cov-target/debug/deps/it-abc",
+        "/t/llvm-cov-target/debug"
+    )]
+    #[case::build_directory_layout_coverage_target(
+        "/t/llvm-cov-target/debug/build/pkg/abc/out/it-abc",
+        "/t/llvm-cov-target/debug"
+    )]
+    #[case::unrecognized_directory("/t/debug/examples/it-abc", "/t/debug/examples")]
+    #[case::out_outside_build_directory("/t/x/pkg/abc/out/it-abc", "/t/x/pkg/abc/out")]
+    fn profile_directory_follows_the_cargo_layout(
+        #[case] executable: &str,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(
+            profile_dir_of_test_executable(Path::new(executable)),
+            Path::new(expected),
+            "{executable} should resolve to {expected}"
+        );
+    }
 
     // ── binary_path_in_target_dir ──────────────────────────────────────────
 

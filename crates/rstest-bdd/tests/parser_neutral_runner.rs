@@ -110,18 +110,22 @@ fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) 
 /// built: a field the seed forgets is dropped silently by the rebuild, and
 /// `tags` was.
 fn reopen(plan: &ScenarioPlan) -> ScenarioPlanBuilder {
-    let mut builder = ScenarioPlanBuilder::new(plan.name().to_owned(), plan.source().to_owned());
-    for tag in plan.tags() {
-        builder = builder.tag(tag.to_owned());
+    let seed = ScenarioPlanBuilder::new(plan.name().to_owned(), plan.source().to_owned());
+    let tagged = plan
+        .tags()
+        .fold(seed, |builder, tag| builder.tag(tag.to_owned()));
+    let located = with_source_line(tagged.allow_skipped(plan.allow_skipped()), plan);
+    plan.steps()
+        .iter()
+        .fold(located, |builder, existing| builder.step(existing.clone()))
+}
+
+/// Carry the plan's source line, when it has one, onto the builder.
+fn with_source_line(builder: ScenarioPlanBuilder, plan: &ScenarioPlan) -> ScenarioPlanBuilder {
+    match plan.source_line() {
+        Some(line) => builder.at_line(line),
+        None => builder,
     }
-    builder = builder.allow_skipped(plan.allow_skipped());
-    if let Some(source_line) = plan.source_line() {
-        builder = builder.at_line(source_line);
-    }
-    for existing in plan.steps() {
-        builder = builder.step(existing.clone());
-    }
-    builder
 }
 
 #[when("the plan is executed synchronously")]

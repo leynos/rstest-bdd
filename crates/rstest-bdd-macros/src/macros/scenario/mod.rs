@@ -140,15 +140,7 @@ fn resolve_scenario(
     let feature_path = manifest_relative_feature_path(&path);
     let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&data.tags);
 
-    // Validate placeholder references in scenario outline steps
-    if let Some(ref ex) = data.examples {
-        validate_step_placeholders(&data.steps, ExampleHeaders::new(&ex.headers))
-            .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
-    }
-
-    if let Some(err) = validate_steps_compile_time(&data.steps, libraries.as_deref()) {
-        return Err(err);
-    }
+    validate_scenario_steps(&data, libraries.as_deref())?;
 
     process_scenario_outline_examples(sig, data.examples.as_ref())
         .map_err(proc_macro::TokenStream::from)?;
@@ -166,6 +158,19 @@ fn resolve_scenario(
         scope,
         allow_skipped,
     })
+}
+
+/// Reject a scenario whose outline placeholders or steps do not compile.
+fn validate_scenario_steps(
+    data: &ScenarioData,
+    libraries: Option<&[syn::Path]>,
+) -> std::result::Result<(), TokenStream> {
+    // Validate placeholder references in scenario outline steps
+    if let Some(ref ex) = data.examples {
+        validate_step_placeholders(&data.steps, ExampleHeaders::new(&ex.headers))
+            .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
+    }
+    validate_steps_compile_time(&data.steps, libraries).map_or(Ok(()), Err)
 }
 
 /// Wire the scenario's fixture parameters into the generated step context.

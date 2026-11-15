@@ -69,6 +69,50 @@ fn derives_target_root_from_test_executable(#[case] structure: &[&str]) {
     );
 }
 
+/// An executable outside Cargo's layouts resolves only through a tag above it.
+///
+/// The lookup does not parse the path, so these shapes are not rejected for
+/// their form: each is refused because no ancestor carries `CACHEDIR.TAG`.
+/// That distinction is what lets `build/<pkg>/<hash>/out` work without this
+/// module having to name it, so the case pins the mechanism rather than a list
+/// of accepted directories.
+#[rstest]
+#[case::unrecognized_directory(&["debug", "examples", "trybuild_macros-a1b2c3"])]
+#[case::out_without_build_directory(&[
+    "debug",
+    "other",
+    "rstest-bdd",
+    "d195883d3c395ab2",
+    "out",
+    "trybuild_macros-d195883d3c395ab2",
+])]
+fn an_untagged_layout_yields_no_root(#[case] structure: &[&str]) {
+    let directory = tempfile::tempdir().expect("temp dir");
+    let tagged_ancestor = directory
+        .path()
+        .ancestors()
+        .skip(1)
+        .find(|ancestor| ancestor.join("CACHEDIR.TAG").is_file());
+    if tagged_ancestor.is_some() {
+        return;
+    }
+    let mut executable = directory.path().to_path_buf();
+    for part in structure {
+        executable.push(part);
+    }
+    std::fs::create_dir_all(executable.parent().expect("executable parent"))
+        .expect("executable dir");
+    std::fs::write(&executable, b"binary").expect("executable");
+
+    assert_eq!(
+        target_directory_from_test_executable(
+            Utf8Path::new(executable.to_str().expect("utf-8 path"))
+        ),
+        None,
+        "without a tag above it, {executable:?} must yield no root"
+    );
+}
+
 /// A tree with no cache tag yields no root, so the caller falls back rather
 /// than guessing a directory.
 ///
