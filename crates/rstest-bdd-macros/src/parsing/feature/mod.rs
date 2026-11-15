@@ -267,30 +267,27 @@ impl ScenarioData {
     /// Provides the internal `filter_by_tags` operation.
     pub(crate) fn filter_by_tags(&mut self, expr: &TagExpression) -> bool {
         match &mut self.examples {
-            Some(examples) => {
-                let mut retained_rows = Vec::new();
-                let mut retained_tags = Vec::new();
-                for (row, tags) in examples
-                    .rows
-                    .iter()
-                    .cloned()
-                    .zip(examples.row_tags.iter().cloned())
-                {
-                    if expr.evaluate(tags.iter().map(String::as_str)) {
-                        retained_rows.push(row);
-                        retained_tags.push(tags);
-                    }
-                }
-
-                if retained_rows.is_empty() {
-                    false
-                } else {
-                    examples.rows = retained_rows;
-                    examples.row_tags = retained_tags;
-                    true
-                }
-            }
+            Some(examples) => retain_matching_rows(examples, expr),
             None => expr.evaluate(self.tags.iter().map(String::as_str)),
         }
     }
+}
+
+/// Keep only the example rows whose tags satisfy `expr`.
+///
+/// Returns `false`, leaving `examples` untouched, when no row matches.
+fn retain_matching_rows(examples: &mut ExampleTable, expr: &TagExpression) -> bool {
+    let (retained_rows, retained_tags): (Vec<_>, Vec<_>) = examples
+        .rows
+        .iter()
+        .cloned()
+        .zip(examples.row_tags.iter().cloned())
+        .filter(|(_, tags)| expr.evaluate(tags.iter().map(String::as_str)))
+        .unzip();
+    if retained_rows.is_empty() {
+        return false;
+    }
+    examples.rows = retained_rows;
+    examples.row_tags = retained_tags;
+    true
 }

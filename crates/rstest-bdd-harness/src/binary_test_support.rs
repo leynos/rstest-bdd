@@ -98,12 +98,34 @@ fn cargo_bin_path_for_integration_tests(binary_name: BinaryName<'_>) -> PathBuf 
 }
 
 fn target_dir_near_current_exe() -> Option<PathBuf> {
-    let mut path = env::current_exe().ok()?;
+    Some(profile_dir_of_test_executable(&env::current_exe().ok()?))
+}
+
+/// Locate the profile directory that holds workspace binaries, given a test
+/// executable's path. Pure computation: no I/O. An executable outside Cargo's
+/// `deps` and `build/<package>/<hash>/out` layouts resolves to its own parent
+/// directory; the caller's `is_file` probe then finds a workspace binary only if
+/// one happens to sit beside the test executable, and otherwise misses.
+fn profile_dir_of_test_executable(executable: &Path) -> PathBuf {
+    let mut path = executable.to_path_buf();
     path.pop();
     if path.ends_with("deps") {
         path.pop();
+    } else if path.ends_with("out") {
+        // Cargo's per-package build-directory layout places test executables
+        // at `<profile>/build/<package>/<hash>/out/<exe>`; pop `out`, the
+        // hash, the package, and `build` to reach the profile directory.
+        let layout_is_build_directory = path
+            .ancestors()
+            .nth(3)
+            .is_some_and(|build| build.ends_with("build"));
+        if layout_is_build_directory {
+            for _ in 0..4 {
+                path.pop();
+            }
+        }
     }
-    Some(path)
+    path
 }
 
 fn try_command_from_cargo_test_bin_layout(binary_name: BinaryName<'_>) -> Option<Command> {
@@ -245,7 +267,33 @@ mod tests {
 
     use std::path::Path;
 
-    use super::{BinaryName, binary_path_in_target_dir};
+    use super::{BinaryName, binary_path_in_target_dir, profile_dir_of_test_executable};
+
+    // ── profile_dir_of_test_executable ─────────────────────────────────────
+
+    #[rstest::rstest]
+    #[case::classic_layout("/t/debug/deps/it-abc", "/t/debug")]
+    #[case::build_directory_layout("/t/debug/build/pkg/abc/out/it-abc", "/t/debug")]
+    #[case::classic_layout_coverage_target(
+        "/t/llvm-cov-target/debug/deps/it-abc",
+        "/t/llvm-cov-target/debug"
+    )]
+    #[case::build_directory_layout_coverage_target(
+        "/t/llvm-cov-target/debug/build/pkg/abc/out/it-abc",
+        "/t/llvm-cov-target/debug"
+    )]
+    #[case::unrecognized_directory("/t/debug/examples/it-abc", "/t/debug/examples")]
+    #[case::out_outside_build_directory("/t/x/pkg/abc/out/it-abc", "/t/x/pkg/abc/out")]
+    fn profile_directory_follows_the_cargo_layout(
+        #[case] executable: &str,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(
+            profile_dir_of_test_executable(Path::new(executable)),
+            Path::new(expected),
+            "{executable} should resolve to {expected}"
+        );
+    }
 
     // ── binary_path_in_target_dir ──────────────────────────────────────────
 

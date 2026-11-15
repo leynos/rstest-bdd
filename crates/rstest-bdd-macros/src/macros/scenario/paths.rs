@@ -78,24 +78,35 @@ mod windows_paths {
 
 /// Provides the internal `canonicalize_with_cap_std` operation.
 fn canonicalize_with_cap_std(path: &Path) -> Option<PathBuf> {
-    let authority = ambient_authority();
     if path.is_absolute() {
-        let Some(parent) = path.parent() else {
-            return Some(path.to_path_buf());
-        };
-        let Some(name) = path.file_name() else {
-            return Some(path.to_path_buf());
-        };
-        let name = PathBuf::from(name);
-        let dir = Dir::open_ambient_dir(parent, authority).ok()?;
-        let resolved = dir.canonicalize(&name).ok()?;
-        Some(parent.to_path_buf().join(resolved))
+        canonicalize_absolute_with_cap_std(path)
     } else {
-        let cwd = std::env::current_dir().ok()?;
-        let dir = Dir::open_ambient_dir(&cwd, authority).ok()?;
-        let resolved = dir.canonicalize(path).ok()?;
-        Some(cwd.join(resolved))
+        canonicalize_relative_with_cap_std(path)
     }
+}
+
+/// Canonicalize an absolute path through its parent directory.
+///
+/// A path with no parent or no final component (such as a filesystem root) is
+/// returned unchanged.
+fn canonicalize_absolute_with_cap_std(path: &Path) -> Option<PathBuf> {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return Some(path.to_path_buf());
+    };
+    canonicalize_within(parent, Path::new(name))
+}
+
+/// Canonicalize a relative path against the current working directory.
+fn canonicalize_relative_with_cap_std(path: &Path) -> Option<PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    canonicalize_within(&cwd, path)
+}
+
+/// Resolve `name` inside `base` and join the result back onto `base`.
+fn canonicalize_within(base: &Path, name: &Path) -> Option<PathBuf> {
+    let dir = Dir::open_ambient_dir(base, ambient_authority()).ok()?;
+    let resolved = dir.canonicalize(name).ok()?;
+    Some(base.join(resolved))
 }
 
 /// Canonicalize the feature path for stable diagnostics.
