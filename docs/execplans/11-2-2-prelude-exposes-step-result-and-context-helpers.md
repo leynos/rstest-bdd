@@ -7,9 +7,11 @@ be kept up to date as work proceeds.
 
 Status: IN PROGRESS — the user approved this plan on 2026-10-25 and directed
 full implementation through PR completion on 2026-11-01. EP-M0 and EP-M1 are
-complete; EP-M2 is next. The corrected package-identity count is 129 normal
-packages, within the approved ceiling of 135; see DL-14. DL-11 records the
-revised file-count tolerance; DL-12 adapts EP-M0 to the shared build
+complete; EP-M2 implementation is in progress. Its red doctest failed as
+expected, its green doctest passes, and the prelude-surface integration test
+passes; milestone gates remain. The corrected package-identity count is 129
+normal packages, within the approved ceiling of 135; see DL-14. DL-11 records
+the revised file-count tolerance; DL-12 adapts EP-M0 to the shared build
 environment.
 
 ## Purpose / big picture
@@ -1445,6 +1447,20 @@ should be filed rather than forgotten:
 
 ## Decision log
 
+- **DL-15 — Keep the published GPUI fixture locks compatible with `xattr`.**
+  Resolved on 2026-11-03 after PR CI run `41540661058` failed on Linux. Both
+  published GPUI fixture lockfiles had moved `libc` from `0.2.189` on the
+  rebased base to `0.2.191`, while retaining `xattr 0.2.3`, which refers to
+  `libc::ENOATTR`. The upstream rationale for removing this obsolete Linux
+  constant is in [libc issue #1356][libc-enoattr]. Keep `libc 0.2.189` in the
+  documentation and E2E fixture lockfiles until their transitive `xattr`
+  dependency is updated. Use Cargo's precise lockfile update rather than
+  editing generated lock data. Validate `make check-published-gpui`,
+  `make check-published-gpui-e2e-lock`, and `make check-fixture-lockfiles`.
+  Date/Author: 2026-11-03, implementation agent.
+
+[libc-enoattr]: <https://github.com/rust-lang/libc/issues/1356>
+
 - **DL-14 — Correct the package-count measurement; retain the approved
   ceiling.** Resolved on 2026-11-02. The earlier command counted Cargo's
   display-only `(*)` marker as a separate row because it used `sort -u` on the
@@ -1713,6 +1729,22 @@ and worktree identifier. `make publish-check` also passed after the package
 edge and before the two comment-only fixture-manifest edits; those comments do
 not alter package metadata. The complete transcript is
 `/tmp/publish-check-ep-m1-isolated-scratch-11-2-2-public-prelude-execplan.out`.
+
+EP-M2's test-first surface is implemented but not yet committed. The focused
+red doctest failed with unresolved prelude names before the re-exports were
+added, then passed after they were added. The sibling surface test also passed,
+compiling every prelude name at both `rstest_bdd::prelude` and the crate root.
+On this candidate, `make check-fmt`, `make typecheck`, `make markdownlint`, and
+`make nixie` passed. `make test` timed out in the nested-Cargo test
+`cargo-bdd::cli::list_steps_runs` after 2,002 passes; `make lint` was
+terminated before producing a Clippy result. Both require a clean rerun with
+`CARGO_BUILD_JOBS=2`. Transcripts:
+`/tmp/ep-m2-prelude-red-11-2-2-public-prelude-execplan.out`,
+`/tmp/ep-m2-prelude-green-11-2-2-public-prelude-execplan.out`, and
+`/tmp/ep-m2-prelude-surface-11-2-2-public-prelude-execplan.out`. Hosted run
+`41540661058` on head `55fb30ae` passed both Windows jobs and CodeScene but
+failed Linux while compiling the published GPUI fixture. DL-15 records the
+Cargo lock correction; its fixture checks and a new hosted run remain pending.
 CodeRabbit CLI `0.9.2` reviewed all 12 committed paths in `7fbd9fee` against
 `5d7ca1e80e29c6fbe1ec600535cdae2145d3046a`; the review completed with zero
 findings. Its log is
@@ -1720,6 +1752,39 @@ findings. Its log is
 The finish-line amendment (DL-9) remains accepted. The plan was rebased onto
 `main` at `4d585b789dcc8f070c3c7b7cb141388a65afcbe5` without conflicts; all
 seven plan commits matched in `git range-diff`.
+
+On 2026-11-03, the sequential M2 recheck passed `make check-fmt` but
+`CARGO_BUILD_JOBS=2 make test` again timed out in a nested Cargo fixture.
+`feature_addition_triggers_rebuild` exceeded its 300-second bound while waiting
+for compiler admission; the queue reached 441–442 requests ahead. The suite
+reported 2,032 passed, one failed, seven skipped, and 51 not run. No assertion
+failure was reported. The supervisor remained healthy, with automatic cache
+recovery pending. `make typecheck`, `make lint`, `make markdownlint`, and
+`make nixie` did not run because the scrutineer stopped after the failed test
+gate. A separate post-format non-Cargo sequence then passed `make check-fmt`,
+`make markdownlint`, and `make nixie`; typecheck and lint remain incomplete on
+this candidate. The candidate source did not change during the recheck. Logs:
+`/tmp/check-fmt-2f060a99-dabc-4460-b43b-7ea2da17770f-11-2-2-public-prelude-execplan-recheck.out`
+and
+`/tmp/test-2f060a99-dabc-4460-b43b-7ea2da17770f-11-2-2-public-prelude-execplan-recheck.out`.
+
+After automatic recovery cleared the prior live-work fault, another sequential
+full run again passed `make check-fmt` and failed `make test` at
+`feature_addition_triggers_rebuild`. Its nested Cargo command exceeded 300.46
+seconds while queued for compiler slots; queue snapshots included 435 requests
+ahead. The suite again reported 2,032 passed, one failed, seven skipped, and 51
+not run, with no assertion failure. A separate sequential diagnostic run then
+passed `CARGO_BUILD_JOBS=2 make typecheck`. `CARGO_BUILD_JOBS=2 make lint` was
+terminated with exit 143 before completion; its log records queue waits up to
+493 requests ahead at 180 seconds and contains no lint diagnostic. Do not
+report that lint run as a pass. The latest formatted candidate passed the
+separate `make check-fmt`, `make markdownlint`, and `make nixie` sequence.
+Fixture lock checks and `make check-published-gpui` remain unrun. Logs:
+`/tmp/check-fmt-2f060a99-dabc-4460-b43b-7ea2da17770f-11-2-2-public-prelude-execplan-full1.out`,
+`/tmp/test-2f060a99-dabc-4460-b43b-7ea2da17770f-11-2-2-public-prelude-execplan-full1.out`,
+`/tmp/typecheck-2f060a99-dabc-4460-b43b-7ea2da17770f-11-2-2-public-prelude-execplan-cargoonly1.out`,
+and
+`/tmp/lint-2f060a99-dabc-4460-b43b-7ea2da17770f-11-2-2-public-prelude-execplan-cargoonly1.out`.
 
 EP-M0 passed on `162798e8a457921288ce510f89fe899e8254daf6` with
 `CARGO_BUILD_JOBS=2`: `make check-fmt`, `make lint`, `make typecheck`,
