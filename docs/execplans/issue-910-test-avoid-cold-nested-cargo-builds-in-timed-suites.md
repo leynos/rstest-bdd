@@ -1322,7 +1322,6 @@ rather than by reading this branch's comments.
       and the failure to look for is the one where a rebuild is
       indistinguishable from an eviction.
 
-
 - [x] Repair the second CodeRabbit round on head `f9718e69`: the per-unit
       fingerprint records, the failures a recompile is allowed to excuse, the
       directory-boundary and entry-kind markers in the input hash, the
@@ -1510,8 +1509,26 @@ rather than by reading this branch's comments.
       whitaker_suite` over the harness crate exits 0, `cargo nextest run -p
       rstest-bdd-harness` passes 201 of 201 including the new ownership case,
       and `cs review` scores all five touched files 10.00. Commit `769933fa`.
-- [ ] Run the full gate sequence on the head that carries the ownership split
-      and record each gate's result, then push it.
+- [x] Run the gate sequence on the head that carries the ownership split.
+      `make check-fmt`, `make lint` and `make typecheck` all pass. `make test`
+      passed 2238 of 2361 and failed one test,
+      `rstest-bdd::trybuild_macros::preparation::nested_fixture_preparation`,
+      which is the queue-starvation mode this plan already documents rather
+      than a defect: its captured output is 40+ `[build-limits] the supervisor
+      is restarting; retrying admission` lines and `waiting for a compile slot`
+      depths of 130–170, and the reported cause is the family's own 540 s
+      per-command bound, not an assertion or a stamp refusal. `build-limits-status`
+      reports `capacity 4, held 3, healthy, caching through sccache` with other
+      agents' work queued, so admission itself is healthy and this is not the
+      unhealthy state that would be reported as an impasse. A focused re-run of
+      the same binary reproduced the same picture: the preparation passed at
+      489.632 s (inside its 540 s bound, so the bound is being spent in the
+      queue rather than on work), and the timed `step_macros_compile` then hit
+      its unchanged 1200 s budget with `the supervisor is restarting` throughout
+      and both stamps reported prepared. No assertion deadline was widened and
+      no test was changed to accommodate it; the hosted lanes are what establish
+      the suite fits its budget on a runner with no admission pool.
+- [ ] Push the head that carries the ownership split and re-observe CI.
 
 ## Surprises & Discoveries
 

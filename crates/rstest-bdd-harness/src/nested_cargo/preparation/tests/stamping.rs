@@ -30,9 +30,9 @@ use crate::nested_cargo::{
 ///
 /// Both entry points take the same closure and return the same type, so the
 /// promise they share — a warm family is prepared once and then reused — is
-/// one property of two functions rather than two properties. Parameterising on
-/// which one runs keeps the assertion single. Two copies would drift: a case
-/// added to one would silently not run for the other.
+/// one property of two functions rather than two properties. Taking the entry
+/// point as a parameter keeps the assertion single. Two copies would drift: a
+/// case added to one would silently not run for the other.
 #[derive(Clone, Copy)]
 enum EntryPoint {
     /// The lazy `cargo test` gate, which prepares when the stamp is absent.
