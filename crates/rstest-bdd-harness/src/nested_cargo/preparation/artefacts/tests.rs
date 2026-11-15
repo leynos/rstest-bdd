@@ -206,3 +206,6 @@ mod records;
 // The shared-profile cases are a third concern again — whose units a stamp may
 // speak about — and get a file of their own for the same reason.
 mod siblings;
+// The replacement cases are a fourth: what the *caller* must exclude from the
+// set the predicate is given, which no test of the predicate alone can reach.
+mod replacements;

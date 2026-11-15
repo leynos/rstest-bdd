@@ -1629,6 +1629,64 @@ rather than by reading this branch's comments.
       begins with a backtick, or contains a backtick at either edge, needs the
       double-backtick form; write it that way first rather than discovering it
       in CI.
+- [x] Widen the CLI family's ownership declaration to the fixture's whole
+      dependency closure, and add a case that reads it from outside.
+      `FIXTURE_PATH_DEPENDENCIES` named `rstest-bdd` and `rstest-bdd-macros`,
+      the two crates the fixture's manifest mentions. Preparing the fixture
+      also compiles three more workspace crates the manifest never names:
+      `rstest-bdd` depends on `rstest-bdd-patterns` and `rstest-bdd-policy`,
+      and `rstest-bdd-macros` on those two and `rstest-bdd-harness`. All three
+      were absent from `owned_packages`, so each one's evicted fingerprint
+      records were filtered out of both name lists and admitted silently — the
+      same defect as the fixture's own, one level down, and the defect the
+      entry above records was fixed at the top layer only. The list now names
+      all five. Measured from the fixture's own graph, not assumed: the
+      unrestricted `cargo tree --prefix none` in `tests/fixtures/minimal`
+      names every one of them, while the narrower `--edges normal,build` view
+      omits the two proc-macro host units, and a first version of the list was
+      written from that narrower view and was wrong for exactly that reason.
+      The doc comment now records both measurements so the next reader does
+      not repeat the mistake.
+- [x] Give the declaration a regression it cannot drift past, and prove the
+      case discriminates. The harness's ownership tests supply their own
+      two-element lists by hand, so they prove the mechanism works for
+      whichever list a case passes and say nothing about whether the family's
+      real list still matches the fixture's graph: the mechanism stays correct
+      while the declaration quietly omits a crate. The new
+      `preparation/tests/ownership.rs` drives `ensure_prepared_with` — the
+      public gate every timed CLI assertion reaches — against a scratch
+      preparation carrying the family's actual declaration. Its first version
+      iterated `FIXTURE_PATH_DEPENDENCIES` itself, which made it useless:
+      reverting the declaration to the two directly-named crates left it
+      green, because the loop simply stopped checking the crates that had gone.
+      It now names the five crates a second time in an independent
+      `REQUIRED_DEPENDENCIES` literal, asserts the declaration contains each,
+      then evicts each crate's record directory from an already-stamped
+      profile and requires the gate to refuse and to name the crate. The
+      duplication is the point: the two lists can disagree, and when they do
+      the case fails. Verified both ways — with the two-entry list it fails
+      with `the family must declare rstest-bdd-harness: … Declared:
+      ["rstest-bdd", "rstest-bdd-macros"]`; with all five it passes in 0.098 s.
+- [x] Pin the replacement call site, which no test of the predicate could
+      reach. `replacement::is_vouched_for` is given a set built by
+      `artefacts::eviction_of`, which removes every name the stamp recorded
+      from what is present; that exclusion lives at the call site, so a
+      predicate test passing `&[]` by hand cannot exercise it. It matters
+      because a profile can hold one crate built twice under different
+      metadata hashes — a stale build and a fresh one — and both outputs are
+      recorded. When one `.rlib` goes, its recorded sibling must *not* be read
+      as its rebuild, or a genuinely lost unit is reported as present at
+      exactly the moment Cargo recompiles. The new
+      `artefacts/tests/replacements.rs` adds two cases: one where a recorded
+      hashed sibling must not answer for the removed build, and the control
+      where an unrecorded hashed rebuild still must. Both use hashed names on
+      purpose — an unhashed `deps/libunit.rlib` carries no Cargo unit
+      component, `UnitPath::parse` refuses it, and `is_vouched_for` returns
+      before it looks at a replacement, so a case written that way passes
+      whatever the call site does. Verified by deletion: removing the
+      `recorded.contains` filter from `eviction_of` fails the new sibling case
+      while *both* pre-existing sibling tests stay green, which is the
+      measurement showing the call-site path was previously untested.
 
 ## Surprises & Discoveries
 

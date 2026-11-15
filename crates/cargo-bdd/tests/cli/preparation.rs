@@ -25,6 +25,12 @@ mod witness;
 #[path = "preparation/tests/withdrawal.rs"]
 mod withdrawal;
 
+// The ownership regression drives the declaration below rather than a
+// literal, so it lives beside it for the same reason.
+#[cfg(test)]
+#[path = "preparation/tests/ownership.rs"]
+mod ownership;
+
 use witness::fixture_binaries_present;
 
 /// The directories and fingerprint that describe this suite's prepared
@@ -84,7 +90,7 @@ fn family_inputs() -> Result<String> {
 /// Cargo package name of the CLI fixture crate.
 const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
 
-/// The workspace crates the fixture takes as path dependencies.
+/// The workspace crates preparing this fixture compiles.
 ///
 /// Preparing this family builds them, so its stamp has to vouch for their
 /// units: Cargo rebuilds a dependency whose fingerprint record is gone, and it
@@ -92,7 +98,33 @@ const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
 /// `FIXTURE_PACKAGE`, so declaring the fixture alone leaves them filtered out
 /// of both the recorded and the present name lists, where an evicted record
 /// then compares equal to itself and passes the gate.
-const FIXTURE_PATH_DEPENDENCIES: &[&str] = &["rstest-bdd", "rstest-bdd-macros"];
+///
+/// The list is the fixture's *whole* workspace dependency closure, not only the
+/// two crates its manifest names. `rstest-bdd` depends on `rstest-bdd-patterns`
+/// and `rstest-bdd-policy`, and `rstest-bdd-macros` on those two and
+/// `rstest-bdd-harness`, so one build also compiles four crates the manifest
+/// never mentions. Naming only the direct edges left a transitive dependency's
+/// eviction passing exactly as the fixture's own did before, which is the same
+/// defect one level down.
+///
+/// Measured from the fixture's own graph rather than assumed. The unrestricted
+/// closure, `cargo tree --prefix none` in `tests/fixtures/minimal`, names every
+/// one of them: `rstest-bdd`, `rstest-bdd-macros`, `rstest-bdd-harness`,
+/// `rstest-bdd-patterns` and `rstest-bdd-policy`. The narrower
+/// `--edges normal,build` view is *not* the answer here — it omits the two
+/// proc-macro host units, and a first version of this list was written from it
+/// and was wrong for exactly that reason.
+///
+/// A crate the graph gains later is not covered by this list, and nothing in
+/// the tree can tell a new dependency from a sibling's unit at check time; that
+/// is why `Preparation::owned_packages` documents that the caller declares it.
+const FIXTURE_PATH_DEPENDENCIES: &[&str] = &[
+    "rstest-bdd",
+    "rstest-bdd-macros",
+    "rstest-bdd-harness",
+    "rstest-bdd-patterns",
+    "rstest-bdd-policy",
+];
 
 /// Describe the CLI preparation family.
 ///
