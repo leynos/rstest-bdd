@@ -87,66 +87,58 @@ fn extract_placeholders_returns_error_for_invalid_pattern() {
     );
 }
 
-/// Assert that `pattern` captures exactly `expected` from `text`.
-fn assert_captures(pattern: &'static str, text: &str, expected: &[&str], what: &str) {
-    let pat = compiled(pattern);
-    let Ok(caps) = extract_placeholders(&pat, StepText::from(text)) else {
-        panic!("match expected for {what}");
+/// Assert that `pat` captures exactly `expected` from `text`.
+fn assert_captures(pat: &StepPattern, text: &str, expected: &[&str]) {
+    let Ok(caps) = extract_placeholders(pat, StepText::from(text)) else {
+        panic!("match expected for {text}");
     };
-    assert_eq!(caps, expected);
+    assert_eq!(caps, expected, "captures for {text}");
 }
 
-/// Assert that `pattern` rejects `text`, explaining why in `reason`.
-fn assert_rejects(pattern: &'static str, text: &str, reason: &str) {
-    let pat = compiled(pattern);
+/// Assert that `pat` rejects `text`.
+fn assert_rejects(pat: &StepPattern, text: &str) {
     assert!(
-        extract_placeholders(&pat, StepText::from(text)).is_err(),
-        "{reason}",
+        extract_placeholders(pat, StepText::from(text)).is_err(),
+        "{text} should not match",
     );
 }
 
-/// Assert that `pattern` accepts every sample, naming `hint` on failure.
-fn assert_accepts_all(pattern: &'static str, samples: &[&str], hint: &str) {
-    let pat = compiled(pattern);
+/// Assert that `pat` accepts every sample.
+fn assert_accepts_all(pat: &StepPattern, samples: &[&str]) {
     for sample in samples {
         assert!(
-            extract_placeholders(&pat, StepText::from(*sample)).is_ok(),
-            "{sample} should match {hint}",
+            extract_placeholders(pat, StepText::from(*sample)).is_ok(),
+            "{sample} should match",
         );
     }
 }
 
 #[test]
 fn u32_hint_matches_positive_integers_only() {
-    assert_captures("value {n:u32}", "value 42", &["42"], "u32");
-    assert_rejects(
-        "value {n:u32}",
-        "value none",
-        "non-numeric text should not match u32",
-    );
+    let pat = compiled("value {n:u32}");
+    assert_captures(&pat, "value 42", &["42"]);
+    assert_rejects(&pat, "value none");
 }
 
 #[test]
 fn i32_hint_matches_negative_integers_but_not_floats() {
-    assert_captures("value {n:i32}", "value -42", &["-42"], "negative i32");
-    assert_rejects("value {n:i32}", "value 42.5", "float should not match i32");
+    let pat = compiled("value {n:i32}");
+    assert_captures(&pat, "value -42", &["-42"]);
+    assert_rejects(&pat, "value 42.5");
 }
 
 #[test]
 fn isize_hint_matches_negative_integers() {
-    assert_captures("value {n:isize}", "value -7", &["-7"], "negative isize");
+    assert_captures(&compiled("value {n:isize}"), "value -7", &["-7"]);
 }
 
 #[test]
 fn f64_hint_matches_floating_point_forms() {
-    assert_captures("value {n:f64}", "value 2.71828", &["2.71828"], "f64");
-    assert_rejects(
-        "value {n:f64}",
-        "value none",
-        "non-numeric text should not match f64",
-    );
+    let pat = compiled("value {n:f64}");
+    assert_captures(&pat, "value 2.71828", &["2.71828"]);
+    assert_rejects(&pat, "value none");
     assert_accepts_all(
-        "value {n:f64}",
+        &pat,
         &[
             "value 1e-3",
             "value -0.001",
@@ -160,16 +152,14 @@ fn f64_hint_matches_floating_point_forms() {
             "value inf",
             "value Infinity",
         ],
-        "f64",
     );
 }
 
 #[test]
 fn f32_hint_matches_special_float_values() {
     assert_accepts_all(
-        "value {n:f32}",
+        &compiled("value {n:f32}"),
         &["value NaN", "value inf", "value Infinity"],
-        "f32",
     );
 }
 
