@@ -26,19 +26,32 @@ use crate::nested_cargo::{
     prepare_now_with_probe,
 };
 
+/// Drive `entry` twice against `preparation` and report how often it ran.
+///
+/// Every entry point into the gate carries the same promise: a warm family is
+/// prepared once and then reused. Counting that here means a case supplies
+/// only the entry point it exists to cover — the lazy gate that decides by
+/// runner, or the explicit one a preparation target reaches — and does not
+/// restate the loop.
+fn runs_over_two_calls(mut entry: impl FnMut(&mut u32) -> io::Result<()>) -> u32 {
+    let mut runs = 0_u32;
+    for _ in 0..2 {
+        entry(&mut runs).expect("preparation should succeed");
+    }
+    runs
+}
+
 #[test]
 fn lazy_preparation_writes_the_stamp_and_is_idempotent() {
     let (_directory, preparation, _environment) =
         scratch_preparation().expect("the scratch preparation fixture");
-    let mut runs = 0_u32;
 
-    for _ in 0..2 {
+    let runs = runs_over_two_calls(|runs| {
         ensure_prepared_with(&preparation, false, || {
-            runs += 1;
+            *runs += 1;
             Ok(PreparationSummary { compiled_units: 3 })
         })
-        .expect("lazy preparation should succeed");
-    }
+    });
 
     assert_eq!(runs, 1, "the second call should see the stamp");
     assert!(stamp_path(&preparation).is_file());
@@ -48,14 +61,14 @@ fn lazy_preparation_writes_the_stamp_and_is_idempotent() {
 fn prepare_now_runs_under_nextest_and_stamps_once() {
     let (_directory, preparation, _environment) =
         scratch_preparation().expect("the scratch preparation fixture");
-    let mut runs = 0_u32;
-    for _ in 0..2 {
+
+    let runs = runs_over_two_calls(|runs| {
         prepare_now(&preparation, || {
-            runs += 1;
+            *runs += 1;
             Ok(PreparationSummary { compiled_units: 1 })
         })
-        .expect("explicit preparation should succeed");
-    }
+    });
+
     assert_eq!(runs, 1, "a warm family should not prepare twice");
 }
 

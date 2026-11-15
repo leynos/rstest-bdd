@@ -132,13 +132,14 @@ fn artefact_directory(target_directory: &std::path::Path, subdir: &str) -> std::
     target_directory.join("tests").join(subdir)
 }
 
-/// Describe one fixture's preparation family.
+/// One fixture's preparation family.
 ///
 /// Both fixtures make up a `cargo test --no-run --locked --offline` closure
-/// over the same workspace inputs, so only the family name, the artefact
-/// subdirectory, the fixture source and the package it builds differ between
-/// them. Everything else — the environment view and the variant label — is
-/// identical by construction rather than by copy.
+/// over the same workspace inputs, so everything that differs between them
+/// travels together here: the family name, the artefact subdirectory, the
+/// fixture source tree, and the package the family speaks for. The
+/// environment view and the variant label are identical for both, so
+/// [`fixture_preparation`] supplies them rather than each caller.
 ///
 /// `package` is declared because both families build into the workspace
 /// `target/debug`, which the integration-test binaries and the CLI family also
@@ -146,45 +147,64 @@ fn artefact_directory(target_directory: &std::path::Path, subdir: &str) -> std::
 /// and `clean_fixture_units`'s `cargo clean -p` — which each experiment runs
 /// before its baseline by design — would leave the sibling's stamp permanently
 /// refused.
+#[derive(Clone, Copy)]
+struct Family {
+    /// Name the family's stamp is filed under.
+    name: &'static str,
+    /// Subdirectory of `<target>/tests` the family's artefacts live in.
+    artefact_subdir: &'static str,
+    /// The fixture source tree this family hashes and builds.
+    source: fn() -> std::path::PathBuf,
+    /// Cargo package whose units the family records.
+    package: &'static str,
+}
+
+/// The scratch rebuild-invalidation fixture.
+const REBUILD: Family = Family {
+    name: REBUILD_FAMILY,
+    artefact_subdir: "rebuild-invalidation",
+    source: fixtures::source_fixture_dir,
+    package: REBUILD_PACKAGE,
+};
+
+/// The scratch build-script addition fixture.
+const ADDITION: Family = Family {
+    name: ADDITION_FAMILY,
+    artefact_subdir: "feature-addition",
+    source: fixtures::source_addition_dir,
+    package: ADDITION_PACKAGE,
+};
+
+/// Describe `family`'s preparation.
+///
+/// # Errors
+///
+/// Returns the I/O error from hashing the workspace inputs or from resolving
+/// the child environment's view.
 fn fixture_preparation(
     env: &process::ChildEnv,
-    family: &str,
-    artefact_subdir: &str,
-    source_dir: std::path::PathBuf,
-    package: &str,
+    family: Family,
 ) -> std::io::Result<nested_cargo::Preparation> {
-    let mut roots = vec![source_dir];
+    let mut roots = vec![(family.source)()];
     roots.extend(workspace_inputs()?);
     let inputs = nested_cargo::input_hash(&roots)?;
     let mut preparation = nested_cargo::Preparation::new(
-        nested_cargo::Sources::new(family, "locked-offline-test-no-run", inputs),
-        artefact_directory(process::child_target_directory(env), artefact_subdir),
+        nested_cargo::Sources::new(family.name, "locked-offline-test-no-run", inputs),
+        artefact_directory(process::child_target_directory(env), family.artefact_subdir),
         process::preparation_view(env)?,
     )?;
-    preparation.owned_packages = vec![package.to_owned()];
+    preparation.owned_packages = vec![family.package.to_owned()];
     Ok(preparation)
 }
 
 /// Describe the rebuild fixture's preparation family.
 fn rebuild_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo::Preparation> {
-    fixture_preparation(
-        env,
-        REBUILD_FAMILY,
-        "rebuild-invalidation",
-        fixtures::source_fixture_dir(),
-        REBUILD_PACKAGE,
-    )
+    fixture_preparation(env, REBUILD)
 }
 
 /// Describe the addition fixture's preparation family.
 fn addition_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo::Preparation> {
-    fixture_preparation(
-        env,
-        ADDITION_FAMILY,
-        "feature-addition",
-        fixtures::source_addition_dir(),
-        ADDITION_PACKAGE,
-    )
+    fixture_preparation(env, ADDITION)
 }
 
 /// Copy the scratch trees and compile the rebuild fixture's test binaries.

@@ -147,24 +147,49 @@ fn recorded_name(profile: &Path, directory: &Path, output: &str) -> String {
 /// Returns the read error when a unit directory or record directory cannot be
 /// listed.
 fn recorded_names(profile: &Path, layout: &Layout, owned: &[String]) -> io::Result<Vec<String>> {
-    let mut names: Vec<String> = Vec::new();
-    for directory in &layout.units {
+    let mut names = unit_names(profile, &layout.units)?;
+    names.append(&mut record_names(profile, &layout.fingerprints)?);
+    // A family speaks only for what it built. See the `ownership` module for
+    // why the distinction cannot be recovered from the tree itself.
+    names.retain(|name| ownership::name_is_owned(name, owned));
+    names.sort();
+    names.dedup();
+    Ok(names)
+}
+
+/// The compiled outputs each unit directory holds, qualified by that directory.
+///
+/// # Errors
+///
+/// Returns the read error when a unit directory cannot be listed.
+fn unit_names(profile: &Path, units: &[PathBuf]) -> io::Result<Vec<String>> {
+    let mut names = Vec::new();
+    for directory in units {
         for output in layout::outputs_in(directory)? {
             names.push(recorded_name(profile, directory, &output));
         }
     }
-    for store in &layout.fingerprints {
+    Ok(names)
+}
+
+/// The fingerprint records in each store, qualified by store and unit.
+///
+/// A record is filed under the unit it belongs to, so the name carries both
+/// components' worth of path; see [`recorded_names`] for why the record is
+/// required at all.
+///
+/// # Errors
+///
+/// Returns the read error when a store or a record directory cannot be listed.
+fn record_names(profile: &Path, stores: &[PathBuf]) -> io::Result<Vec<String>> {
+    let mut names = Vec::new();
+    for store in stores {
         for unit in layout::record_directories(store)? {
             for file in layout::entries_of(&unit)? {
                 names.push(recorded_name(profile, &unit, &file));
             }
         }
     }
-    // A family speaks only for what it built. See the `ownership` module for
-    // why the distinction cannot be recovered from the tree itself.
-    names.retain(|name| ownership::name_is_owned(name, owned));
-    names.sort();
-    names.dedup();
     Ok(names)
 }
 

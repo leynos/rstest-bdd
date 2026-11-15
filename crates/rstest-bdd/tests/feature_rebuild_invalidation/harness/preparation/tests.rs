@@ -11,7 +11,7 @@ use std::ffi::OsString;
 
 use rstest_bdd_harness::nested_cargo;
 
-use super::{REBUILD_FAMILY, REBUILD_PACKAGE, fixture_preparation, workspace_inputs};
+use super::{REBUILD, fixture_preparation, workspace_inputs};
 use crate::harness::{fixtures, process};
 
 /// A child environment whose artefacts go to `target_directory`.
@@ -65,14 +65,7 @@ fn an_inherited_target_directory_moves_the_stamp_with_the_artefacts() {
         "an inherited CARGO_TARGET_DIR must win over the workspace default"
     );
 
-    let preparation = fixture_preparation(
-        &env,
-        REBUILD_FAMILY,
-        "rebuild-invalidation",
-        fixtures::source_fixture_dir(),
-        REBUILD_PACKAGE,
-    )
-    .expect("preparation description");
+    let preparation = fixture_preparation(&env, REBUILD).expect("preparation description");
 
     assert!(
         preparation.directory.starts_with(external.path()),
@@ -144,14 +137,7 @@ fn evicting_the_artefacts_invalidates_the_preparation() {
     assert!(scratch.path().is_dir(), "the scratch fixture must survive");
 
     let env = child_env(external.path()).expect("the fixture environment should resolve");
-    let preparation = fixture_preparation(
-        &env,
-        REBUILD_FAMILY,
-        "rebuild-invalidation",
-        fixtures::source_fixture_dir(),
-        REBUILD_PACKAGE,
-    )
-    .expect("preparation description");
+    let preparation = fixture_preparation(&env, REBUILD).expect("preparation description");
     // A real preparation leaves the profile directory its build populated.
     // The no-op closure below compiles nothing, so populate the artefacts the
     // freshly written stamp is meant to vouch for; without them the gate
@@ -211,14 +197,7 @@ fn a_relative_target_directory_stamps_where_the_child_builds() {
         resolved.display()
     );
 
-    let preparation = fixture_preparation(
-        &env,
-        REBUILD_FAMILY,
-        "rebuild-invalidation",
-        fixtures::source_fixture_dir(),
-        REBUILD_PACKAGE,
-    )
-    .expect("preparation description");
+    let preparation = fixture_preparation(&env, REBUILD).expect("preparation description");
     assert!(
         preparation.directory.starts_with(resolved),
         "the stamp must be under the resolved directory: {}",
@@ -235,14 +214,7 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
     // the compiled units the timed assertion reuses are gone.
     let external = tempfile::tempdir().expect("external target dir");
     let env = child_env(external.path()).expect("the fixture environment should resolve");
-    let preparation = fixture_preparation(
-        &env,
-        REBUILD_FAMILY,
-        "rebuild-invalidation",
-        fixtures::source_fixture_dir(),
-        REBUILD_PACKAGE,
-    )
-    .expect("preparation description");
+    let preparation = fixture_preparation(&env, REBUILD).expect("preparation description");
 
     let profile = process::child_target_directory(&env).join(nested_cargo::DEFAULT_PROFILE);
     populate_profile(&env).expect("populated profile");
@@ -278,14 +250,7 @@ fn evicting_the_compiled_units_invalidates_the_preparation() {
     // Cargo must still rebuild every dependency unit.
     let external = tempfile::tempdir().expect("external target dir");
     let env = child_env(external.path()).expect("the fixture environment should resolve");
-    let preparation = fixture_preparation(
-        &env,
-        REBUILD_FAMILY,
-        "rebuild-invalidation",
-        fixtures::source_fixture_dir(),
-        REBUILD_PACKAGE,
-    )
-    .expect("preparation description");
+    let preparation = fixture_preparation(&env, REBUILD).expect("preparation description");
 
     let profile = process::child_target_directory(&env).join(nested_cargo::DEFAULT_PROFILE);
     populate_profile(&env).expect("populated profile");
