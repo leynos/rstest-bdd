@@ -1441,7 +1441,22 @@ rather than by reading this branch's comments.
       branch's `underscore_fixture.rs`, which keeps the lint firing on every
       toolchain. Main's `staging/executable_layout.rs` is dropped as
       superseded. `cargo check --workspace --all-targets --all-features`
-      passes on the merge. Commit `b4d0ecef`.
+      passes on the merge. Commit `bdbf4ed4`.
+- [x] Fix the merge commit's shape. The first attempt, `b4d0ecef`, carried the
+      right *tree* but only one parent: `git merge --no-commit` had left a
+      `MERGE_HEAD` that was gone by the time `git commit` ran, so an ordinary
+      commit was written and `d70f37c1` never became an ancestor. The tree was
+      correct and GitHub still reported the PR `CONFLICTING`, which is what
+      caught it — a conflict state is about history, not content. Rebuilt from
+      the unstaged tree as `bdbf4ed4`: stage everything, write `MERGE_HEAD`
+      with `d70f37c1` at the path `git rev-parse --path-format=absolute
+      --git-path MERGE_HEAD` reports, then commit. Two lessons. First, the
+      path is not `$(git rev-parse --git-dir)/MERGE_HEAD` — this worktree's
+      git-dir is a linked-worktree directory under the bare repo, and joining
+      by hand produced a file git never read. Second, verify the shape rather
+      than the label: `git log -1 --format='%h parents=%p'` and
+      `git merge-base --is-ancestor origin/main HEAD` are the check, and
+      neither was run against `b4d0ecef` before it was pushed.
 - [ ] Re-run the full gate sequence on the merged head through the
       scrutineer, sequentially and without a competing run in this worktree.
       The earlier `make test` failure at `2afbbf91` in
@@ -1453,6 +1468,10 @@ rather than by reading this branch's comments.
       `cargo clean -p rstest-bdd-rebuild-invalidation-fixture` before their
       baselines, so the overlap is the leading explanation. The merged head
       needs a clean serialized run to confirm it rather than assume it.
+- [ ] Clear the three `// weave: run 'weave explain ...'` annotations the
+      conflict resolution left in resolved files, which `make check-fmt`
+      reported as formatting diffs. They are resolution scaffolding, not
+      source.
 
 ## Surprises & Discoveries
 
