@@ -1568,6 +1568,33 @@ Hard invariants. Violation requires escalation, not a workaround.
   written into this file costs a commit, and that commit moves the head the
   verdict describes.
 
+- [x] (2026-11-15) The replay onto the advanced #910 tip silently replaced this
+      branch's `cargo-platform` pin. `Cargo.lock` came from the target, whose
+      entry is v0.3.3, and the four fixture lockfiles had already been aligned
+      to it, so the delivered tree selected a release that requires Rust 1.91.
+      Review caught the mismatch between that lockfile and the v0.3.2 claims in
+      ADR 025, the design document, the developers' guide and the v0.7.0
+      migration guide. The claim was restored rather than rewritten: rewriting
+      it would raise the advertised library floor from 1.88 to 1.91 without
+      changing any manifest, which the workspace `rust-version` and the users'
+      guide both contradict.
+
+  Reproduction at the rebased tree:
+  `cargo +1.88.0 check --workspace --exclude cargo-bdd --locked` exited 101 with
+  `cargo-platform@0.3.3 requires rustc 1.91`. After
+  `cargo update -p cargo-platform@0.3.3 --precise 0.3.2`, which changes only
+  that stanza in `Cargo.lock`, and the same release in the four fixture
+  lockfiles, the check exited zero in 3m 19s and
+  `cargo +1.89.0 check -p cargo-bdd --locked` exited zero in 2m 41s.
+  `cargo metadata --locked` still reports 1.88 for every library crate and 1.89
+  for `cargo-bdd`, and `make check-fixture-lockfiles` reports five lockfiles up
+  to date.
+
+  The hazard is structural: every replay that takes the target's `Cargo.lock`
+  reintroduces v0.3.3, and nothing in CI runs the 1.88 check, so the pin has to
+  be re-applied and re-verified by hand after each restack. The two commands
+  above are the tripwire the developers' guide names.
+
 ## Surprises & discoveries
 
 - Observation: `make markdownlint` passing is not evidence that a Markdown
