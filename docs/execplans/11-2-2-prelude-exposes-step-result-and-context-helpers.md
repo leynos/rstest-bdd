@@ -1786,6 +1786,22 @@ Fixture lock checks and `make check-published-gpui` remain unrun. Logs:
 and
 `/tmp/lint-2f060a99-dabc-4460-b43b-7ea2da17770f-11-2-2-public-prelude-execplan-cargoonly1.out`.
 
+On 2026-11-15 the branch was rebased from `main` at
+`4d585b789dcc8f070c3c7b7cb141388a65afcbe5` onto the `issue-901` branch at
+`7b617013179030120fc077c9959e28d1e058152a`, so the pull request now targets
+that branch. The replay used Git's built-in merge machinery with `zdiff3`.
+Weave was bypassed deliberately: only the ambient global attributes file
+selected it and the repository declares no tracked merge driver, which is the
+unattended baseline for a multi-commit replay. The replay produced no textual
+conflicts. One commit, `5d7ca1e8` ("Refresh generated spelling configuration"),
+became empty because the target already carried the identical `typos.toml`
+blob; it was skipped, not rewritten, and every other commit matched in
+`git range-diff`. The six affected fixture lockfiles were reset to the target's
+versions, and a minimal rebuild added only the `rstest-bdd-macros` dependency
+edge that the new `rstest-bdd` dependency requires. The target's `libc 0.2.189`
+pins are preserved, so DL-15's constraint continues to hold without a separate
+precise update.
+
 EP-M0 passed on `162798e8a457921288ce510f89fe899e8254daf6` with
 `CARGO_BUILD_JOBS=2`: `make check-fmt`, `make lint`, `make typecheck`,
 `make test`, `make markdownlint`, and `make nixie` all passed. The test gate
