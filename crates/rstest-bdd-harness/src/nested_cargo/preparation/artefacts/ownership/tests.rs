@@ -9,7 +9,7 @@ use super::{is_metadata_hash, name_is_owned, strip_unit_suffix};
 /// one spelling would leave half of a family's own units unrecorded — and the
 /// unchecked half is where a `cargo clean -p` would go unnoticed.
 #[test]
-fn both_spellings_of_a_package_are_recognised() {
+fn both_spellings_of_a_package_are_recognized() {
     let owned = ["rstest-bdd-feature-addition-fixture".to_owned()];
     for name in [
         ".fingerprint/rstest-bdd-feature-addition-fixture-0123456789abcdef/invoked.timestamp",

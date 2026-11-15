@@ -137,7 +137,7 @@ fn a_sibling_packages_clean_does_not_refuse_the_stamp() {
 /// The other side of the boundary: scoping the record must not let a family
 /// vouch for nothing. Removing its own output is still an eviction.
 #[test]
-fn the_familys_own_units_are_still_required() {
+fn the_family_s_own_units_are_still_required() {
     let (_directory, preparation) = shared_profile(&[OWN]);
     let recorded = record(&preparation).expect("record");
     let profile = profile_of(&preparation);
