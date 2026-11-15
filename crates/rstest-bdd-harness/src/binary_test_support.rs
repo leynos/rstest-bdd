@@ -271,7 +271,7 @@ mod tests {
     #[rstest::rstest]
     #[case::classic_layout("/t/debug/deps/it-abc", "/t/debug")]
     #[case::build_directory_layout("/t/debug/build/pkg/abc/out/it-abc", "/t/debug")]
-    #[case::unrecognised_directory("/t/debug/examples/it-abc", "/t/debug/examples")]
+    #[case::unrecognized_directory("/t/debug/examples/it-abc", "/t/debug/examples")]
     #[case::out_outside_build_directory("/t/x/pkg/abc/out/it-abc", "/t/x/pkg/abc/out")]
     fn profile_directory_follows_the_cargo_layout(
         #[case] executable: &str,

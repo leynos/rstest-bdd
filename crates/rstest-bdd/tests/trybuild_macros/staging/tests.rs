@@ -31,7 +31,7 @@ fn derives_target_root_from_test_executable(#[case] executable: &str, #[case] ex
 }
 
 #[rstest]
-#[case::unrecognised_directory("/workspace/target/debug/examples/trybuild_macros-a1b2c3")]
+#[case::unrecognized_directory("/workspace/target/debug/examples/trybuild_macros-a1b2c3")]
 #[case::out_without_build_directory(
     "/workspace/target/debug/other/rstest-bdd/d195883d3c395ab2/out/\
      trybuild_macros-d195883d3c395ab2"
@@ -42,7 +42,7 @@ fn rejects_executables_outside_cargos_layouts(#[case] executable: &str) {
     assert_eq!(
         target_directory_from_test_executable(Utf8Path::new(executable)),
         None,
-        "{executable} is not under a recognised Cargo layout"
+        "{executable} is not under a recognized Cargo layout"
     );
 }
 
