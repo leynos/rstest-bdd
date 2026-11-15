@@ -1576,7 +1576,14 @@ escape backslashes and double quotes so the copied fixture remains valid on
 Windows; use a TOML serializer for any broader configuration-writing need.
 
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
-  `slow-timeout`, 145 m `global-timeout`) for deliberately slow local runs.
+  `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
+
+The `nextest_config` integration contract owns a private
+`nextest_value_at_path` helper for typed nested reads from
+`.config/nextest.toml`. Its permitted call sites are the profile global-timeout
+and test-group concurrency checks; callers provide the leaf decoder, and the
+helper builds the dotted-path error. Keep this helper within that test module
+rather than reusing it for unrelated configuration or production code.
 
 When adding a test binary that shells out to `cargo`, extend the relevant
 override's `filter` expression rather than raising the default `slow-timeout`:

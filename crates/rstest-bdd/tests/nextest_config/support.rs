@@ -46,14 +46,23 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-/// The value of `key` in `profile_name`, if the profile sets it.
-fn profile_key<'a>(configuration: &'a Value, profile_name: &str, key: &str) -> Option<&'a Value> {
-    configuration
-        .get("profile")
-        .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get(profile_name))
-        .and_then(Value::as_table)
-        .and_then(|profile| profile.get(key))
+/// Read a typed leaf from `.config/nextest.toml` by dotted path.
+///
+/// The permitted call sites are the profile `global-timeout` and test-group
+/// concurrency readers in this module. The caller supplies the leaf decoder,
+/// and the helper builds the dotted-path error, so a missing or mistyped key
+/// names the path rather than the key that happened to be looked up last.
+fn nextest_value_at_path<'a, T>(
+    configuration: &'a Value,
+    path: &[&str],
+    decode: impl FnOnce(&'a Value) -> Option<T>,
+) -> Result<T, io::Error> {
+    path.iter()
+        .try_fold(configuration, |value, key| value.get(*key))
+        .and_then(decode)
+        .ok_or_else(|| {
+            io::Error::other(format!("nextest configuration must set {}", path.join(".")))
+        })
 }
 
 /// The named profile's run-level `global-timeout`.
@@ -61,13 +70,11 @@ pub(super) fn profile_global_timeout<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a str, io::Error> {
-    profile_key(configuration, profile_name, "global-timeout")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must set profile.{profile_name}.global-timeout"
-            ))
-        })
+    nextest_value_at_path(
+        configuration,
+        &["profile", profile_name, "global-timeout"],
+        Value::as_str,
+    )
 }
 
 /// The default profile's run-level `global-timeout`.
@@ -81,18 +88,11 @@ pub(super) fn test_group_max_threads(
     configuration: &Value,
     group_name: &str,
 ) -> Result<i64, io::Error> {
-    configuration
-        .get("test-groups")
-        .and_then(Value::as_table)
-        .and_then(|groups| groups.get(group_name))
-        .and_then(Value::as_table)
-        .and_then(|group| group.get("max-threads"))
-        .and_then(Value::as_integer)
-        .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must set test-groups.{group_name}.max-threads"
-            ))
-        })
+    nextest_value_at_path(
+        configuration,
+        &["test-groups", group_name, "max-threads"],
+        Value::as_integer,
+    )
 }
 
 /// The top-level `nextest-version` the configuration requires.
