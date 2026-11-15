@@ -222,13 +222,14 @@ project:
     ignore, tracked or untracked. The checks do not reformat sources, but the
     `build-python` prerequisite runs `uv sync`. The formatter runs on nightly
     because `.rustfmt.toml` enables unstable options. The workspace Cargo steps
-    in `make lint` and `make test` use the stable toolchain from
-    `rust-toolchain.toml`; `make dev-build`, `make dev-test` and the
-    published-GPUI end-to-end fixture use their own nightly toolchains, and the
-    fixture lockfile check in `make test` runs `cargo metadata` inside the
-    fixture, which therefore selects nightly too. Use
-    `make fmt` to apply the fixes that `make check-fmt` reports; it runs the same
-    formatters in write mode.
+    in `make test`, and the Clippy and rustdoc steps in `make lint`, use the
+    stable toolchain from `rust-toolchain.toml`; the Whitaker Dylint step in
+    `make lint` runs on the nightly that the installed lint suite pins;
+    `make dev-build`, `make dev-test` and the published-GPUI end-to-end fixture
+    use their own nightly toolchains, and the fixture lockfile check in
+    `make test` runs `cargo metadata` inside the fixture, which therefore
+    selects nightly too. Use `make fmt` to apply the fixes that
+    `make check-fmt` reports; it runs the same formatters in write mode.
   - `make lint` runs Clippy over every target with all features and
     `-D warnings` (the `RUST_FLAGS` default), then `cargo doc --workspace
     --no-deps` with `RUSTDOCFLAGS` defaulting to `--cfg docsrs -D warnings`,
