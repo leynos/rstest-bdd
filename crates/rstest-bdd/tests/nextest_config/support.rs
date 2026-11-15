@@ -233,3 +233,45 @@ fn format_binary_ids(binary_ids: &BTreeSet<&str>) -> String {
         binary_ids.iter().copied().collect::<Vec<_>>().join(", ")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Coverage for the shared lookup's error paths.
+
+    use super::nextest_value_at_path;
+    use toml::Value;
+
+    /// A missing leaf and a wrongly typed one both name the dotted path.
+    ///
+    /// The Windows strict coverage ratchet reads this path, so the two
+    /// rejections are exercised rather than left to a real misconfiguration.
+    #[test]
+    fn nextest_value_at_path_reports_missing_and_wrongly_typed_leaves() {
+        let missing: Value = toml::from_str("[profile.default]\n").expect("valid TOML");
+        let missing_error = nextest_value_at_path(
+            &missing,
+            &["profile", "default", "global-timeout"],
+            Value::as_str,
+        )
+        .expect_err("a missing leaf must be reported");
+        assert_eq!(
+            missing_error.to_string(),
+            "nextest configuration must set profile.default.global-timeout",
+            "the error must name the dotted path that could not be read"
+        );
+
+        let wrong_type: Value =
+            toml::from_str("[profile.default]\nglobal-timeout = 10").expect("valid TOML");
+        let type_error = nextest_value_at_path(
+            &wrong_type,
+            &["profile", "default", "global-timeout"],
+            Value::as_str,
+        )
+        .expect_err("a leaf with the wrong type must be reported");
+        assert_eq!(
+            type_error.to_string(),
+            missing_error.to_string(),
+            "a wrongly typed leaf must report the same dotted path as a missing one"
+        );
+    }
+}
