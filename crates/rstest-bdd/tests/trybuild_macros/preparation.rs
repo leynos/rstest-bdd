@@ -57,10 +57,21 @@ const TRYBUILD_PROBE: &str = "step_macros.rs";
 /// only the build graph would leave the first timed compile-fail case
 /// compiling the graph in check mode inside its own deadline.
 ///
+/// The probe must be a fixture whose snapshot names no directory. `trybuild`
+/// compares diagnostics verbatim, and a preparation run is not the timed run:
+/// it queues this one fixture and nothing else, so nothing calls
+/// `staging::stage_target_root_snapshots` to rewrite the expected text for the
+/// coverage target root. `scenario_missing_file`, the first choice, names the
+/// target directory in its diagnostic, so as a probe it reported a mismatch —
+/// the checked-in `$WORKSPACE/target/...` against the actual
+/// `$WORKSPACE/target/llvm-cov-target/...` — on both coverage lanes. This
+/// fixture fails while parsing the macro arguments, so it opens no file and its
+/// diagnostic is the same under any target root.
+///
 /// The probe's own diagnostics are never asserted on: `trybuild` writes them
 /// to `wip/` and the file is removed below, because a stale `wip` entry makes
 /// `trybuild` report a newly created `.stderr` as a failure.
-const TRYBUILD_CHECK_PROBE: &str = "scenario_missing_file.rs";
+const TRYBUILD_CHECK_PROBE: &str = "scenario_missing_path.rs";
 
 /// Lint-clean bin that gives the UI-lint crate a target.
 const UI_CLIPPY_PROBE: &str = "step_return_dispatch_lint_clean";

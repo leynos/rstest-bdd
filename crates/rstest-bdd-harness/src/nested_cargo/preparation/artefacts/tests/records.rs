@@ -7,7 +7,7 @@
 //! from a tree Cargo would reuse, so each case fails a gate that consulted the
 //! structure alone.
 
-use std::fs;
+use std::{fs, path::Path};
 
 use super::{preparation_with, profile_of, write_store, write_units};
 use crate::nested_cargo::preparation::{
@@ -125,10 +125,10 @@ fn a_metadata_only_unit_is_accepted() {
     );
 }
 
-/// A missing profile, a profile with no units, and a profile with no
-/// fingerprint store each refuse.
+/// A unit leaving together with its own record is invisible to the structural
+/// layer, so it is the reason a record of what preparation produced exists.
 #[test]
-fn a_profile_without_both_halves_is_an_eviction() {
+fn a_unit_leaving_with_its_record_is_structurally_invisible() {
     let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")]);
     assert!(
         all_present(&preparation, None).expect("populated check"),
@@ -147,30 +147,72 @@ fn a_profile_without_both_halves_is_an_eviction() {
         "a unit leaving together with its record leaves a non-empty tree, which the structural \
          layer alone accepts: only a record of what was produced can say more"
     );
+}
 
-    // No units at all, while the fingerprint store survives.
+/// Evict the compiled units, leaving the directory itself in place.
+///
+/// The directory surviving with nothing in it is the shape a partial clean
+/// leaves, and it is the one the structural layer has to read as unusable: a
+/// walk that found no dep-info record anywhere below the profile must not be
+/// mistaken for a tree with nothing to check.
+fn evict_units(profile: &Path) {
     let units = profile.join("deps");
-    let saved = fs::read_dir(&units)
-        .expect("list the unit dir")
-        .map(|entry| entry.expect("entry").file_name())
-        .collect::<Vec<_>>();
-    for name in &saved {
-        fs::remove_file(units.join(name)).expect("evict the unit");
+    for entry in fs::read_dir(&units).expect("list the unit directory") {
+        let entry = entry.expect("entry");
+        fs::remove_file(units.join(entry.file_name())).expect("evict the unit");
     }
-    assert!(
-        !all_present(&preparation, None).expect("check"),
-        "a profile holding no units must never pass, however many fingerprints it keeps"
-    );
-    for name in &saved {
-        fs::write(units.join(name), b"restore").expect("restore the unit");
-    }
+}
 
-    // No fingerprint store, while the units survive.
+/// Evict the fingerprint store Cargo reads to decide its units are current.
+fn evict_store(profile: &Path) {
     fs::remove_dir_all(profile.join(".fingerprint")).expect("evict the store");
+}
+
+/// A profile whose halves are each absent in turn is an eviction.
+///
+/// The two halves are independent requirements — units to link and fingerprint
+/// records Cargo reads to decide the units are current — so an absent half must
+/// refuse on its own rather than being masked by the other. Each case starts
+/// from a fresh fixture, so the two cannot lean on each other's damage, and
+/// each names the half it leaves whole, so a refusal cannot come from both
+/// having gone.
+#[rstest::rstest]
+#[case::no_units(
+    evict_units,
+    ".fingerprint",
+    "a profile holding no units must never pass, however many fingerprints it keeps"
+)]
+#[case::no_fingerprints(
+    evict_store,
+    "deps",
+    "a profile holding no fingerprint records must never pass"
+)]
+fn a_profile_without_either_half_is_an_eviction(
+    #[case] evict: fn(&Path),
+    #[case] survivor: &str,
+    #[case] why: &str,
+) {
+    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")]);
+    let profile = profile_of(&preparation);
     assert!(
-        !all_present(&preparation, None).expect("check"),
-        "a profile holding no fingerprint records must never pass"
+        all_present(&preparation, None).expect("populated check"),
+        "the fixture must start usable"
     );
+
+    evict(&profile);
+    let mut kept = fs::read_dir(profile.join(survivor)).expect("list the surviving half");
+    assert!(
+        kept.next().is_some(),
+        "only one half may be missing, so {survivor} has to satisfy its own check"
+    );
+    assert!(!all_present(&preparation, None).expect("check"), "{why}");
+}
+
+/// An absent profile is an eviction rather than an inspection error.
+#[test]
+fn an_absent_profile_is_an_eviction() {
+    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")]);
+    let profile = profile_of(&preparation);
 
     fs::remove_dir_all(&profile).expect("evict the profile");
     assert!(

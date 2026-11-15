@@ -1545,6 +1545,53 @@ rather than by reading this branch's comments.
       `mergeable: MERGEABLE`, so the bad merge was the whole of the
       conflict, and the three `build-test` lanes plus CodeScene are queued
       on the new head.
+- [x] Clear the Whitaker finding CI reported on `9cbff182`, which `fdcfdff9`
+      introduced. The Linux Lint lane refused
+      `a_profile_without_both_halves_is_an_eviction` with
+      `bumpy_road_function`: "Complexity bump 1 spans 3 lines", "Complexity
+      bump 2 spans 3 lines", "Detected 2 complexity bumps above the threshold
+      2.5", `-D bumpy-road-function implied by -D warnings`. That test mixed
+      three unrelated arrangements — a unit leaving with its record, an
+      emptied `deps`, an absent `.fingerprint`, and finally an absent profile
+      — each with its own assert and remove sequence, which is exactly the
+      clustered-conditional shape the lint names. It is now three tests, each
+      one arrangement: `a_unit_leaving_with_its_record_is_structurally_invisible`,
+      the two-case `a_profile_without_either_half_is_an_eviction` table, and
+      `an_absent_profile_is_an_eviction`. The table takes the eviction as a
+      function pointer rather than a directory name, so the `no_units` case
+      can keep the directory in place and empty it — the shape a partial clean
+      leaves, and the one `holds no compiled units` exists to name — while the
+      `no_fingerprints` case removes the store outright. Each case now starts
+      from a fresh fixture, which removed the save-and-restore dance the
+      original needed to reuse one. The local full-workspace run does not
+      reproduce this finding: it fails first on a pre-existing
+      `vendor/gpui/src/lib.rs:181` `run_test` refusal and never reaches the
+      harness crate, and a scoped `-p rstest-bdd-harness` run exits 0 without
+      naming the file, so CI was the authoritative signal here rather than a
+      local one.
+- [x] Clear the trybuild snapshot mismatch CI reported on both coverage
+      lanes, which is the same commit's other regression. `trybuild` ran
+      `scenario_missing_file.rs` as the check-mode preparation probe and
+      reported `mismatch`, EXPECTED
+      `.../target/tests/trybuild/...` against ACTUAL
+      `.../target/llvm-cov-target/tests/trybuild/...`; `mismatch` then took
+      both `preparation::nested_fixture_preparation` and
+      `runner::step_macros_compile` down with `1 of 1 tests failed`. The cause
+      is that a preparation run queues one fixture and nothing else, so
+      nothing calls `staging::stage_target_root_snapshots` to rewrite the
+      expected text for the coverage target root — the guard only wraps the
+      timed run. `scenario_missing_file` names the target directory in its
+      diagnostic, so as a probe it could only match under a non-coverage
+      target root. The probe is now `scenario_missing_path`, whose diagnostic
+      is `unexpected end of input, `path` argument is required` — it fails
+      while parsing the macro arguments, so it opens no file and reads the
+      same under any target root. It is also already queued by the timed run,
+      so a `.stderr` the probe blessed would be the one the timed run expects.
+      The same failure was present on the earlier `fdcfdff9` run 43714400843,
+      which is what makes it a regression rather than a queue artefact. This
+      is the general rule the fixture now records in its doc comment: a
+      preparation probe may not name a directory, because the preparation is
+      not the timed run.
 
 ## Surprises & Discoveries
 
