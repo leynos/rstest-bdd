@@ -1468,10 +1468,33 @@ rather than by reading this branch's comments.
       `cargo clean -p rstest-bdd-rebuild-invalidation-fixture` before their
       baselines, so the overlap is the leading explanation. The merged head
       needs a clean serialized run to confirm it rather than assume it.
-- [ ] Clear the three `// weave: run 'weave explain ...'` annotations the
-      conflict resolution left in resolved files, which `make check-fmt`
-      reported as formatting diffs. They are resolution scaffolding, not
-      source.
+- [x] Clear the `// weave: run 'weave explain ...'` annotations the conflict
+      resolution left in resolved files. Four were present, not three, and
+      `make check-fmt` named two of them as formatting diffs. They are
+      resolution scaffolding, not source. Commit `bdbf4ed4` by amendment.
+- [x] Re-run the gates, which found a real formatting failure and a real
+      CodeScene finding rather than a clean tree. `make check-fmt` reported
+      two committed formatting diffs from the hand resolution — a wrapped
+      call argument, a one-line signature, and an import list in the wrong
+      order — all mechanical and applied with `cargo fmt` rather than by
+      hand. The CodeScene check is the **only** failing check on the PR and
+      reported Code Duplication in `stamping.rs` at 9.38, naming
+      `lazy_preparation_writes_the_stamp_and_is_idempotent` and
+      `prepare_now_runs_under_nextest_and_stamps_once`. That was still
+      present after `aec0c202`'s `runs_over_two_calls` extraction: the pair
+      differed only in the entry point and a two-line fixture repeated
+      verbatim, so the earlier fix had gone one level too shallow. Because
+      `ensure_prepared_with` and `prepare_now` take the same
+      `FnOnce() -> io::Result<PreparationSummary>`, the property is one of
+      two functions; an `EntryPoint` value and a two-case `rstest` table now
+      drive both. `cs review` scores the file 10.00 with no findings and both
+      cases pass. Commits `26980c26` and `4c596fbd`.
+- [ ] Re-run the full gate sequence on `4c596fbd` and record each gate's
+      result. Stopping the first attempt after `check-fmt` failed was
+      deliberate: `make test` on this workspace takes far longer than the
+      two-line source change that then became necessary, so gating to
+      completion before fixing it would have produced evidence for a tree
+      that could not be pushed.
 
 ## Surprises & Discoveries
 
