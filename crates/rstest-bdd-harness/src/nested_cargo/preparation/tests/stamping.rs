@@ -26,50 +26,74 @@ use crate::nested_cargo::{
     prepare_now_with_probe,
 };
 
+/// One entry point into the gate, named for the case that reads the failure.
+///
+/// Both entry points take the same closure and return the same type, so the
+/// promise they share — a warm family is prepared once and then reused — is
+/// one property of two functions rather than two properties. Parameterising on
+/// which one runs keeps the assertion single. Two copies would drift: a case
+/// added to one would silently not run for the other.
+#[derive(Clone, Copy)]
+enum EntryPoint {
+    /// The lazy `cargo test` gate, which prepares when the stamp is absent.
+    Lazy,
+    /// The unconditional entry point `make prepare-nested-fixtures` reaches.
+    PrepareNow,
+}
+
+impl EntryPoint {
+    /// How the case names this entry point when it fails.
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Lazy => "ensure_prepared_with",
+            Self::PrepareNow => "prepare_now",
+        }
+    }
+
+    /// Run this entry point once against `preparation`.
+    fn call<F>(self, preparation: &Preparation, prepare: F) -> io::Result<()>
+    where
+        F: FnOnce() -> io::Result<PreparationSummary>,
+    {
+        match self {
+            Self::Lazy => ensure_prepared_with(preparation, false, prepare),
+            Self::PrepareNow => prepare_now(preparation, prepare),
+        }
+    }
+}
+
 /// Drive `entry` twice against `preparation` and report how often it ran.
 ///
-/// Every entry point into the gate carries the same promise: a warm family is
-/// prepared once and then reused. Counting that here means a case supplies
-/// only the entry point it exists to cover — the lazy gate that decides by
-/// runner, or the explicit one a preparation target reaches — and does not
-/// restate the loop.
-fn runs_over_two_calls(mut entry: impl FnMut(&mut u32) -> io::Result<()>) -> u32 {
+/// Counting the runs here is what lets a case supply only the entry point it
+/// exists to cover — the lazy gate that decides by runner, or the explicit one
+/// a preparation target reaches — and not restate the loop.
+fn runs_over_two_calls(preparation: &Preparation, entry: EntryPoint) -> u32 {
     let mut runs = 0_u32;
     for _ in 0..2 {
-        entry(&mut runs).expect("preparation should succeed");
+        entry
+            .call(preparation, || {
+                runs += 1;
+                Ok(PreparationSummary { compiled_units: 1 })
+            })
+            .unwrap_or_else(|error| panic!("{} should succeed: {error}", entry.name()));
     }
     runs
 }
 
-#[test]
-fn lazy_preparation_writes_the_stamp_and_is_idempotent() {
+#[rstest::rstest]
+#[case::lazy(EntryPoint::Lazy)]
+#[case::prepare_now(EntryPoint::PrepareNow)]
+fn a_warm_family_is_prepared_once(#[case] entry: EntryPoint) {
     let (_directory, preparation, _environment) =
         scratch_preparation().expect("the scratch preparation fixture");
 
-    let runs = runs_over_two_calls(|runs| {
-        ensure_prepared_with(&preparation, false, || {
-            *runs += 1;
-            Ok(PreparationSummary { compiled_units: 3 })
-        })
-    });
-
-    assert_eq!(runs, 1, "the second call should see the stamp");
+    assert_eq!(
+        runs_over_two_calls(&preparation, entry),
+        1,
+        "{} should see the stamp on its second call",
+        entry.name()
+    );
     assert!(stamp_path(&preparation).is_file());
-}
-
-#[test]
-fn prepare_now_runs_under_nextest_and_stamps_once() {
-    let (_directory, preparation, _environment) =
-        scratch_preparation().expect("the scratch preparation fixture");
-
-    let runs = runs_over_two_calls(|runs| {
-        prepare_now(&preparation, || {
-            *runs += 1;
-            Ok(PreparationSummary { compiled_units: 1 })
-        })
-    });
-
-    assert_eq!(runs, 1, "a warm family should not prepare twice");
 }
 
 #[test]
