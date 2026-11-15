@@ -1528,7 +1528,23 @@ rather than by reading this branch's comments.
       and both stamps reported prepared. No assertion deadline was widened and
       no test was changed to accommodate it; the hosted lanes are what establish
       the suite fits its budget on a runner with no admission pool.
-- [ ] Push the head that carries the ownership split and re-observe CI.
+- [x] Push the head that carries the ownership split and re-observe CI.
+      The push had to replace the remote, not extend it: the tracking ref sat
+      at `c6945f24`, which descends through `b4d0ecef` — the single-parent
+      merge that HEAD replaced with `bdbf4ed4` — and the PR reported
+      `mergeStateStatus: DIRTY`. A `--force-with-lease` against the exact
+      remote SHA, over the explicit SSH URL and through an environment
+      rebuilt key by key (the harness supplies a
+      `url.https://github.com/.insteadof git@github.com:` rewrite through
+      `GIT_CONFIG_*`, which a shell `unset` of the named variables leaves in
+      place) replaced it with `5a94af5c`. Nothing was lost: `c6945f24`
+      touched only this plan, and both of its entries are present here.
+      The tracking ref was refreshed with a leading-`+` refspec and the
+      upstream set to `origin`; `ls-remote` and `rev-parse HEAD` agree on
+      `5a94af5cb4ddb512da60aa0767dd6a162f5e6af9`. The PR is now
+      `mergeable: MERGEABLE`, so the bad merge was the whole of the
+      conflict, and the three `build-test` lanes plus CodeScene are queued
+      on the new head.
 
 ## Surprises & Discoveries
 
