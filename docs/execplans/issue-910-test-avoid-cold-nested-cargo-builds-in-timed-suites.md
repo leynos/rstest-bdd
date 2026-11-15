@@ -1489,14 +1489,52 @@ rather than by reading this branch's comments.
       two functions; an `EntryPoint` value and a two-case `rstest` table now
       drive both. `cs review` scores the file 10.00 with no findings and both
       cases pass. Commits `26980c26` and `4c596fbd`.
-- [ ] Re-run the full gate sequence on `4c596fbd` and record each gate's
-      result. Stopping the first attempt after `check-fmt` failed was
-      deliberate: `make test` on this workspace takes far longer than the
-      two-line source change that then became necessary, so gating to
-      completion before fixing it would have produced evidence for a tree
-      that could not be pushed.
+- [x] Re-run the gates on `4c596fbd` and record each gate's result. Stopping
+      the first attempt after `check-fmt` failed was deliberate: `make test` on
+      this workspace takes far longer than the two-line source change that then
+      became necessary, so gating to completion before fixing it would have
+      produced evidence for a tree that could not be pushed. The second attempt
+      reached `lint` and found two real errors on the dependency fix, both
+      recorded below.
+- [x] Clear the two `lint` errors the dependency-vouching commit introduced.
+      `Module eviction spans 430 lines, exceeding the allowed 400` was the
+      regression case pushed into a module already near the cap; it now lives
+      in its own `tests/ownership.rs`, and the two helpers it needs moved up
+      into `tests/mod.rs` so the rule is stated once. Fixing that then took
+      `artefacts` from 400 to 401 through the doc paragraph the contract needs,
+      so the paragraph was tightened to 399 — the module is again under the cap
+      rather than pinned to it. The second error,
+      `no_unwrap_or_else_panic` on `std::result::Result<(), std::io::Error>`,
+      is the `unwrap_or_else` that performed the same panic as `expect`; it
+      now says `expect` and names the entry point. `whitaker --lib
+      whitaker_suite` over the harness crate exits 0, `cargo nextest run -p
+      rstest-bdd-harness` passes 201 of 201 including the new ownership case,
+      and `cs review` scores all five touched files 10.00. Commit `769933fa`.
+- [ ] Run the full gate sequence on the head that carries the ownership split
+      and record each gate's result, then push it.
 
 ## Surprises & Discoveries
+
+- **Filtering both sides by one rule makes an unowned name equal to itself.**
+  2026-11-15. The ownership layer keeps only names `name_is_owned` accepts, and
+  `eviction_of` filters the *present* list by the same predicate. That is
+  consistent, and it hides a whole eviction: a package missing from
+  `owned_packages` is absent from the recorded list *and* from the present
+  list, so `missing` is empty and the gate admits a profile whose dependency
+  fingerprints were removed — silently, because there is no name left to
+  report. The CLI fixture declares `rstest-bdd-cli-fixture` alone, and one
+  `cargo build` of it also builds `rstest-bdd` and `rstest-bdd-macros`, so that
+  was the live case. The fix is not in the filter: only the caller knows what
+  its build pulled in, so `owned_packages` now documents that it must name
+  every package the preparation built, and the CLI call site chains the
+  fixture's path dependencies onto its own name. A first attempt added an
+  `ownership::with_dependencies` helper to derive the list from the tree; it
+  was deleted. A heuristic that guesses ("names containing `fixture`") would
+  under-claim quietly, which is the same defect with more code, and one that
+  returns its input unchanged has no job. The regression is
+  `tests/ownership.rs::evicting_a_dependency_owned_through_the_fixture_invalidates_the_preparation`,
+  proved to discriminate by reverting `owned_packages` to the fixture alone and
+  watching it fail with the empty error the silent path produces.
 
 - **A rule about names cannot decide an eviction in a shared profile.**
   2026-11-15. The replacement rule was written for "a unit was rebuilt under a
