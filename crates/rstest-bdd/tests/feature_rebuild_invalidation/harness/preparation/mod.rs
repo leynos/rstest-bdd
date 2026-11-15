@@ -29,6 +29,20 @@ const REBUILD_FAMILY: &str = "feature-rebuild-invalidation";
 /// Preparation family for the scratch build-script addition fixture.
 const ADDITION_FAMILY: &str = "feature-addition";
 
+/// Cargo package name of the rebuild-invalidation fixture.
+///
+/// Named so the family's stamp vouches for its own units and not for the
+/// addition fixture's — or the CLI fixture's, or the integration-test binaries'
+/// — which share the same profile. `clean_fixture_units` removes exactly these
+/// units before every baseline, so a stamp that claimed a sibling's would be
+/// refused for ever after the first run.
+const REBUILD_PACKAGE: &str = "rstest-bdd-rebuild-invalidation-fixture";
+
+/// Cargo package name of the feature-addition fixture.
+///
+/// See [`REBUILD_PACKAGE`] for why each family names its own.
+const ADDITION_PACKAGE: &str = "rstest-bdd-feature-addition-fixture";
+
 /// The `cargo` arguments that compile both fixture test binaries without
 /// running them.
 const PREPARE_ARGS: [&str; 5] = ["test", "--no-run", "--locked", "--offline", "--color=never"];
@@ -122,23 +136,33 @@ fn artefact_directory(target_directory: &std::path::Path, subdir: &str) -> std::
 ///
 /// Both fixtures make up a `cargo test --no-run --locked --offline` closure
 /// over the same workspace inputs, so only the family name, the artefact
-/// subdirectory and the fixture source differ between them. Everything else —
-/// the environment view and the variant label — is identical by construction
-/// rather than by copy.
+/// subdirectory, the fixture source and the package it builds differ between
+/// them. Everything else — the environment view and the variant label — is
+/// identical by construction rather than by copy.
+///
+/// `package` is declared because both families build into the workspace
+/// `target/debug`, which the integration-test binaries and the CLI family also
+/// write to. Without it a family would record the other's units as its own,
+/// and `clean_fixture_units`'s `cargo clean -p` — which each experiment runs
+/// before its baseline by design — would leave the sibling's stamp permanently
+/// refused.
 fn fixture_preparation(
     env: &process::ChildEnv,
     family: &str,
     artefact_subdir: &str,
     source_dir: std::path::PathBuf,
+    package: &str,
 ) -> std::io::Result<nested_cargo::Preparation> {
     let mut roots = vec![source_dir];
     roots.extend(workspace_inputs()?);
     let inputs = nested_cargo::input_hash(&roots)?;
-    nested_cargo::Preparation::new(
+    let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new(family, "locked-offline-test-no-run", inputs),
         artefact_directory(process::child_target_directory(env), artefact_subdir),
         process::preparation_view(env)?,
-    )
+    )?;
+    preparation.owned_packages = vec![package.to_owned()];
+    Ok(preparation)
 }
 
 /// Describe the rebuild fixture's preparation family.
@@ -148,6 +172,7 @@ fn rebuild_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo:
         REBUILD_FAMILY,
         "rebuild-invalidation",
         fixtures::source_fixture_dir(),
+        REBUILD_PACKAGE,
     )
 }
 
@@ -158,6 +183,7 @@ fn addition_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo
         ADDITION_FAMILY,
         "feature-addition",
         fixtures::source_addition_dir(),
+        ADDITION_PACKAGE,
     )
 }
 

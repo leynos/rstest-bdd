@@ -2789,7 +2789,8 @@ use rstest_bdd_harness::nested_cargo::{
 let env = build_child_env(
     Path::new("target"),
     ProfileDestination::ChildScratch,
-);
+)
+.expect("nested Cargo environment should resolve");
 let mut cmd = cargo_command(&env, Path::new("fixtures"));
 cmd.args(["check", "--locked"]);
 

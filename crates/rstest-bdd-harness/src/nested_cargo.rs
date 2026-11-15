@@ -55,6 +55,7 @@ pub use preparation::{
     ensure_prepared_with,
     ensure_prepared_with_probe,
     input_hash,
+    invalidate,
     prepare_now,
     prepare_now_with_probe,
 };

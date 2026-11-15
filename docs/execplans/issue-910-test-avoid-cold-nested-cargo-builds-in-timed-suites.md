@@ -1322,7 +1322,98 @@ rather than by reading this branch's comments.
       and the failure to look for is the one where a rebuild is
       indistinguishable from an eviction.
 
+
+- [x] Repair the second CodeRabbit round on head `f9718e69`: the per-unit
+      fingerprint records, the failures a recompile is allowed to excuse, the
+      directory-boundary and entry-kind markers in the input hash, the
+      triple-profile artefact root, the withdrawal of a refuted stamp, the
+      profile-anchored binary fallback, and the build-mode/check-mode trybuild
+      probes. Findings `4577395343` (withdrawal), `4577395347`, `4577395352`,
+      `4577395358`, `4577395363`, `4577395367`, `4577395370`, `4577395384`,
+      `4577395390` and `4577395395` are repaired in the tree;
+      `4577395374` (`cap_std`) is deferred to issue #946 and the
+      process-tree finding to the already-open issue #923.
+- [x] Repair the `Maintainability` findings `4577395376` and `4577395379`:
+      the shared preparation fixtures and the rebuild-invalidation setup
+      helpers return `Result` and propagate with `?`, with `.expect(...)` left
+      only at the consuming `#[test]` boundary.
+- [x] Split four files that this work pushed past the enforced 400-line budget
+      (`scripts/check_rs_file_lengths.py`, wired into `make lint`):
+      `preparation/input_hash/tests.rs`, `preparation/artefacts/tests/records.rs`,
+      `preparation/tests/target_profile.rs` and
+      `cargo-bdd/tests/cli/preparation/tests/withdrawal.rs`. Every case moved
+      verbatim; the harness preparation suite went from 99 to 100 cases, the
+      one addition being the per-unit-record regression.
+
+- [x] Close the seventh stamp-validity gap: **a family vouched for units it
+      never built.** Found by the isolated Nextest lane on `649e9ec5`, where
+      `feature_addition_triggers_rebuild` failed with "[the stamp] records
+      artefacts it vouched for are gone". The mechanism was pinned by
+      reimplementing `discover`, `outputs_in`, `recorded_name`, `UnitName` and
+      the replacement rule in a scratch script against the actual tree the
+      failure left behind: the addition family's stamp held **11,315** names
+      for a profile then holding **11,299**, and **`replacements` was 0**. The
+      superseded rule introduced at line 1286 exists for exactly this case, and
+      could never fire, because the stamp had recorded *both* generations of
+      the rebuild fixture's units. Sixteen names were reported missing, and
+      every survivor was itself recorded five to six times.
+      1. **The distinguishing fact is provenance, not tree state.** At check
+         time a unit is present or absent, and a unit removed by a sibling's
+         designed `cargo clean -p` is indistinguishable from one removed by a
+         stray `rm`. No predicate over on-disk names can separate them — the
+         `replacement` module's own documentation says so, and the measurement
+         above is the proof. Only the family knows which packages it built.
+      2. **`Preparation::owned_packages` declares that.** Empty for
+         `Preparation::for_fixture`, which sets `CARGO_TARGET_DIR` to the
+         directory it stamps so nothing else writes there; one package each for
+         the rebuild, addition and CLI families, which all build into the shared
+         workspace `target/debug`. This *corrects* the claim recorded at line
+         588-605 that the intentional fixture-package clean "is untouched" — it
+         was untouched only because the gate then checked directory existence,
+         and ceased to be once the exact layer recorded names.
+      3. **`artefacts/ownership.rs` answers the matching question**, by path
+         component, accepting both Cargo spellings (`<package>-<hash>` in
+         `.fingerprint/`, `lib<underscored>-<hash>.rlib` in `deps/`) and
+         stripping the metadata suffix only when exactly sixteen hex characters
+         follow the final `-`. A prefix test would claim `rstest-bdd`'s units for
+         the `rstest-bdd-feature-addition-fixture` family.
+      4. **The rest of the profile is not abandoned.** The structural layer
+         still refuses a profile that lost its units or its fingerprint store —
+         the states `cargo clean`, `rm -rf <target>/debug` and a cache eviction
+         leave — so the shared dependency graph stays covered.
+- [x] Regression coverage, in `artefacts/tests/siblings.rs` (four cases) and
+      `artefacts/ownership/tests.rs` (six): the sibling's units are not
+      recorded; the sibling's designed clean does not refuse the stamp; the
+      family's own eviction still does; and a family naming no package still
+      claims the whole profile, which is the *before* picture that reproduces
+      the original defect.
+- [x] Clear the lint fallout from moving those cases: three clippy errors in
+      the relocated test modules (`case_sensitive_file_extension_comparisons`
+      twice, `cloned_ref_to_slice_refs` once) and two rustdoc intra-doc links
+      that pointed at private or non-existent items. `make lint` runs
+      `cargo doc --workspace --no-deps` after clippy, so clippy passing is not
+      the gate passing.
+- [x] Fix a heading this work introduced that contradicted its own body: the
+      migration guide read `### A bounded run's captured output is the direct
+      child's`, while the two paragraphs under it explain that the capture is
+      "neither exactly the direct child's text nor the whole tree's". Verified
+      against `git show 7dcbb059` that this PR added the heading, so the
+      contradiction is ours and not inherited. It now reads
+      `### A bounded run's captured output stops at a deadline`, matching the
+      body's actual claim. A reader who stopped at the heading would have
+      believed the opposite of the documented behaviour.
+
 ## Surprises & Discoveries
+
+- **A rule about names cannot decide an eviction in a shared profile.**
+  2026-11-15. The replacement rule was written for "a unit was rebuilt under a
+  new hash", and it is correct for a profile one family owns. In a *shared*
+  profile it is inert: a family that recorded every name it found had recorded
+  both the old and the new generation, so `present - recorded` was empty and
+  the rule had no candidate to compare against. The fix is not a better rule
+  but a narrower claim — each family records only its own packages' units. When
+  a heuristic has to distinguish two indistinguishable tree states, the answer
+  is usually to stop asking the tree.
 
 - **A hand-rolled `RUSTFLAGS` stales every stamp it touches.** 2026-11-12. The
   preparation fingerprint covers `RUSTFLAGS` *and* the feature selection, so

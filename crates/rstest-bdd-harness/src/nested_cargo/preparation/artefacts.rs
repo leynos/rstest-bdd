@@ -38,6 +38,7 @@ use super::{
     stamp::Stamp,
 };
 
+mod ownership;
 mod replacement;
 
 /// How many missing names a failure message lists before summarizing.
@@ -124,16 +125,44 @@ fn recorded_name(profile: &Path, directory: &Path, output: &str) -> String {
 
 /// The recorded names a layout vouches for, sorted.
 ///
+/// Two kinds of name, both required, for reasons that are independent. A
+/// compiled output whose file was removed is one Cargo recompiles. A unit whose
+/// fingerprint record was removed is *also* one Cargo recompiles, even though
+/// every output it produced is still there, because the record is what says
+/// those outputs are current. Recording only outputs therefore admits a tree
+/// the next build silently rewrites — and the store itself still looks
+/// populated, because emptying one record's directory leaves the others.
+///
+/// The records come from the store directories the discovery walk found, and
+/// each is filed under the unit it belongs to, so the name is qualified by the
+/// store and by the unit's own directory exactly as an output is qualified by
+/// its unit directory.
+///
+/// Only names belonging to `owned` are kept, so a family that shares a profile
+/// does not vouch for a sibling's units; see the `ownership` module. An empty
+/// `owned` keeps every name.
+///
 /// # Errors
 ///
-/// Returns the read error when a unit directory cannot be listed.
-fn recorded_names(profile: &Path, layout: &Layout) -> io::Result<Vec<String>> {
+/// Returns the read error when a unit directory or record directory cannot be
+/// listed.
+fn recorded_names(profile: &Path, layout: &Layout, owned: &[String]) -> io::Result<Vec<String>> {
     let mut names: Vec<String> = Vec::new();
     for directory in &layout.units {
         for output in layout::outputs_in(directory)? {
             names.push(recorded_name(profile, directory, &output));
         }
     }
+    for store in &layout.fingerprints {
+        for unit in layout::record_directories(store)? {
+            for file in layout::entries_of(&unit)? {
+                names.push(recorded_name(profile, &unit, &file));
+            }
+        }
+    }
+    // A family speaks only for what it built. See the `ownership` module for
+    // why the distinction cannot be recovered from the tree itself.
+    names.retain(|name| ownership::name_is_owned(name, owned));
     names.sort();
     names.dedup();
     Ok(names)
@@ -162,7 +191,13 @@ pub(super) fn record(preparation: &Preparation) -> io::Result<Vec<Vec<String>>> 
     preparation
         .artefacts
         .iter()
-        .map(|profile| recorded_names(profile, &layout::discover(profile)?))
+        .map(|profile| {
+            recorded_names(
+                profile,
+                &layout::discover(profile)?,
+                &preparation.owned_packages,
+            )
+        })
         .collect()
 }
 
@@ -172,7 +207,11 @@ pub(super) fn record(preparation: &Preparation) -> io::Result<Vec<Vec<String>>> 
 ///
 /// Returns the read error when a directory cannot be inspected, so an
 /// unreadable tree refuses the preparation instead of passing it.
-fn eviction_of(directory: &Path, recorded: Option<&[String]>) -> io::Result<Option<Eviction>> {
+fn eviction_of(
+    directory: &Path,
+    recorded: Option<&[String]>,
+    owned: &[String],
+) -> io::Result<Option<Eviction>> {
     match fs::metadata(directory) {
         Ok(metadata) if metadata.is_dir() => {}
         // Absent, or present as something that is not a directory: both are the
@@ -204,10 +243,19 @@ fn eviction_of(directory: &Path, recorded: Option<&[String]>) -> io::Result<Opti
     let Some(recorded) = recorded else {
         return Ok(None);
     };
-    let present = recorded_names(directory, &layout)?;
+    let present = recorded_names(directory, &layout, owned)?;
+    // What is left once the names this stamp recorded are taken out: only a
+    // name that was *not* recorded can stand as a rebuild of one that was. Two
+    // builds of one crate can sit side by side, both recorded, and reading the
+    // survivor as the other's replacement would report a lost unit as present.
+    let replacements: Vec<String> = present
+        .iter()
+        .filter(|name| !recorded.contains(name))
+        .cloned()
+        .collect();
     let missing: Vec<String> = recorded
         .iter()
-        .filter(|name| !replacement::is_vouched_for(name.as_str(), &present))
+        .filter(|name| !replacement::is_vouched_for(name.as_str(), &present, &replacements))
         .cloned()
         .collect();
     if missing.is_empty() {
@@ -242,7 +290,11 @@ pub(super) fn evicted(
         .enumerate()
         .map(|(index, directory)| {
             let recorded = stamp.and_then(|stamp| stamp.recorded.get(index));
-            eviction_of(directory, recorded.map(Vec::as_slice))
+            eviction_of(
+                directory,
+                recorded.map(Vec::as_slice),
+                &preparation.owned_packages,
+            )
         })
         .filter_map(Result::transpose)
         .collect()

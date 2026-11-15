@@ -20,8 +20,8 @@ use crate::nested_cargo::{Preparation, PreparationSummary, ensure_prepared_with,
 /// whose mode is zero. The file is left in place rather than made a directory
 /// so a later preparation can replace it, which is what the `cargo test` case
 /// below needs to reach its successful end.
-fn write_unreadable_stamp(preparation: &Preparation) {
-    fs::write(stamp_path(preparation), [0xff, 0xfe]).expect("unreadable stamp");
+fn write_unreadable_stamp(preparation: &Preparation) -> std::io::Result<()> {
+    fs::write(stamp_path(preparation), [0xff, 0xfe])
 }
 
 #[test]
@@ -32,8 +32,9 @@ fn nextest_reports_an_unreadable_stamp_rather_than_calling_it_missing() {
     // nextest branch is unexercised, and it would be possible to report
     // "missing or stale" for a tree that is present but cannot be vouched
     // for — which sends the reader looking for an evicted directory.
-    let (_directory, preparation, _environment) = scratch_preparation();
-    write_unreadable_stamp(&preparation);
+    let (_directory, preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
+    write_unreadable_stamp(&preparation).expect("unreadable stamp");
 
     let error = ensure_prepared_with(&preparation, true, || {
         panic!("an unreadable stamp under nextest must not prepare")
@@ -57,8 +58,9 @@ fn cargo_test_prepares_again_behind_an_unreadable_stamp() {
     // costs a rebuild, so the boundary must choose to prepare rather than
     // fail. Running the closure is what proves the branch was taken — had the
     // boundary failed fast, it would not have run.
-    let (_directory, preparation, _environment) = scratch_preparation();
-    write_unreadable_stamp(&preparation);
+    let (_directory, preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
+    write_unreadable_stamp(&preparation).expect("unreadable stamp");
     let mut runs = 0_u32;
 
     ensure_prepared_with(&preparation, false, || {
@@ -92,8 +94,9 @@ fn prepare_now_replaces_an_unreadable_stamp_and_leaves_a_reusable_one() {
     // replacement that were itself unreadable would make every later gate
     // re-prepare forever, which is the failure mode the recovery exists to
     // prevent but one layer down.
-    let (_directory, preparation, _environment) = scratch_preparation();
-    write_unreadable_stamp(&preparation);
+    let (_directory, preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
+    write_unreadable_stamp(&preparation).expect("unreadable stamp");
     let mut builds = 0_u32;
 
     prepare_now(&preparation, || {

@@ -46,6 +46,7 @@ pub use lifecycle::{
     ensure_prepared,
     ensure_prepared_with,
     ensure_prepared_with_probe,
+    invalidate,
     prepare_now,
     prepare_now_with_probe,
 };
@@ -110,12 +111,13 @@ static PREPARE_LOCK: Mutex<()> = Mutex::new(());
 /// Cargo's development profile directory, relative to a target directory.
 ///
 /// Every nested build here runs without `--release` or `--profile`, so its
-/// compiled units land in `<target>/debug`. This is the directory a timed
+/// compiled units land below `<target>/debug`. This is the directory a timed
 /// assertion reuses, and it is not always inside the directory the stamp is
-/// written to: for the scratch families it is a sibling of the stamp root, and
-/// for a family whose stamped directory *is* its child's `CARGO_TARGET_DIR` it
-/// is a descendant. Either way it is the directory
-/// [`Preparation::artefacts`] names.
+/// written to: for the scratch families it is a sibling of the stamp root, so
+/// [`Preparation::new`] names it directly, while for a family whose stamped
+/// directory *is* its child's `CARGO_TARGET_DIR` it is a descendant, and
+/// [`Preparation::for_fixture`] vouches for the whole containing directory
+/// instead.
 pub const DEFAULT_PROFILE: &str = "debug";
 
 /// What a preparation builds, as the caller describes it.
@@ -181,6 +183,31 @@ pub struct Preparation {
     /// refuses the preparation exactly as a missing stamp does, which is what
     /// keeps a timed assertion from rebuilding the graph inside its deadline.
     pub artefacts: Vec<PathBuf>,
+    /// Cargo package names whose compiled units this family's stamp vouches
+    /// for by name.
+    ///
+    /// A profile can be shared. The rebuild-invalidation and feature-addition
+    /// families both build into the workspace `target/debug`, and the CLI
+    /// family stamps that same profile, so a family that recorded every name
+    /// it found there vouched for its siblings' units too. The rebuild
+    /// experiment then runs `cargo clean -p rstest-bdd-rebuild-invalidation-fixture`
+    /// before each baseline *by design*, which removes exactly those units —
+    /// and no name-level rule can tell that apart from an eviction, because
+    /// the replacement generations that follow are themselves recorded. The
+    /// sibling's stamp was refused for ever, and the timed assertion it gates
+    /// could never run.
+    ///
+    /// Naming the packages is what keeps the claim to what the family built.
+    /// Each family records its own fixture's units exactly, and leaves a
+    /// sibling's units to the sibling's own stamp. The dependency graph every
+    /// family shares stays covered by the structural layer, which refuses a
+    /// profile that has lost its units or its fingerprint store — the states
+    /// `cargo clean`, `rm -rf <target>/debug` and a cache eviction leave.
+    ///
+    /// Empty means the family owns the whole profile, which is right for
+    /// [`Preparation::for_fixture`]: such a family sets `CARGO_TARGET_DIR` to
+    /// the directory it stamps, so no other family writes there.
+    pub owned_packages: Vec<String>,
 }
 
 impl Preparation {
@@ -213,6 +240,7 @@ impl Preparation {
             variant: sources.variant,
             inputs: sources.inputs,
             artefacts,
+            owned_packages: Vec::new(),
         })
     }
 
@@ -223,6 +251,20 @@ impl Preparation {
     /// keeps the stamp and the artefacts it vouches for in step. The rest of
     /// the inherited environment is filtered by the shared rules, with the
     /// caller's profile destination preserved.
+    ///
+    /// Such a family owns its target directory, so it vouches for the whole of
+    /// it rather than for one profile inside it. The profiles Cargo writes are
+    /// not a fixed set: a build without `--target` writes `<root>/debug`, while
+    /// `trybuild` passes `--target <triple>` for the generated crate and that
+    /// build writes the host units to `<root>/debug` and everything else to
+    /// `<root>/<triple>/debug`. Naming one of them would leave the other
+    /// unvouched for, and evicting only that one would leave the stamp matching
+    /// — so the timed assertion would rebuild the graph inside its deadline,
+    /// which is the failure this whole module exists to prevent. The same
+    /// applies to the check-mode units `cargo check` writes beside the
+    /// build-mode ones. `layout::discover` walks whatever is there, so
+    /// the recorded names cover every profile the preparation actually left
+    /// without this function having to predict them.
     ///
     /// `inputs` is the caller-supplied hash of the fixture sources; callers
     /// derive it before preparation runs, because preparation writes inside
@@ -240,11 +282,13 @@ impl Preparation {
         inputs: impl Into<String>,
     ) -> io::Result<Self> {
         let environment = env_for_directory(&directory, ProfileDestination::Caller)?;
-        Self::new(
+        let mut preparation = Self::new(
             Sources::new(family, variant, inputs),
             directory,
             environment,
-        )
+        )?;
+        preparation.artefacts = vec![preparation.directory.clone()];
+        Ok(preparation)
     }
 }
 

@@ -149,6 +149,44 @@ where
     prepare_now_with_probe(preparation, toolchain_identity, prepare)
 }
 
+/// Remove the stamp that advertises `preparation` as prepared.
+///
+/// Both [`prepare_now`] and the lazy `cargo test` path of [`ensure_prepared`]
+/// return early from a matching stamp, so the stamp is what decides whether a
+/// later attempt builds at all. This entry point exists for a caller whose own
+/// completeness rule is stricter than the stamp can be:
+/// [`Preparation::artefacts`] answers "the units the preparation recorded are
+/// still there", and cannot answer "they are the units this family needs",
+/// because only the caller knows which ones those are. A caller that checks its
+/// own witness *after* the gate admitted the stamp can therefore find the stamp
+/// vouching for a tree its assertions cannot use — and if it simply reports
+/// that, every later attempt is refused the same way without the preparation
+/// ever running again.
+///
+/// Removing the stamp is what turns the next attempt into a build. It does not
+/// repair the tree: the caller reports the refusal it found, and the recovery
+/// is the next run's.
+///
+/// A stamp that is already absent is not an error. The caller is withdrawing a
+/// claim it has just refuted, and whether that claim was ever written is not
+/// its business; reporting a missing file here would replace the useful failure
+/// (the witness) with a filesystem one.
+///
+/// # Errors
+///
+/// Returns the removal error when the stamp exists and cannot be removed.
+pub fn invalidate(preparation: &Preparation) -> io::Result<()> {
+    let stamp = stamp_path(preparation);
+    match std::fs::remove_file(&stamp) {
+        Ok(()) => {
+            note(&format!("removed the stamp {}", stamp.display()));
+            Ok(())
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 /// [`prepare_now`] with the toolchain probe supplied.
 ///
 /// # Errors

@@ -15,7 +15,6 @@ use super::{
     scratch_preparation,
 };
 use crate::nested_cargo::{
-    DEFAULT_PROFILE,
     Preparation,
     PreparationSummary,
     ProfileDestination,
@@ -29,7 +28,8 @@ use crate::nested_cargo::{
 
 #[test]
 fn lazy_preparation_writes_the_stamp_and_is_idempotent() {
-    let (_directory, preparation, _environment) = scratch_preparation();
+    let (_directory, preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
     let mut runs = 0_u32;
 
     for _ in 0..2 {
@@ -46,7 +46,8 @@ fn lazy_preparation_writes_the_stamp_and_is_idempotent() {
 
 #[test]
 fn prepare_now_runs_under_nextest_and_stamps_once() {
-    let (_directory, preparation, _environment) = scratch_preparation();
+    let (_directory, preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
     let mut runs = 0_u32;
     for _ in 0..2 {
         prepare_now(&preparation, || {
@@ -65,33 +66,35 @@ fn preparation_survives_the_build_output_it_creates() {
     // contribute to the hash. If it did, a cold preparation would write a
     // stamp that was already stale, and the timed test that follows would
     // fail its gate every time.
-    let (directory, source) = fixture_package();
+    let (directory, source) = fixture_package().expect("the fixture package");
 
     // A real target directory: the gate now also requires the profile
     // directory the compiled units land in, and the dependency artefacts
     // inside it, so a synthetic path would refuse the stamp for a reason this
     // test is not about.
     let target = directory.path().join("target");
-    populate_profile(&target);
-    let environment = environment_in(&target);
+    populate_profile(&target).expect("a populated profile");
+    let environment = environment_in(&target).expect("the fixture environment should resolve");
     let prepare = || {
         // What `trybuild` and a nested Cargo leave behind: its WIP scratch
         // beside the crate, and a target directory for the build output.
-        fs::create_dir_all(source.join("wip")).expect("wip dir");
-        fs::write(source.join("wip/.gitignore"), "*\n").expect("wip scratch");
-        fs::create_dir_all(source.join("target/debug")).expect("target dir");
-        fs::write(source.join("target/debug/artifact"), "binary").expect("artefact");
+        fs::create_dir_all(source.join("wip"))?;
+        fs::write(source.join("wip/.gitignore"), "*\n")?;
+        fs::create_dir_all(source.join("target/debug"))?;
+        fs::write(source.join("target/debug/artifact"), "binary")?;
         Ok(PreparationSummary::default())
     };
 
     let inputs = input_hash(std::slice::from_ref(&source)).expect("inputs before preparation");
-    let family = preparation(&source, &environment, "v", &inputs);
+    let family = preparation(&source, &environment, "v", &inputs)
+        .expect("the fixture preparation should describe its artefacts");
     prepare_now(&family, prepare).expect("preparation");
 
     // A second run recomputes the hash over the now-populated tree; it must
     // still match, or the first timed test would be refused its gate.
     let after = input_hash(std::slice::from_ref(&source)).expect("inputs after preparation");
-    let reopened = preparation(&source, &environment, "v", &after);
+    let reopened = preparation(&source, &environment, "v", &after)
+        .expect("the fixture preparation should describe its artefacts");
     let mut runs = 0_u32;
     ensure_prepared_with(&reopened, true, || {
         runs += 1;
@@ -103,7 +106,8 @@ fn preparation_survives_the_build_output_it_creates() {
 
 #[test]
 fn failed_preparation_leaves_no_stamp() {
-    let (_directory, preparation, _environment) = scratch_preparation();
+    let (_directory, preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
     let error = ensure_prepared_with(&preparation, false, || {
         Err(io::Error::other("nested build failed"))
     })
@@ -114,7 +118,8 @@ fn failed_preparation_leaves_no_stamp() {
 
 #[test]
 fn nextest_refuses_to_prepare_and_names_the_command() {
-    let (_directory, preparation, _environment) = scratch_preparation();
+    let (_directory, preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
     let error = ensure_prepared_with(&preparation, true, || {
         panic!("nextest must not run preparation in a timed test")
     })
@@ -137,7 +142,8 @@ fn a_family_prepared_by_the_preparation_test_satisfies_the_nextest_gate() {
     // the stamp the preparation wrote is the stamp the gate then accepts. A
     // mismatch would show up as every timed test paying for a cold build —
     // exactly the failure the issue is about.
-    let (directory, family, environment) = scratch_preparation();
+    let (directory, family, environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
     let mut builds = 0_u32;
 
     // First: the timed test, which must refuse rather than build.
@@ -158,7 +164,8 @@ fn a_family_prepared_by_the_preparation_test_satisfies_the_nextest_gate() {
     // Third: the timed test again, now over a freshly stamped family. It is
     // reopened from the same description so the check does not lean on any
     // in-process state the failed attempt left behind.
-    let reopened = preparation(directory.path(), &environment, "v", "hash");
+    let reopened = preparation(directory.path(), &environment, "v", "hash")
+        .expect("the fixture preparation should describe its artefacts");
     ensure_prepared_with(&reopened, true, || {
         panic!("the gate must accept the family the preparation test stamped")
     })
@@ -197,32 +204,41 @@ fn a_relative_target_directory_is_resolved_once_before_it_reaches_the_child() {
 }
 
 #[test]
-fn for_fixture_vouches_for_the_profile_its_own_builds_populate() {
+fn for_fixture_vouches_for_the_whole_target_directory_it_owns() {
     // The trybuild and UI-lint families set the child's `CARGO_TARGET_DIR` to
-    // exactly the directory they stamp, so their profile directory is a
-    // *descendant* of the stamp root rather than the sibling the scratch
-    // families have. The gate must still name it: emptying a profile without
-    // removing the family's stamp is possible there too (`cargo clean -p`, or
-    // a targeted `rm -rf <root>/debug`), and the dependency graph it holds is
-    // the work a timed assertion would otherwise redo.
+    // exactly the directory they stamp, so every profile Cargo writes lands
+    // *inside* the artefact root rather than beside it as it does for the
+    // scratch families.
+    //
+    // Which profiles those are is not a fixed list. A plain `cargo build`
+    // writes `<root>/debug`, while `trybuild` passes `--target <triple>` for
+    // the generated crate, and that build writes the host units to
+    // `<root>/debug` and every other unit to `<root>/<triple>/debug` —
+    // measured on this host, not assumed. `cargo check` likewise keeps its
+    // units apart from the build-mode ones. Vouching for one named profile
+    // would leave the others unvouched for, and evicting only one of them
+    // would leave the stamp matching while the timed assertion paid for the
+    // rebuild.
     let directory = tempfile::tempdir().expect("fixture dir");
     let preparation =
         Preparation::for_fixture("unit-fixture", directory.path().to_path_buf(), "v", "hash")
             .expect("the fixture preparation should describe its artefacts");
     assert_eq!(
         preparation.artefacts,
-        vec![directory.path().join(DEFAULT_PROFILE)],
-        "a fixture family must vouch for the profile its own nested builds write"
+        vec![directory.path().to_path_buf()],
+        "a fixture family owns its target directory and must vouch for all of it"
     );
 }
 
 #[test]
 fn stale_fingerprint_forces_preparation() {
-    let (directory, first, environment) = scratch_preparation();
+    let (directory, first, environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
     ensure_prepared_with(&first, false, || Ok(PreparationSummary::default()))
         .expect("initial preparation");
 
-    let changed = preparation(directory.path(), &environment, "v", "changed-hash");
+    let changed = preparation(directory.path(), &environment, "v", "changed-hash")
+        .expect("the fixture preparation should describe its artefacts");
     let error = ensure_prepared_with(&changed, true, || {
         panic!("a stale stamp must not count as prepared")
     })
@@ -240,7 +256,8 @@ fn a_changed_toolchain_invalidates_the_stamp_through_the_gate() {
     // gate twice with two identities: the second must be refused and must
     // prepare, because a stamp that outlived a compiler change is exactly the
     // invalidation the field exists to force.
-    let (_directory, family, _environment) = scratch_preparation();
+    let (_directory, family, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
     let mut builds = 0_u32;
     let stable = || Ok(String::from("release: 1.88.0 commit-hash: a host: x"));
 
@@ -279,7 +296,8 @@ fn an_uncertain_toolchain_refuses_to_stamp_or_reuse_a_stamp() {
     // compiler. Either way a timed assertion would run against a tree the
     // fingerprint cannot vouch for, so the gate must refuse before it reads the
     // stamp at all.
-    let (_directory, family, _environment) = scratch_preparation();
+    let (_directory, family, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
     let error = ensure_prepared_with_probe(
         &family,
         false,

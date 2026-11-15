@@ -19,12 +19,17 @@ use crate::nested_cargo::{
 };
 
 /// The profile directory a scratch preparation vouches for.
-fn prepared_profile(preparation: &Preparation) -> PathBuf {
-    preparation
-        .artefacts
-        .first()
-        .expect("the preparation describes the profile directory it reuses")
-        .clone()
+///
+/// A fixture that vouched for no directory at all would leave every case here
+/// unable to name what it evicted, so the absence is reported as `NotFound`
+/// rather than panicking inside the shared helper.
+fn prepared_profile(preparation: &Preparation) -> io::Result<PathBuf> {
+    preparation.artefacts.first().cloned().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "the preparation describes the profile directory it reuses",
+        )
+    })
 }
 
 /// A preparation that has already stamped a usable profile.
@@ -32,14 +37,13 @@ fn prepared_profile(preparation: &Preparation) -> PathBuf {
 /// Each case below removes something *after* a successful preparation, so the
 /// stamp is genuinely written and the eviction is the only thing under test. A
 /// fixture that never prepared would be refused for the wrong reason.
-fn stamped_preparation() -> (tempfile::TempDir, Preparation, NestedCargoEnv) {
-    let (directory, preparation, environment) = scratch_preparation();
-    prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
+fn stamped_preparation() -> io::Result<(tempfile::TempDir, Preparation, NestedCargoEnv)> {
+    let (directory, preparation, environment) = scratch_preparation()?;
+    prepare_now(&preparation, || Ok(PreparationSummary::default()))?;
     ensure_prepared_with(&preparation, true, || {
         panic!("a just-prepared family must pass")
-    })
-    .expect("the freshly written stamp must be accepted");
-    (directory, preparation, environment)
+    })?;
+    Ok((directory, preparation, environment))
 }
 
 #[test]
@@ -50,8 +54,10 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
     // the stamp and its scratch root intact. A gate that consulted only the
     // stamp would admit a timed assertion against an empty profile, and that
     // assertion would rebuild the whole graph inside its own deadline.
-    let (_directory, preparation, _environment) = stamped_preparation();
-    let profile = prepared_profile(&preparation);
+    let (_directory, preparation, _environment) =
+        stamped_preparation().expect("a preparation that has already stamped a usable profile");
+    let profile = prepared_profile(&preparation)
+        .expect("the preparation describes the profile directory it reuses");
 
     fs::remove_dir_all(&profile).expect("evict the profile");
     assert!(
@@ -86,8 +92,10 @@ fn evicting_either_required_half_alone_invalidates_the_preparation() {
     // The pair is named here rather than read from a public constant: which
     // directories Cargo uses is its layout, and this module now discovers them.
     for half in ["units", "fingerprints"] {
-        let (_directory, preparation, _environment) = stamped_preparation();
-        let profile = prepared_profile(&preparation);
+        let (_directory, preparation, _environment) =
+            stamped_preparation().expect("a preparation that has already stamped a usable profile");
+        let profile = prepared_profile(&preparation)
+            .expect("the preparation describes the profile directory it reuses");
         let removed = match half {
             "units" => profile.join("deps"),
             _ => profile.join(".fingerprint"),
@@ -134,8 +142,10 @@ fn emptying_a_unit_directory_invalidates_the_preparation() {
     // `cargo clean -p` and a glob that misses both leave the directories in
     // place and remove what matters. An empty directory is not a prepared
     // tree, so the check cannot be `exists()`: it has to count entries.
-    let (_directory, preparation, _environment) = stamped_preparation();
-    let profile = prepared_profile(&preparation);
+    let (_directory, preparation, _environment) =
+        stamped_preparation().expect("a preparation that has already stamped a usable profile");
+    let profile = prepared_profile(&preparation)
+        .expect("the preparation describes the profile directory it reuses");
     let deps = profile.join("deps");
 
     fs::remove_dir_all(&deps).expect("evict the dependency artefacts");
@@ -166,8 +176,10 @@ fn a_dep_info_record_without_its_output_invalidates_the_preparation() {
     // and `.fingerprint` is untouched, but a unit's output has gone. Cargo
     // recompiles that unit, and a gate that only counted directory entries
     // would admit the rebuild into a timed assertion.
-    let (directory, preparation, _environment) = stamped_preparation();
-    let profile = prepared_profile(&preparation);
+    let (directory, preparation, _environment) =
+        stamped_preparation().expect("a preparation that has already stamped a usable profile");
+    let profile = prepared_profile(&preparation)
+        .expect("the preparation describes the profile directory it reuses");
     let deps = profile.join("deps");
 
     // Remove ONLY the compiled unit; its dep-info record and every directory
@@ -215,8 +227,11 @@ fn a_metadata_only_unit_is_paired_with_its_dep_info_record() {
     // removing that unit must then be refused. Both halves are needed — the
     // first alone would pass if the record were merely ignored, and the second
     // alone would pass if it were merely counted.
-    let (_directory, preparation, _environment) = stamped_preparation();
-    let deps = prepared_profile(&preparation).join("deps");
+    let (_directory, preparation, _environment) =
+        stamped_preparation().expect("a preparation that has already stamped a usable profile");
+    let deps = prepared_profile(&preparation)
+        .expect("the preparation describes the profile directory it reuses")
+        .join("deps");
     assert!(
         deps.join("libchecked.rmeta").is_file(),
         "the fixture must model a metadata-only unit"
@@ -242,8 +257,10 @@ fn a_metadata_only_unit_is_paired_with_its_dep_info_record() {
 fn an_empty_profile_directory_is_not_a_prepared_family() {
     // `mkdir -p <target>/debug` is not a build. The gate must not read a bare
     // directory as evidence that the dependency graph exists.
-    let (directory, preparation, _environment) = scratch_preparation();
-    let profile = prepared_profile(&preparation);
+    let (directory, preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
+    let profile = prepared_profile(&preparation)
+        .expect("the preparation describes the profile directory it reuses");
     fs::remove_dir_all(&profile).expect("evict the populated profile");
     fs::create_dir_all(&profile).expect("recreate an empty profile");
 
@@ -269,5 +286,85 @@ fn an_empty_profile_directory_is_not_a_prepared_family() {
             && profile.join(".fingerprint").symlink_metadata().is_err(),
         "the fixture must leave the profile genuinely empty: {}",
         directory.path().display()
+    );
+}
+
+#[test]
+fn removing_one_units_fingerprint_records_invalidates_the_preparation() {
+    // The state `rm -rf <store>/<unit>-<hash>` leaves: every compiled output
+    // and every directory survives, and only one unit's records go. Cargo marks
+    // a unit whose fingerprint record is missing as dirty and rebuilds it and
+    // its dependants, so a gate that recorded only compiled outputs would admit
+    // that rebuild into a timed assertion. A sibling unit's records are kept
+    // deliberately: the store then still looks populated from above, so the
+    // directory-level check cannot be what refuses, and the refusal has to come
+    // from the per-unit record check.
+    let (_directory, preparation, _environment) =
+        stamped_preparation().expect("a preparation that has already stamped a usable profile");
+    let profile = prepared_profile(&preparation)
+        .expect("the preparation describes the profile directory it reuses");
+    let store = profile.join(".fingerprint");
+    let mut records: Vec<PathBuf> = fs::read_dir(&store)
+        .expect("read the fingerprint store")
+        .map(|entry| entry.expect("a store entry").path())
+        .collect();
+    records.sort();
+    assert!(
+        records.len() >= 2,
+        "the fixture must hold several units' records so a sibling can be kept: {}",
+        store.display()
+    );
+
+    let removed = records.remove(0);
+    fs::remove_dir_all(&removed).expect("evict one unit's fingerprint records");
+
+    // Every layer above the per-unit check must still be satisfied, or the
+    // refusal below would prove an ordinary eviction rather than this one.
+    assert!(
+        removed.symlink_metadata().is_err(),
+        "the removed records must be the only thing that went: {}",
+        removed.display()
+    );
+    assert!(
+        store.is_dir(),
+        "the store itself must survive, so this is not the whole-store case"
+    );
+    for sibling in &records {
+        assert!(
+            sibling.is_dir(),
+            "a sibling unit's records must survive: {}",
+            sibling.display()
+        );
+    }
+    let deps = profile.join("deps");
+    assert!(deps.join("unit.d").is_file(), "the dep-info must survive");
+    assert!(
+        deps.join("libunit.rlib").is_file(),
+        "the compiled unit must survive"
+    );
+    assert!(
+        deps.join("libchecked.rmeta").is_file(),
+        "the metadata-only unit must survive"
+    );
+    assert!(stamp_path(&preparation).is_file(), "the stamp must survive");
+
+    let error = ensure_prepared_with(&preparation, true, || {
+        panic!("a timed test must never prepare")
+    })
+    .expect_err("a unit whose records went must fail the gate");
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    let message = error.to_string();
+    assert!(
+        message.contains("artefacts it vouched for are gone"),
+        "the message must name the eviction: {message}"
+    );
+    let unit = removed
+        .file_name()
+        .expect("the evicted record directory has a name")
+        .to_string_lossy()
+        .into_owned();
+    assert!(
+        message.contains(&unit),
+        "the message must name the unit whose records went, not just the profile: {message}"
     );
 }

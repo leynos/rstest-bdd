@@ -30,7 +30,7 @@ use std::{env, io, path::PathBuf, process::Command};
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest_bdd_harness::nested_cargo;
 
-use super::{macros_fixture, staging};
+use super::{macros_fixture, staging, wip};
 
 /// Preparation family for the trybuild build tree.
 const TRYBUILD_FAMILY: &str = "trybuild-macros";
@@ -45,6 +45,22 @@ const UI_CLIPPY_FAMILY: &str = "trybuild-ui-clippy";
 /// everything the timed run needs and leaves every fixture under test, every
 /// `.stderr` snapshot and `tracking.feature` untouched.
 const TRYBUILD_PROBE: &str = "step_macros.rs";
+
+/// Compile-fail fixture that warms the check-mode dependency units.
+///
+/// `trybuild` runs `cargo build` for the generated crate when any queued
+/// fixture is a compile-pass case and `cargo check` otherwise, so the timed
+/// `compile_fail_with_normalized_output` cases run in check mode against the
+/// same target directory. Cargo keeps check-mode and build-mode artefacts
+/// apart — measured on this host: a `cargo check` following a warm `cargo
+/// build` re-checks every dependency, including registry crates — so warming
+/// only the build graph would leave the first timed compile-fail case
+/// compiling the graph in check mode inside its own deadline.
+///
+/// The probe's own diagnostics are never asserted on: `trybuild` writes them
+/// to `wip/` and the file is removed below, because a stale `wip` entry makes
+/// `trybuild` report a newly created `.stderr` as a failure.
+const TRYBUILD_CHECK_PROBE: &str = "scenario_missing_file.rs";
 
 /// Lint-clean bin that gives the UI-lint crate a target.
 const UI_CLIPPY_PROBE: &str = "step_return_dispatch_lint_clean";
@@ -230,19 +246,33 @@ fn nested_fixture_preparation() -> io::Result<()> {
 /// fixture under test.
 ///
 /// `trybuild` panics on a missing or failing fixture instead of returning an
-/// error, so this never yields `Err`. The `io::Result` is the shape
-/// `TrybuildTree::prepare_now` and `ensure_prepared` take, so that a
-/// preparation with a fallible first step — as the UI-lint one has — shares the
-/// same gate.
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "the shared preparation contract takes a fallible closure"
-)]
+/// error, so the compile steps themselves never yield `Err`. The `io::Result`
+/// is both the shape `TrybuildTree::prepare_now` and `ensure_prepared` take and
+/// a real one now: the compile-fail probe leaves its diagnostics in `wip/`,
+/// and removing them is a filesystem step that can fail, so this propagates
+/// that error rather than panicking on it.
 fn prepare_trybuild() -> io::Result<nested_cargo::PreparationSummary> {
-    let probe = macros_fixture(TRYBUILD_PROBE);
+    // Build mode first, then check mode. `trybuild` decides between `cargo
+    // build` and `cargo check` for the whole generated crate from whether any
+    // queued fixture is a compile-pass case, so these cannot be combined: each
+    // queueing run has to be homogeneous. Order matters because the check run
+    // also compiles the build graph's build scripts and proc macros as host
+    // units, and doing it second leaves them warm for it.
+    let pass_probe = macros_fixture(TRYBUILD_PROBE);
     let tests = trybuild::TestCases::new();
-    tests.pass(probe.as_std_path());
+    tests.pass(pass_probe.as_std_path());
     drop(tests);
+
+    let fail_probe = macros_fixture(TRYBUILD_CHECK_PROBE);
+    let tests = trybuild::TestCases::new();
+    tests.compile_fail(fail_probe.as_std_path());
+    drop(tests);
+    // The compile-fail run leaves the diagnostics it produced in `wip/`, and
+    // `trybuild` reports a fixture as a failure when it finds one there: the
+    // timed run would then fail on a `.stderr` this preparation created rather
+    // than on the fixture it is asserting. The timed suite removes the same
+    // file before each of its own compile-fail cases for the same reason.
+    wip::remove_stale_wip_stderr(&fail_probe)?;
     // `trybuild` streams its nested Cargo's output to this process's own
     // streams, so the unit count cannot be captured here. The preparation log
     // still records the elapsed time, which is the figure the timeout budget is

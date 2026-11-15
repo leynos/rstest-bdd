@@ -42,14 +42,15 @@ fn recorded_toolchain() -> std::io::Result<String> {
 
 #[test]
 fn fingerprint_excludes_runner_and_coverage_variables() {
-    let environment = environment();
+    let environment = environment().expect("the fixture environment should resolve");
     let text = fingerprint_with(
         &preparation(
             Path::new("/tmp/target"),
             &environment,
             "all-features",
             "abc",
-        ),
+        )
+        .expect("the fixture preparation should describe its artefacts"),
         recorded_toolchain,
     )
     .expect("the fingerprint must name the toolchain");
@@ -85,14 +86,15 @@ fn fingerprint_excludes_runner_and_coverage_variables() {
 
 #[test]
 fn fingerprint_changes_with_variant_and_inputs() {
-    let environment = environment();
+    let environment = environment().expect("the fixture environment should resolve");
     let one = fingerprint_with(
         &preparation(
             Path::new("/tmp/target"),
             &environment,
             "all-features",
             "abc",
-        ),
+        )
+        .expect("the fixture preparation should describe its artefacts"),
         recorded_toolchain,
     )
     .expect("fingerprint");
@@ -102,7 +104,8 @@ fn fingerprint_changes_with_variant_and_inputs() {
             &environment,
             "no-default-features",
             "abc",
-        ),
+        )
+        .expect("the fixture preparation should describe its artefacts"),
         recorded_toolchain,
     )
     .expect("fingerprint");
@@ -112,7 +115,8 @@ fn fingerprint_changes_with_variant_and_inputs() {
             &environment,
             "all-features",
             "def",
-        ),
+        )
+        .expect("the fixture preparation should describe its artefacts"),
         recorded_toolchain,
     )
     .expect("fingerprint");
@@ -122,7 +126,7 @@ fn fingerprint_changes_with_variant_and_inputs() {
 
 #[test]
 fn input_hash_ignores_stamps_and_build_output() {
-    let (_directory, source) = fixture_package();
+    let (_directory, source) = fixture_package().expect("the fixture package");
     std::fs::create_dir_all(source.join("features")).expect("features dir");
     std::fs::write(source.join("features/a.feature"), "Feature: a\n").expect("feature");
     let before = input_hash(std::slice::from_ref(&source)).expect("initial hash");
@@ -148,7 +152,7 @@ fn input_hash_ignores_trybuild_wip_scratch() {
     // target directory, and it creates that directory during the very build a
     // preparation stamps. Hashing it would invalidate every stamp the moment
     // it was written, because the hash is taken before that build runs.
-    let (_directory, source) = fixture_package();
+    let (_directory, source) = fixture_package().expect("the fixture package");
     let before = input_hash(std::slice::from_ref(&source)).expect("initial hash");
 
     std::fs::create_dir_all(source.join("wip")).expect("wip dir");
@@ -197,9 +201,10 @@ fn every_build_relevant_variable_changes_the_fingerprint() {
     // individually — the neighbouring case varies only `RUSTFLAGS`, which
     // cannot tell "recorded" from "recorded by coincidence of that one name".
     let target = std::env::temp_dir().join("target");
-    let base = environment_in(&target);
+    let base = environment_in(&target).expect("the fixture environment should resolve");
     let baseline = fingerprint_with(
-        &preparation(&target, &base, "v", "hash"),
+        &preparation(&target, &base, "v", "hash")
+            .expect("the fixture preparation should describe its artefacts"),
         recorded_toolchain,
     )
     .expect("baseline");
@@ -233,7 +238,8 @@ fn every_build_relevant_variable_changes_the_fingerprint() {
         )
         .expect("the fixture environment should resolve");
         let changed = fingerprint_with(
-            &preparation(&target, &with_variable, "v", "hash"),
+            &preparation(&target, &with_variable, "v", "hash")
+                .expect("the fixture preparation should describe its artefacts"),
             recorded_toolchain,
         )
         .expect("fingerprint with an extra variable");
@@ -251,9 +257,10 @@ fn variables_outside_the_build_relevant_set_do_not_change_the_fingerprint() {
     // fingerprint, every nextest run (a fresh `NEXTEST_RUN_ID` each time) would
     // invalidate every stamp and nothing would ever stay prepared.
     let target = std::env::temp_dir().join("target");
-    let base = environment_in(&target);
+    let base = environment_in(&target).expect("the fixture environment should resolve");
     let baseline = fingerprint_with(
-        &preparation(&target, &base, "v", "hash"),
+        &preparation(&target, &base, "v", "hash")
+            .expect("the fixture preparation should describe its artefacts"),
         recorded_toolchain,
     )
     .expect("baseline");
@@ -273,7 +280,8 @@ fn variables_outside_the_build_relevant_set_do_not_change_the_fingerprint() {
         )
         .expect("the fixture environment should resolve");
         let changed = fingerprint_with(
-            &preparation(&target, &with_variable, "v", "hash"),
+            &preparation(&target, &with_variable, "v", "hash")
+                .expect("the fixture preparation should describe its artefacts"),
             recorded_toolchain,
         )
         .expect("fingerprint with an extra variable");
@@ -294,8 +302,9 @@ fn distinct_toolchain_identities_produce_distinct_fingerprints() {
     // exercised directly because resolving the identity runs `cargo -vV`,
     // which a unit test cannot vary.
     let target = std::env::temp_dir().join("target");
-    let base = environment_in(&target);
-    let preparation = preparation(&target, &base, "v", "hash");
+    let base = environment_in(&target).expect("the fixture environment should resolve");
+    let preparation = preparation(&target, &base, "v", "hash")
+        .expect("the fixture preparation should describe its artefacts");
 
     let stable = compose(&preparation, "release: 1.88.0 abc host: x");
     let nightly = compose(&preparation, "release: 1.92.0 def host: x");
@@ -312,15 +321,17 @@ fn a_value_containing_a_line_break_cannot_forge_a_field() {
     // next field. Two genuinely different builds would then share a stamp,
     // and the invalidation the fingerprint exists to force would not happen.
     let target = std::env::temp_dir().join("target");
-    let environment = environment_in(&target);
+    let environment = environment_in(&target).expect("the fixture environment should resolve");
     // These two descriptions are genuinely different — one has an empty input
     // hash, the other an empty variant — and without escaping they compose the
     // same three trailing lines: `variant: v`, `inputs: h` and `inputs: `,
     // because the first moves its tail into the variant and the second moves
     // its tail into the inputs. A stamp written for one would then match the
     // other, so a changed fixture would keep its prepared artefacts.
-    let tail_in_variant = preparation(&target, &environment, "v\ninputs: h", "");
-    let tail_in_inputs = preparation(&target, &environment, "v", "h\ninputs: ");
+    let tail_in_variant = preparation(&target, &environment, "v\ninputs: h", "")
+        .expect("the fixture preparation should describe its artefacts");
+    let tail_in_inputs = preparation(&target, &environment, "v", "h\ninputs: ")
+        .expect("the fixture preparation should describe its artefacts");
 
     let one = compose(&tail_in_variant, "release: 1.88.0 host: x");
     let other = compose(&tail_in_inputs, "release: 1.88.0 host: x");
@@ -350,8 +361,9 @@ fn the_recorded_toolchain_reaches_the_fingerprint() {
     // the two branches would still pass while every stamp became
     // toolchain-blind.
     let target = std::env::temp_dir().join("target");
-    let base = environment_in(&target);
-    let prepared = preparation(&target, &base, "v", "hash");
+    let base = environment_in(&target).expect("the fixture environment should resolve");
+    let prepared = preparation(&target, &base, "v", "hash")
+        .expect("the fixture preparation should describe its artefacts");
 
     let first = compose(&prepared, "release: 1.88.0 commit-hash: a host: x");
     let second = compose(&prepared, "release: 1.92.0 commit-hash: b host: x");

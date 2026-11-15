@@ -18,6 +18,13 @@ use super::{cli_child_environment, fixture_dir, locate_or_build_cargo_bdd_comman
 #[path = "witness.rs"]
 mod witness;
 
+// The withdrawal regression lives in a submodule of its own so this file
+// keeps its share of the repository's line budget. Declared here rather than
+// inside `tests` so the path resolves beside this file.
+#[cfg(test)]
+#[path = "preparation/tests/withdrawal.rs"]
+mod withdrawal;
+
 use witness::fixture_binaries_present;
 
 /// The directories and fingerprint that describe this suite's prepared
@@ -74,15 +81,25 @@ fn family_inputs() -> Result<String> {
     Ok(nested_cargo::input_hash(&roots)?)
 }
 
+/// Cargo package name of the CLI fixture crate.
+const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
+
 /// Describe the CLI preparation family.
+///
+/// The family names its fixture package because it builds into the workspace
+/// `target/debug`, which the integration-test binaries and the rebuild
+/// scratch families also write to. A stamp that recorded the whole profile
+/// would vouch for units this family never built — and the rebuild suite's
+/// deliberate `cargo clean -p` would then leave this stamp refused for ever.
 fn cli_preparation_description() -> Result<(nested_cargo::Preparation, nested_cargo::NestedCargoEnv)>
 {
     let (child_env, target_root, inputs) = cli_preparation()?;
-    let preparation = nested_cargo::Preparation::new(
+    let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", env!("CARGO_PKG_VERSION"), inputs),
         target_root,
         child_env.clone(),
     )?;
+    preparation.owned_packages = vec![FIXTURE_PACKAGE.to_owned()];
     Ok((preparation, child_env))
 }
 
@@ -179,7 +196,37 @@ where
 {
     nested_cargo::ensure_prepared_with(preparation, under_nextest, prepare)
         .wrap_err("nested CLI fixture should be prepared")?;
-    require_fixture_binaries(preparation)
+    witness_or_withdraw(preparation)
+}
+
+/// Refuse a preparation whose profile lacks the fixture binaries, and withdraw
+/// the stamp that admitted it.
+///
+/// Both callers reach a preparation through a gate that returns early from a
+/// *matching* stamp: [`nested_cargo::ensure_prepared_with`] on the lazy path and
+/// [`nested_cargo::prepare_now`] in the named test. The stamp is written by the
+/// preparation, before this witness can be read, so a preparation that exits
+/// zero while leaving the fixture's own units out leaves a stamp vouching for a
+/// tree no timed assertion can use. Reporting that alone would make every later
+/// attempt read the same stamp and fail the same way, with the preparation never
+/// running again — the failure would be permanent rather than transient.
+///
+/// Removing the stamp first is what makes the next attempt a build. The
+/// removal's outcome is reported alongside the refusal rather than instead of
+/// it: the missing binaries are the failure, and a stamp that could not be
+/// withdrawn is a second fact the reader needs, not a substitute for the first.
+fn witness_or_withdraw(preparation: &nested_cargo::Preparation) -> Result<()> {
+    let error = match require_fixture_binaries(preparation) {
+        Ok(()) => return Ok(()),
+        Err(error) => error,
+    };
+    let recovery = match nested_cargo::invalidate(preparation) {
+        Ok(()) => "the stamp was withdrawn, so the next run prepares again".to_owned(),
+        Err(removal) => format!(
+            "the stamp could not be withdrawn, so the next run will repeat this failure: {removal}"
+        ),
+    };
+    Err(eyre::eyre!("{error:#}\n{recovery}"))
 }
 
 /// Fail unless `preparation`'s profile holds the fixture's own test binaries.
@@ -238,7 +285,11 @@ fn require_fixture_binaries(preparation: &nested_cargo::Preparation) -> Result<(
 fn nested_fixture_preparation() -> Result<()> {
     let (preparation, child_env) = cli_preparation_description()?;
     nested_cargo::prepare_now(&preparation, || capture_preparation(&child_env))?;
-    require_fixture_binaries(&preparation)
+    // Through the same function the timed gate uses, so a preparation that
+    // leaves no binaries is refused *and* has its stamp withdrawn here too.
+    // This test runs before the timed assertions under nextest, so a stamp it
+    // left behind would be the one they reuse.
+    witness_or_withdraw(&preparation)
 }
 
 #[cfg(test)]
@@ -253,7 +304,7 @@ mod tests {
     //! runs against a warm tree cannot distinguish a real preparation from a
     //! no-op.
 
-    use super::{cli_preparation, ensure_gated_with, fixture_dir, nested_cargo};
+    use super::{cli_preparation, fixture_dir, nested_cargo};
     use crate::workspace_root;
 
     /// The CLI family's inputs without the workspace Cargo configuration.
@@ -284,80 +335,6 @@ mod tests {
         assert_ne!(
             inputs, without,
             "the workspace Cargo configuration must change the CLI input hash"
-        );
-    }
-
-    #[test]
-    fn a_stamp_over_a_tree_without_the_binaries_is_not_a_prepared_family() {
-        // The hole a stamp-only gate leaves. `prepare_now` writes the stamp
-        // inside the preparation, before the witness can be read, and it
-        // returns early from a matching stamp on the next run without preparing
-        // at all. So a tree whose binaries were evicted after being stamped
-        // still carries a valid stamp, and every timed assertion behind it would
-        // run against nothing to inspect.
-        //
-        // This drives `ensure_gated`, the same function every timed test reaches
-        // through `ensure_cli_prepared`, rather than the predicate it calls:
-        // asserting on the predicate alone would still pass for a gate that had
-        // stopped consulting it, and the gate is what admits the timed
-        // assertions. The preparation closure runs (under `cargo test`), finds
-        // the profile already structurally usable and stamps it — so the tree
-        // it leaves behind is exactly the state under test: a *valid* stamp over
-        // units that are not the fixture's.
-        let scratch = tempfile::tempdir().expect("temp dir");
-        let target = scratch.path().join("target");
-        let deps = target.join(nested_cargo::DEFAULT_PROFILE).join("deps");
-        std::fs::create_dir_all(&deps).expect("deps dir");
-        std::fs::create_dir_all(
-            target
-                .join(nested_cargo::DEFAULT_PROFILE)
-                .join(".fingerprint"),
-        )
-        .expect("fingerprint dir");
-        std::fs::write(
-            target
-                .join(nested_cargo::DEFAULT_PROFILE)
-                .join(".fingerprint/unit"),
-            b"record",
-        )
-        .expect("fingerprint");
-        // A full, plausible unit directory — just not this fixture's. This is
-        // the state a preparation that compiled the dependency graph but never
-        // reached the fixture's own test targets leaves behind.
-        //
-        // Each unit is written the way rustc names it: the `.d` record and the
-        // `.rlib` share one hashed stem. A fixture that wrote an unsuffixed
-        // record beside a hashed output would be refused by the pairing rule
-        // before the witness ran, and the case would pass for the wrong reason.
-        for stem in ["libdep_a", "libdep_b"] {
-            let unit = format!("{stem}-0123456789abcdef");
-            std::fs::write(deps.join(format!("{unit}.d")), b"dep-info").expect("record");
-            std::fs::write(deps.join(format!("{unit}.rlib")), b"unit").expect("unit");
-        }
-
-        let environment = nested_cargo::env_from_vars(
-            Vec::new(),
-            Some(&target),
-            nested_cargo::ProfileDestination::Caller,
-        )
-        .expect("the fixture environment should resolve");
-        let preparation = nested_cargo::Preparation::new(
-            nested_cargo::Sources::new("cargo-bdd-cli", "test", "hash"),
-            scratch.path().join("stamp-root"),
-            environment.clone(),
-        )
-        .expect("the fixture preparation should describe its artefacts");
-
-        // A preparation that succeeds while doing no work at all: the point is
-        // that the stamp it then writes vouches for a tree holding none of the
-        // fixture's own units.
-        let error = ensure_gated_with(&preparation, false, || {
-            Ok(nested_cargo::PreparationSummary::default())
-        })
-        .expect_err("a preparation that leaves no fixture binaries must not satisfy the gate");
-        assert!(
-            error.to_string().contains("test binaries"),
-            "the failure must name what is missing, got: {error}"
         );
     }
 }

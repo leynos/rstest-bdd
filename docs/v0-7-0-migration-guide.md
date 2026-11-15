@@ -191,7 +191,7 @@ its `artefacts` list from the target directory resolved in the child
 environment rather than from the stamp directory, so the stamp and the compiled
 units it vouches for stay in step when the target directory moves.
 
-### A bounded run's captured output is the direct child's
+### A bounded run's captured output stops at a deadline
 
 `run_bounded` and `run_bounded_with_timeout` cap output collection a short
 grace period after the direct child exits. Without the cap, a successful child

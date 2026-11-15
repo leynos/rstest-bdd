@@ -83,6 +83,19 @@ fn is_build_output(name: &str) -> bool {
 /// because the hash has to be reproducible from the checkout alone.
 const CYCLE_MARKER: &str = "symlink-cycle";
 
+/// Marker hashed once a directory's entries have all been walked.
+///
+/// Without it the walk records names and contents but never records where one
+/// directory's entries stopped and the next began, so two different trees can
+/// feed the hasher the same sequence. Moving `tests/check.rs` to
+/// `src/tests/check.rs` beside an unchanged `src/lib.rs` is exactly that: both
+/// trees emit `src`, `lib.rs`, `tests` and `check.rs`, in that order, and
+/// nothing in either stream says whether `tests` sits beside `src` or inside
+/// it. A fixed string rather than a path, for the reason [`CYCLE_MARKER`]
+/// gives: the hash has to be reproducible from the checkout, and a resolved
+/// path would also make the stamp depend on the platform's separator.
+const DIRECTORY_END: &str = "directory-end";
+
 /// Hash the inputs a preparation family's artefacts derive from.
 ///
 /// `roots` may name files or directories; directories are walked in sorted
@@ -92,6 +105,14 @@ const CYCLE_MARKER: &str = "symlink-cycle";
 /// named `target`, `.git` or `wip` are skipped, as are the stamp files the
 /// preparation module writes, so a nested build never invalidates the
 /// fingerprint that describes it.
+///
+/// Each entry contributes what kind of entry it is, and each directory
+/// contributes `DIRECTORY_END` after its last entry, so the walk records the
+/// shape of the tree and not only the sequence of names in it. Without those
+/// markers, moving `tests/check.rs` to `src/tests/check.rs` beside an unchanged
+/// `src/lib.rs` produces the same stream of names and contents — `src`,
+/// `lib.rs`, `tests`, `check.rs` — and the stamp would survive a move that
+/// changes which files the fixture compiles.
 ///
 /// `wip` is excluded because `trybuild` writes its scratch directory there,
 /// beside the crate under test rather than inside the target directory. The
@@ -117,6 +138,23 @@ pub fn input_hash(roots: &[PathBuf]) -> io::Result<String> {
     Ok(format!("{:016x}", hasher.finish()))
 }
 
+/// Markers naming what an entry is, hashed before its body.
+///
+/// A directory and a file of the same name are different inputs — one holds
+/// further entries, the other holds bytes — but neither their names nor their
+/// bodies have to say so. An empty file contributes only a zero length and an
+/// empty directory contributes only `DIRECTORY_END`, and treating those two
+/// as the same would let a stamp survive an entry changing kind. Naming the
+/// kind makes that distinction explicit instead of incidental, and does it
+/// without depending on the platform's separator or on `read_dir` order.
+const KIND_FILE: &str = "file";
+/// See [`KIND_FILE`].
+const KIND_DIRECTORY: &str = "directory";
+/// See [`KIND_FILE`].
+const KIND_SYMLINK: &str = "symlink";
+/// See [`KIND_FILE`].
+const KIND_OTHER: &str = "other";
+
 /// Feed one file or directory tree into `hasher`.
 fn hash_entry(
     path: &Path,
@@ -124,10 +162,14 @@ fn hash_entry(
     ancestors: &mut Vec<PathBuf>,
 ) -> io::Result<()> {
     let entry = fs::symlink_metadata(path)?;
+    // The kind is recorded before anything the entry contributes, so the same
+    // name cannot mean two different things in two trees.
     if entry.file_type().is_symlink() {
+        KIND_SYMLINK.hash(hasher);
         return hash_symlink(path, hasher, ancestors);
     }
     if entry.is_file() {
+        KIND_FILE.hash(hasher);
         path.file_name()
             .unwrap_or_default()
             .to_string_lossy()
@@ -137,8 +179,12 @@ fn hash_entry(
         return Ok(());
     }
     if !entry.is_dir() {
+        // A socket or a pipe: nothing a fixture build reads, but its arrival
+        // beside an input is still a change to the tree.
+        KIND_OTHER.hash(hasher);
         return Ok(());
     }
+    KIND_DIRECTORY.hash(hasher);
     hash_directory(path, hasher, ancestors)
 }
 
@@ -213,7 +259,10 @@ fn hash_directory(
 /// where the fixture was built. Separating the sort from the traversal lets
 /// a test supply a known-unsorted sequence, which no sequence of file
 /// creations on a real filesystem can force.
-fn hash_sorted(
+///
+/// Visible to the child test module, which is the only caller that supplies a
+/// sequence rather than letting the walk list a directory.
+pub(super) fn hash_sorted(
     mut entries: Vec<PathBuf>,
     hasher: &mut impl Hasher,
     ancestors: &mut Vec<PathBuf>,
@@ -230,127 +279,17 @@ fn hash_sorted(
         name.hash(hasher);
         hash_entry(&entry, hasher, ancestors)?;
     }
+    // Emitted after every entry, not before the next one: an empty directory
+    // and a directory whose last entry was a file both end here, which is what
+    // makes the marker name a *close* rather than a sibling boundary. The
+    // producing caller hashes the directory's own name first, so the pair
+    // `name` + `directory-end` brackets exactly one listing.
+    DIRECTORY_END.hash(hasher);
     Ok(())
 }
 
+// The unit tests live beside this file so the walk they exercise keeps its own
+// file under the repository's line budget.
 #[cfg(test)]
-mod tests {
-    //! Unit tests for the sorted walk, which the property tests cannot see.
-
-    use std::{collections::hash_map::DefaultHasher, fs, hash::Hasher};
-
-    use super::hash_sorted;
-    // Only the two cycle tests below hash through the public entry point, and
-    // they are Unix-only because creating a link on Windows needs a privilege
-    // the test runner does not have. Importing it unconditionally would be an
-    // unused import on Windows, which `-D warnings` turns into a build failure.
-    #[cfg(unix)]
-    use super::input_hash;
-
-    /// The same entries hash the same whatever order the directory listed
-    /// them in.
-    ///
-    /// This cannot be expressed by creating a tree two ways. On ext4 —
-    /// measured on this host — `read_dir` returns entries in a hash of their
-    /// names, independent of creation order and of how many times the
-    /// directory grew, so two trees with the same names and contents list
-    /// identically however they were written. A test written that way passes
-    /// even when the sort is removed, which was verified by replacing the
-    /// sort with a reversal and watching it still pass.
-    ///
-    /// Handing the walk a known-unsorted sequence is the only way to see the
-    /// difference: this fails immediately if the sort goes away.
-    #[test]
-    fn entries_hash_in_sorted_order_not_listing_order() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let mut entries = Vec::new();
-        for name in ["zeta", "alpha", "mid", "beta"] {
-            let path = directory.path().join(name);
-            fs::write(&path, name.as_bytes()).expect("input file");
-            entries.push(path);
-        }
-
-        let mut listed = DefaultHasher::new();
-        let listed_order = entries.clone();
-        hash_sorted(listed_order, &mut listed, &mut Vec::new()).expect("listed order");
-
-        entries.sort();
-        let mut sorted = DefaultHasher::new();
-        hash_sorted(entries, &mut sorted, &mut Vec::new()).expect("sorted order");
-
-        assert_eq!(
-            listed.finish(),
-            sorted.finish(),
-            "the walk must sort: a directory listing is the filesystem's order"
-        );
-    }
-
-    /// Build output is skipped wherever it appears in the sequence, including
-    /// after a sort that puts it ahead of the inputs.
-    #[test]
-    fn build_output_is_skipped_in_every_position() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let input = directory.path().join("feature");
-        fs::write(&input, b"Feature: one").expect("input file");
-        let mut entries = vec![input.clone()];
-
-        let mut before = DefaultHasher::new();
-        hash_sorted(entries.clone(), &mut before, &mut Vec::new()).expect("without build output");
-
-        let output = directory.path().join("target");
-        fs::create_dir_all(&output).expect("target dir");
-        fs::write(output.join("output"), b"binary").expect("artefact");
-        entries.push(output);
-        entries.push(directory.path().join("wip"));
-
-        let mut after = DefaultHasher::new();
-        hash_sorted(entries, &mut after, &mut Vec::new()).expect("with build output");
-
-        assert_eq!(
-            before.finish(),
-            after.finish(),
-            "target and wip must not reach the hash"
-        );
-    }
-
-    /// A link back into a directory the walk is already inside terminates.
-    ///
-    /// Following a link is what makes a symlinked `.cargo/config.toml`
-    /// contribute, but it also lets a tree point back at an ancestor. Without
-    /// the ancestor check this walk never returns, so the test is the
-    /// termination proof: it fails by hanging rather than by asserting.
-    #[test]
-    #[cfg(unix)]
-    fn a_link_back_to_an_ancestor_terminates() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let nested = directory.path().join("nested");
-        fs::create_dir_all(&nested).expect("nested dir");
-        fs::write(nested.join("input"), b"Feature: one").expect("input file");
-        std::os::unix::fs::symlink(directory.path(), nested.join("back")).expect("cycle link");
-
-        let roots = vec![directory.path().to_path_buf()];
-        let first = input_hash(&roots).expect("a cyclic tree must still hash");
-        let second = input_hash(&roots).expect("the cycle must hash reproducibly");
-        assert_eq!(first, second, "a cyclic tree must hash the same twice");
-    }
-
-    /// A cycle is not the same input as an empty directory.
-    ///
-    /// Both stop the descent at the same point, so without a marker the two
-    /// trees would contribute identical bytes and a stamp would survive the
-    /// tree growing a link that leads somewhere.
-    #[test]
-    #[cfg(unix)]
-    fn a_cycle_is_distinct_from_an_empty_directory() {
-        let cyclic = tempfile::tempdir().expect("cyclic dir");
-        std::os::unix::fs::symlink(cyclic.path(), cyclic.path().join("back")).expect("cycle link");
-        let empty = tempfile::tempdir().expect("empty dir");
-
-        let cyclic_hash = input_hash(&[cyclic.path().to_path_buf()]).expect("cyclic hash");
-        let empty_hash = input_hash(&[empty.path().to_path_buf()]).expect("empty hash");
-        assert_ne!(
-            cyclic_hash, empty_hash,
-            "cutting a cycle must record something, or it reads as an empty tree"
-        );
-    }
-}
+#[path = "input_hash/tests.rs"]
+mod tests;

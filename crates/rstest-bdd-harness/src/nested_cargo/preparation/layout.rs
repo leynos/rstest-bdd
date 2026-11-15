@@ -233,6 +233,33 @@ pub(super) fn entries_of(directory: &Path) -> io::Result<Vec<String>> {
     Ok(names)
 }
 
+/// The per-unit record directories `store` holds, sorted.
+///
+/// Cargo files each unit's records under `<store>/<unit>-<hash>/` and reads only
+/// the record belonging to the unit it is considering, so the record has to be
+/// named per unit. A store whose directories survive with their contents
+/// removed looks populated from above while holding nothing Cargo can read, and
+/// every unit whose record went is one Cargo rebuilds.
+///
+/// A store's own loose entries are not records: Cargo writes those beside the
+/// unit directories for its own bookkeeping, and requiring them would refuse a
+/// tree Cargo considers warm.
+///
+/// # Errors
+///
+/// Returns the read error when the store cannot be listed or an entry's type
+/// cannot be read.
+pub(super) fn record_directories(store: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut directories: Vec<PathBuf> = fs::read_dir(store)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<io::Result<Vec<PathBuf>>>()?
+        .into_iter()
+        .filter(|path| path.is_dir())
+        .collect();
+    directories.sort();
+    Ok(directories)
+}
+
 /// Split a dep-info file name into its unit stem.
 ///
 /// Returns `None` for anything that is not a `.d` record, so an unrelated entry

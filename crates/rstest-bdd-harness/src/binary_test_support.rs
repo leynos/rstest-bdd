@@ -84,21 +84,52 @@ pub enum BinaryLocateError {
 }
 
 // Adapted from assert_cmd's cargo helper: same `CARGO_BIN_EXE_<name>` convention
-// and `current_exe`-derived target-dir fallback.
+// and `current_exe`-derived fallback.
 fn cargo_bin_path_for_integration_tests(binary_name: BinaryName<'_>) -> PathBuf {
     let env_var = format!("CARGO_BIN_EXE_{binary_name}");
     env::var_os(&env_var).map_or_else(
         || {
-            target_dir_near_current_exe()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(format!("{binary_name}{}", env::consts::EXE_SUFFIX))
+            env::current_exe().ok().map_or_else(
+                || fallback_binary_path(binary_name, None),
+                |executable| fallback_binary_path(binary_name, Some(&executable)),
+            )
         },
         PathBuf::from,
     )
 }
 
-fn target_dir_near_current_exe() -> Option<PathBuf> {
-    target_directory_of(&env::current_exe().ok()?)
+/// Where `<binary_name>` sits relative to the executable running this test.
+///
+/// Integration tests are linked into `<profile>/deps` and run from there, so
+/// the binary a sibling crate produced is `<profile>/<name>`, not
+/// `<profile>/deps/<name>` and not `<target>/<name>`. This walked that way
+/// before [`target_directory_of`] took over the layout question, and dropping
+/// it silently moved the search up two levels: the fallback then looked for
+/// `<target>/<name>`, missed, and fell through to `cargo metadata`, which
+/// reports the *default* target directory and can hand back a binary from a
+/// different one. The tag lookup answers "where is the target root"; the
+/// profile is the parent of the directory the test binary sits in, which is a
+/// separate question.
+///
+/// Taking the executable as a parameter rather than reading `current_exe`
+/// here is what lets a test drive the whole fallback, including the `.`
+/// default and the `deps` stripping, without spawning a binary.
+fn fallback_binary_path(binary_name: BinaryName<'_>, executable: Option<&Path>) -> PathBuf {
+    let profile = executable.map_or_else(|| PathBuf::from("."), profile_of_binary);
+    profile.join(format!("{binary_name}{}", env::consts::EXE_SUFFIX))
+}
+
+/// The profile directory holding `executable`.
+///
+/// A test binary lives in `deps`; a plain binary lives directly in the
+/// profile. Both are anchored on the profile once `deps` is stripped.
+fn profile_of_binary(executable: &Path) -> PathBuf {
+    let mut path = executable.to_path_buf();
+    path.pop();
+    if path.ends_with("deps") {
+        path.pop();
+    }
+    path
 }
 
 /// Cargo's cache-directory tag, written at the root of every target directory.
@@ -269,7 +300,7 @@ mod tests {
 
     use std::path::Path;
 
-    use super::{BinaryName, binary_path_in_target_dir};
+    use super::{BinaryName, binary_path_in_target_dir, fallback_binary_path};
 
     // ── binary_path_in_target_dir ──────────────────────────────────────────
 
@@ -286,5 +317,35 @@ mod tests {
         let target = Path::new("/custom/target/dir");
         let path = binary_path_in_target_dir(target, BinaryName::new("tool"));
         assert!(path.starts_with(target));
+    }
+
+    #[test]
+    fn the_binary_fallback_searches_the_profile_not_the_target_root() {
+        // The regression this guards: the fallback used to derive the target
+        // *root* from `CACHEDIR.TAG` and join the binary name straight onto it,
+        // producing `<target>/tool` where the binary is `<target>/debug/tool`.
+        // It then missed and fell through to `cargo metadata`, whose answer is
+        // the default target directory and can differ from the one this build
+        // used. Driving the whole fallback is what makes this case fail if it
+        // reverts to the root or loses the `deps` stripping; asserting on the
+        // derivation alone would pass for both.
+        let name = BinaryName::new("tool");
+        let suffix = std::env::consts::EXE_SUFFIX;
+        assert_eq!(
+            fallback_binary_path(name, Some(Path::new("/cache/debug/deps/test"))),
+            Path::new("/cache/debug").join(format!("tool{suffix}"))
+        );
+        // A binary that is not under `deps` — a plain `cargo run` target —
+        // is anchored on the profile directly.
+        assert_eq!(
+            fallback_binary_path(name, Some(Path::new("/cache/debug/tool"))),
+            Path::new("/cache/debug").join(format!("tool{suffix}"))
+        );
+        // With no executable to inspect there is nothing to anchor on, and the
+        // relative fallback must stay relative rather than guessing a root.
+        assert_eq!(
+            fallback_binary_path(name, None),
+            Path::new(".").join(format!("tool{suffix}"))
+        );
     }
 }

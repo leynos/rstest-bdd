@@ -11,16 +11,15 @@ use std::ffi::OsString;
 
 use rstest_bdd_harness::nested_cargo;
 
-use super::{REBUILD_FAMILY, fixture_preparation, workspace_inputs};
+use super::{REBUILD_FAMILY, REBUILD_PACKAGE, fixture_preparation, workspace_inputs};
 use crate::harness::{fixtures, process};
 
 /// A child environment whose artefacts go to `target_directory`.
-fn child_env(target_directory: &std::path::Path) -> process::ChildEnv {
+fn child_env(target_directory: &std::path::Path) -> std::io::Result<process::ChildEnv> {
     process::child_env_from_vars(vec![(
         OsString::from("CARGO_TARGET_DIR"),
         target_directory.as_os_str().to_os_string(),
     )])
-    .expect("the fixture environment should resolve")
 }
 
 /// Leave `env`'s target directory as a real build would: a profile holding
@@ -35,30 +34,31 @@ fn child_env(target_directory: &std::path::Path) -> process::ChildEnv {
 /// output it describes — because that pairing is what the discovery walk
 /// follows. A bare placeholder file in `deps` would leave the profile with no
 /// units, and the gate would refuse the eviction for the wrong reason.
-fn populate_profile(env: &process::ChildEnv) {
+fn populate_profile(env: &process::ChildEnv) -> std::io::Result<()> {
     let profile = process::child_target_directory(env).join(nested_cargo::DEFAULT_PROFILE);
     let deps = profile.join("deps");
-    std::fs::create_dir_all(&deps).expect("dependency artefact dir");
-    std::fs::write(deps.join("unit.d"), b"dep-info").expect("dep-info");
-    std::fs::write(deps.join("libunit.rlib"), b"artefact").expect("dependency artefact");
+    std::fs::create_dir_all(&deps)?;
+    std::fs::write(deps.join("unit.d"), b"dep-info")?;
+    std::fs::write(deps.join("libunit.rlib"), b"artefact")?;
     let fingerprints = profile.join(".fingerprint");
-    std::fs::create_dir_all(&fingerprints).expect("fingerprint dir");
-    std::fs::write(fingerprints.join("unit"), b"fingerprint record").expect("fingerprint record");
+    std::fs::create_dir_all(&fingerprints)?;
+    std::fs::write(fingerprints.join("unit"), b"fingerprint record")?;
+    Ok(())
 }
 
 /// A scratch copy of the fixture, standing in for `fixtures::scratch_root`.
-fn scratch_fixture() -> tempfile::TempDir {
-    let scratch = tempfile::tempdir().expect("scratch dir");
+fn scratch_fixture() -> std::io::Result<tempfile::TempDir> {
+    let scratch = tempfile::tempdir()?;
     let fixture = scratch.path().join("fixture");
-    std::fs::create_dir_all(&fixture).expect("fixture dir");
-    std::fs::write(fixture.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
-    scratch
+    std::fs::create_dir_all(&fixture)?;
+    std::fs::write(fixture.join("Cargo.toml"), "[package]\nname = \"f\"\n")?;
+    Ok(scratch)
 }
 
 #[test]
 fn an_inherited_target_directory_moves_the_stamp_with_the_artefacts() {
     let external = tempfile::tempdir().expect("external target dir");
-    let env = child_env(external.path());
+    let env = child_env(external.path()).expect("the fixture environment should resolve");
     assert_eq!(
         process::child_target_directory(&env),
         external.path(),
@@ -70,6 +70,7 @@ fn an_inherited_target_directory_moves_the_stamp_with_the_artefacts() {
         REBUILD_FAMILY,
         "rebuild-invalidation",
         fixtures::source_fixture_dir(),
+        REBUILD_PACKAGE,
     )
     .expect("preparation description");
 
@@ -139,15 +140,16 @@ fn evicting_the_artefacts_invalidates_the_preparation() {
     // and a timed assertion that trusted the stamp would rebuild the
     // dependency graph inside its own deadline.
     let external = tempfile::tempdir().expect("external target dir");
-    let scratch = scratch_fixture();
+    let scratch = scratch_fixture().expect("scratch fixture");
     assert!(scratch.path().is_dir(), "the scratch fixture must survive");
 
-    let env = child_env(external.path());
+    let env = child_env(external.path()).expect("the fixture environment should resolve");
     let preparation = fixture_preparation(
         &env,
         REBUILD_FAMILY,
         "rebuild-invalidation",
         fixtures::source_fixture_dir(),
+        REBUILD_PACKAGE,
     )
     .expect("preparation description");
     // A real preparation leaves the profile directory its build populated.
@@ -156,7 +158,7 @@ fn evicting_the_artefacts_invalidates_the_preparation() {
     // would refuse for the wrong reason and the assertion at the end could
     // never distinguish "the artefacts were evicted" from "they never
     // existed".
-    populate_profile(&env);
+    populate_profile(&env).expect("populated profile");
     // Guard before writing: a regression that stamped the shared scratch
     // root would otherwise leave a stamp in a directory this test does not
     // own.
@@ -195,7 +197,8 @@ fn a_relative_target_directory_stamps_where_the_child_builds() {
     // `CARGO_TARGET_DIR` to a different place than the stamp did. The
     // harness must resolve it once, before storing it, so both name the
     // same tree and evicting that tree also evicts the stamp.
-    let env = child_env(std::path::Path::new("relative-cache"));
+    let env = child_env(std::path::Path::new("relative-cache"))
+        .expect("the fixture environment should resolve");
     let resolved = process::child_target_directory(&env);
     assert!(
         resolved.is_absolute(),
@@ -213,6 +216,7 @@ fn a_relative_target_directory_stamps_where_the_child_builds() {
         REBUILD_FAMILY,
         "rebuild-invalidation",
         fixtures::source_fixture_dir(),
+        REBUILD_PACKAGE,
     )
     .expect("preparation description");
     assert!(
@@ -230,17 +234,18 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
     // profile directory is a sibling of it. The gate must still refuse:
     // the compiled units the timed assertion reuses are gone.
     let external = tempfile::tempdir().expect("external target dir");
-    let env = child_env(external.path());
+    let env = child_env(external.path()).expect("the fixture environment should resolve");
     let preparation = fixture_preparation(
         &env,
         REBUILD_FAMILY,
         "rebuild-invalidation",
         fixtures::source_fixture_dir(),
+        REBUILD_PACKAGE,
     )
     .expect("preparation description");
 
     let profile = process::child_target_directory(&env).join(nested_cargo::DEFAULT_PROFILE);
-    populate_profile(&env);
+    populate_profile(&env).expect("populated profile");
 
     nested_cargo::prepare_now(&preparation, || {
         Ok(nested_cargo::PreparationSummary::default())
@@ -272,17 +277,18 @@ fn evicting_the_compiled_units_invalidates_the_preparation() {
     // accept: `<target>/debug` still exists, so does the family's stamp, and
     // Cargo must still rebuild every dependency unit.
     let external = tempfile::tempdir().expect("external target dir");
-    let env = child_env(external.path());
+    let env = child_env(external.path()).expect("the fixture environment should resolve");
     let preparation = fixture_preparation(
         &env,
         REBUILD_FAMILY,
         "rebuild-invalidation",
         fixtures::source_fixture_dir(),
+        REBUILD_PACKAGE,
     )
     .expect("preparation description");
 
     let profile = process::child_target_directory(&env).join(nested_cargo::DEFAULT_PROFILE);
-    populate_profile(&env);
+    populate_profile(&env).expect("populated profile");
 
     nested_cargo::prepare_now(&preparation, || {
         Ok(nested_cargo::PreparationSummary::default())

@@ -13,6 +13,7 @@ mod eviction;
 mod inputs;
 mod stamp_file;
 mod stamping;
+mod target_profile;
 mod unreadable;
 
 use std::path::{Path, PathBuf};
@@ -28,7 +29,9 @@ use crate::nested_cargo::{NestedCargoEnv, ProfileDestination};
 /// as `/tmp/target` has no drive letter on Windows, making it a *relative*
 /// path, and a fixture whose meaning changes with the host cannot describe one
 /// rule.
-fn environment() -> NestedCargoEnv { environment_in(&std::env::temp_dir().join("target")) }
+fn environment() -> std::io::Result<NestedCargoEnv> {
+    environment_in(&std::env::temp_dir().join("target"))
+}
 
 /// Populate a profile directory the way a real Cargo build leaves it.
 ///
@@ -43,18 +46,26 @@ fn environment() -> NestedCargoEnv { environment_in(&std::env::temp_dir().join("
 /// file whose name equals a dep-info stem would be indistinguishable from that
 /// unit's linked binary, so a fixture that wrote one would make the pairing
 /// predicate look satisfied for the wrong reason.
-fn populate_profile(target: &Path) {
+fn populate_profile(target: &Path) -> std::io::Result<()> {
     let profile = target.join(super::DEFAULT_PROFILE);
-    std::fs::create_dir_all(profile.join("deps")).expect("deps dir");
-    std::fs::create_dir_all(profile.join(".fingerprint")).expect("fingerprint dir");
-    std::fs::write(profile.join(".fingerprint/unit"), b"fingerprint record")
-        .expect("fingerprint record");
-    write_unit(target, "unit", "rlib");
+    std::fs::create_dir_all(profile.join("deps"))?;
+    std::fs::create_dir_all(profile.join(".fingerprint/unit-hash"))?;
+    std::fs::write(
+        profile.join(".fingerprint/unit-hash/unit"),
+        b"fingerprint record",
+    )?;
+    std::fs::create_dir_all(profile.join(".fingerprint/checked-hash"))?;
+    std::fs::write(
+        profile.join(".fingerprint/checked-hash/checked"),
+        b"fingerprint record",
+    )?;
+    write_unit(target, "unit", "rlib")?;
     // A unit built for `cargo check`, or one only ever asked for metadata,
     // leaves no `rlib` at all — only this. It is the commonest shape in a real
     // unit directory, so the fixture must carry it or the gate would pass here
     // and refuse a genuine tree.
-    write_unit(target, "checked", "rmeta");
+    write_unit(target, "checked", "rmeta")?;
+    Ok(())
 }
 
 /// Write one compiled unit the way rustc does: a `.d` record and its output.
@@ -70,11 +81,12 @@ fn populate_profile(target: &Path) {
 /// against the newer `build/<pkg>/<hash>/out` shape by
 /// `layout::tests::both_cargo_layouts_are_discovered` and, end to end, by the
 /// CLI preparation test against a real build.
-fn write_unit(target: &Path, stem: &str, extension: &str) {
+fn write_unit(target: &Path, stem: &str, extension: &str) -> std::io::Result<()> {
     let deps = target.join(super::DEFAULT_PROFILE).join("deps");
-    std::fs::create_dir_all(&deps).expect("deps dir");
-    std::fs::write(deps.join(format!("{stem}.d")), b"dep-info").expect("dep-info");
-    std::fs::write(deps.join(format!("lib{stem}.{extension}")), b"unit").expect("unit output");
+    std::fs::create_dir_all(&deps)?;
+    std::fs::write(deps.join(format!("{stem}.d")), b"dep-info")?;
+    std::fs::write(deps.join(format!("lib{stem}.{extension}")), b"unit")?;
+    Ok(())
 }
 
 /// A filtered environment whose target directory is `target`.
@@ -82,7 +94,7 @@ fn write_unit(target: &Path, stem: &str, extension: &str) {
 /// The target directory must exist for the gate to accept a matching stamp:
 /// the profile directory it derives must be present and hold the dependency
 /// artefacts, so a scratch preparation creates both.
-fn environment_in(target: &Path) -> NestedCargoEnv {
+fn environment_in(target: &Path) -> std::io::Result<NestedCargoEnv> {
     crate::nested_cargo::env_from_vars(
         vec![
             ("RUSTFLAGS".into(), "-Dwarnings".into()),
@@ -96,7 +108,6 @@ fn environment_in(target: &Path) -> NestedCargoEnv {
         Some(target),
         ProfileDestination::Caller,
     )
-    .expect("the fixture environment should resolve")
 }
 
 /// A preparation rooted at `directory`.
@@ -105,13 +116,12 @@ fn preparation(
     environment: &NestedCargoEnv,
     variant: &str,
     inputs: &str,
-) -> Preparation {
+) -> std::io::Result<Preparation> {
     Preparation::new(
         super::Sources::new("unit", variant, inputs),
         directory.to_path_buf(),
         environment.clone(),
     )
-    .expect("the fixture preparation should describe its artefacts")
 }
 
 /// A scratch preparation with variant `"v"` and input hash `"hash"`.
@@ -120,13 +130,13 @@ fn preparation(
 /// preparation's directory is the temporary directory itself, and its target
 /// directory is a `target/` child that this helper creates along with the
 /// profile directory the gate requires.
-fn scratch_preparation() -> (tempfile::TempDir, Preparation, NestedCargoEnv) {
-    let directory = tempfile::tempdir().expect("temp dir");
+fn scratch_preparation() -> std::io::Result<(tempfile::TempDir, Preparation, NestedCargoEnv)> {
+    let directory = tempfile::tempdir()?;
     let target = directory.path().join("target");
-    populate_profile(&target);
-    let environment = environment_in(&target);
-    let preparation = preparation(directory.path(), &environment, "v", "hash");
-    (directory, preparation, environment)
+    populate_profile(&target)?;
+    let environment = environment_in(&target)?;
+    let preparation = preparation(directory.path(), &environment, "v", "hash")?;
+    Ok((directory, preparation, environment))
 }
 
 /// A scratch root holding a minimal fixture package.
@@ -135,10 +145,10 @@ fn scratch_preparation() -> (tempfile::TempDir, Preparation, NestedCargoEnv) {
 /// directory with a `fixture/` package inside it. The `TempDir` is returned so
 /// the caller keeps it alive for the duration of the test; dropping it removes
 /// the tree.
-fn fixture_package() -> (tempfile::TempDir, PathBuf) {
-    let directory = tempfile::tempdir().expect("temp dir");
+fn fixture_package() -> std::io::Result<(tempfile::TempDir, PathBuf)> {
+    let directory = tempfile::tempdir()?;
     let source = directory.path().join("fixture");
-    std::fs::create_dir_all(&source).expect("fixture dir");
-    std::fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
-    (directory, source)
+    std::fs::create_dir_all(&source)?;
+    std::fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n")?;
+    Ok((directory, source))
 }

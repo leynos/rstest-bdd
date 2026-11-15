@@ -15,7 +15,13 @@ use std::path::Path;
 ///
 /// Both files the fixture declares are listed: each is a timed CLI assertion's
 /// subject, and each is a unit the preparation is supposed to leave behind.
-const FIXTURE_TEST_BINARIES: [&str; 2] = ["diagnostics_fixture", "unsupported_dump_steps"];
+///
+/// Visible to the parent so its recovery case can write the binaries this
+/// witness looks for. A second copy of the list there would let the two drift,
+/// and a recovery case testing a stale copy would pass while the real family
+/// stayed broken.
+pub(super) const FIXTURE_TEST_BINARIES: [&str; 2] =
+    ["diagnostics_fixture", "unsupported_dump_steps"];
 
 /// Whether anything below `profile` is the fixture's own compiled test binary.
 ///

@@ -19,16 +19,16 @@ use crate::nested_cargo::{cargo_config_inputs, input_hash};
 
 /// A workspace root with a `.cargo` directory, and the configuration link in
 /// it.
-fn workspace_with_cargo_dir() -> (tempfile::TempDir, PathBuf) {
-    let workspace = tempfile::tempdir().expect("workspace dir");
-    std::fs::create_dir(workspace.path().join(".cargo")).expect("cargo dir");
+fn workspace_with_cargo_dir() -> std::io::Result<(tempfile::TempDir, PathBuf)> {
+    let workspace = tempfile::tempdir()?;
+    std::fs::create_dir(workspace.path().join(".cargo"))?;
     let config = workspace.path().join(".cargo/config.toml");
-    (workspace, config)
+    Ok((workspace, config))
 }
 
 #[test]
 fn cargo_configuration_is_an_input() {
-    let (workspace, config) = workspace_with_cargo_dir();
+    let (workspace, config) = workspace_with_cargo_dir().expect("the workspace fixture");
     std::fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
 
     assert_eq!(
@@ -69,7 +69,7 @@ fn a_symlinked_cargo_configuration_contributes_its_target() {
     // stamp matching, and the timed assertion would compile the graph the
     // preparation was meant to have built. The link is Unix-only because
     // creating one on Windows needs a privilege the test runner lacks.
-    let (workspace, link) = workspace_with_cargo_dir();
+    let (workspace, link) = workspace_with_cargo_dir().expect("the workspace fixture");
     let target: PathBuf = workspace.path().join("shared-config.toml");
     std::fs::write(&target, "[profile.dev]\nincremental = false\n").expect("config target");
     std::os::unix::fs::symlink(&target, &link).expect("config symlink");
@@ -97,7 +97,7 @@ fn a_dangling_cargo_configuration_link_reads_as_absent() {
     // target present stops matching when the target goes away. Reporting it
     // as a read failure would instead make every preparation on such a tree
     // fail, which is why the absent answer is the one pinned here.
-    let (workspace, link) = workspace_with_cargo_dir();
+    let (workspace, link) = workspace_with_cargo_dir().expect("the workspace fixture");
     std::os::unix::fs::symlink(workspace.path().join("gone.toml"), &link).expect("symlink");
 
     assert_eq!(
@@ -119,7 +119,7 @@ fn an_unreadable_cargo_configuration_is_an_error() {
     // would not hold when the suite runs as root. It is a Unix-only fixture
     // because creating a symlink on Windows needs a privilege the test runner
     // does not have.
-    let (workspace, looped) = workspace_with_cargo_dir();
+    let (workspace, looped) = workspace_with_cargo_dir().expect("the workspace fixture");
     std::os::unix::fs::symlink(&looped, &looped).expect("symlink loop");
 
     let error = cargo_config_inputs(workspace.path())

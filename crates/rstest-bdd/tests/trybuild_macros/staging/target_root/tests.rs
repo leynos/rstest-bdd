@@ -71,9 +71,33 @@ fn derives_target_root_from_test_executable(#[case] structure: &[&str]) {
 
 /// A tree with no cache tag yields no root, so the caller falls back rather
 /// than guessing a directory.
+///
+/// The lookup walks every ancestor, not just the temporary directory, so this
+/// is only a "no tag anywhere above it" case if the temporary directory has no
+/// tagged ancestor. It does when `TMPDIR` points beneath a Cargo target
+/// directory, which is common on CI: the assertion then fails for the
+/// environment rather than for the code. The guard states that precondition
+/// instead of letting the case report a false defect. The tagged case above
+/// covers the positive direction, so nothing is lost by skipping here.
+///
+/// The guard returns early, matching the suite's other environment-gated cases
+/// (`gpui_macro_expansions_match_snapshots`, `should_seed_dump_steps`): the
+/// reason lives in this comment rather than on a stream, because the workspace
+/// denies `print_stderr`. Set `TMPDIR` outside a Cargo target directory to
+/// exercise the case; the tagged case above still covers the positive
+/// direction on any host, so a skipped run loses no coverage of the lookup
+/// itself.
 #[test]
 fn an_untagged_tree_yields_no_target_root() {
     let directory = tempfile::tempdir().expect("temp dir");
+    let tagged_ancestor = directory
+        .path()
+        .ancestors()
+        .skip(1)
+        .find(|ancestor| ancestor.join("CACHEDIR.TAG").is_file());
+    if tagged_ancestor.is_some() {
+        return;
+    }
     let executable = directory.path().join("debug/deps/trybuild_macros-a1b2c3");
     std::fs::create_dir_all(executable.parent().expect("parent")).expect("executable dir");
 

@@ -18,9 +18,10 @@ fn a_stamp_reads_back_as_the_fingerprint_it_recorded() {
     // refuse a stamp it had just written and every preparation would be
     // repeated on every run.
     let target = std::env::temp_dir().join("target");
-    let environment = environment_in(&target);
+    let environment = environment_in(&target).expect("the fixture environment should resolve");
     let fingerprint = compose(
-        &preparation(&target, &environment, "v", "hash"),
+        &preparation(&target, &environment, "v", "hash")
+            .expect("the fixture preparation should describe its artefacts"),
         "release: 1.88.0 host: x",
     );
     let stamp = render(&fingerprint, &[]);
@@ -40,13 +41,15 @@ fn a_trailing_space_in_the_inputs_does_not_reuse_another_build_s_stamp() {
     // fixture kept its prepared artefacts. The values differ, so the gate must
     // refuse.
     let target = std::env::temp_dir().join("target");
-    let environment = environment_in(&target);
+    let environment = environment_in(&target).expect("the fixture environment should resolve");
     let plain = compose(
-        &preparation(&target, &environment, "v", "hash"),
+        &preparation(&target, &environment, "v", "hash")
+            .expect("the fixture preparation should describe its artefacts"),
         "release: 1.88.0 host: x",
     );
     let spaced = compose(
-        &preparation(&target, &environment, "v", "hash "),
+        &preparation(&target, &environment, "v", "hash ")
+            .expect("the fixture preparation should describe its artefacts"),
         "release: 1.88.0 host: x",
     );
     assert_ne!(
@@ -71,9 +74,10 @@ fn a_stamp_admits_a_fingerprint_that_spells_the_separator() {
     // refused in the same breath as it was written: the Nextest gate reports a
     // missing or stale stamp, and `cargo test` prepares the family again.
     let target = std::env::temp_dir().join("target");
-    let environment = environment_in(&target);
+    let environment = environment_in(&target).expect("the fixture environment should resolve");
     let fingerprint = compose(
-        &preparation(&target, &environment, "v", "@@ recorded-artefacts"),
+        &preparation(&target, &environment, "v", "@@ recorded-artefacts")
+            .expect("the fixture preparation should describe its artefacts"),
         "release: 1.88.0 host: x",
     );
     let stamp = render(&fingerprint, &[]);
@@ -99,8 +103,9 @@ fn a_composed_fingerprint_ends_its_own_break_and_reads_back() {
     // the fallback is broken. `a_fingerprint_without_a_terminating_break_reads_back`
     // in `stamp::tests` covers it, where `fingerprint_of` can build one.
     let target = std::env::temp_dir().join("target");
-    let environment = environment_in(&target);
-    let preparation = preparation(&target, &environment, "v", "hash");
+    let environment = environment_in(&target).expect("the fixture environment should resolve");
+    let preparation = preparation(&target, &environment, "v", "hash")
+        .expect("the fixture preparation should describe its artefacts");
     let fingerprint = compose(&preparation, "release: 1.88.0 host: x");
     assert!(
         fingerprint.as_str().ends_with('\n'),
@@ -127,13 +132,15 @@ fn a_stamp_for_inputs_ending_in_the_separator_does_not_admit_the_prefix() {
     // recorded artefacts of the longer build are usually still on disk, so the
     // gate accepts a preparation whose inputs genuinely changed.
     let target = std::env::temp_dir().join("target");
-    let environment = environment_in(&target);
+    let environment = environment_in(&target).expect("the fixture environment should resolve");
     let longer = compose(
-        &preparation(&target, &environment, "v", "h@@ recorded-artefacts"),
+        &preparation(&target, &environment, "v", "h@@ recorded-artefacts")
+            .expect("the fixture preparation should describe its artefacts"),
         "release: 1.88.0 host: x",
     );
     let prefix = compose(
-        &preparation(&target, &environment, "v", "h"),
+        &preparation(&target, &environment, "v", "h")
+            .expect("the fixture preparation should describe its artefacts"),
         "release: 1.88.0 host: x",
     );
     assert_ne!(longer, prefix, "the two inputs must compose differently");
@@ -152,34 +159,31 @@ fn a_stamp_refuses_a_different_variant_or_toolchain() {
     // parser keyed only on the environment section would pass the cases above
     // and still admit a stamp across a toolchain change.
     let target = std::env::temp_dir().join("target");
-    let environment = environment_in(&target);
+    let environment = environment_in(&target).expect("the fixture environment should resolve");
     let stamp = render(
         &compose(
-            &preparation(&target, &environment, "all-features", "hash"),
+            &preparation(&target, &environment, "all-features", "hash")
+                .expect("the fixture preparation should describe its artefacts"),
             "release: 1.88.0 host: x",
         ),
         &[],
     );
+    let other_variant = compose(
+        &preparation(&target, &environment, "no-default-features", "hash")
+            .expect("the fixture preparation should describe its artefacts"),
+        "release: 1.88.0 host: x",
+    );
+    let other_toolchain = compose(
+        &preparation(&target, &environment, "all-features", "hash")
+            .expect("the fixture preparation should describe its artefacts"),
+        "release: 1.92.0 host: x",
+    );
     assert!(
-        parse(
-            stamp.as_str(),
-            &compose(
-                &preparation(&target, &environment, "no-default-features", "hash"),
-                "release: 1.88.0 host: x",
-            ),
-        )
-        .is_none(),
+        parse(stamp.as_str(), &other_variant).is_none(),
         "a stamp must not survive a variant change"
     );
     assert!(
-        parse(
-            stamp.as_str(),
-            &compose(
-                &preparation(&target, &environment, "all-features", "hash"),
-                "release: 1.92.0 host: x",
-            ),
-        )
-        .is_none(),
+        parse(stamp.as_str(), &other_toolchain).is_none(),
         "a stamp must not survive a toolchain change"
     );
 }
