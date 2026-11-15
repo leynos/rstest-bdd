@@ -1533,8 +1533,8 @@ rather than by reading this branch's comments.
   under-claim quietly, which is the same defect with more code, and one that
   returns its input unchanged has no job. The regression is
   `tests/ownership.rs::evicting_a_dependency_owned_through_the_fixture_invalidates_the_preparation`,
-  proved to discriminate by reverting `owned_packages` to the fixture alone and
-  watching it fail with the empty error the silent path produces.
+  proved to discriminate by reverting `owned_packages` to the fixture alone
+  and watching it fail with the empty error the silent path produces.
 
 - **A rule about names cannot decide an eviction in a shared profile.**
   2026-11-15. The replacement rule was written for "a unit was rebuilt under a
