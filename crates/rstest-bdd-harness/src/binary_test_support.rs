@@ -98,7 +98,13 @@ fn cargo_bin_path_for_integration_tests(binary_name: BinaryName<'_>) -> PathBuf 
 }
 
 fn target_dir_near_current_exe() -> Option<PathBuf> {
-    let mut path = env::current_exe().ok()?;
+    Some(profile_dir_of_test_executable(&env::current_exe().ok()?))
+}
+
+/// Locate the profile directory that holds workspace binaries, given a test
+/// executable's path. Pure computation: no I/O.
+fn profile_dir_of_test_executable(executable: &Path) -> PathBuf {
+    let mut path = executable.to_path_buf();
     path.pop();
     if path.ends_with("deps") {
         path.pop();
@@ -116,7 +122,7 @@ fn target_dir_near_current_exe() -> Option<PathBuf> {
             }
         }
     }
-    Some(path)
+    path
 }
 
 fn try_command_from_cargo_test_bin_layout(binary_name: BinaryName<'_>) -> Option<Command> {
@@ -258,7 +264,25 @@ mod tests {
 
     use std::path::Path;
 
-    use super::{BinaryName, binary_path_in_target_dir};
+    use super::{BinaryName, binary_path_in_target_dir, profile_dir_of_test_executable};
+
+    // ── profile_dir_of_test_executable ─────────────────────────────────────
+
+    #[rstest::rstest]
+    #[case::classic_layout("/t/debug/deps/it-abc", "/t/debug")]
+    #[case::build_directory_layout("/t/debug/build/pkg/abc/out/it-abc", "/t/debug")]
+    #[case::unrecognised_directory("/t/debug/examples/it-abc", "/t/debug/examples")]
+    #[case::out_outside_build_directory("/t/x/pkg/abc/out/it-abc", "/t/x/pkg/abc/out")]
+    fn profile_directory_follows_the_cargo_layout(
+        #[case] executable: &str,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(
+            profile_dir_of_test_executable(Path::new(executable)),
+            Path::new(expected),
+            "{executable} should resolve to {expected}"
+        );
+    }
 
     // ── binary_path_in_target_dir ──────────────────────────────────────────
 

@@ -30,6 +30,22 @@ fn derives_target_root_from_test_executable(#[case] executable: &str, #[case] ex
     );
 }
 
+#[rstest]
+#[case::unrecognised_directory("/workspace/target/debug/examples/trybuild_macros-a1b2c3")]
+#[case::out_without_build_directory(
+    "/workspace/target/debug/other/rstest-bdd/d195883d3c395ab2/out/\
+     trybuild_macros-d195883d3c395ab2"
+)]
+#[case::out_too_close_to_the_root("/out/trybuild_macros-d195883d3c395ab2")]
+#[case::bare_executable_name("trybuild_macros-a1b2c3")]
+fn rejects_executables_outside_cargos_layouts(#[case] executable: &str) {
+    assert_eq!(
+        target_directory_from_test_executable(Utf8Path::new(executable)),
+        None,
+        "{executable} is not under a recognised Cargo layout"
+    );
+}
+
 #[test]
 #[serial_test::serial(trybuild_target_directory)]
 fn target_directory_uses_running_test_executable() {
