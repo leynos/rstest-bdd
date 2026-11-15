@@ -1597,6 +1597,23 @@ Hard invariants. Violation requires escalation, not a workaround.
 
 ## Surprises & discoveries
 
+- Observation: a green `make test` was lost to build state, not to the change
+  under test. At `8bff662d` the recipe exited 2 because
+  `staging::target_root::tests::target_directory_uses_running_test_executable`
+  panicked on "integration tests should run beneath a target directory carrying
+  Cargo's `CACHEDIR.TAG`", although the same test passed in both legs at
+  `719374ae` and at `b46b6556`. This worktree's `target/` was created at 04:48
+  UTC, ten minutes after the `b46b6556` recipe finished, and holds no tag. A
+  scratch package showed why the tag cannot be assumed: Cargo writes it only
+  when it creates the target directory, so a directory created first by another
+  tool stays untagged, while an absent one gains the 177-byte file. Impact: the
+  failure cost the whole recipe, because `make test` stops at its first failing
+  step, so the doc tests, the `--no-default-features` leg, the fixture-lockfile
+  check and the Python suite all lost their verdicts with it. Restoring the tag
+  with Cargo's exact bytes made the test pass again; the recipe was then re-run
+  at the resulting head, and its verdict is cited in the pull request
+  discussion rather than here, for the reason the Decision log records.
+
 - Observation: `make markdownlint` passing is not evidence that a Markdown
   edit passes the gate the hosted Linux lane runs. `make check-fmt` runs
   `mdtablefix --check` with `--wrap` after the rustfmt steps, and
