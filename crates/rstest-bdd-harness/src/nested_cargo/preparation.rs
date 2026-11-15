@@ -204,6 +204,16 @@ pub struct Preparation {
     /// profile that has lost its units or its fingerprint store — the states
     /// `cargo clean`, `rm -rf <target>/debug` and a cache eviction leave.
     ///
+    /// The list must name **every package the preparation built**, not only
+    /// the fixture: one `cargo build` of a path-dependency fixture also builds
+    /// the workspace crates that fixture depends on, and Cargo rebuilds a
+    /// dependency whose fingerprint record is gone. Declaring the fixture
+    /// alone filters those records out of both what is recorded and what is
+    /// found, so an evicted dependency compares equal to itself and passes the
+    /// gate — the rebuild then happens inside the timed assertion the gate
+    /// exists to protect. Only the caller knows the dependency list, which is
+    /// why it is declared here rather than derived.
+    ///
     /// Empty means the family owns the whole profile, which is right for
     /// [`Preparation::for_fixture`]: such a family sets `CARGO_TARGET_DIR` to
     /// the directory it stamps, so no other family writes there.

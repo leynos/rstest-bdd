@@ -84,6 +84,16 @@ fn family_inputs() -> Result<String> {
 /// Cargo package name of the CLI fixture crate.
 const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
 
+/// The workspace crates the fixture takes as path dependencies.
+///
+/// Preparing this family builds them, so its stamp has to vouch for their
+/// units: Cargo rebuilds a dependency whose fingerprint record is gone, and it
+/// would do so inside whichever timed assertion ran next. They are outside
+/// `FIXTURE_PACKAGE`, so declaring the fixture alone leaves them filtered out
+/// of both the recorded and the present name lists, where an evicted record
+/// then compares equal to itself and passes the gate.
+const FIXTURE_PATH_DEPENDENCIES: &[&str] = &["rstest-bdd", "rstest-bdd-macros"];
+
 /// Describe the CLI preparation family.
 ///
 /// The family names its fixture package because it builds into the workspace
@@ -91,6 +101,8 @@ const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
 /// scratch families also write to. A stamp that recorded the whole profile
 /// would vouch for units this family never built — and the rebuild suite's
 /// deliberate `cargo clean -p` would then leave this stamp refused for ever.
+/// It names the fixture's path dependencies for the opposite reason: those
+/// units *were* built here, and leaving them out would let their eviction pass.
 fn cli_preparation_description() -> Result<(nested_cargo::Preparation, nested_cargo::NestedCargoEnv)>
 {
     let (child_env, target_root, inputs) = cli_preparation()?;
@@ -99,7 +111,14 @@ fn cli_preparation_description() -> Result<(nested_cargo::Preparation, nested_ca
         target_root,
         child_env.clone(),
     )?;
-    preparation.owned_packages = vec![FIXTURE_PACKAGE.to_owned()];
+    // The fixture first, then the crates its build pulls in. Built by chaining
+    // rather than by a conditional append so the list is never empty on this
+    // path: an empty `owned_packages` means "claims the whole profile", which
+    // is exactly what this family must not do.
+    preparation.owned_packages = std::iter::once(FIXTURE_PACKAGE)
+        .chain(FIXTURE_PATH_DEPENDENCIES.iter().copied())
+        .map(str::to_owned)
+        .collect();
     Ok((preparation, child_env))
 }
 
