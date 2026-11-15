@@ -53,8 +53,10 @@ fn target_directory_uses_running_test_executable() {
         .parent()
         .and_then(Utf8Path::parent)
         .expect("workspace root must be two levels above the manifest directory");
-    let expected = target_directory_from_running_test_executable()
-        .expect("integration tests should run from Cargo's `deps` directory");
+    let expected = target_directory_from_running_test_executable().expect(
+        "integration tests should run from Cargo's `deps` or `build/<package>/<hash>/out` \
+         directory",
+    );
 
     assert_eq!(trybuild_target_directory(workspace_root), expected);
 }

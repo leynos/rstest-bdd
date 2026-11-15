@@ -102,7 +102,9 @@ fn target_dir_near_current_exe() -> Option<PathBuf> {
 }
 
 /// Locate the profile directory that holds workspace binaries, given a test
-/// executable's path. Pure computation: no I/O.
+/// executable's path. Pure computation: no I/O. An executable outside Cargo's
+/// `deps` and `build/<package>/<hash>/out` layouts resolves to its own parent
+/// directory, so the caller's `is_file` probe simply misses.
 fn profile_dir_of_test_executable(executable: &Path) -> PathBuf {
     let mut path = executable.to_path_buf();
     path.pop();
@@ -271,6 +273,14 @@ mod tests {
     #[rstest::rstest]
     #[case::classic_layout("/t/debug/deps/it-abc", "/t/debug")]
     #[case::build_directory_layout("/t/debug/build/pkg/abc/out/it-abc", "/t/debug")]
+    #[case::classic_layout_coverage_target(
+        "/t/llvm-cov-target/debug/deps/it-abc",
+        "/t/llvm-cov-target/debug"
+    )]
+    #[case::build_directory_layout_coverage_target(
+        "/t/llvm-cov-target/debug/build/pkg/abc/out/it-abc",
+        "/t/llvm-cov-target/debug"
+    )]
     #[case::unrecognized_directory("/t/debug/examples/it-abc", "/t/debug/examples")]
     #[case::out_outside_build_directory("/t/x/pkg/abc/out/it-abc", "/t/x/pkg/abc/out")]
     fn profile_directory_follows_the_cargo_layout(
