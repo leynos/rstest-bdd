@@ -2812,14 +2812,19 @@ The successful-exit path uses the same bounded collection, and that has a
 consequence worth knowing before relying on the captured text. A drain that
 waited for EOF would block for as long as any descendant kept the inherited
 write ends open, which is unbounded for a process that daemonizes a child and
-exits; so the collector stops a grace period after the direct child exits. A
-descendant that is still writing at that point is *not* waited for, and
-whatever it would have written is absent from both `stdout` and `stderr`. The
-status, and everything the direct child itself wrote before exiting, is intact.
-Treat the captured output as the direct child's, not as the whole process
-tree's: a build that delegates its diagnostics to a long-lived helper may
-report less than you expect. Use an explicit wrapper that waits for the tree
-when that matters.
+exits; so the collector stops a grace period after the direct child exits.
+Collection continues until that deadline, so a descendant writing during the
+grace period *is* captured; one still writing when the deadline arrives is not
+waited for, and whatever it would have written is absent from `stdout` and
+`stderr`.
+
+The same deadline can also fall while the direct child's own output is still
+being drained. The captured text is therefore bounded by *time*, not by the
+child's exit, and may end mid-stream — even mid-line. Do not require a complete
+final line or a trailing terminator when parsing it. The exit status is
+unaffected. When the complete output matters, for example because a build
+delegates its diagnostics to a long-lived helper, wrap the invocation in a
+supervisor that waits for the whole process tree.
 
 Preparation moves a cold fixture build out of the timed test body. Name the
 family, a variant label and a caller-supplied hash of the fixture inputs with

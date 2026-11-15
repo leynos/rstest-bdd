@@ -197,13 +197,20 @@ units it vouches for stay in step when the target directory moves.
 grace period after the direct child exits. Without the cap, a successful child
 that leaves a descendant holding the inherited pipe write ends would block the
 call for that descendant's whole lifetime; with it, the call returns promptly.
-The trade is that text a *descendant* writes after the direct child exits is
-not collected, so `Output::stdout` and `Output::stderr` describe the direct
-child rather than the whole process tree. The exit status is unaffected.
 
-If a nested build hands its diagnostics to a helper that outlives it, expect
-less captured text than the tree produced. Wrap the invocation in a supervisor
-that waits for the whole tree when the complete output is required.
+The cap bounds when collection *stops*, not where within the stream it stops,
+so what is captured is neither exactly the direct child's text nor the whole
+tree's. Collection continues until the deadline, so a descendant that writes
+during the grace period **is** captured. But the deadline can also fall while
+the direct child's own output is still arriving, so the captured text may end
+mid-stream even for the direct child. Treat `Output::stdout` and
+`Output::stderr` as a prefix of what the writes produced by the deadline, and
+do not rely on a complete final line or a trailing terminator. The exit status
+is unaffected.
+
+If a nested build hands its diagnostics to a helper that outlives it, or the
+captured text is truncated, wrap the invocation in a supervisor that waits for
+the whole tree when complete output is required.
 
 ## Migration checklist
 
@@ -231,8 +238,10 @@ that waits for the whole tree when the complete output is required.
 - [ ] Add `?` to every `nested_cargo` environment, target-directory and
       `Preparation` constructor call that now returns `io::Result`.
 - [ ] Re-check any code that parses a bounded run's captured output: it holds
-      what the direct child wrote, not what its descendants wrote after it
-      exited.
+      what was read by the drain deadline, which may include descendant output
+      written during the grace period and may stop before the direct child's
+      output ended. A parser that requires a complete final line or terminator
+      needs to handle a truncated capture.
 
 ## Common errors
 

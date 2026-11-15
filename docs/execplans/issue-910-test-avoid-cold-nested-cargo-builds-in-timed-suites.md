@@ -1155,6 +1155,30 @@ rather than by reading this branch's comments.
       nested-nextest precedent anywhere in the workspace. The compositional
       alternative — spawn `cargo nextest run` on one small filtered suite — was
       also declined for the same recursion at smaller scale.
+      Review pressed the point afterwards, correctly: an in-process scratch
+      sequence and a Python assertion over recipe text do not establish that
+      the *filtered* workflow works across processes. It was then measured
+      directly, against the real workspace target and the real configuration,
+      as three separate nextest invocations rather than one nested run. With
+      `target/.cargo-bdd-cli.rstest-bdd-prepared` moved aside,
+      `cargo nextest run -p cargo-bdd --test cli -E 'test(/^list_steps_runs$/)'`
+      failed in 0.060 s with "nested fixture artefacts for family `cargo-bdd-cli`
+      are not prepared … is missing or stale". `make prepare-nested-fixtures`
+      then passed all six families in 408.051 s, and the same filtered command
+      passed in 2.092 s.
+      Steps 1 and 3 are separate processes from each other and from step 2, run
+      with the same `RUSTFLAGS` and feature selection, against the same target.
+      That is the requested sequence in full: the negative half fails for the
+      right reason, preparation is what changes the outcome, and the positive
+      half does not rebuild. It is not a repository test, and must not become
+      one — the same recursion objection applies to automating it. Feeding it
+      to CI would mean a job that deletes a stamp inside a shared target. The
+      same evidence exists on hosted CI without any intervention. Run
+      `43630984118`'s Linux lane shows `cargo-bdd::cli preparation::nested_fixture_preparation`
+      passing at index 937 and the gated `cargo-bdd::cli list_steps_runs`
+      passing at index 2212 of the same 2322-test run: different nextest
+      processes, one prepared tree, and the timed assertion finishing in
+      0.444 s rather than paying for the cold graph.
 
 - [x] Clear the lint fallout from the now-fallible target resolution. The
       fallible `env_from_vars` left three violations in the CLI fixture, all
@@ -2035,12 +2059,10 @@ rather than by reading this branch's comments.
 
 ## Outcomes & Retrospective
 
-Implementation and evidence collection are complete. Every head pushed after the
-`.config/nextest.toml` change passes all three required lanes; the latest is
-`3ffa7295` in run `42057352055`. Two earlier CI runs on the Linux coverage lane
-supply the timing figures: `41981885921` with an evicted compiler cache, which
-is the cold-cache evidence acceptance criterion (a) asks for, and `42005188689`
-with a warm cache. Every run recorded in this plan passed every required lane.
+Implementation and evidence collection are complete. Two earlier CI runs on the
+Linux coverage lane supply the timing figures: `41981885921` with an evicted
+compiler cache, which is the cold-cache evidence acceptance criterion (a) asks
+for, and `42005188689` with a warm cache.
 
 Naming a "final" head in a living document is a trap this plan fell into twice.
 `434d8309` was called final and then followed by `df26170d`; any commit that
@@ -2049,6 +2071,20 @@ head whose source the timing evidence describes and the head CI last validated,
 because the second moves with every documentation commit while the first does
 not. The timing figures below are attributed to their runs rather than to "the
 head" for that reason.
+
+An earlier revision of this section claimed that every recorded run passed
+every required lane, and named `3ffa7295` (run `42057352055`) as the latest.
+Both claims went stale, and the first became false. Run `43617094223` on head
+`34f29ce7` failed `build-test (windows, default features)`: 118 tests passed and
+`nested_cargo::preparation::prop_tests::moving_an_input_changes_the_hash`
+panicked at `prop_tests.rs:150` with
+`input file: Os { code: 3, kind: NotFound }` for the minimal input
+`tree = { "nul/a": [] }`. That is the Windows device-name defect recorded under
+progress, not a flake, and it was a regression this plan's own property test
+introduced. Run `43630984118` on head `77355189` is green on all three required
+lanes with the fix in place. A plan that reports its own failures as
+all-passing is worse than one that names no head at all, so the history is
+recorded here rather than replaced.
 
 The two evidence runs precede the commits that answered CodeRabbit and fixed
 the formatting failure those commits carried, so the code they measured is not
@@ -2161,6 +2197,43 @@ That is also why the new eviction test guards its own preconditions. It asserts
 the stamp is inside the external target *before* preparing, so a regression
 cannot quietly write one into the shared scratch root and leave the shared
 workspace state dirty for every other test in the binary.
+
+Two later rounds of hardening are worth recording separately, because neither
+was predicted by the plan and both came from a reviewer reading the code rather
+than from a failing test.
+
+The first is the *recorded-artefact* half of the gate. A fingerprint answers
+"the inputs have not changed"; it cannot answer "the compiled units are still
+there", because the profile directory holding them need not sit inside the
+family's stamp root — `cargo clean`, or `rm -rf <target>/debug`, evicts the
+profile and leaves the stamp untouched. The stamp therefore also records the
+names the preparation actually left beside its dep-info records, and the gate
+requires every one of them to still exist. Recording what was produced is the
+only exact answer available: a rule about rustc's file naming cannot separate a
+metadata-only unit, which Cargo reuses, from a linked unit whose `.rlib` was
+removed, which Cargo rebuilds — measured against a real crate rather than
+assumed, because `lib<stem>.rmeta` surviving alone is the same shape in both
+cases. Neither layer names a directory: `layout::discover` finds where the
+units are, because Cargo's build-directory layout changed under this suite once
+already, in 1.100.0.
+
+The second is the *fallible toolchain probe*. `cargo -vV` identifies the
+compiler, and a probe that swallowed its error would silently fingerprint an
+unknown toolchain — the state in which a stamp written by one compiler is read
+by another. Resolution is now an `io::Result` propagated to the gate, and
+`ensure_prepared_with_probe` takes the probe as a parameter for the same reason
+the runner decision is one: no test can make `cargo -vV` fail, so a boundary
+that discarded the error would be unreachable from any test using the real
+probe. The probe is called exactly once, and its error stops the gate before
+any stamp is read.
+
+The same reasoning produced the fallible target-directory resolution behind
+`absolute_target_directory`: a relative `CARGO_TARGET_DIR` names one directory
+for this process and a different one for a nested build running in a fixture
+directory, and returning `Option` there would record a relative artefact path
+the gate then checks against the wrong root. It returns `io::Result<PathBuf>`
+and takes its working-directory lookup as a parameter, so the absolute, the
+relative and the failed-lookup branches are all reachable from a test.
 
 ## Context and orientation
 

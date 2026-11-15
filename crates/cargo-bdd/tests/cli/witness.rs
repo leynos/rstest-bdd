@@ -28,10 +28,9 @@ const FIXTURE_TEST_BINARIES: [&str; 2] = ["diagnostics_fixture", "unsupported_du
 /// and against the next one.
 ///
 /// Cargo suffixes every unit with a hash, so the name is matched on its stem.
-/// The `.d` record is excluded by name rather than by a `file_type` check: both
-/// are regular files, and it is the record's *name* that makes it the wrong
-/// witness. This is the witness that preparation did work — the timed CLI
-/// assertions only pass because these binaries are there to be inspected.
+/// A name alone cannot witness a binary, though, so two further rules apply:
+/// the entry must be a file rather than a directory, and its extension must be
+/// one an executable carries. See [`witnesses_binary`] for both.
 ///
 /// Returns an error when `profile` itself cannot be listed at all, which the
 /// caller reports as a failure rather than as an absent set: a target whose
@@ -44,12 +43,21 @@ pub(super) fn fixture_binaries_present(profile: &Path) -> std::io::Result<bool> 
     let mut pending: Vec<std::fs::DirEntry> = root.collect::<std::io::Result<_>>()?;
     let mut present = vec![false; FIXTURE_TEST_BINARIES.len()];
     while let Some(entry) = pending.pop() {
+        let path = entry.path();
         // A subdirectory that vanishes between the listing and this read is
         // skipped: the profile is the thing under test, not the race.
-        if let Ok(children) = std::fs::read_dir(entry.path()) {
+        if let Ok(children) = std::fs::read_dir(&path) {
             pending.extend(children.filter_map(std::io::Result::ok));
         }
-        note_binary(&entry.file_name().to_string_lossy(), &mut present);
+        // `fs::metadata` follows a symlink, so a linked binary still counts:
+        // what makes an entry a candidate is being a file at that path, not
+        // how the directory entry was recorded. A directory named like the
+        // fixture's binary fails here, which is the point — its name is the
+        // only thing it shares with one.
+        let is_file = std::fs::metadata(&path).is_ok_and(|metadata| metadata.is_file());
+        if is_file {
+            note_binary(&entry.file_name().to_string_lossy(), &mut present);
+        }
     }
     Ok(present.iter().all(|found| *found))
 }
@@ -69,18 +77,33 @@ fn note_binary(name: &str, present: &mut [bool]) {
     }
 }
 
+/// The extensions that *are* a test binary, lowercased.
+///
+/// An executable carries no extension at all on Unix and `.exe` on Windows, so
+/// this is the whole list. Everything else sharing the stem is a **sidecar**
+/// written beside the binary rather than the binary: `.d` dep-info on every
+/// platform, `.pdb` on MSVC, `.dwp` on a split-dwarf Linux build, `.rmeta` for
+/// a metadata-only unit. An allowlist is the right shape because the rule that
+/// makes a name a witness is "this is an executable", and a denylist of known
+/// sidecars would silently accept the next one rustc invents.
+const EXECUTABLE_EXTENSIONS: [&str; 1] = ["exe"];
+
 /// Whether `name` is the compiled test binary for the fixture `stem`.
 ///
-/// Cargo writes `<stem>-<hash>` for the binary and `<stem>-<hash>.d` for its
-/// dep-info record. The record must be rejected even though it carries the same
-/// stem, and it is rejected by *name* rather than by a `file_type` check: both
-/// are regular files, and the name is what differs. Requiring the `-` separator
-/// keeps a stem from matching a longer sibling that merely begins with the same
-/// characters.
+/// Cargo writes `<stem>-<hash>` for the binary, `<stem>-<hash>.d` for its
+/// dep-info record, and on some targets `<stem>-<hash>.pdb` or
+/// `<stem>-<hash>.dwp` beside it. Requiring the `-` separator keeps a stem from
+/// matching a longer sibling that merely begins with the same characters, and
+/// the extension decides the rest: only an executable shape is a witness, so a
+/// sidecar beside the file is not.
 ///
-/// The record is excluded by its extension as `Path` reports it, compared
-/// case-insensitively: Cargo writes `.d`, but the filesystems it targets do not
-/// agree on case, so a case-sensitive suffix test would be the wrong question.
+/// Extensions are compared case-insensitively, because the filesystems Cargo
+/// targets do not agree on case and a case-sensitive test would be the wrong
+/// question.
+///
+/// A name is not by itself enough either: a *directory* can carry the same
+/// name, which is why [`fixture_binaries_present`] checks the entry's type
+/// before calling this.
 fn witnesses_binary(name: &str, stem: &str) -> bool {
     let Some(rest) = name.strip_prefix(stem) else {
         return false;
@@ -88,9 +111,13 @@ fn witnesses_binary(name: &str, stem: &str) -> bool {
     if !rest.starts_with('-') {
         return false;
     }
-    !std::path::Path::new(name)
+    std::path::Path::new(name)
         .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("d"))
+        .is_none_or(|extension| {
+            EXECUTABLE_EXTENSIONS
+                .iter()
+                .any(|allowed| extension.eq_ignore_ascii_case(allowed))
+        })
 }
 
 #[cfg(test)]
@@ -200,6 +227,73 @@ mod tests {
             !present,
             "a dep-info record without its binary must not be reported as prepared"
         );
+    }
+
+    #[test]
+    fn a_directory_named_like_a_binary_does_not_witness_one() {
+        // The name is the only thing a directory of this shape shares with a
+        // test binary, and the walk visits directories as well as files, so a
+        // witness that matched on name alone would accept a tree that holds no
+        // executable at all. Both stems are given a directory, so the failure
+        // cannot come from one of them merely being present.
+        let scratch = tempfile::tempdir().expect("temp dir");
+        let deps = scratch.path().join("debug").join("deps");
+        fs::create_dir_all(&deps).expect("deps dir");
+        for stem in FIXTURE_TEST_BINARIES {
+            let impostor = deps.join(format!("{stem}-0123456789abcdef"));
+            fs::create_dir_all(&impostor).expect("impostor dir");
+            fs::write(impostor.join("inside"), b"not a binary").expect("contents");
+        }
+
+        let present = fixture_binaries_present(&deps).expect("the fixture deps should list");
+        assert!(!present, "a directory named like a test binary is not one");
+    }
+
+    #[test]
+    fn a_sidecar_beside_a_binary_is_not_itself_a_witness() {
+        // MSVC writes `<stem>-<hash>.pdb` beside the executable, and a
+        // split-dwarf Linux build writes `.dwp`. Both carry the binary's full
+        // stem, so an extension-blind check reads them as the binary and
+        // accepts a tree from which the executable has been deleted — the
+        // exact state that sends a timed assertion into a rebuild.
+        let scratch = tempfile::tempdir().expect("temp dir");
+        let deps = scratch.path().join("debug").join("deps");
+        fs::create_dir_all(&deps).expect("deps dir");
+        for stem in FIXTURE_TEST_BINARIES {
+            for extension in ["pdb", "dwp", "d", "rmeta"] {
+                fs::write(
+                    deps.join(format!("{stem}-0123456789abcdef.{extension}")),
+                    b"sidecar",
+                )
+                .expect("sidecar");
+            }
+        }
+
+        let present = fixture_binaries_present(&deps).expect("the fixture deps should list");
+        assert!(
+            !present,
+            "only an executable witnesses a test binary, not a sidecar beside it"
+        );
+    }
+
+    #[test]
+    fn the_windows_executable_extension_witnesses_a_binary() {
+        // The positive control for the extension rule, and the reason it is an
+        // allowlist rather than a denylist: on Windows every test binary is
+        // `<stem>-<hash>.exe`, so a check that demanded no extension would
+        // report every prepared Windows tree as unprepared. `.EXE` is used
+        // deliberately — the filesystem that produced it is case-insensitive,
+        // and the comparison has to be too.
+        let scratch = tempfile::tempdir().expect("temp dir");
+        let deps = scratch.path().join("debug").join("deps");
+        fs::create_dir_all(&deps).expect("deps dir");
+        for stem in FIXTURE_TEST_BINARIES {
+            fs::write(deps.join(format!("{stem}-0123456789abcdef.EXE")), b"binary")
+                .expect("binary");
+        }
+
+        let present = fixture_binaries_present(&deps).expect("the fixture deps should list");
+        assert!(present, "a Windows test binary must witness itself");
     }
 
     #[test]
