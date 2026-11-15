@@ -1551,6 +1551,23 @@ Hard invariants. Violation requires escalation, not a workaround.
       the stamp path is family-only and preparing under a different selection
       would overwrite the stamp the full recipe's leg reads.
 
+- [x] (2026-11-15) The #910 branch advanced three commits after the first
+      rebase, from `34f29ce7` to `f9718e69`, so the candidate was replayed onto
+      the new tip before it was published again. `git range-diff` across the two
+      series reports 84 of the 86 replayed commits identical and two changed,
+      with none dropped and none added. One replayed with a conflict, in
+      `docs/v0-7-0-migration-guide.md`: #910 had rewritten the paragraph that
+      describes what a bounded run captures, and this branch adds two checklist
+      items beside it, so the resolution keeps the target's rewritten paragraph
+      and both of this branch's items. The other replay differs only in the
+      context lines around its hunk, not in the lines it adds or removes.
+
+  A restack moves the head, so a final-tree verdict taken before it describes a
+  revision that is no longer the candidate. The retaken verdict is cited in the
+  pull request discussion, by the rule the Decision log records: a verdict
+  written into this file costs a commit, and that commit moves the head the
+  verdict describes.
+
 ## Surprises & discoveries
 
 - Observation: `make markdownlint` passing is not evidence that a Markdown
