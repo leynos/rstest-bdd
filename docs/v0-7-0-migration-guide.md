@@ -262,6 +262,15 @@ so a flag the user typed always wins. For example,
 the [users' guide](users-guide.md#configuration-files-and-environment) names
 every location, variable and precedence rule.
 
+`steps --json` now follows the merged setting rather than the flag alone. In
+v0.6.0 the pairing was enforced by the argument parser, so the run failed unless
+`--skipped` was typed on the same command line; a later invocation now
+succeeds when a configuration file or `CARGO_BDD_CMDS_STEPS_SKIPPED=true`
+supplies `cmds.steps.skipped = true`. The reverse mistake is reported while the
+settings load: `cmds.steps.json = true` without `cmds.steps.skipped = true`
+stops `steps` before it runs. The
+[users' guide](users-guide.md#diagnostic-tooling) states the merged rule.
+
 Building `cargo-bdd` now requires Rust 1.89 because its configuration
 dependency raises the floor. The reusable library crates keep the 1.88 minimum,
 so a workspace build needs 1.89 only when it builds the binary. That 1.88 floor
@@ -311,6 +320,10 @@ whose higher floor applies to that consumer. See
 - [ ] Review the `cargo_bdd` configuration files and `CARGO_BDD_` variables on
   any machine that runs `cargo bdd`, then remove local wrappers that emulated
   the Cargo-dispatched form.
+- [ ] Pair `cmds.steps.json = true` with `cmds.steps.skipped = true` in every
+  `cargo_bdd` configuration file and `CARGO_BDD_CMDS_STEPS_SKIPPED` setting;
+  the merged `skipped` value now satisfies `steps --json` without the flag, and
+  a `json` setting without it stops the command.
 
 ## Common errors
 
@@ -323,6 +336,18 @@ whose higher floor applies to that consumer. See
 - **Error:** a derived `StepArgs` field requires a placeholder.
   - **Fix:** align the field and placeholder names or add
     `#[step_args(placeholder = "...")]`.
+- **Error:** `steps` will not start, reporting "invalid configuration
+  `cmds.steps.json = true`: set `cmds.steps.skipped = true` or pass
+  `--skipped`".
+  - **Fix:** enable `skipped` in the layer that enables `json`, or add
+    `--skipped` on the command line. Only the merged settings decide it, so a
+    configuration file that sets `json` needs the matching `skipped` there.
+- **Error:** `steps --json` reports
+  `the following required arguments were not provided: --skipped`.
+  - **Fix:** no layer enables skipped-step reporting, so pass `--skipped` or set
+    `cmds.steps.skipped = true`. A configuration file or
+    `CARGO_BDD_CMDS_STEPS_SKIPPED=true` now satisfies the requirement without
+    the flag.
 - **Error:** under Nextest a timed test reports that a nested fixture family is
   not prepared and names `make prepare-nested-fixtures`.
   - **Fix:** run the preparation pass first. The stamp also covers `RUSTFLAGS`
