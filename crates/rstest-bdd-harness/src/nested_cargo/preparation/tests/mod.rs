@@ -3,14 +3,17 @@
 //! The cases are split by what they exercise: `stamping` covers the
 //! preparation lifecycle and the gate that admits a timed test against it,
 //! `eviction` covers the states a stamp cannot see because only the profile
-//! beneath it was removed or gutted, `ownership` covers which of those
-//! evictions a family that shares a profile must still refuse, `inputs` covers
-//! the environment and input hashing that decide when a prepared directory is
-//! stale, and `cargo_config` covers Cargo's own configuration as one of those
-//! inputs. The fixtures they share live here.
+//! beneath it was removed or gutted, `fingerprint_records` covers the ones a
+//! directory listing also accepts — one unit's records gone while every
+//! directory survives — `ownership` covers which of those evictions a family
+//! that shares a profile must still refuse, `inputs` covers the environment and
+//! input hashing that decide when a prepared directory is stale, and
+//! `cargo_config` covers Cargo's own configuration as one of those inputs. The
+//! fixtures they share live here.
 
 mod cargo_config;
 mod eviction;
+mod fingerprint_records;
 mod inputs;
 mod ownership;
 mod stamp_file;

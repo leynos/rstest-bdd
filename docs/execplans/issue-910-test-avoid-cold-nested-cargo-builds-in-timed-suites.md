@@ -1592,6 +1592,43 @@ rather than by reading this branch's comments.
       is the general rule the fixture now records in its doc comment: a
       preparation probe may not name a directory, because the preparation is
       not the timed run.
+- [x] Answer the one CodeRabbit refinement that was still valid on
+      `4a87996f`, and split the module it pushed over the line limit.
+      `removing_one_units_fingerprint_records_invalidates_the_preparation`
+      removed a record *directory* with `fs::remove_dir_all`, so it exercised
+      the same shape as a missing store entry and proved nothing about a
+      record whose files went while its directory stayed. That second shape is
+      the one the fingerprint-record layer exists for: `layout::discover`
+      descends into every directory it finds, and `record_directories` keeps
+      listing an emptied one, so the structural layer still reports a
+      populated profile and only the recorded *names* can refuse it. It is now
+      `removing_a_units_record_files_leaves_its_directory_and_is_still_an_eviction`
+      in a new `tests/fingerprint_records.rs`, which empties one unit's
+      directory file by file and asserts the directory survives, is genuinely
+      empty, and is still refused. Keeping the original case beside it is the
+      point: the two differ only in whether the directory went, so a
+      regression that recorded directories rather than files passes the first
+      and fails the second. The file that held both reached 427 lines — over
+      the repository's 400-line cap, enforced by both
+      `scripts/check_rs_file_lengths.py` and the Whitaker
+      `module-max-lines` lint — so the two fingerprint-record cases moved out
+      together and `eviction.rs` returned to 277 lines, holding the shapes a
+      directory listing can already decide. `stamped_preparation` widened from
+      private to `pub(super)` so the new module shares one fixture rather than
+      a second copy of it.
+- [x] Record the MD038 failure my own plan prose caused, because it is the
+      one class of failure in this work that no local gate caught.
+      `docs/execplans/...md:1586` wrote a nested path argument inside a
+      single-backtick span, and `markdownlint-cli2` read the result as a code
+      span with spaces inside it: `MD038/no-space-in-code` on both the opening
+      and closing context, exit 1. The span is now a double-backtick span.
+      That failure was reported only by the hosted Linux Lint lane, minutes
+      after a local `markdownlint-cli2` pass over the same file — worth
+      recording precisely because it is the kind of thing a local run ought to
+      have caught and did not. The lesson: any code span whose content ends or
+      begins with a backtick, or contains a backtick at either edge, needs the
+      double-backtick form; write it that way first rather than discovering it
+      in CI.
 
 ## Surprises & Discoveries
 
