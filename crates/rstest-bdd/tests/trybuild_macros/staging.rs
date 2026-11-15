@@ -8,6 +8,12 @@ use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 use cargo_metadata::MetadataCommand;
 
+#[path = "staging/executable_layout.rs"]
+mod executable_layout;
+use executable_layout::target_directory_from_running_test_executable;
+#[cfg(test)]
+use executable_layout::target_directory_from_test_executable;
+
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
 const FEATURES_AUTO_DIR: &str = "tests/features/auto";
@@ -194,22 +200,6 @@ pub(super) fn trybuild_target_directory(workspace_root: &Utf8Path) -> Utf8PathBu
                 .unwrap_or_else(|| metadata_target_directory(workspace_root))
         })
         .clone()
-}
-
-fn target_directory_from_running_test_executable() -> Option<Utf8PathBuf> {
-    let executable = Utf8PathBuf::from_path_buf(env::current_exe().ok()?).ok()?;
-    target_directory_from_test_executable(executable.as_path())
-}
-
-/// Extract Cargo's target root from an integration-test executable path. This
-/// helper serves only the trybuild test-support module. Its callers must
-/// use the returned root for both staged inputs and inspection artefacts.
-fn target_directory_from_test_executable(executable: &Utf8Path) -> Option<Utf8PathBuf> {
-    let dependencies = executable.parent()?;
-    if dependencies.file_name() != Some("deps") {
-        return None;
-    }
-    Some(dependencies.parent()?.parent()?.to_owned())
 }
 
 fn metadata_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {

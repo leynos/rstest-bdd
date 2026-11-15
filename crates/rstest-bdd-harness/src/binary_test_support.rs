@@ -102,6 +102,19 @@ fn target_dir_near_current_exe() -> Option<PathBuf> {
     path.pop();
     if path.ends_with("deps") {
         path.pop();
+    } else if path.ends_with("out") {
+        // Cargo's per-package build-directory layout places test executables
+        // at `<profile>/build/<package>/<hash>/out/<exe>`; pop `out`, the
+        // hash, the package, and `build` to reach the profile directory.
+        let layout_is_build_directory = path
+            .ancestors()
+            .nth(3)
+            .is_some_and(|build| build.ends_with("build"));
+        if layout_is_build_directory {
+            for _ in 0..4 {
+                path.pop();
+            }
+        }
     }
     Some(path)
 }
