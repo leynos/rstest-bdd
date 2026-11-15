@@ -1402,6 +1402,28 @@ rather than by reading this branch's comments.
       `### A bounded run's captured output stops at a deadline`, matching the
       body's actual claim. A reader who stopped at the heading would have
       believed the opposite of the documented behaviour.
+- [x] Answer the fourteen CodeRabbit threads the review of `b9cb1d3b` raised,
+      and clear the three CodeScene findings the same head produced. The
+      threads were verified against the source at `fdcfdff9` before any reply,
+      which separated twelve real repairs from two that needed a different
+      disposition. `4503927232` (terminate the whole process tree on timeout)
+      keeps its deferral to #923: `bounded.rs` is new on this branch but the
+      `child.kill()` it holds is the same call `main`'s `nested_cargo.rs`
+      already makes twice, the finding's own text says its lock-contention
+      premise was unverified, and terminating a process group is a change to
+      shared behaviour that deserves the measurement #923 asks for. The
+      `4577395374` cap_std finding keeps its deferral to #946 for the reason
+      recorded there: a faithful conversion has to establish the capability at
+      `Preparation::directory` and thread it through six files, two of which
+      have no mechanical `cap_std` equivalent.
+      The three CodeScene findings were all in code this branch introduced, so
+      they were fixed rather than dispositioned: `recorded_names` split into
+      `unit_names` and `record_names`; `fixture_preparation`'s five arguments
+      replaced by a `Family` value carrying the four that differ per fixture;
+      and the duplicated idempotency pair in `stamping.rs` driven through one
+      `runs_over_two_calls`. Coverage is unchanged — 110 preparation tests and
+      33 `feature_rebuild_invalidation` tests pass — and the commit is
+      `aec0c202`.
 
 ## Surprises & Discoveries
 
