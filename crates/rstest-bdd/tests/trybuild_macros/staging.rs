@@ -13,6 +13,10 @@ mod executable_layout;
 use executable_layout::target_directory_from_running_test_executable;
 #[cfg(test)]
 use executable_layout::target_directory_from_test_executable;
+#[path = "staging/snapshot_io.rs"]
+mod snapshot_io;
+
+use snapshot_io::{read_snapshot_originals, workspace_root_of};
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
@@ -288,20 +292,11 @@ fn apply_snapshot_target_root(original: &str, rendered_target_root: &str) -> Str
 /// Stage temporary target-root-specific snapshots for a trybuild run.
 pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuard> {
     let crate_root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = crate_root
-        .parent()
-        .and_then(Utf8Path::parent)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
+    let workspace_root = workspace_root_of(&crate_root)?;
     let target_root = trybuild_target_directory(workspace_root);
     let snapshot_target_root = snapshot_target_root(&target_root, workspace_root);
     let crate_dir = Dir::open_ambient_dir(crate_root.as_std_path(), ambient_authority())?;
-    let mut originals = Vec::new();
-
-    for path in TARGET_ROOT_SNAPSHOTS {
-        let path = Utf8PathBuf::from(path);
-        let original = crate_dir.read_to_string(path.as_std_path())?;
-        originals.push((path, original));
-    }
+    let originals = read_snapshot_originals(&crate_dir)?;
 
     let guard = TargetRootSnapshotGuard {
         crate_root,
@@ -313,6 +308,7 @@ pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuar
     }
     Ok(guard)
 }
+
 fn write_feature_files(
     root: &Dir,
     destination_root: &StdPath,
