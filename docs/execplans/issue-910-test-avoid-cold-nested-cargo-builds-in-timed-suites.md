@@ -1583,7 +1583,7 @@ rather than by reading this branch's comments.
       timed run. `scenario_missing_file` names the target directory in its
       diagnostic, so as a probe it could only match under a non-coverage
       target root. The probe is now `scenario_missing_path`, whose diagnostic
-      is `unexpected end of input, `path` argument is required` — it fails
+      is ``unexpected end of input, `path` argument is required`` — it fails
       while parsing the macro arguments, so it opens no file and reads the
       same under any target root. It is also already queued by the timed run,
       so a `.stderr` the probe blessed would be the one the timed run expects.
