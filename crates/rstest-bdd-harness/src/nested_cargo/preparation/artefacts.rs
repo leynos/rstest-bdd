@@ -142,13 +142,11 @@ fn recorded_name(profile: &Path, directory: &Path, output: &str) -> String {
 /// does not vouch for a sibling's units; see the `ownership` module. An empty
 /// `owned` keeps every name.
 ///
-/// `owned` must therefore name every package the preparation actually built,
-/// dependencies included: a fixture that declares only itself leaves its
-/// workspace dependencies filtered out, and the gate filters *present* names by
-/// the same rule, so an evicted dependency's record is absent from both sides
-/// and the two lists compare equal. That admission is silent — it says nothing
-/// about which package went — so the caller, which is the only place the
-/// dependency list is known, has to declare it.
+/// `owned` must name every package the preparation actually built, dependencies
+/// included: declaring only the fixture filters its workspace dependencies out
+/// of both lists, so an evicted dependency compares equal to itself and passes.
+/// The admission is silent — it names no package — so the caller, the only
+/// place the dependency list is known, has to declare it.
 ///
 /// # Errors
 ///

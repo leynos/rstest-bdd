@@ -3,14 +3,16 @@
 //! The cases are split by what they exercise: `stamping` covers the
 //! preparation lifecycle and the gate that admits a timed test against it,
 //! `eviction` covers the states a stamp cannot see because only the profile
-//! beneath it was removed or gutted, `inputs` covers the environment and input
-//! hashing that decide when a prepared directory is stale, and `cargo_config`
-//! covers Cargo's own configuration as one of those inputs. The fixtures all
-//! four share live here.
+//! beneath it was removed or gutted, `ownership` covers which of those
+//! evictions a family that shares a profile must still refuse, `inputs` covers
+//! the environment and input hashing that decide when a prepared directory is
+//! stale, and `cargo_config` covers Cargo's own configuration as one of those
+//! inputs. The fixtures they share live here.
 
 mod cargo_config;
 mod eviction;
 mod inputs;
+mod ownership;
 mod stamp_file;
 mod stamping;
 mod target_profile;
@@ -137,6 +139,21 @@ fn scratch_preparation() -> std::io::Result<(tempfile::TempDir, Preparation, Nes
     let environment = environment_in(&target)?;
     let preparation = preparation(directory.path(), &environment, "v", "hash")?;
     Ok((directory, preparation, environment))
+}
+
+/// The profile directory a preparation vouches for.
+///
+/// A fixture that vouched for no directory at all would leave a case unable to
+/// name what it evicted, so the absence is reported as `NotFound` rather than
+/// panicking inside the shared helper. Shared because two modules evict from it
+/// and a private copy in each would be one rule stated twice.
+fn prepared_profile(preparation: &Preparation) -> std::io::Result<PathBuf> {
+    preparation.artefacts.first().cloned().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "the preparation describes the profile directory it reuses",
+        )
+    })
 }
 
 /// A scratch root holding a minimal fixture package.

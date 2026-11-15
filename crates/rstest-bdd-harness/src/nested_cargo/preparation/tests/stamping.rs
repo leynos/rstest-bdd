@@ -75,7 +75,7 @@ fn runs_over_two_calls(preparation: &Preparation, entry: EntryPoint) -> u32 {
                 runs += 1;
                 Ok(PreparationSummary { compiled_units: 1 })
             })
-            .unwrap_or_else(|error| panic!("{} should succeed: {error}", entry.name()));
+            .expect("preparation should succeed");
     }
     runs
 }
