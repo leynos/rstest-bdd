@@ -1595,6 +1595,22 @@ Hard invariants. Violation requires escalation, not a workaround.
   be re-applied and re-verified by hand after each restack. The two commands
   above are the tripwire the developers' guide names.
 
+- [x] (2026-11-15) CodeRabbit's pre-merge table reached the current head with
+      one warning row: "User-Facing Documentation", because the v0.7.0 migration
+      guide described the new configuration sources without recording what
+      happens when `cmds.steps.json` is enabled without an effective
+      `cmds.steps.skipped`. The gap is real. `steps --json` used to fail unless
+      `--skipped` was typed on the same command line, and the merge now decides:
+      a configuration file or `CARGO_BDD_CMDS_STEPS_SKIPPED=true` satisfies the
+      pairing, while `cmds.steps.json = true` on its own stops the subcommand
+      while the settings load, reporting an invalid configuration that names
+      `cmds.steps.skipped = true` and `--skipped` as the remedies. The guide now
+      states the old behaviour, the new rule and both error texts, and the
+      checklist gained the pairing item. The users' guide already carried the
+      merged rule under its diagnostic-tooling section, so the new prose links
+      to it rather than restating it. `make check-fmt` and `make markdownlint`
+      passed on the guide edit.
+
 ## Surprises & discoveries
 
 - Observation: a green `make test` was lost to build state, not to the change
