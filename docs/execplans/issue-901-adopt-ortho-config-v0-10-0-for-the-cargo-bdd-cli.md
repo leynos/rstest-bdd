@@ -939,7 +939,7 @@ Hard invariants. Violation requires escalation, not a workaround.
       drives the same binary through `cli_child_environment`, which dropped
       inherited `CARGO_BDD_*` variables but still passed `HOME` and the XDG
       roots through. Measured with a `HOME` holding
-      `[cmds.skipped] json = true`, `skipped_subcommand_includes_reasons_and_lines`
+      `cmds.skipped.json = true`, `skipped_subcommand_includes_reasons_and_lines`
       failed on a run that otherwise passes, exactly as the review predicted.
       Redirecting one root would repeat the previous mistake, so
       `empty_configuration_home_variables` now overrides `HOME`,
@@ -2225,10 +2225,13 @@ fn main() -> eyre::Result<()> { cli::run() }
 `src/cli.rs` defines the whole command surface. `Cli` derives `clap::Parser`
 with `#[command(author, version, about)]` and holds one `Commands` value.
 `Commands` derives `clap::Subcommand` with four variants: `Steps(StepsArgs)`,
-`Unused`, `Duplicates`, `Skipped(SkippedArgs)`. `StepsArgs` has `--skipped` and
-`--json` where `--json` carries `#[arg(long, requires = "skipped")]`;
-`SkippedArgs` has `--reasons` and `--json`. Both derive `clap::Args` only — no
-`CommandFactory`, and no explicit command name.
+`Unused`, `Duplicates`, `Skipped(SkippedArgs)`. At the baseline commit
+`StepsArgs` has `--skipped` and `--json`, where `--json` carries
+`#[arg(long, requires = "skipped")]`; the change replaced that parser-level
+requirement with a check on the merged settings, so a configuration file or
+`CARGO_BDD_CMDS_STEPS_SKIPPED=true` can now satisfy it. `SkippedArgs` has
+`--reasons` and `--json`. Both derive `clap::Args` only — no `CommandFactory`,
+and no explicit command name.
 
 The integration tests live in `crates/cargo-bdd/tests/cli.rs`. They spawn the
 built binary through `rstest-bdd-harness`'s `nested_cargo` helper, which calls

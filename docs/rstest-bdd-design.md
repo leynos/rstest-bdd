@@ -3007,7 +3007,7 @@ to `false`, and `Default` says the same.
 
 Each subcommand gets its own namespace rather than sharing one flat table. A
 repository that always wants JSON from `skipped` but not from `steps` writes
-`[cmds.skipped] json = true` and stops there. The environment mirrors the same
+`cmds.skipped.json = true` and stops there. The environment mirrors the same
 split, so a CI variable can be scoped to one subcommand.
 
 #### Help and parse-failure localization

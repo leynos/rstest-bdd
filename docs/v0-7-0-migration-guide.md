@@ -223,7 +223,7 @@ or from `CARGO_BDD_` environment variables. Values merge in the order defaults,
 configuration files, environment, then explicitly supplied command-line flags,
 so a flag the user typed always wins. For example,
 `CARGO_BDD_CMDS_STEPS_SKIPPED=true` supplies `steps --skipped`, and
-`[cmds.skipped] json = true` supplies `skipped --json`. Discovery reads
+`cmds.skipped.json = true` supplies `skipped --json`. Discovery reads
 `~/.cargo_bdd.toml`, the XDG `cargo_bdd/config.toml`, and `./.cargo_bdd.toml`;
 the [users' guide](users-guide.md#configuration-files-and-environment) names
 every location, variable and precedence rule.
@@ -301,8 +301,9 @@ whose higher floor applies to that consumer. See
   `cmds.steps.json = true`: set `cmds.steps.skipped = true` or pass
   `--skipped`".
   - **Fix:** enable `skipped` in the layer that enables `json`, or add
-    `--skipped` on the command line. Only the merged settings decide it, so a
-    configuration file that sets `json` needs the matching `skipped` there.
+    `--skipped` on the command line. Only the merged settings decide it, so
+    whichever layer enables `json` must be joined by a layer that enables
+    `skipped` — the same file, or `CARGO_BDD_CMDS_STEPS_SKIPPED=true`.
 - **Error:** `steps --json` reports
   `the following required arguments were not provided: --skipped`.
   - **Fix:** no layer enables skipped-step reporting, so pass `--skipped` or set
