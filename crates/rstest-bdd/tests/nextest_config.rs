@@ -1,11 +1,6 @@
-//! Integration contracts for workspace nextest overrides and timeout budgets.
-//!
-//! The suite parses `.config/nextest.toml` as data and protects the per-test
-//! limits, profile-wide ceilings, and serialization policy that let nested
-//! Cargo work finish without weakening the default hung-test detector. The
-//! compile-test contract checks that both default and long-profile global
-//! timeouts exceed its 120-minute per-test allowance. Workflow contracts cover
-//! the outer watchdog and job limits.
+//! Integration contracts for `.config/nextest.toml` and nested Cargo timeouts.
+//! They protect per-test limits, 120-minute compile budgets, and serialized
+//! builds; workflow contracts protect outer watchdog and job limits.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -257,6 +252,31 @@ fn nextest_value_at_path<'a, T>(
         .ok_or_else(|| {
             io::Error::other(format!("nextest configuration must set {}", path.join(".")))
         })
+}
+
+#[test]
+fn nextest_value_at_path_reports_missing_and_wrongly_typed_leaves() {
+    let missing: Value = toml::from_str("[profile.default]\n").expect("valid TOML");
+    let missing_error = nextest_value_at_path(
+        &missing,
+        &["profile", "default", "global-timeout"],
+        Value::as_str,
+    )
+    .expect_err("a missing leaf must be reported");
+    assert_eq!(
+        missing_error.to_string(),
+        "nextest configuration must set profile.default.global-timeout"
+    );
+
+    let wrong_type: Value =
+        toml::from_str("[profile.default]\nglobal-timeout = 10").expect("valid TOML");
+    let type_error = nextest_value_at_path(
+        &wrong_type,
+        &["profile", "default", "global-timeout"],
+        Value::as_str,
+    )
+    .expect_err("a leaf with the wrong type must be reported");
+    assert_eq!(type_error.to_string(), missing_error.to_string());
 }
 
 /// `test-groups` is a top-level nextest table, not a profile key, so it needs
