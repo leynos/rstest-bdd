@@ -35,6 +35,7 @@ pub mod localization;
 pub mod panic_support;
 mod pattern;
 mod placeholder;
+pub mod prelude;
 mod registry;
 pub mod reporting;
 pub mod runner;

@@ -4,6 +4,23 @@ use camino::Utf8Path;
 use cap_std::{ambient_authority, fs::Dir};
 #[expect(
     unused_imports,
+    reason = "every prelude binding must also resolve at the crate root"
+)]
+use rstest_bdd::prelude::{
+    ScenarioState as _,
+    Slot as _,
+    StepArgs as _,
+    StepContext as _,
+    StepError as _,
+    StepResult as _,
+    given as _,
+    scenario as _,
+    scenarios as _,
+    then as _,
+    when as _,
+};
+#[expect(
+    unused_imports,
     reason = "name-resolution imports verify the crate-root re-exports"
 )]
 use rstest_bdd::{
@@ -11,6 +28,23 @@ use rstest_bdd::{
     DataTableRow as _,
     ScenarioState as _,
     StepArgs as _,
+    given as _,
+    scenario as _,
+    scenarios as _,
+    then as _,
+    when as _,
+};
+#[expect(
+    unused_imports,
+    reason = "every prelude binding must also resolve at the crate root"
+)]
+use rstest_bdd::{
+    ScenarioState as _,
+    Slot as _,
+    StepArgs as _,
+    StepContext as _,
+    StepError as _,
+    StepResult as _,
     given as _,
     scenario as _,
     scenarios as _,
