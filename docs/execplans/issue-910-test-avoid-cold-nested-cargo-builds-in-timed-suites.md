@@ -1687,6 +1687,36 @@ rather than by reading this branch's comments.
       `recorded.contains` filter from `eviction_of` fails the new sibling case
       while *both* pre-existing sibling tests stay green, which is the
       measurement showing the call-site path was previously untested.
+- [x] Record the spelling gate's reach into Rust doc comments, because it was
+      the only gate that failed on an otherwise-clean head and no lint or
+      typecheck would have found it. `make markdownlint` runs `spelling`
+      first, and `typos-config-builder` reads Rust sources as well as
+      Markdown: the doc comment on
+      `an_unrecorded_rebuild_answers_for_the_name_it_replaced` used a British
+      `-ise` spelling of the verb *to recognize*, and the gate rejected the
+      word at `replacements.rs:99:5` with a suggestion to use the `-ize` form.
+      The project's prose is en-GB-oxendict and its
+      `typos.toml` does not carry a `-ise` allowance, so a British spelling in
+      a code comment is a gate failure rather than a style preference. The
+      sentence was reworded rather than respelled ("treating a new generation
+      as a replacement"), which sidesteps the question entirely. The lesson is
+      worth keeping because the failure mode is invisible to `cargo check`,
+      `cargo fmt` and every Rust lint: only the spelling gate reads doc prose,
+      and only in the Markdown gate's prerequisite, so a contributor watching
+      `make typecheck` sees nothing.
+- [x] Correct a factually wrong CodeRabbit reply before it could stand as
+      evidence. The first reply about the trybuild probe claimed the
+      preparation runs no compile-fail fixture and that the compiled-unit
+      count was available as proof. Reading
+      `crates/rstest-bdd/tests/trybuild_macros/preparation.rs:265-292` showed
+      both claims false: the second probe *is* a compile-fail fixture
+      (`scenario_missing_path.rs`, driven in check mode), the order is
+      build-mode then check-mode, and `prepare_trybuild` returns
+      `PreparationSummary::default()` because `trybuild` streams its nested
+      Cargo output rather than letting it be captured. A follow-up reply in the
+      same thread corrected all three points and quoted the source comments.
+      The lesson: a reply that describes internal behaviour should be written
+      from a read of the source, not from memory of having written it.
 
 ## Surprises & Discoveries
 
