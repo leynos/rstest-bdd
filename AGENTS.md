@@ -218,12 +218,15 @@ project:
   - `make check-fmt` runs `cargo fmt --all -- --check` on the nightly toolchain
     named by `FMT_TOOLCHAIN`, checks the two standalone published-GPUI fixture
     manifests the same way, runs `ruff format --check` over the Python targets,
-    and runs `mdtablefix --check` over the tracked Markdown files. The checks
-    do not reformat sources, but the `build-python` prerequisite runs `uv sync`.
-    The formatter runs on nightly because `.rustfmt.toml` enables unstable
-    options. The Cargo steps in `make lint` and `make test` use the stable
-    toolchain from `rust-toolchain.toml`; `make dev-build`, `make dev-test` and
-    the published-GPUI end-to-end fixture use their own nightly toolchains. Use
+    and runs `mdtablefix --check` over the Markdown files that Git does not
+    ignore, tracked or untracked. The checks do not reformat sources, but the
+    `build-python` prerequisite runs `uv sync`. The formatter runs on nightly
+    because `.rustfmt.toml` enables unstable options. The workspace Cargo steps
+    in `make lint` and `make test` use the stable toolchain from
+    `rust-toolchain.toml`; `make dev-build`, `make dev-test` and the
+    published-GPUI end-to-end fixture use their own nightly toolchains, and the
+    fixture lockfile check in `make test` runs `cargo metadata` inside the
+    fixture, which therefore selects nightly too. Use
     `make fmt` to apply the fixes that `make check-fmt` reports; it runs the same
     formatters in write mode.
   - `make lint` runs Clippy over every target with all features and
@@ -234,7 +237,8 @@ project:
     `df12_python_lints` plugin, and ambrleaks, after `interrogate` docstring
     coverage) and the repository's script checks under `scripts/`. Clippy and
     rustdoc assign no `RUSTFLAGS`, so an environment `RUSTFLAGS` replaces the
-    `rustflags` in `.cargo/config.toml`, and with them the mold linker on Linux.
+    `rustflags` in `.cargo/config.toml`, and with them the mold linker on Linux
+    unless the environment value selects the linker itself.
     An environment `CARGO_ENCODED_RUSTFLAGS` takes precedence over `RUSTFLAGS`.
   - `make test` builds the `cargo-bdd` and `todo-cli` binaries, then runs the
     workspace suite with `cargo nextest run` when `cargo-nextest` is installed
