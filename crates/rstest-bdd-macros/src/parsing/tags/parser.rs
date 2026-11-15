@@ -154,18 +154,7 @@ impl<'a> Parser<'a> {
             Token {
                 kind: TokenKind::LParen,
                 ..
-            } => {
-                let span = self.current.start;
-                self.advance()?;
-                let expr = self.parse_expression()?;
-                match self.current.kind {
-                    TokenKind::RParen => {
-                        self.advance()?;
-                        Ok(expr)
-                    }
-                    _ => Err(TagExprError::new(span, "missing ')'")),
-                }
-            }
+            } => self.parse_parenthesized(),
             Token {
                 kind: TokenKind::End,
                 start,
@@ -174,6 +163,23 @@ impl<'a> Parser<'a> {
                 token.start,
                 format!("expected tag or '(' but found {}", token.describe()),
             )),
+        }
+    }
+
+    /// Parse `( expression )`, reporting a missing close at the opening paren.
+    fn parse_parenthesized(&mut self) -> Result<Expr, TagExprError> {
+        let span = self.current.start;
+        self.advance()?;
+        let expr = self.parse_expression()?;
+        self.expect_close_paren(span)?;
+        Ok(expr)
+    }
+
+    /// Consume the closing paren, or report `missing ')'` at `open_span`.
+    fn expect_close_paren(&mut self, open_span: usize) -> Result<(), TagExprError> {
+        match self.current.kind {
+            TokenKind::RParen => self.advance(),
+            _ => Err(TagExprError::new(open_span, "missing ')'")),
         }
     }
 

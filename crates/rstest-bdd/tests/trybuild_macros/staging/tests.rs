@@ -13,10 +13,36 @@ use super::*;
     "/workspace/target/llvm-cov-target/debug/deps/trybuild_macros-a1b2c3",
     "/workspace/target/llvm-cov-target"
 )]
+#[case::build_directory_layout(
+    "/workspace/target/debug/build/rstest-bdd/d195883d3c395ab2/out/\
+     trybuild_macros-d195883d3c395ab2",
+    "/workspace/target"
+)]
+#[case::build_directory_layout_coverage_target(
+    "/workspace/target/llvm-cov-target/debug/build/rstest-bdd/d195883d3c395ab2/out/\
+     trybuild_macros-d195883d3c395ab2",
+    "/workspace/target/llvm-cov-target"
+)]
 fn derives_target_root_from_test_executable(#[case] executable: &str, #[case] expected: &str) {
     assert_eq!(
         target_directory_from_test_executable(Utf8Path::new(executable)),
         Some(Utf8PathBuf::from(expected))
+    );
+}
+
+#[rstest]
+#[case::unrecognized_directory("/workspace/target/debug/examples/trybuild_macros-a1b2c3")]
+#[case::out_without_build_directory(
+    "/workspace/target/debug/other/rstest-bdd/d195883d3c395ab2/out/\
+     trybuild_macros-d195883d3c395ab2"
+)]
+#[case::out_too_close_to_the_root("/out/trybuild_macros-d195883d3c395ab2")]
+#[case::bare_executable_name("trybuild_macros-a1b2c3")]
+fn rejects_executables_outside_cargos_layouts(#[case] executable: &str) {
+    assert_eq!(
+        target_directory_from_test_executable(Utf8Path::new(executable)),
+        None,
+        "{executable} is not under a recognized Cargo layout"
     );
 }
 
@@ -27,8 +53,10 @@ fn target_directory_uses_running_test_executable() {
         .parent()
         .and_then(Utf8Path::parent)
         .expect("workspace root must be two levels above the manifest directory");
-    let expected = target_directory_from_running_test_executable()
-        .expect("integration tests should run from Cargo's `deps` directory");
+    let expected = target_directory_from_running_test_executable().expect(
+        "integration tests should run from Cargo's `deps` or `build/<package>/<hash>/out` \
+         directory",
+    );
 
     assert_eq!(trybuild_target_directory(workspace_root), expected);
 }

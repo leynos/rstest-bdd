@@ -43,37 +43,43 @@ fn find_first_table_row_line(table_text: &str) -> Option<(&str, usize)> {
 /// Split a table header row into spans for each cell's trimmed content.
 fn split_table_header_cells(line: LineContent<'_>, global_line_start: usize) -> Vec<Span> {
     let bytes = line.as_str().as_bytes();
-    let mut pipe_positions = Vec::new();
-    for (idx, b) in bytes.iter().enumerate() {
-        if *b == b'|' {
-            pipe_positions.push(idx);
-        }
-    }
+    let pipe_positions = find_pipe_positions(bytes);
     if pipe_positions.len() < 2 {
         return Vec::new();
     }
 
-    let mut spans = Vec::with_capacity(pipe_positions.len().saturating_sub(1));
-    for window in pipe_positions.windows(2) {
-        let &[left, right] = window else {
-            continue;
+    pipe_positions
+        .windows(2)
+        .filter_map(|window| match *window {
+            [left, right] => Some(header_cell_span(bytes, left, right, global_line_start)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Byte offsets of every `|` in a header row.
+fn find_pipe_positions(bytes: &[u8]) -> Vec<usize> {
+    bytes
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, b)| (*b == b'|').then_some(idx))
+        .collect()
+}
+
+/// Span of the trimmed cell between two adjacent pipes; an empty cell collapses
+/// onto the right-hand pipe.
+fn header_cell_span(bytes: &[u8], left: usize, right: usize, global_line_start: usize) -> Span {
+    if right <= left + 1 {
+        return Span {
+            start: global_line_start + right,
+            end: global_line_start + right,
         };
-        if right <= left + 1 {
-            spans.push(Span {
-                start: global_line_start + right,
-                end: global_line_start + right,
-            });
-            continue;
-        }
-        let cell_start = left + 1;
-        let cell_end = right;
-        let (trimmed_start, trimmed_end) = trim_ascii_whitespace(bytes, cell_start, cell_end);
-        spans.push(Span {
-            start: global_line_start + trimmed_start,
-            end: global_line_start + trimmed_end,
-        });
     }
-    spans
+    let (trimmed_start, trimmed_end) = trim_ascii_whitespace(bytes, left + 1, right);
+    Span {
+        start: global_line_start + trimmed_start,
+        end: global_line_start + trimmed_end,
+    }
 }
 
 /// Trim ASCII spaces and tabs from a byte range.

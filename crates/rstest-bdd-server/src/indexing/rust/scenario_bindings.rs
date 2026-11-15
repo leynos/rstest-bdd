@@ -88,34 +88,40 @@ impl Parse for BindingArgument {
 
         let name: syn::Ident = input.parse()?;
         input.parse::<syn::Token![=]>()?;
-        match name.to_string().as_str() {
-            "path" | "dir" => Ok(Self::Path(input.parse()?)),
-            "libraries" => parse_libraries(input),
-            "fixtures" => {
-                let content;
-                syn::bracketed!(content in input);
-                let _: proc_macro2::TokenStream = content.parse()?;
-                Ok(Self::Ignored)
-            }
-            "index" => {
-                let _: syn::LitInt = input.parse()?;
-                Ok(Self::Ignored)
-            }
-            "name" | "tags" | "runtime" => {
-                let _: LitStr = input.parse()?;
-                Ok(Self::Ignored)
-            }
-            "harness" | "attributes" => {
-                let _: syn::Path = input.parse()?;
-                Ok(Self::Ignored)
-            }
-            _ => Err(syn::Error::new(
-                name.span(),
-                "unknown scenario-binding argument; expected `path`, `dir`, `libraries`, \
-                 `fixtures`, `index`, `name`, `tags`, `runtime`, `harness`, or `attributes`",
-            )),
-        }
+        parse_named_argument(&name, input)
     }
+}
+
+/// Parse the value of a `name = value` argument, keeping only what scope
+/// selection needs.
+fn parse_named_argument(name: &syn::Ident, input: ParseStream<'_>) -> syn::Result<BindingArgument> {
+    match name.to_string().as_str() {
+        "path" | "dir" => input.parse().map(BindingArgument::Path),
+        "libraries" => parse_libraries(input),
+        "fixtures" => skip_bracketed(input),
+        "index" => skip_value::<syn::LitInt>(input),
+        "name" | "tags" | "runtime" => skip_value::<LitStr>(input),
+        "harness" | "attributes" => skip_value::<syn::Path>(input),
+        _ => Err(syn::Error::new(
+            name.span(),
+            "unknown scenario-binding argument; expected `path`, `dir`, `libraries`, `fixtures`, \
+             `index`, `name`, `tags`, `runtime`, `harness`, or `attributes`",
+        )),
+    }
+}
+
+/// Parse and discard a value that does not affect scope selection.
+fn skip_value<T: Parse>(input: ParseStream<'_>) -> syn::Result<BindingArgument> {
+    input.parse::<T>().map(|_| BindingArgument::Ignored)
+}
+
+/// Parse and discard a bracketed token list.
+fn skip_bracketed(input: ParseStream<'_>) -> syn::Result<BindingArgument> {
+    let content;
+    syn::bracketed!(content in input);
+    content
+        .parse::<proc_macro2::TokenStream>()
+        .map(|_| BindingArgument::Ignored)
 }
 
 /// Parse a `libraries = [path, ...]` argument.
