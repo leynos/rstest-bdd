@@ -79,3 +79,82 @@ fn evicting_a_dependency_owned_through_the_fixture_invalidates_the_preparation()
         "the message must name the evicted dependency, not just the profile: {message}"
     );
 }
+
+/// The name a package's unit stem comes from, which need not be the package.
+///
+/// A package `adapter` that declares `[lib] name = "engine"` files its
+/// fingerprint records under `adapter` and writes its output as `libengine`, so
+/// the two names are both needed to cover the one unit.
+const ADAPTER_PACKAGE: &str = "adapter";
+const ENGINE_TARGET: &str = "engine";
+
+/// Removing a target-named output invalidates the stamp that recorded it.
+///
+/// The regression the predicate's own tests cannot reach: they ask whether a
+/// name is owned, while this asks whether a *removal* is seen. It is the case
+/// that fails if a caller declares a package and assumes that covers the unit,
+/// because `name_is_owned` matches the names it is given and derives neither
+/// from the other. The output goes under the target name while the records stay
+/// under the package name, so the records alone keep the profile looking
+/// populated and owned — only the output's own recorded name can report it
+/// missing.
+///
+/// Everything except that one file is left in place: the fingerprint store
+/// stays intact and usable, so a refusal cannot come from the structural layer
+/// that a wholesale `cargo clean` would trip.
+#[test]
+fn evicting_a_target_named_output_invalidates_the_preparation() {
+    let (_directory, mut preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
+    // Both names, because they cover different halves of one unit. Declaring
+    // `engine` alone would leave the records unowned; declaring `adapter` alone
+    // — the mistake this case exists for — leaves the output unowned.
+    preparation.owned_packages = [ADAPTER_PACKAGE, ENGINE_TARGET]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let profile = prepared_profile(&preparation)
+        .expect("the preparation describes the profile directory it reuses");
+
+    // The output is named for the target, the records for the package, exactly
+    // as Cargo writes them when the two disagree. The `.d` record shares the
+    // output's hashed stem and is what makes the directory a *unit* directory
+    // at all: discovery classifies a directory by the dep-info it holds, so an
+    // output written alone would never be recorded and the removal would be
+    // invisible for a reason that has nothing to do with ownership.
+    let deps = profile.join("deps");
+    fs::create_dir_all(&deps).expect("create the unit directory");
+    let unit = format!("lib{ENGINE_TARGET}-0123456789abcdef");
+    let output = deps.join(format!("{unit}.rlib"));
+    fs::write(&output, b"unit").expect("write the target-named output");
+    fs::write(deps.join(format!("{unit}.d")), b"dep-info").expect("write the dep-info record");
+    let records = profile
+        .join(".fingerprint")
+        .join(format!("{ADAPTER_PACKAGE}-0123456789abcdef"));
+    fs::create_dir_all(&records).expect("create the record directory");
+    fs::write(records.join("lib-engine"), b"fingerprint record").expect("write a record");
+
+    prepare_now(&preparation, || Ok(PreparationSummary::default()))
+        .expect("prepare the family over its target-named unit");
+    assert!(
+        stamp_path(&preparation).is_file(),
+        "the stamp must be written"
+    );
+
+    fs::remove_file(&output).expect("evict the target-named output");
+    assert!(
+        records.is_dir(),
+        "the records must survive, or the structural layer could refuse instead"
+    );
+
+    let error = ensure_prepared_with(&preparation, true, || {
+        panic!("a timed test must never prepare")
+    })
+    .expect_err("a target-named output that went must fail the gate");
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    let message = error.to_string();
+    assert!(
+        message.contains(ENGINE_TARGET),
+        "the message must name the evicted output, not just the profile: {message}"
+    );
+}

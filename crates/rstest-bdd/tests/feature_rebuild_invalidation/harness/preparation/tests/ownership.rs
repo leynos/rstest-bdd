@@ -32,6 +32,10 @@ fn local_dependency_closure(
 ) -> std::collections::BTreeSet<String> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .manifest_path(manifest)
+        // The fixture commits its lockfile, so resolution needs no registry:
+        // asserting that keeps a test of the declaration from reaching the
+        // network, where a registry hiccup would read as a broken graph.
+        .other_options(vec!["--locked".to_owned(), "--offline".to_owned()])
         .exec()
         .expect("the fixture manifest must resolve");
     let resolve = metadata.resolve.as_ref().expect("a resolved graph");
