@@ -13,8 +13,8 @@
 //!   that the preparation override is the first one in the file, so the first-match precedence rule
 //!   keeps it authoritative if a future override ever matched the same tests.
 //! * `nextest_override_preserves_timeout_contract` covers the `cargo-bdd` test binaries at 180 s
-//!   and the feature-rebuild binary at 600 s. Both overrides retain their termination settings and
-//!   `cargo-spawning` membership.
+//!   and the feature-rebuild and prelude-fixture binaries at 600 s. Every override retains its
+//!   termination settings and `cargo-spawning` membership.
 //! * `trybuild_nextest_override_preserves_timeout_contract` requires exactly one override to name
 //!   any of the four compile-test binaries, and that override's filter to name all four and no
 //!   others. It then requires the override to keep a 20 m `slow-timeout` period, `terminate-after =
@@ -34,13 +34,15 @@
 //! hidden instead of moved: the preparation override is the only place in the
 //! file where a cold dependency build may spend a test's budget.
 //!
-//! Four binaries now carry a longer period: the preparation, the `cargo-bdd`
-//! CLI smoke tests, `rstest-bdd-harness::binary_test_support_cargo`, and the
-//! compile-test and rebuild-invalidation families. Each was added because a
-//! lane observation showed it shelling out to `cargo` under the default 60 s
-//! hang detector; `binary_test_support_cargo` was the last one found, on run
-//! 43607129223. A fifth nested-Cargo test must join this set rather than
-//! inherit the default.
+//! Five binaries now carry a longer period: the preparation, the `cargo-bdd`
+//! CLI smoke tests, `rstest-bdd-harness::binary_test_support_cargo`, the
+//! compile-test and rebuild-invalidation families, and the prelude-fixture
+//! binary. Each was added because it shells out to `cargo`; the first four were
+//! each found by a lane observation under the default 60 s hang detector,
+//! `binary_test_support_cargo` being the last of those, on run 43607129223.
+//! The prelude fixtures were registered with their override from the start, so
+//! that they would not repeat the omission. A sixth nested-Cargo test must join
+//! this set rather than inherit the default.
 //!
 //! The overrides, the group and the run-level ceiling are policy that a future
 //! edit could break silently, so these assertions fail loudly instead. They
@@ -82,6 +84,7 @@ use support::{
 mod preparation;
 
 const FEATURE_REBUILD_FILTER: &str = "binary_id(rstest-bdd::feature_rebuild_invalidation)";
+const PRELUDE_FIXTURE_FILTER: &str = "binary_id(rstest-bdd::prelude_fixture)";
 const CARGO_BDD_FILTER: &str = "binary_id(cargo-bdd::cli) | binary_id(cargo-bdd::invocation)";
 
 /// Expected timeout settings owned by this integration test.
@@ -116,6 +119,14 @@ const FEATURE_REBUILD_TIMEOUT_EXPECTATION: FilteredTimeoutExpectation =
             period: "600s",
         },
     };
+const PRELUDE_FIXTURE_TIMEOUT_EXPECTATION: FilteredTimeoutExpectation =
+    FilteredTimeoutExpectation {
+        filter: PRELUDE_FIXTURE_FILTER,
+        timeout: TimeoutExpectation {
+            test_name: "prelude-fixture",
+            period: "600s",
+        },
+    };
 const TRYBUILD_TIMEOUT_EXPECTATION: TimeoutExpectation = TimeoutExpectation {
     test_name: "trybuild",
     period: "20m",
@@ -125,6 +136,7 @@ const TRYBUILD_TIMEOUT_EXPECTATION: TimeoutExpectation = TimeoutExpectation {
 #[rstest]
 #[case::cargo_bdd(CARGO_BDD_TIMEOUT_EXPECTATION)]
 #[case::feature_rebuild(FEATURE_REBUILD_TIMEOUT_EXPECTATION)]
+#[case::prelude_fixture(PRELUDE_FIXTURE_TIMEOUT_EXPECTATION)]
 fn nextest_override_preserves_timeout_contract(
     #[case] expectation: FilteredTimeoutExpectation,
 ) -> Result<(), Box<dyn Error>> {

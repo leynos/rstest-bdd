@@ -4923,6 +4923,7 @@ dependencies = [
  "inventory",
  "log",
  "regex",
+ "rstest-bdd-macros",
  "rstest-bdd-patterns",
  "rstest-bdd-policy",
  "rust-embed",

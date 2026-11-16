@@ -122,6 +122,18 @@ filter = "binary_id(rstest-bdd::feature_rebuild_invalidation)"
 slow-timeout = { period = "600s", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 
+[[profile.default.overrides]]
+# The prelude fixtures compile and run two standalone consumer crates through
+# the shared nested-Cargo helper: one naming only `rstest-bdd` and `rstest`,
+# one naming the macro crate directly. Each command carries its own wall-clock
+# bound in the harness (300 s for a run, with a named failure), so this
+# override only guards the test against the combined worst case. The cold
+# dependency graph belongs to the family's `nested_fixture_preparation` test,
+# which the first override schedules ahead of these assertions.
+filter = "binary_id(rstest-bdd::prelude_fixture)"
+slow-timeout = { period = "600s", terminate-after = 1, grace-period = "5s" }
+test-group = "cargo-spawning"
+
 [profile.long]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 global-timeout = "30m"
