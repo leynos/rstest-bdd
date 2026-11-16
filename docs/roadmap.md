@@ -1070,19 +1070,24 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `StepError`, and `StepResult` — and thirteen items in all, because
   `ScenarioState` and `StepArgs` each name a derive macro *and* a trait. The
   crate root mirrors every one of them, so the prelude stays a strict subset
-  with no names of its own. Every example reaches its `rstest-bdd` surface
-  through the prelude, no example manifest declares `rstest-bdd-macros`, and
-  the compiler and `scripts/check_example_imports.py` hold that in both
-  directions. The fixture crate `crates/rstest-bdd/tests/fixtures/prelude_only`
-  names only `rstest-bdd` and `rstest` in its manifest and compiles and runs a
-  scenario, and `scripts/check_prelude_exports.py` fails when the
-  `docs/users-guide.md` item table, the spelled-out import example, or the
-  README imports disagree with the code. Deliberately not exported: the
-  datatable items (`DataTable`, `DataTableRow`, `datatable::Rows`,
-  `DataTableError`), the harness traits, `rstest::fixture` and `rstest::rstest`,
-  `panic_message`, and the reserved harness-context fixture key. A public-API
-  gate remains absent; the follow-up items this entry surfaced are filed as
-  issues #952-#959. See ExecPlan
+  with no names of its own. The crate root also re-exports `step_library`, so a
+  consumer declaring a scoped vocabulary never names the macro crate either; it
+  stays outside the prelude because no example declares a library, and ADR-026
+  records the completion as an amendment. Every example reaches its
+  `rstest-bdd` surface through the prelude, no example manifest declares
+  `rstest-bdd-macros`, and the compiler and `scripts/check_example_imports.py`
+  hold that in both directions. The fixture crate
+  `crates/rstest-bdd/tests/fixtures/prelude_only` names only `rstest-bdd` and
+  `rstest` in its manifest and compiles and runs a scenario, and
+  `scripts/check_prelude_exports.py` fails when the `docs/users-guide.md` item
+  table, the spelled-out import example, or the README imports disagree with
+  the code. Deliberately not exported: the datatable items (`DataTable`,
+  `DataTableRow`, `datatable::Rows`, `DataTableError`), the harness traits,
+  `rstest::fixture` and `rstest::rstest`, `panic_message`, and the reserved
+  harness-context fixture key. A public-API gate remains absent; the follow-up
+  items this entry surfaced are filed as issues #952-#959. The prelude and the
+  root `step_library` re-export are signposted in
+  `docs/v0-7-0-migration-guide.md`. See ExecPlan
   `docs/execplans/11-2-2-prelude-exposes-step-result-and-context-helpers.md` and
   `docs/adr-026-publish-a-facade-prelude.md`.
 - [ ] 11.2.3. Diagnostics detect non-canonical harness paths and missing or

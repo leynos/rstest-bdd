@@ -896,12 +896,18 @@ Stop and escalate — do not improvise — when any of these is reached.
   never wrote. This predates the plan, but a prelude that tells users "one
   import is enough" makes it likelier they arrive here confused. Mitigation:
   EP-M6 states the supported `rstest` range in the users guide and in ADR-027's
-  Known Risks, and EP-M4's fixture derives its `rstest` requirement from
-  `[workspace.dependencies]` rather than duplicating a literal version.
-  Resolving the path through `proc_macro_crate` so that a renamed or missing
-  `rstest` yields an actionable diagnostic is the right fix and is filed as
-  follow-up 8; it is behavioural change in the harness crate and does not
-  belong in a v0.6.1 additive item.
+  Known Risks. EP-M4's fixture cannot inherit the requirement:
+  `crates/rstest-bdd/tests/fixtures/prelude_only` is a standalone workspace, so
+  its manifest is read the way a consumer's is and `rstest.workspace = true`
+  has no `[workspace.dependencies]` to resolve against. It therefore states the
+  literal, and
+  `prelude_only_fixture_takes_its_rstest_requirement_from_the_workspace`
+  asserts that literal equals the workspace's own requirement, so a workspace
+  bump that forgets the fixture fails a test rather than leaving two literals
+  to drift. Resolving the path through `proc_macro_crate` so that a renamed or
+  missing `rstest` yields an actionable diagnostic is the right fix and is
+  filed as follow-up 8; it is behavioural change in the harness crate and does
+  not belong in a v0.6.1 additive item.
 
 - **R-10 — The examples become the only prelude consumers, losing coverage of
   the direct-import path.** Severity: low. Likelihood: medium. After Milestone
@@ -1460,6 +1466,61 @@ should be filed rather than forgotten:
    does not belong in a v0.6.1 additive item. See R-11. Filed as #959.
 
 ## Decision log
+
+- **DL-18 — The example gate enforces the prelude alone, and the guide's
+  imports are compiled copies.** Resolved on 2026-11-16 while answering the
+  review. DL-9's accepted wording is that every example reaches its
+  `rstest-bdd` surface "through `rstest_bdd::prelude` alone", but
+  `scripts/check_example_imports.py` still accepted `use rstest_bdd::{…}` as a
+  facade import, so a crate-root import passed a gate that the finish line
+  forbids. The gate now requires the prelude marker and reports a crate-root
+  import as a violation, while still accepting a braced
+  `use rstest_bdd::prelude::{…}`. Separately, registering the users-guide
+  section as an enforced region makes its markers mandatory but compiles
+  nothing, so `prelude_examples/` now holds each import once where the compiler
+  resolves it, and `prelude_examples_are_compiled_as_written` pins the guide's
+  fence to that copy by text equality. Faithfulness beat convenience: the
+  compiled copies had to lose their `//!` docs and lint allowance, and the
+  guide's spelled example had to adopt rustfmt's own vertical layout, because
+  the pin fails on any difference at all. Date/Author: 2026-11-16,
+  implementation agent.
+
+- **DL-17 — The facade re-export is completed at the crate root, not the
+  prelude.** Resolved on 2026-11-16 while answering the review. ADR-026
+  requires the facade's re-export to be "total and flat", and the review showed
+  it was not: `step_library` remained reachable only from `rstest-bdd-macros`,
+  so every consumer declaring a scoped vocabulary still named the
+  implementation crate. The crate root now re-exports it, and
+  `tests/prelude_surface.rs` names it so the compiler holds that. It does not
+  enter the prelude: the ADR's entry rule admits an item only when a step
+  signature, a `#[derive]`, or an attribute in the examples needs it, and no
+  example declares a library. ADR-026 records the completion as an amendment
+  rather than by editing the decision outcome, so the accepted decision and its
+  later correction stay distinguishable. Date/Author: 2026-11-16,
+  implementation agent.
+
+- **DL-16 — The delivery exceeds the retained net-line tolerance; escalated,
+  not self-approved.** Measured on 2026-11-16 at the first review-repair commit
+  `8ba9759e`, against the merge base `7b617013` with the stacked PR's base
+  `issue-901-adopt-ortho-config-v0-10-0-for-the-cargo-bdd-cli`. Including
+  lockfiles and this plan, the branch changes 80 files for +9,628 and −453, a
+  net of +9,175. Excluding the lockfiles and this plan, it changes 70 files for
+  +4,184 and −449, a net of +3,735: 1,920 lines of Python gates and their tests
+  across seven files, 1,250 lines of Rust across thirty-five, 471 lines of
+  documentation across ten, 94 lines of manifests and fixture data across
+  fourteen, and no net change across the four example files. DL-11 retained the
+  1,200-net-added-line limit while adopting the 50-file ceiling, so the
+  delivery is 2,535 net lines over a limit this agent may not waive. The
+  overage is not padding: the drift gate, the example-import gate, the three
+  documentation-extraction modules and their two test modules, the two fixture
+  crates, and the users-guide and ADR documentation are each named by an
+  approved milestone or verification obligation, and the alternative to writing
+  them is shipping an unchecked re-export. Continuing is the user's direction
+  under DL-11 ("continue through PR completion") and the exceeded limit is
+  reported to the user in this round's summary; a reviewer who wants the
+  overage formally waived should say so, and a reviewer who wants it reduced
+  should say which milestone's verification to drop. Date/Author: 2026-11-16,
+  implementation agent.
 
 - **DL-15 — Keep the published GPUI fixture locks compatible with `xattr`.**
   Resolved on 2026-11-03 after PR CI run `41540661058` failed on Linux. Both
@@ -2024,6 +2085,30 @@ to a `rust_index` child module (312 + 132 lines). `make lint-whitaker` passed
 on this tree in 3.13 s at 13:12 UTC
 (`/tmp/lint-whitaker-d-20261116T131252Z.out`).
 
+The 2026-11-16 review round (CodeRabbit's assessment of `b5671f9a`) is
+committed as `8ba9759e`. Its five documented gaps and its scope finding were
+each reproduced against the tree before anything changed. The repairs are DL-17
+and DL-18 plus the documentation they imply: the crate root re-exports
+`step_library`; `scenarios` is called a function-like macro in the table, the
+drift gate's item kinds, and the facade doc; the guide's two prelude fences are
+pinned to compiled copies; `check_example_imports.py` enforces the prelude
+alone and sees renamed and target-specific macro-crate dependencies; the
+`rstest` requirement equality is asserted; and the migration guide and ADR-026
+carry the signposts the review asked for. The seven commit gates then ran once
+each, sequentially, on that exact revision: `make check-fmt` (2 s), `make lint`
+(626 s, all eleven recipe steps so no step is left without a verdict),
+`make typecheck` (228 s), `make test` (1,847 s: 2,396 nextest tests with seven
+skipped and none failing, doctests, the no-default-features leg's 815 tests,
+seven fixture lockfiles fresh, and 323 pytest checks), `make markdownlint` (23
+s), `make nixie` (under a second), and `make publish-check` (420 s).
+`REV_START` and `REV_END` were both `8ba9759e` and `typos.toml` was unchanged,
+so every log under `/tmp/gate-<target>-8ba9759e.out` is attributable to that
+tree. Two bounds on what the green means are recorded rather than glossed:
+`make publish-check` tolerated five of eight dry-run publishes through
+`--allow-unpublished-workspace-deps`, so those sibling requirements were not
+shown to resolve from the registry, and both nextest summaries report seven
+skipped tests. DL-16 records the scope measurement and the escalation.
+
 ## Surprises & discoveries
 
 Recorded during planning and execution as evidence was confirmed.
@@ -2306,6 +2391,37 @@ Recorded during planning and execution as evidence was confirmed.
   it again reached 10.0. **Impact:** re-measure a file after a split that clears
   `Complex Method`, because the extracted helpers join the mean the other rule
   scores.
+
+- **Observation:** the documented-example harness enforces a region's *shape*,
+  not that its fences compile. **Evidence:** registering "Importing
+  `rstest-bdd`" as an enforced region made both prelude markers mandatory and
+  would have failed an unmarked fence, but nothing in the harness resolves an
+  import; EP-M5 step 4's "must compile" was unmet by the registration alone,
+  and the guide's examples only became code when a module copied each one.
+  **Impact:** a marked fence is documentation that a gate reads, not code that
+  a compiler checks. `prelude_examples/` now holds each import once as a
+  module, and `prelude_examples_are_compiled_as_written` compares the guide's
+  fence with that copy line for line, so the two cannot diverge without a red
+  test.
+
+- **Observation:** the guide's handwritten import layout and rustfmt's are
+  different fixed points, and a text-equality pin has to pick one. **Evidence:**
+  `.rustfmt.toml` sets `imports_layout = "HorizontalVertical"` with a
+  100-column width, so the compiled copy's spelled import became one name per
+  line, while the guide's fence was packed to 80 columns; the pin failed until
+  the guide adopted rustfmt's layout. **Impact:** pinning documentation to
+  compiled code makes the formatter an author of the prose, which is the price
+  of the guarantee. Write such a fence in the layout the compiler will
+  reproduce rather than expecting the pin to tolerate cosmetic differences.
+
+- **Observation:** the roadmap's accepted finish line was stronger than the
+  gate written for it. **Evidence:** DL-9 says "through `rstest_bdd::prelude`
+  alone", while `scripts/check_example_imports.py` accepted
+  `use rstest_bdd::{…}` as a facade import until the review compared the two;
+  every live example already complied, so no example changed. **Impact:** when
+  a gate and its stated requirement are written at different times, compare
+  them before trusting the gate's green; the gate was tightened rather than the
+  requirement reworded.
 
 ## Outcomes & retrospective
 
