@@ -10,9 +10,12 @@
 use std::{fs, path::Path};
 
 use super::{preparation_with, profile_of, write_store, write_units};
-use crate::nested_cargo::preparation::{
-    artefacts::{Eviction, all_present, evicted, record},
-    stamp::Stamp,
+use crate::nested_cargo::{
+    Preparation,
+    preparation::{
+        artefacts::{Eviction, all_present, evicted, record},
+        stamp::Stamp,
+    },
 };
 
 /// A recorded output that was removed is an eviction.
@@ -128,13 +131,22 @@ fn a_metadata_only_unit_is_accepted() -> std::io::Result<()> {
     Ok(())
 }
 
+/// Whether a freshly built preparation is usable, so an eviction case cannot
+/// pass because its fixture started out missing.
+///
+/// The check itself can fail to run, which is an arrangement error rather than
+/// a verdict, so the error is returned and the calling test decides.
+fn starts_usable(preparation: &Preparation) -> std::io::Result<bool> {
+    all_present(preparation, None)
+}
+
 /// A unit leaving together with its own record is invisible to the structural
 /// layer, so it is the reason a record of what preparation produced exists.
 #[test]
 fn a_unit_leaving_with_its_record_is_structurally_invisible() -> std::io::Result<()> {
     let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")])?;
     assert!(
-        all_present(&preparation, None).expect("populated check"),
+        starts_usable(&preparation)?,
         "the fixture must start usable"
     );
     let profile = profile_of(&preparation)?;
@@ -153,23 +165,29 @@ fn a_unit_leaving_with_its_record_is_structurally_invisible() -> std::io::Result
     Ok(())
 }
 
+/// Remove every file directly inside `directory`, leaving the directory itself
+/// in place so `all_present` can still inspect it.
+fn remove_all_in(directory: &Path) -> std::io::Result<()> {
+    for entry in fs::read_dir(directory)? {
+        fs::remove_file(entry?.path())?;
+    }
+    Ok(())
+}
+
 /// Evict the compiled units, leaving the directory itself in place.
 ///
 /// The directory surviving with nothing in it is the shape a partial clean
 /// leaves, and it is the one the structural layer has to read as unusable: a
 /// walk that found no dep-info record anywhere below the profile must not be
 /// mistaken for a tree with nothing to check.
-fn evict_units(profile: &Path) {
-    let units = profile.join("deps");
-    for entry in fs::read_dir(&units).expect("list the unit directory") {
-        let entry = entry.expect("entry");
-        fs::remove_file(units.join(entry.file_name())).expect("evict the unit");
-    }
-}
+fn evict_units(profile: &Path) -> std::io::Result<()> { remove_all_in(&profile.join("deps")) }
 
 /// Evict the fingerprint store Cargo reads to decide its units are current.
-fn evict_store(profile: &Path) {
-    fs::remove_dir_all(profile.join(".fingerprint")).expect("evict the store");
+///
+/// Both evictions are arrangement, so each hands its error back to the test
+/// that asked for it rather than deciding there.
+fn evict_store(profile: &Path) -> std::io::Result<()> {
+    fs::remove_dir_all(profile.join(".fingerprint"))
 }
 
 /// A profile whose halves are each absent in turn is an eviction.
@@ -192,18 +210,18 @@ fn evict_store(profile: &Path) {
     "a profile holding no fingerprint records must never pass"
 )]
 fn a_profile_without_either_half_is_an_eviction(
-    #[case] evict: fn(&Path),
+    #[case] evict: fn(&Path) -> std::io::Result<()>,
     #[case] survivor: &str,
     #[case] why: &str,
 ) -> std::io::Result<()> {
     let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")])?;
     let profile = profile_of(&preparation)?;
     assert!(
-        all_present(&preparation, None).expect("populated check"),
+        starts_usable(&preparation)?,
         "the fixture must start usable"
     );
 
-    evict(&profile);
+    evict(&profile)?;
     let mut kept = fs::read_dir(profile.join(survivor))?;
     assert!(
         kept.next().is_some(),
