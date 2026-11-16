@@ -197,3 +197,15 @@ than against a second handwritten inventory.
 - [Users' guide: importing rstest-bdd](users-guide.md#importing-rstest-bdd).
 - [ADR-004: policy crate](adr-004-policy-crate.md).
 - [ADR-005a: harness adapter crates](adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md).
+
+## Amendments
+
+### 2026-11-16: the facade re-export is total
+
+The decision outcome requires a "total and flat" re-export, and the
+implementation review found it was not: `step_library` was reachable only from
+`rstest-bdd-macros`, so declaring a scoped vocabulary forced a consumer to name
+the implementation crate. The crate root now re-exports it. It does not enter
+the prelude: the entry rule above admits only an item that a step signature, a
+`#[derive]`, or an attribute in the examples needs, and no example declares a
+library yet.

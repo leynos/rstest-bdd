@@ -99,6 +99,44 @@ pub(crate) fn read_test_source(fixture: &str, file: &str) -> io::Result<String> 
     open_fixture(fixture)?.read_to_string(Path::new("tests").join(file))
 }
 
+/// Read the workspace root manifest as parsed TOML.
+pub(crate) fn read_workspace_manifest() -> io::Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .ok_or_else(|| io::Error::other("the crate manifest is two levels under the workspace"))?;
+    let workspace = Dir::open_ambient_dir(root, ambient_authority())?;
+    let text = workspace.read_to_string("Cargo.toml")?;
+    toml::from_str(&text).map_err(|error| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("the workspace Cargo.toml is not valid TOML: {error}"),
+        )
+    })
+}
+
+/// The version requirement one dependency table states for `name`.
+///
+/// A dependency written as a bare string carries its requirement in the
+/// string; a table carries it under `version`.
+pub(crate) fn dependency_requirement(manifest: &Value, table: &str, name: &str) -> Option<String> {
+    requirement(manifest.get(table)?.get(name)?)
+}
+
+/// The version requirement the workspace states for `name`.
+pub(crate) fn workspace_requirement(manifest: &Value, name: &str) -> Option<String> {
+    requirement(manifest.get("workspace")?.get("dependencies")?.get(name)?)
+}
+
+/// Return the requirement a single dependency specification states.
+fn requirement(spec: &Value) -> Option<String> {
+    match spec {
+        Value::String(version) => Some(version.clone()),
+        Value::Table(entry) => entry.get("version")?.as_str().map(str::to_owned),
+        _ => None,
+    }
+}
+
 /// The filtered environment every fixture build and run inherits.
 ///
 /// The nested build's own coverage is incidental to the run that spawned it,

@@ -31,6 +31,7 @@ use rstest_bdd::{
     given as _,
     scenario as _,
     scenarios as _,
+    step_library as _,
     then as _,
     when as _,
 };
