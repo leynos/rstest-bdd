@@ -126,10 +126,10 @@ fn evicting_a_target_named_output_invalidates_the_preparation() {
     // The record is named `<stem>.d` beside `lib<stem>.rlib`, not
     // `lib<stem>.d`: rustc spells the dep-info with the unit's own stem, which
     // carries no `lib`, and only then does `is_output_of` pair the two through
-    // its *library* branch. A `lib`-prefixed record instead makes the stem
-    // `libengine-<hash>`, which the output matches by its *binary* branch — the
-    // same shape `write_unit` writes, so this case keeps the fixture helper's
-    // fidelity rather than inventing a naming rustc does not produce.
+    // its *library* branch. The unprefixed form is also what the shared
+    // `write_unit` helper writes. A `lib`-prefixed record instead makes the
+    // stem `libengine-<hash>`, which the output matches by its *binary* branch,
+    // a naming rustc does not produce and the helper does not model.
     let deps = profile.join("deps");
     fs::create_dir_all(&deps).expect("create the unit directory");
     let unit = format!("{ENGINE_TARGET}-0123456789abcdef");
