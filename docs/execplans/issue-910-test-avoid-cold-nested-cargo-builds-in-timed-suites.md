@@ -1806,6 +1806,29 @@ rather than by reading this branch's comments.
       matches the record, so it must be the same branch" is backwards here.
       Re-mutation-checked after the edit, since a fidelity fix is exactly the
       kind of change that can quietly cost a case its discriminating power.
+- [x] Reconcile the two pre-merge rows CodeRabbit still reports failed, and
+      tell the difference between a row that is answered and one that is
+      deliberately declined. `Testing (Unit And Behavioural)` is *declined*:
+      nothing runs `make prepare-nested-fixtures` across a process boundary —
+      the only test that spawns `make` runs `lint-whitaker`, and the Python
+      contract test pins recipe text by design, because `cargo nextest run -E`
+      exits zero on an empty filter and the preventable failure is a drifted
+      filter. The remedy as written needs nextest inside nextest, which is the
+      recursion this plan already records as considered and declined. The row
+      was answered that way once before; the honest position is to say it is
+      still open and why, not to mark it addressed. `Out of Scope Changes` is
+      *answered*: the `0.6.0` → `0.7.0` bump is load-bearing. `ad03c311`
+      records that `build_child_env` became fallible, so `cargo package` —
+      which strips workspace `path` overrides — compiled `cargo-bdd` against
+      the published 0.6.0 harness and failed with `E0599` on `with_context` at
+      the required `Publish dry run` step on all three build-test lanes.
+      `--allow-unpublished-workspace-deps` cannot help, because lading
+      downgrades index-lookup failures only, never compile errors. Moving the
+      bump to a release PR would re-break that step, so the two cannot be
+      separated. Lesson: a pre-merge row is not automatically work to do. Read
+      what the check can and cannot see, and when the remedy is out of scope,
+      say so with the evidence and leave it unresolved rather than
+      manufacturing a fix or a dismissal.
 
 ## Surprises & Discoveries
 
