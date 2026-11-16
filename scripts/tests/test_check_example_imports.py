@@ -61,6 +61,19 @@ MACROS_ONLY_SOURCE = """\
 use rstest_bdd_macros::given;
 """
 
+QUALIFIED_ATTRIBUTE_SOURCE = """\
+use rstest_bdd::prelude::*;
+
+#[rstest_bdd::given("a step")]
+fn a_step() {}
+"""
+
+RAW_MACROS_PATH_SOURCE = """\
+use rstest_bdd::prelude::*;
+
+rstest_bdd_macros::scenarios!("tests/steps.feature");
+"""
+
 RENAMED_MACROS_MANIFEST = """\
 [package]
 name = "renamed-example"
@@ -223,6 +236,31 @@ def test_reports_macro_crate_named_without_attributes(tmp_path: Path) -> None:
 
     assert any("macro crate directly" in violation for violation in violations), (
         "naming the macro crate alone should bring the file into scope"
+    )
+
+
+@pytest.mark.parametrize(
+    ("example", "source", "expected"),
+    [
+        ("qualified-attribute", QUALIFIED_ATTRIBUTE_SOURCE, "crate root"),
+        ("raw-macros-path", RAW_MACROS_PATH_SOURCE, "macro crate directly"),
+    ],
+)
+def test_reports_reach_written_as_a_path_rather_than_a_use(
+    tmp_path: Path, example: str, source: str, expected: str
+) -> None:
+    """A qualified attribute or raw macro path breaks the rule too.
+
+    Both forms reach the same items as the `use` statements the rule was
+    written for, and both would otherwise pass while the prelude import that
+    satisfies the other half of the check is present.
+    """
+    write_example(tmp_path, example, FACADE_MANIFEST, {"tests/steps.rs": source})
+
+    violations = check_example_imports(tmp_path)
+
+    assert any(expected in violation for violation in violations), (
+        f"a reach written as a path should be reported as {expected!r}"
     )
 
 

@@ -134,7 +134,7 @@ Step definitions use the same Unicode phrases:
 
 ```rust,no_run
 use japanese_ledger::HouseholdLedger;
-use rstest_bdd_macros::{given, when, then};
+use rstest_bdd::prelude::*;
 
 #[given("残高は{start:i32}である")]
 fn starting_balance(ledger: &HouseholdLedger, start: i32) {
@@ -1313,7 +1313,7 @@ fixed:
 
 ```rust,no_run
 use bevy::ecs::world::World;
-use rstest_bdd_macros::{given, then, when};
+use rstest_bdd::prelude::*;
 
 #[given("the world starts empty")]
 fn world_starts_empty(#[harness_context] world: &World) {
@@ -1378,7 +1378,7 @@ The harness and policy can then be used from scenario tests like any other
 macro configuration:
 
 ```rust,no_run
-use rstest_bdd_macros::scenario;
+use rstest_bdd::prelude::*;
 use rstest_bdd_harness_bevy::{BevyAttributePolicy, BevyHarness};
 
 #[scenario(
@@ -1446,7 +1446,7 @@ adapter, the macro infers `TokioAttributePolicy` from the canonical harness
 path when `attributes = ...` is omitted:
 
 ```rust,no_run
-# use rstest_bdd_macros::scenario;
+# use rstest_bdd::prelude::*;
 #[scenario(
     path = "tests/features/reminders.feature",
     name = "Scheduling a reminder queues it for later delivery",
@@ -1485,7 +1485,7 @@ implement `Debug`. Std and Tokio scenarios retain their fallible signatures and
 propagate results through Rust's native `Termination` support.
 
 ```rust,no_run
-# use rstest_bdd_macros::scenario;
+# use rstest_bdd::prelude::*;
 # fn increment_counter() -> Result<(), std::io::Error> { Ok(()) }
 #[scenario(
     path = "tests/features/counter.feature",
@@ -1637,7 +1637,7 @@ step:
 
 ```rust,no_run
 # use rstest::fixture;
-# use rstest_bdd_macros::scenario;
+# use rstest_bdd::prelude::*;
 # use serial_test::serial;
 # use std::cell::RefCell;
 #[derive(Clone, Debug, Default)]
@@ -1711,7 +1711,7 @@ defensively re-runs the reset before storing handles and observes the
 `stale_window_count` invariant that the regression suite encodes:
 
 ```rust,no_run
-# use rstest_bdd_macros::given;
+# use rstest_bdd::prelude::*;
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]
@@ -1748,7 +1748,7 @@ has been violated, not a legitimate test outcome. This form also passes the
 repository's pedantic lint profile:
 
 ```rust,no_run
-# use rstest_bdd_macros::{then, when};
+# use rstest_bdd::prelude::*;
 # fn current_handles() -> (gpui::Entity<()>, gpui::AnyWindowHandle) { unimplemented!() }
 #[when("the view is updated through a reconstructed visual context")]
 fn view_is_updated_through_reconstructed_visual_context(
@@ -1806,7 +1806,7 @@ durable handles:
 
 ```rust,ignore
 use gpui::{AppContext as _, VisualContext as _};
-use rstest_bdd_macros::given;
+use rstest_bdd::prelude::*;
 
 #[given("a fresh GPUI window is opened")]
 fn fresh_gpui_window_is_opened(
@@ -1842,7 +1842,7 @@ entity because published `Entity<T>` is `Clone`, not `Copy`:
 
 ```rust,ignore
 use gpui::AppContext as _;
-use rstest_bdd_macros::{then, when};
+use rstest_bdd::prelude::*;
 
 fn current_handles() -> (gpui::Entity<CounterView>, gpui::AnyWindowHandle) {
     with_state(|state| {
@@ -2166,7 +2166,7 @@ the panic payload.
 
 ```rust,no_run
 # use rstest_bdd as bdd;
-# use rstest_bdd_macros::{given, scenario};
+# use rstest_bdd::prelude::*;
 
 #[given("a dependent service is unavailable")]
 fn service_unavailable() {
@@ -3252,7 +3252,7 @@ each row should be interpreted for a given type. When `T::REQUIRES_HEADER` is
 use rstest_bdd::datatable::{
     self, DataTableError, DataTableRow, RowSpec, Rows,
 };
-# use rstest_bdd_macros::given;
+# use rstest_bdd::prelude::*;
 
 #[derive(Debug, PartialEq, Eq)]
 struct UserRow {
@@ -3322,7 +3322,7 @@ attributes:
 
 ```rust,no_run
 use rstest_bdd::datatable::{self, DataTableError, Rows};
-use rstest_bdd_macros::DataTableRow;
+use rstest_bdd::DataTableRow;
 
 fn default_region() -> String { String::from("EMEA") }
 
@@ -3368,7 +3368,7 @@ rows before exposing them to the step function:
 
 ```rust,no_run
 use rstest_bdd::datatable::{DataTableError, Rows};
-use rstest_bdd_macros::{DataTable, DataTableRow};
+use rstest_bdd::{DataTable, DataTableRow};
 
 #[derive(Debug, PartialEq, Eq, DataTableRow)]
 struct UserRow {
@@ -3398,7 +3398,7 @@ inspection of the row and column that triggered the failure:
 
 ```rust,no_run
 # use rstest_bdd::datatable::{DataTableError, Rows};
-# use rstest_bdd_macros::DataTableRow;
+# use rstest_bdd::DataTableRow;
 #
 # #[derive(Debug, PartialEq, Eq, DataTableRow)]
 # struct UserRow {

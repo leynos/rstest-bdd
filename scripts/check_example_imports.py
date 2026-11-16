@@ -11,7 +11,10 @@ prelude rather than the crate root, and these claims enforce it:
   one. This half is unconditional, because declaring the crate is what lets a
   downstream crate reach past the facade.
 * Every example source that writes a scenario or step attribute imports the
-  prelude, does not name the crate root, and names no macro crate. This half is
+  prelude, does not name the crate root, and names no macro crate. Reach is
+  matched by path rather than by statement, so a qualified attribute such as
+  ``#[rstest_bdd::given(...)]`` and a raw ``rstest_bdd_macros::scenarios!(...)``
+  call are caught alongside the ``use`` forms they replace. This half is
   conditional: most example sources, including the CLI driver, never write
   those attributes and are therefore out of scope.
 
@@ -31,6 +34,7 @@ Exit codes
     the scan found nothing to check.
 """
 
+import re
 import sys
 import tomllib
 import typing as typ
@@ -41,10 +45,34 @@ FACADE_CRATE = "rstest-bdd"
 ROOT_PREFIX = "rstest_bdd"
 MACROS_CRATE = "rstest-bdd-macros"
 DEPENDENCY_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
-STEP_ATTRIBUTE_MARKERS = ("#[scenario", "#[given", "#[when", "#[then")
+# A scenario or step attribute, written bare or with any path prefix, so
+# `#[given(...)]` and `#[rstest_bdd::given(...)]` both select the file.
+STEP_ATTRIBUTE_PATH = re.compile(
+    r"#\[(?:[A-Za-z_][A-Za-z0-9_]*::)*(?:scenarios|scenario|given|when|then)\b"
+)
 PRELUDE_IMPORT_MARKER = f"use {ROOT_PREFIX}::prelude"
-CRATE_ROOT_IMPORT_MARKER = f"use {ROOT_PREFIX}::{{"
-MACROS_IMPORT_MARKERS = (f"use {ROOT_PREFIX}_macros", f"#[{ROOT_PREFIX}_macros::")
+
+# A path into the facade that is not the prelude. Matching the path rather than
+# the `use` statement is what catches a qualified attribute such as
+# `#[rstest_bdd::given(...)]`, which reaches the same item without importing it.
+CRATE_ROOT_PATH = re.compile(rf"\b{ROOT_PREFIX}::(?!prelude\b)")
+# Any mention of the macro crate: an import, a qualified attribute, or a raw
+# path into a function-like macro such as `rstest_bdd_macros::scenarios!(...)`.
+MACROS_CRATE_PATH = re.compile(rf"\b{ROOT_PREFIX}_macros\b")
+
+# Each way a source can reach past the prelude, with the remedy to report.
+REACH_RULES = (
+    (
+        MACROS_CRATE_PATH,
+        "names the macro crate directly",
+        f"import the attributes from the {FACADE_CRATE} facade instead",
+    ),
+    (
+        CRATE_ROOT_PATH,
+        f"reaches the {FACADE_CRATE} crate root",
+        f"an example reaches the facade through `use {ROOT_PREFIX}::prelude::*;` alone",
+    ),
+)
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -184,8 +212,8 @@ def is_in_scope(source: str) -> bool:
     bool
         ``True`` when the source rule applies to the file.
     """
-    return any(
-        marker in source for marker in (*STEP_ATTRIBUTE_MARKERS, *MACROS_IMPORT_MARKERS)
+    return STEP_ATTRIBUTE_PATH.search(source) is not None or (
+        MACROS_CRATE_PATH.search(source) is not None
     )
 
 
@@ -247,6 +275,30 @@ def manifest_violations(root: Path) -> list[str]:
     return violations
 
 
+def _reach_violations(path: Path, source: str) -> list[str]:
+    """
+    Report every way *source* reaches the facade outside the prelude.
+
+    Parameters
+    ----------
+    path : Path
+        The source file the violations belong to.
+    source : str
+        The text of that file.
+
+    Returns
+    -------
+    list[str]
+        One violation per distinct form the source uses; empty when it stays
+        inside the prelude.
+    """
+    return [
+        f"{path}: {description} ({match.group()!r}); {remedy}"
+        for pattern, description, remedy in REACH_RULES
+        if (match := pattern.search(source))
+    ]
+
+
 def _step_source_violations(path: Path, source: str) -> list[str]:
     """
     Return the facade violations for one step-bearing source.
@@ -263,17 +315,7 @@ def _step_source_violations(path: Path, source: str) -> list[str]:
     list[str]
         Human-readable violations; empty when the source is compliant.
     """
-    violations = [
-        f"{path}: names the macro crate directly ({marker!r}); import the "
-        f"attributes from the {FACADE_CRATE} facade instead"
-        for marker in MACROS_IMPORT_MARKERS
-        if marker in source
-    ]
-    if CRATE_ROOT_IMPORT_MARKER in source:
-        violations.append(
-            f"{path}: imports the {FACADE_CRATE} crate root; an example reaches "
-            f"the facade through `use {ROOT_PREFIX}::prelude::*;` alone"
-        )
+    violations = _reach_violations(path, source)
     if PRELUDE_IMPORT_MARKER not in source:
         violations.append(
             f"{path}: writes scenario or step attributes without importing the "

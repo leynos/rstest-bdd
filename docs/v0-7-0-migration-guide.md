@@ -293,19 +293,24 @@ surface through one import:
 use rstest_bdd::prelude::*;
 ```
 
-Two things stay outside it. `rstest` remains a direct dependency, because
+Three things stay outside it. `rstest` remains a direct dependency, because
 generated code names it in the consuming crate and its version has to stay
-under your control. `#[step_library]` is reached at `rstest_bdd::step_library`:
-the facade re-exports it, but only a consumer declaring a scoped vocabulary
-needs it, so it is not a prelude item. See
+under your control. The datatable derives, `DataTable` and `DataTableRow`, stay
+at the crate root, because only a step that receives a data table needs them.
+`#[step_library]` is reached at `rstest_bdd::step_library`: the facade
+re-exports it, but only a consumer declaring a scoped vocabulary needs it, so
+it is not a prelude item. Everything else is in the prelude: `given`, `when`,
+`then`, `scenario`, `scenarios`, `ScenarioState`, `StepArgs`, `Slot`,
+`StepContext`, `StepResult` and `StepError`. See
 [the users' guide](users-guide.md#importing-rstest-bdd).
 
 ## Migration checklist
 
 - [ ] Replace `use rstest_bdd_macros::{...}` in tests and examples with
       `use rstest_bdd::prelude::*;`, add `use rstest_bdd::step_library;` where
-      a module declares a library, and drop `rstest-bdd-macros` from the
-      manifest.
+      a module declares a library, take `DataTable` and `DataTableRow` from
+      the crate root where a step receives a data table, and drop
+      `rstest-bdd-macros` from the manifest.
 - [ ] Add ambiguity handling wherever a lookup result is consumed:
       `Result<Option<_>, StepLookupError>` replaced `Option<_>`.
 - [ ] Replace a `&'static Step` result with `ResolvedStep::as_step()` where the

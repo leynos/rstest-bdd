@@ -1467,6 +1467,42 @@ should be filed rather than forgotten:
 
 ## Decision log
 
+- **DL-21 — The round-two assessment's three gaps were closed by widening the
+  guards and finishing the documentation conversion.** Resolved on 2026-11-16
+  against head `f13a8f39`, whose verdict was "not yet complete against the
+  whole approved plan". Each finding named a hole rather than a style
+  preference, and each hole was one the branch's own claims made visible.
+
+  The example guard matched text markers: a `use` line, or the bare spelling of
+  an attribute. A step-bearing file could therefore write
+  `#[rstest_bdd::given(...)]`, or call `rstest_bdd_macros::scenarios!(...)`,
+  beside a compliant prelude import and pass. Reach is now matched by path
+  (`STEP_ATTRIBUTE_PATH`, `CRATE_ROOT_PATH`, `MACROS_CRATE_PATH`) through one
+  declarative `REACH_RULES` table, so the qualified attribute and the raw macro
+  path are reported by the same code that reports the `use` forms they replace.
+  Two negative tests cover them.
+
+  The V-1 dependency guard read only the top-level dependency tables and only
+  the key `rstest-bdd`. A renamed `package = "rstest-bdd"` entry and a
+  `[target.'cfg(unix)'.dependencies]` entry both reached the runtime unseen.
+  The guard now walks every nested table whose key names a dependency table and
+  resolves each entry through its `package` rename, and two regression tests
+  feed it inline manifests in exactly those two forms.
+
+  The migration checklist told users to replace macro-crate imports with the
+  prelude, which breaks the datatable derives: the prelude deliberately excludes
+  `DataTable` and `DataTableRow` under ADR-026's entry rule. The guide now
+  names three exclusions, lists the prelude's eleven names instead of linking
+  to them, and routes the datatable derives to the crate root. The users' guide
+  carried the same defect fifteen times: at the base it named
+  `rstest_bdd_macros` in 31 places, and this branch had converted 16 of them
+  while adding a sentence saying the import a user writes never names the macro
+  crate. The remaining fifteen now use `rstest_bdd::prelude::*`, or
+  `rstest_bdd::{DataTable, DataTableRow}` where a step receives a data table,
+  so the sentence holds for the guide's own examples.
+
+  Date/Author: 2026-11-16, implementation agent.
+
 - **DL-20 — The CodeScene findings against the prelude gate were fixed by
   decomposition, not suppressed.** Resolved on 2026-11-16 after the hosted
   CodeScene check failed at `492b457f` on three of its gates. Every finding was
@@ -2194,6 +2230,23 @@ was invisible until a push ran the hosted check — the same shape of gap that
 `scripts/check_example_imports.py`, its test module, and the `prelude_fixture`
 test support, so it is a code change and needs the full gate set rather than
 the Markdown-only subset the previous round could rely on.
+
+The second whole-plan assessment, returned against `f13a8f39`, closed four of
+the five earlier gaps and named three new ones: the example guard matched text
+markers rather than paths, the V-1 dependency guard read only top-level tables
+and literal keys, and the migration checklist claimed the prelude replaces
+every macro-crate import, which breaks the datatable derives it excludes. All
+three are recorded with their repairs as DL-21. Two of them are guard holes, so
+each repair carries a negative case that fails on the old code: a qualified
+attribute and a raw macro path in the example tests, a renamed `package` entry
+and a target-specific table in two inline-manifest tests. The third is a
+documentation defect that reached further than the report: the users' guide
+named `rstest_bdd_macros` in fifteen places this branch had not converted,
+beside a sentence it added saying that import never names the macro crate. All
+fifteen now use the facade, so the sentence is true of the guide's own examples.
+
+These edits touch Rust, Python and Markdown, so this round needs the full gate
+set again rather than a subset.
 
 ## Surprises & discoveries
 

@@ -54,6 +54,56 @@ use rstest_bdd::{
 };
 use toml::Value;
 
+/// The tables a Cargo manifest can declare a dependency in.
+const DEPENDENCY_TABLES: [&str; 3] = ["dependencies", "dev-dependencies", "build-dependencies"];
+
+/// Every dependency table reachable from *table*, including nested ones.
+///
+/// A crate declared under `[target.'cfg(unix)'.dependencies]` reaches the same
+/// place as a top-level entry, so a check that reads only the top-level tables
+/// would let it through.
+fn dependency_tables(table: &toml::map::Map<String, Value>) -> Vec<&toml::map::Map<String, Value>> {
+    let mut found = Vec::new();
+    for (key, value) in table {
+        let Some(nested) = value.as_table() else {
+            continue;
+        };
+        if DEPENDENCY_TABLES.contains(&key.as_str()) {
+            found.push(nested);
+        } else {
+            found.extend(dependency_tables(nested));
+        }
+    }
+    found
+}
+
+/// The crate one dependency entry declares, following a `package` rename.
+///
+/// The key is the name the dependent's source writes, which is not the crate it
+/// resolves to once the entry is renamed with `package`.
+fn declared_crate<'a>(key: &'a str, spec: &'a Value) -> &'a str {
+    spec.as_table()
+        .and_then(|entry| entry.get("package"))
+        .and_then(Value::as_str)
+        .unwrap_or(key)
+}
+
+/// Every crate *manifest* declares, under the name each entry resolves to.
+///
+/// A manifest that is not a table declares nothing, which is the right answer
+/// for this guard: it is asked what a manifest depends on, not whether the
+/// manifest is well formed.
+fn declared_crates(manifest: &Value) -> Vec<&str> {
+    let Some(table) = manifest.as_table() else {
+        return Vec::new();
+    };
+    dependency_tables(table)
+        .into_iter()
+        .flat_map(|table| table.iter())
+        .map(|(key, spec)| declared_crate(key.as_str(), spec))
+        .collect()
+}
+
 #[test]
 fn macros_crate_does_not_depend_on_runtime() {
     let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -76,25 +126,46 @@ fn macros_crate_does_not_depend_on_runtime() {
         Some("rstest-bdd-macros"),
         "the path should resolve to the macro crate manifest",
     );
-    let dependencies = manifest
-        .get("dependencies")
-        .and_then(Value::as_table)
-        .expect("macro crate should have normal dependencies");
+    let declared = declared_crates(&manifest);
     assert!(
-        dependencies.contains_key("rstest-bdd-patterns"),
-        "positive control: macro crate should use the shared patterns crate",
+        declared.contains(&"rstest-bdd-patterns"),
+        "positive control: the macro crate should use the shared patterns crate; declared: \
+         {declared:?}",
     );
+    assert!(
+        !declared.contains(&"rstest-bdd"),
+        "the macro crate must not depend on the runtime by any spelling; declared: {declared:?}",
+    );
+}
 
-    for table_name in ["dependencies", "dev-dependencies", "build-dependencies"] {
-        let Some(entries) = manifest.get(table_name) else {
-            continue;
-        };
-        let entries = entries
-            .as_table()
-            .expect("dependency sections should be tables");
-        assert!(
-            !entries.contains_key("rstest-bdd"),
-            "macro crate must not depend on the runtime through {table_name}",
-        );
-    }
+#[test]
+fn guard_sees_a_renamed_runtime_dependency() {
+    let manifest: Value = toml::from_str(
+        r#"
+[dev-dependencies]
+runtime = { package = "rstest-bdd", path = "../rstest-bdd" }
+"#,
+    )
+    .expect("the inline manifest should parse");
+
+    assert!(
+        declared_crates(&manifest).contains(&"rstest-bdd"),
+        "a `package` rename declares the runtime under the alias it hides behind",
+    );
+}
+
+#[test]
+fn guard_sees_a_target_specific_runtime_dependency() {
+    let manifest: Value = toml::from_str(
+        r#"
+[target.'cfg(unix)'.dependencies]
+rstest-bdd = { path = "../rstest-bdd" }
+"#,
+    )
+    .expect("the inline manifest should parse");
+
+    assert!(
+        declared_crates(&manifest).contains(&"rstest-bdd"),
+        "a target-specific table declares the runtime for the targets it selects",
+    );
 }
