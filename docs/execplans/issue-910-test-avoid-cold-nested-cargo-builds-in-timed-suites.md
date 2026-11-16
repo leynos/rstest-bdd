@@ -1456,7 +1456,7 @@ rather than by reading this branch's comments.
       than the label: `git log -1 --format='%h parents=%p'` and
       `git merge-base --is-ancestor origin/main HEAD` are the check, and
       neither was run against `b4d0ecef` before it was pushed.
-- [ ] Re-run the full gate sequence on the merged head through the
+- [x] Re-run the full gate sequence on the merged head through the
       scrutineer, sequentially and without a competing run in this worktree.
       The earlier `make test` failure at `2afbbf91` in
       `feature_edit_forces_rebuild_and_fresh_failure` was a stamp refusal
@@ -1465,8 +1465,20 @@ rather than by reading this branch's comments.
       `feature_rebuild_invalidation` scenarios passed 4/4 in 305 s. That run
       overlapped this worktree with the gate itself, and both processes run
       `cargo clean -p rstest-bdd-rebuild-invalidation-fixture` before their
-      baselines, so the overlap is the leading explanation. The merged head
-      needs a clean serialized run to confirm it rather than assume it.
+      baselines, so the overlap is the leading explanation. On `64e50d5b` the
+      clean serialized run confirmed it: `check-fmt`, `markdownlint` and
+      `typecheck` all exited 0, and `make test` ran 2245 of 2368 tests with
+      **2244 passed and zero assertion failures**. The one non-pass was
+      `rstest-bdd::trybuild_macros preparation::nested_fixture_preparation`,
+      killed by nextest's 30-minute override — not a failure of the test. It
+      self-reported completion (`prepared in 1337.1s`, stamp written), the
+      ceiling fired 463 s later with nothing logged in between, and the same
+      test run alone afterwards passed in **352 s**. The log carries 178
+      `[build-limits] ... waiting for a compile slot` lines, one naming 158
+      crates ahead, so the elapsed time was queue time rather than compiler
+      time; the "0 Compiling lines" in the preparation's own summary is the
+      same fact. This is a bounded-wait expiry under shared admission, which
+      the operating contract classes as a wait and not an impasse.
 - [x] Clear the `// weave: run 'weave explain ...'` annotations the conflict
       resolution left in resolved files. Four were present, not three, and
       `make check-fmt` named two of them as formatting diffs. They are
