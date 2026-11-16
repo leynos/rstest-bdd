@@ -102,10 +102,16 @@ use scanner::scan_region;
 /// The regions currently under enforcement. Keep this list in sync with the
 /// documents; the loaders below enforce exactly it.
 fn enforced_regions() -> Vec<EnforcedRegion> {
-    vec![EnforcedRegion {
-        document: DocumentPath("docs/users-guide.md"),
-        section: SectionHeading("Feature file rebuild invalidation"),
-    }]
+    vec![
+        EnforcedRegion {
+            document: DocumentPath("docs/users-guide.md"),
+            section: SectionHeading("Feature file rebuild invalidation"),
+        },
+        EnforcedRegion {
+            document: DocumentPath("docs/users-guide.md"),
+            section: SectionHeading("Importing `rstest-bdd`"),
+        },
+    ]
 }
 
 /// Every marked example in the enforced documents, in document order.

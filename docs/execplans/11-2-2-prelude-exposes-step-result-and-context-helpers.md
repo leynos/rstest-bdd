@@ -1717,7 +1717,7 @@ in their own manifest.
 - [x] EP-M2 — the prelude module.
 - [x] EP-M3 — marker documentation and the missing trybuild fixture.
 - [x] EP-M4 — example migration and the two fixture crates.
-- [ ] EP-M5 — the drift gate and the users-guide table.
+- [x] EP-M5 — the drift gate and the users-guide table.
 - [ ] EP-M6 — remaining documentation and ADR-024.
 - [ ] EP-M7 — roadmap amendment, full gates, pull request.
 
@@ -1780,6 +1780,32 @@ and the direct entry point keeps a compiled consumer once no example names it.
 And `scripts/check_example_imports.py` reports an empty scan as a violation in
 both halves, because a structural gate whose search silently matches nothing
 passes for the wrong reason.
+
+EP-M5 is implemented and committed alongside this paragraph. The users guide
+gains an "Importing `rstest-bdd`" section immediately before "Step
+definitions", with the glob example, the spelled-out example, and the
+fourteen-row item table: thirteen prelude bindings, with two rows each for
+`ScenarioState` and `StepArgs`, plus the `#[harness_context]` row that reads
+"no import required". `scripts/check_prelude_exports.py` reads `prelude.rs`,
+the crate root, the guide's section, and the three READMEs, and fails when any
+of them disagrees with the others.
+`scripts/tests/test_check_prelude_exports.py` covers each disagreement against
+a synthetic tree plus one live assertion over this repository. The script is
+wired into `make lint`, and the section is registered as a second
+`EnforcedRegion`, so its fences must stay marker-carrying and loadable. The
+non-vacuity proofs are recorded under "Artefacts and notes".
+
+The check is four modules rather than one, because the Python budget is the
+same 400 lines pylint enforces for Rust (`C0302`): a single file that parsed
+the Rust, read the Markdown, and compared them reached 631 lines.
+`scripts/prelude_exports.py` reads the two Rust sources,
+`scripts/prelude_docs.py` locates the section and reads its tables and fences,
+`scripts/prelude_drift.py` turns the pairs into violations, and
+`scripts/check_prelude_exports.py` is the CLI. The split follows the existing
+`scripts/users_guide_links.py` and `scripts/check_users_guide_links.py` pair.
+Two of this repository's own DF12 lints then shaped the code: the
+constant-comparison chain in `split_top_level` became a `match`, and every test
+assertion carries a failure message so a red case prints its violations.
 
 On 2026-11-03, the sequential M2 recheck passed `make check-fmt` but
 `CARGO_BUILD_JOBS=2 make test` again timed out in a nested Cargo fixture.
@@ -1924,6 +1950,28 @@ is
 `/tmp/publish-check-ep-m1-isolated-scratch-11-2-2-public-prelude-execplan.out`.
 The external cache directory keeps the preflight's temporary test workspaces
 outside the checkout; Cargo still uses the shared package cache.
+
+EP-M5's four Python modules, their test module, the Makefile wiring, the
+users-guide table and this section are committed alongside this paragraph
+(2026-11-16). Bringing the candidate through `make lint` uncovered a second
+wave of Whitaker drift: the locally installed suite was rebuilt at 09:07 UTC
+that day (library mtime 10:07:40 +0100, tip checkout `880939d1`), so findings
+appeared in functions this branch does not change. The repairs are committed
+separately as `4e2c80b5`. Thirteen named functions were refactored by helper
+extraction — never by `#[allow]` — in four waves: four in `rstest-bdd-macros`
+(`canonicalize_with_cap_std`, `resolve_scenario`, `extract_examples`,
+`parse_primary`; `/tmp/lint-ep-m5d-20261116T120224Z.out`), then `try_from` in
+`crates/rstest-bdd/src/datatable/rows.rs`, then a `--keep-going` sweep that
+re-reported `try_from` beside eight new sites
+(`/tmp/lint-whitaker-discovery-20261116T124914Z.out`), then three more after
+two first-pass refactors left the nested clusters inside their new helpers and
+one helper the first pass created was itself flagged
+(`/tmp/lint-whitaker-b-20261116T130340Z.out`,
+`/tmp/lint-whitaker-c-20261116T131101Z.out`). `text_document.rs` had grown to
+407 lines against the 400-line module cap, so its Rust-index application moved
+to a `rust_index` child module (312 + 132 lines). `make lint-whitaker` passed
+on this tree in 3.13 s at 13:12 UTC
+(`/tmp/lint-whitaker-d-20261116T131252Z.out`).
 
 ## Surprises & discoveries
 
@@ -2110,6 +2158,59 @@ Recorded during planning and execution as evidence was confirmed.
   being redundant with it, and EP-M0 now re-probes it before anything depends
   on it.
 
+- **Observation:** `pub use` cannot say what kind of item a name is, so the
+  drift gate needs its own kind table. **Evidence:**
+  `crates/rstest-bdd/src/prelude.rs` states in prose that `ScenarioState` and
+  `StepArgs` each name a trait and a derive macro; nothing in the two `pub use`
+  statements records which is which, and the two halves live in different
+  crates. **Impact:** `ITEM_KINDS` in `scripts/prelude_exports.py` is the only
+  machine-readable statement of that fact. A prelude binding with no entry
+  there is reported as a violation rather than assumed correct, so adding an
+  export fails the gate until its documentation row is written.
+
+- **Observation:** the "fully spelled" import must be spelled through the crate
+  root, not through the defining modules. **Evidence:** the prelude's module
+  documentation promises that it "adds no names that are unavailable at the
+  root", and `crates/rstest-bdd/src/lib.rs:56-160` re-exports every one of the
+  six runtime bindings. **Impact:** the users-guide example names
+  `rstest_bdd::{…}` only, and the gate rejects any spelled example that names
+  `rstest_bdd_macros`, which would have re-taught the very habit EP-M4 removed
+  from the examples.
+
+- **Observation:** the Python side of `make lint` is three gates with three
+  separate opinions, and passing one says nothing about the others.
+  **Evidence:** a single-file checker passed `ruff check` and its own tests,
+  then failed pylint with `C0302 Too many lines in module (631/400)`; after the
+  file was split into four cohesive modules, pylint passed at 10.00/10 but the
+  DF12 plugin rejected a constant-comparison chain (`R9103`) and ten test
+  assertions without failure messages (`C9102`). **Impact:** budget a Python
+  helper like a Rust module — split before the first gate run — and read
+  `make lint-python`'s whole recipe, not only the first red line, because each
+  step stops the recipe before the next one has a verdict.
+
+- **Observation:** the Whitaker suite is a rolling tip, so a green gate speaks
+  for one `.so` file rather than for the branch alone. **Evidence:** on
+  2026-11-16 the suite staged under
+  `~/.cache/whitaker-tip/staging/nightly-2026-05-28/` was rebuilt at 09:07 UTC
+  (library mtime 10:07:40 +0100; tip checkout `880939d1`), and the next
+  `make lint` reported thirteen `bumpy_road_function` sites in functions that
+  `origin/main` carries unchanged, among them
+  `crates/rstest-bdd-macros/src/parsing/tags/parser.rs` and
+  `crates/rstest-bdd/src/datatable/rows.rs`. **Impact:** attribute a red
+  `lint-whitaker` finding before repairing it — check the library's mtime and
+  the function's own history — and still repair it by helper extraction, since
+  the shipped suite is what CI's pinned copy converges on. The same rebuild
+  enforced the 400-line module cap on `text_document.rs`.
+
+- **Observation:** the Whitaker gate stops at the first failing crate, so a fix
+  loop costs one full rebuild per finding unless the checker is asked to keep
+  going. **Evidence:** adding `--keep-going` to
+  `whitaker --lib whitaker_suite -- --workspace --all-targets --all-features`
+  enumerated all nine outstanding sites in one 5 m 29 s run while exiting 0, so
+  the run is a survey rather than a gate. **Impact:** survey with
+  `--keep-going`, then repair the set, then run `make lint-whitaker` for the
+  verdict; do not read the survey's exit status as a gate result.
+
 ## Outcomes & retrospective
 
 Not yet started. To be completed at EP-M7.
@@ -2136,6 +2237,18 @@ To be filled in as milestones land. Required transcripts:
 - EP-M1: `make publish-check` output; the post-change measurements.
 - EP-M2: the red doctest failure and the green pass.
 - EP-M5: the two deliberate-desynchronization failures proving the gate bites.
+  Both were run on 2026-11-16 at HEAD
+  `56251dff912a7c0c31c1c891a5025bae15327393` and restored afterwards.
+  - `/tmp/nonvacuity-prelude-export.out`: with `then` removed from the macro
+    `pub use` line (mutated file sha256 `170eb4b0…`), `python3
+    scripts/check_prelude_exports.py` exited 1 reporting both "the table
+    documents rstest-bdd-macros::then, which the prelude does not export" and
+    "the spelled example names then, which the prelude does not export", and
+    `cargo test -p rstest-bdd --doc` exited 101 with "cannot find attribute
+    `then` in this scope" and one failing doctest.
+  - `/tmp/nonvacuity-table-row.out`: with the `Slot` row deleted from the item
+    table (mutated guide sha256 `3facc3ba…`), the same script exited 1 with
+    "the table omits rstest-bdd::Slot". The restored tree exits 0.
 - EP-M7: the full gate suite, with log paths under `/tmp/`.
 
 ## Interfaces and dependencies
