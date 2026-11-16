@@ -92,6 +92,14 @@ version = "0.1.0"
 rstest-bdd-macros = "0.7.0"
 """
 
+FACADE_ALIAS_SOURCE = """\
+use rstest_bdd as bdd;
+use rstest_bdd::prelude::*;
+
+#[bdd::when("a step")]
+fn a_step() {}
+"""
+
 NO_FACADE_SOURCE = """\
 use some_other_crate::Thing;
 
@@ -288,6 +296,31 @@ def test_reports_macros_dependency_in_any_spelling(
     violations = check_example_imports(tmp_path)
 
     assert any(MACROS_CRATE in violation for violation in violations), reason
+
+
+@pytest.mark.parametrize(
+    "expected",
+    ["facade as `bdd`", "through the alias `bdd`"],
+    ids=["alias-import", "alias-use"],
+)
+def test_reports_a_facade_alias(tmp_path: Path, expected: str) -> None:
+    """An alias import, and an attribute written through it, both reach past.
+
+    The second row is the form the path rule cannot see: `#[bdd::when(...)]`
+    reaches the crate root without spelling `rstest_bdd::`.
+    """
+    write_example(
+        tmp_path,
+        "facade-alias",
+        FACADE_MANIFEST,
+        {"tests/steps.rs": FACADE_ALIAS_SOURCE},
+    )
+
+    violations = check_example_imports(tmp_path)
+
+    assert any(expected in violation for violation in violations), (
+        f"a facade alias should be reported as {expected!r}"
+    )
 
 
 def test_reports_a_scan_that_found_nothing(tmp_path: Path) -> None:
