@@ -28,22 +28,6 @@ enum AttemptAction {
     ResumeUnwind(Box<dyn Any + Send>),
 }
 
-impl AttemptAction {
-    /// Reports whether this action completes the seed successfully.
-    const fn is_success(&self) -> bool { matches!(self, Self::Success) }
-
-    /// Reports whether the controller should repeat the current seed.
-    const fn is_retry(&self) -> bool { matches!(self, Self::Retry) }
-
-    /// Extracts the panic payload retained exclusively by a terminal failure.
-    fn into_panic(self) -> Box<dyn Any + Send> {
-        match self {
-            Self::ResumeUnwind(error) => error,
-            Self::Success | Self::Retry => unreachable!("only failure actions carry panic data"),
-        }
-    }
-}
-
 /// Minimal dispatcher value passed through `run_test`.
 #[derive(Clone, Debug, Default)]
 pub struct TestDispatcher {
@@ -170,14 +154,6 @@ where
 ///
 /// The retry diagnostics deliberately go directly to the test process because
 /// this minimal shim does not install a global tracing subscriber.
-#[expect(
-    clippy::print_stdout,
-    reason = "retry progress must remain visible without a global tracing subscriber"
-)]
-#[expect(
-    clippy::print_stderr,
-    reason = "seed diagnostics must remain visible when a test eventually panics"
-)]
 pub fn run_test(
     num_iterations: usize,
     explicit_seeds: &[u64],
@@ -188,30 +164,74 @@ pub fn run_test(
     let (seeds, is_multiple_runs) = calculate_seeds(num_iterations as u64, explicit_seeds);
 
     for seed in seeds {
-        let mut attempt = 0;
-        loop {
-            if is_multiple_runs {
-                eprintln!("seed = {seed}");
-            }
+        run_seed(seed, is_multiple_runs, max_retries, test_fn, on_fail_fn);
+    }
+}
 
-            let action = classify_attempt(seed, attempt, max_retries, test_fn);
-            if action.is_success() {
-                break;
+/// Runs one seed until it succeeds or exhausts the configured retries.
+fn run_seed(
+    seed: u64,
+    is_multiple_runs: bool,
+    max_retries: usize,
+    test_fn: &mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
+    on_fail_fn: Option<fn()>,
+) {
+    for attempt in 0..=max_retries {
+        report_seed(seed, is_multiple_runs);
+        match classify_attempt(seed, attempt, max_retries, test_fn) {
+            AttemptAction::Success => return,
+            AttemptAction::Retry => report_retry(attempt),
+            AttemptAction::ResumeUnwind(payload) => {
+                resume_failed_seed(seed, is_multiple_runs, on_fail_fn, payload);
             }
-            if action.is_retry() {
-                println!("attempt {attempt} failed, retrying");
-                attempt += 1;
-                continue;
-            }
-
-            if is_multiple_runs {
-                eprintln!("failing seed: {seed}");
-            }
-            if let Some(on_fail_fn) = on_fail_fn {
-                on_fail_fn();
-            }
-            panic::resume_unwind(action.into_panic());
         }
+    }
+
+    unreachable!("the final retry attempt must succeed or resume its panic");
+}
+
+/// Prints a seed label when the test runs with multiple seeds.
+#[expect(
+    clippy::print_stderr,
+    reason = "seed diagnostics must remain visible without a global tracing subscriber"
+)]
+fn report_seed(seed: u64, is_multiple_runs: bool) {
+    if is_multiple_runs {
+        eprintln!("seed = {seed}");
+    }
+}
+
+/// Prints progress after a failed attempt that will be retried.
+#[expect(
+    clippy::print_stdout,
+    reason = "retry progress must remain visible without a global tracing subscriber"
+)]
+fn report_retry(attempt: usize) {
+    println!("attempt {attempt} failed, retrying");
+}
+
+/// Reports a terminal seed failure and resumes its original panic payload.
+fn resume_failed_seed(
+    seed: u64,
+    is_multiple_runs: bool,
+    on_fail_fn: Option<fn()>,
+    payload: Box<dyn Any + Send>,
+) -> ! {
+    report_failing_seed(seed, is_multiple_runs);
+    if let Some(on_fail_fn) = on_fail_fn {
+        on_fail_fn();
+    }
+    panic::resume_unwind(payload)
+}
+
+/// Prints a seed label when a multi-seed run reaches a terminal failure.
+#[expect(
+    clippy::print_stderr,
+    reason = "the failing seed must remain visible without a global tracing subscriber"
+)]
+fn report_failing_seed(seed: u64, is_multiple_runs: bool) {
+    if is_multiple_runs {
+        eprintln!("failing seed: {seed}");
     }
 }
 
