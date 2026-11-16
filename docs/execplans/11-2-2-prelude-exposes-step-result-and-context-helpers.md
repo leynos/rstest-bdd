@@ -5,18 +5,21 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IN PROGRESS — the user approved this plan on 2026-10-25 and directed
-full implementation through PR completion on 2026-11-01. EP-M0, EP-M1, EP-M2
-and EP-M3 are complete: the dependency edge is in place, the crate root
-re-exports the macro surface, `rstest_bdd::prelude` binds all thirteen names
-across eleven spellings, the step attributes document `#[harness_context]`, and
-a compile-fail fixture pins the diagnostic for the marker written without a
-step attribute. The branch is green on all four gates — `make check-fmt`,
-`make test`, `make typecheck` and `make lint` — on the EP-M3 candidate, and
-pull request 773 targets the `issue-901` branch. EP-M4 onwards remain. The
-corrected package-identity count is 129 normal packages, within the approved
-ceiling of 135; see DL-14. DL-11 records the revised file-count tolerance;
-DL-12 adapts EP-M0 to the shared build environment.
+Status: IMPLEMENTATION COMPLETE — the user approved this plan on 2026-10-25 and
+directed full implementation through PR completion on 2026-11-01. EP-M0 through
+EP-M7 have landed on the branch: the dependency edge is in place, the crate
+root re-exports the macro surface, `rstest_bdd::prelude` binds all thirteen
+items across eleven spellings, the step attributes document
+`#[harness_context]`, a compile-fail fixture pins the diagnostic for the marker
+written without a step attribute, the examples reach the facade through the
+prelude alone, the fixture crates prove a downstream manifest, the drift gate
+holds the documentation to the code, ADR-026 records the decision, and
+`docs/roadmap.md` carries the amended finish line. Pull request 773 is in
+review against the `issue-901` branch. The corrected package-identity count is
+129 normal packages, within the approved ceiling of 135; see DL-14. DL-11
+records the revised file-count tolerance; DL-12 adapts EP-M0 to the shared
+build environment. The follow-up items the plan deliberately left out are filed
+as issues #952-#959.
 
 ## Purpose / big picture
 
@@ -1420,39 +1423,41 @@ should be filed rather than forgotten:
    a surface whose *additions* can break glob importers. `cargo-public-api` is
    the tool that sees this hazard; `cargo-semver-checks` does not, because the
    Cargo Book classifies such additions as minor. This deserves its own roadmap
-   entry.
+   entry. Filed as #952.
 2. **Sever `rstest-bdd-harness-gpui -> rstest-bdd`.** That crate uses exactly
    one item from the runtime crate, `rstest_bdd::panic_message`
    (`crates/rstest-bdd-harness-gpui/src/gpui_harness/mod.rs:40`). Moving the
    helper into `rstest-bdd-harness` would remove the edge and eliminate most of
-   R-2's cost for GPUI users.
+   R-2's cost for GPUI users. Filed as #953.
 3. **Audit `cargo_metadata` in `rstest-bdd-harness`'s normal dependencies.** It
    drags `semver`, `camino`, `cargo-platform`, and `serde_json` into the macro
    crate's graph. If it is test-support-only, moving it behind a feature would
-   cut a meaningful slice off R-2 independently of this work.
+   cut a meaningful slice off R-2 independently of this work. Filed as #954.
 4. **Complete the datatable story in the prelude.** Ship `DataTable` and
    `DataTableRow` together with `rstest_bdd::datatable::Rows` and
-   `DataTableError`, or leave all four out. This plan leaves them out.
+   `DataTableError`, or leave all four out. This plan leaves them out. Filed as
+   #955.
 5. **Make the examples copy-pasteable.** Every example carries
    `#[rstest_bdd_test_macros::allow_fixture_expansion_lints]` from an
    unpublished crate, so a user copying `examples/todo-cli/tests/todo.rs` off
    GitHub today gets
    `E0433: failed to resolve: use of undeclared crate rstest_bdd_test_macros`.
    That predates this plan but the prelude promotes the examples to the proof
-   of the framework's ergonomics, which makes it more visible.
+   of the framework's ergonomics, which makes it more visible. Filed as #956.
 6. **Add a `--no-default-features` gate.** The only lane that builds without
    default features is Windows, and its coverage step carries
    `continue-on-error: true`, so it cannot red the build. `diagnostics` remains
    a default feature after this change even though `macros` does not exist.
+   Filed as #957.
 7. **Enforce ADR number uniqueness.** `005` is duplicated because nothing
-   checks.
+   checks. Filed as #958.
 8. **Resolve the `rstest` attribute path through `proc_macro_crate`.**
    `crates/rstest-bdd-harness/src/policy.rs:89` hard-codes `"rstest::rstest"`,
    so a consumer who renames the dependency gets a bare
    `unresolved import rstest` from code they never wrote, and a consumer who
    omits it gets no actionable hint. Resolving it the way first-party paths are
    resolved would fix both. This is behavioural change in the harness crate and
-   does not belong in a v0.6.1 additive item. See R-11.
+   does not belong in a v0.6.1 additive item. See R-11. Filed as #959.
 
 ## Decision log
 
@@ -1724,7 +1729,7 @@ in their own manifest.
 - [x] EP-M4 — example migration and the two fixture crates.
 - [x] EP-M5 — the drift gate and the users-guide table.
 - [x] EP-M6 — remaining documentation and ADR-027.
-- [ ] EP-M7 — roadmap amendment, full gates, pull request.
+- [x] EP-M7 — roadmap amendment, full gates, pull request.
 
 EP-M1 is committed as `7fbd9fee`: the macro edge, crate-root re-exports,
 manifest acyclicity test, paired-fixture comments, and fixture lock refreshes.
@@ -1829,6 +1834,29 @@ reported zero errors over 144 files, and `make nixie` validated every diagram.
 This paragraph and the checklist tick above were added after that run. Neither
 is read by the four gates, so `make check-fmt` and `make markdownlint` were
 re-run over the final tree and their verdicts are in the commit message.
+
+EP-M7 is committed alongside this paragraph. It replaces the roadmap 11.2.2
+entry with the DL-9 text, ticks it complete, records what shipped and what was
+deliberately left out, and files the eight follow-up items as issues #952-#959.
+The `Status` line and the `Outcomes & retrospective` section are updated to
+match. Two repair commits precede it: `a3896359` splits the prelude drift
+check's long functions and `60535421` lowers its branch count after the hosted
+CodeScene advisory gate rejected the first attempt at 9.39.
+
+All seven gates of EP-M7's step 3 passed on the tree this certifies, at HEAD
+`60535421` with the dirty tree hashing to
+`77ddaf5c534395e3bc0e5dfe52e9a395ade66e1783c3fd8282db8fcb80d1c54c` at both
+start and end, so no gate input moved under them: `make check-fmt` in 2 s,
+`make lint` in 19 s with all eleven steps reaching a verdict, `make typecheck`
+in 4 s, `make test` in 570 s (2,394 nextest passed with seven skipped, 813 on
+the no-default-features leg with seven skipped, every doctest, and 318 pytest
+checks), `make markdownlint` in 20 s with zero errors over 144 files after
+`typos.toml` regenerated byte-identically, `make nixie` in 1 s, and
+`make publish-check` in 453 s over nine lockfiles. Transcripts are
+`/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie,publish-check}-ep-m7-11-2-2-public-prelude-execplan.out`.
+This paragraph was added after that run, and `make markdownlint` reads this
+file, so it and `make check-fmt` were re-run over the final tree and their
+verdicts are in the commit message.
 
 On 2026-11-03, the sequential M2 recheck passed `make check-fmt` but
 `CARGO_BUILD_JOBS=2 make test` again timed out in a nested Cargo fixture.
@@ -2267,9 +2295,67 @@ Recorded during planning and execution as evidence was confirmed.
   explicit, as the milestone's keep-list requires. Moving the GPUI test and its
   prose together is follow-up work, not a documentation edit.
 
+- **Observation:** CodeScene's advisory gate does enforce
+  `Overall Code Complexity`, and that rule is the *mean* cyclomatic complexity
+  across a file's functions, so satisfying `Complex Method` by extracting
+  helpers makes it worse. **Evidence:** the hosted check on `a3896359` failed
+  with "Enforce advisory code health rules (1 file with Overall Code
+  Complexity)" at 9.39 for `scripts/prelude_drift.py`, a file whose Complex
+  Method findings that commit had just removed; `cs review` names the rule's
+  definition, and lowering the file's total branch count rather than splitting
+  it again reached 10.0. **Impact:** re-measure a file after a split that clears
+  `Complex Method`, because the extracted helpers join the mean the other rule
+  scores.
+
 ## Outcomes & retrospective
 
-Not yet started. To be completed at EP-M7.
+All seven milestones landed. `rstest-bdd` now depends on `rstest-bdd-macros`,
+re-exports that crate's surface at its root, and offers `rstest_bdd::prelude`
+as a strict subset: eleven names, thirteen items, and nothing reachable only
+through the prelude. The four examples import it without naming the macro crate,
+`crates/rstest-bdd/tests/fixtures/prelude_only` proves a downstream manifest
+needs only `rstest-bdd` and `rstest`, and `scripts/check_prelude_exports.py`
+fails when the users' guide's item table, its spelled-out example, or the
+README imports disagree with the code.
+
+The three observable successes in the purpose section are met as follows. The
+examples build and pass with no path to the macro crate (V-5). The users' guide
+lists the exports under a gate that bites: EP-M5's two deliberate
+desynchronizations each made the check exit non-zero, and both recordings are in
+`Artefacts and notes`. The downstream fixture crate compiles and runs a
+scenario. ADR-026 records the decision and the admission bar; the roadmap entry
+carries the amended finish line.
+
+Two requirements from the original entry could not be met as written, and the
+plan says so rather than pretending otherwise. DL-9 replaced "examples import
+only the prelude plus their harness crate" with "no example reaches past the
+facade for something the facade provides", because `rstest` must stay in the
+consuming manifest, generated code emits bare `rstest`, `tokio`, and `gpui`
+paths, and the examples use an unpublished test-scaffolding crate. DL-2 made
+the macro edge unconditional, because no available gate would protect a
+feature-gated re-export. Both were approved before implementation; neither was
+discovered late.
+
+The lesson worth keeping is about CodeScene's advisory gate. Its
+`Overall Code Complexity` rule is the **mean** cyclomatic complexity across a
+file's functions, and it is enforced. Splitting a long function to satisfy
+`Complex Method` therefore raises the mean, because every extracted helper
+contributes its own branches to the average: the first repair commit on the
+drift checker cleared four findings and still failed the gate at 9.39. What
+worked was lowering the total: one lookup instead of three scans, one loop over
+a symmetric difference instead of two generator expressions, and a header check
+lifted out of a row walk. Both rules are satisfied now, at 10.0 per file.
+
+A second lesson is about drift gates. A check that compares generated truth
+with prose must report when it finds *nothing* to compare. An empty table, a
+missing example block, or a README with no braced import all read as agreement
+otherwise, and the gate passes for the wrong reason. Every comparison in the
+three `scripts/prelude_*.py` modules emits a violation when its input is absent.
+
+Residual risk, carried by issues rather than by this change: the prelude's glob
+hazard has no public-API gate (#952), the macro edge costs thirty extra
+packages and no gate measures that (#954), and the examples still need an
+unpublished crate to be copy-pasteable (#956).
 
 ## Idempotence and recovery
 
@@ -2313,7 +2399,9 @@ To be filled in as milestones land. Required transcripts:
   gained the supported `rstest` range, which R-11's mitigation requires. The
   four commit-gate transcripts are
   `/tmp/{check-fmt,lint,typecheck,test}-ep-m6-11-2-2-public-prelude-execplan.out`.
-- EP-M7: the full gate suite, with log paths under `/tmp/`.
+- EP-M7: `docs/roadmap.md`'s amended 11.2.2 entry with its completion note,
+  issues #952-#959 for the follow-up items, and the seven gate transcripts
+  `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie,publish-check}-ep-m7-11-2-2-public-prelude-execplan.out`.
 
 ## Interfaces and dependencies
 
