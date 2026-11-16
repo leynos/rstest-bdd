@@ -6,15 +6,17 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 be kept up to date as work proceeds.
 
 Status: IN PROGRESS — the user approved this plan on 2026-10-25 and directed
-full implementation through PR completion on 2026-11-01. EP-M0, EP-M1 and EP-M2
-are complete: the dependency edge is in place, the crate root re-exports the
-macro surface, and `rstest_bdd::prelude` binds all thirteen names across eleven
-spellings. The rebased branch is green on all four gates at
-`8972fb920cf2406f51509febfb3a2d351ced4672`, and pull request 773 now targets the
-`issue-901` branch. EP-M3 onwards remain. The corrected package-identity count
-is 129 normal packages, within the approved ceiling of 135; see DL-14. DL-11
-records the revised file-count tolerance; DL-12 adapts EP-M0 to the shared
-build environment.
+full implementation through PR completion on 2026-11-01. EP-M0, EP-M1, EP-M2
+and EP-M3 are complete: the dependency edge is in place, the crate root
+re-exports the macro surface, `rstest_bdd::prelude` binds all thirteen names
+across eleven spellings, the step attributes document `#[harness_context]`, and
+a compile-fail fixture pins the diagnostic for the marker written without a
+step attribute. The branch is green on all four gates — `make check-fmt`,
+`make test`, `make typecheck` and `make lint` — on the EP-M3 candidate, and
+pull request 773 targets the `issue-901` branch. EP-M4 onwards remain. The
+corrected package-identity count is 129 normal packages, within the approved
+ceiling of 135; see DL-14. DL-11 records the revised file-count tolerance;
+DL-12 adapts EP-M0 to the shared build environment.
 
 ## Purpose / big picture
 
@@ -1712,8 +1714,8 @@ in their own manifest.
 
 - [x] EP-M0 — orientation and green baseline.
 - [x] EP-M1 — dependency edge, crate-root re-export, lockfile refresh.
-- [ ] EP-M2 — the prelude module.
-- [ ] EP-M3 — marker documentation and the missing trybuild fixture.
+- [x] EP-M2 — the prelude module.
+- [x] EP-M3 — marker documentation and the missing trybuild fixture.
 - [ ] EP-M4 — example migration and the two fixture crates.
 - [ ] EP-M5 — the drift gate and the users-guide table.
 - [ ] EP-M6 — remaining documentation and ADR-024.
@@ -1835,6 +1837,27 @@ raised and no test was skipped to obtain that pass. The same tree failed only
 on wall-clock time, and `make prepare-nested-fixtures` was run before the suite
 in the order `.config/nextest.toml` prescribes.
 
+EP-M3 on 2026-11-16 added an identical `# Parameter attributes` section to
+`given`, `when` and `then`, and added
+`crates/rstest-bdd/tests/ui_macros/harness_context_without_step.rs` with its
+pinned stderr — the marker on a function that carries no step attribute, which
+rustc rejects because nothing consumes it. The candidate's gates ran
+sequentially and all four passed: `make check-fmt`, `make test` with 2,386 of
+2,386 nextest tests (seven skipped), `make typecheck`, and `make lint`, whose
+nine steps ran to the end, so the Whitaker suite and the five structural checks
+that follow it all carry a verdict. Transcripts are
+`/tmp/check-fmt-11-2-2-public-prelude-execplan.out`,
+`/tmp/test2-11-2-2-public-prelude-execplan.out`,
+`/tmp/typecheck-11-2-2-public-prelude-execplan.out` and
+`/tmp/lint-11-2-2-public-prelude-execplan.out`.
+
+The first `make test` on this candidate was not a test failure. The agent's own
+background wrapper reached its 30-minute budget and delivered SIGTERM to
+nextest, which reported `step_macros_compile` as signal-terminated alongside
+783 passes, no assertion failure, and 21 tests not run. The re-run without that
+budget passed the same tree in 172 s. Do not read
+`/tmp/test-11-2-2-public-prelude-execplan.out` as evidence about the branch.
+
 EP-M0 passed on `162798e8a457921288ce510f89fe899e8254daf6` with
 `CARGO_BUILD_JOBS=2`: `make check-fmt`, `make lint`, `make typecheck`,
 `make test`, `make markdownlint`, and `make nixie` all passed. The test gate
@@ -1881,6 +1904,28 @@ outside the checkout; Cargo still uses the shared package cache.
 ## Surprises & discoveries
 
 Recorded during planning and execution as evidence was confirmed.
+
+- **Observation:** the shared Whitaker dylint suite changed underneath this
+  branch mid-session, and two functions that had passed it earlier failed it.
+  **Evidence:** `libwhitaker_suite@nightly-2026-05-28.so` was rebuilt at 04:56
+  UTC on 2026-11-16 and the prior copy remains beside it as
+  `*.tip-880939d1-backup`; the rebuilt suite reports the new
+  `bumpy_road_function` lint on `ScenarioData::filter_by_tags` and on
+  `gpui::run_test` in this workspace's own shim under `vendor/gpui`, the second
+  reproducing standalone with `whitaker --lib whitaker_suite -- -p gpui`.
+  **Impact:** `make lint` could not pass for any candidate until both were
+  addressed. Both were split into named helpers rather than suppressed, and
+  `dylint.toml` gained no exclusion: `bumpy_road_function` offers no
+  excluded-crates key, and `vendor/gpui` is first-party code this workspace
+  owns, not vendored upstream.
+
+- **Observation:** `make test` can fail on this host for a reason unrelated to
+  the candidate. **Evidence:** `target_directory_uses_running_test_executable`
+  panicked with "integration tests should run beneath a target directory
+  carrying Cargo's `CACHEDIR.TAG`" because this worktree's `target/` had no
+  such tag; copying Cargo's standard tag from the nested probe target restored
+  the test. **Impact:** check for the tag before reading that panic as a
+  regression, and keep it in place when a cleanup tool empties `target/`.
 
 - **Observation:** the first wildcard probe attempts failed on module-document
   lint rules before reaching the wildcard decision. **Evidence:** Whitaker
@@ -2136,3 +2181,9 @@ New tests:
   later reader cannot construe either as requiring an export that cannot exist.
   EP-M7 step 1 applies that text mechanically. No other section changed: the
   design, milestones, and verification plan are unaffected by the amendment.
+
+- 2026-11-16, EP-M3 complete. The marker documentation and the
+  `harness_context_without_step` fixture are implemented and gated, and
+  `Progress` and `Surprises & discoveries` record the candidate's verdicts. Two
+  refactors were needed for the `bumpy_road_function` lint that arrived with a
+  rebuilt Whitaker suite; neither changes behaviour. EP-M4 onwards remain.

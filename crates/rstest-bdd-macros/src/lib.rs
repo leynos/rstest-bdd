@@ -71,6 +71,25 @@ where
 /// #[given(expr = "a configured database")]
 /// fn a_configured_database() {}
 /// ```
+///
+/// # Parameter attributes
+///
+/// Mark one parameter with `#[harness_context]` to receive the scenario's
+/// harness context, the value shared by every step of the scenario:
+///
+/// ```ignore
+/// use rstest_bdd_macros::given;
+///
+/// #[given("a counter starts at zero")]
+/// fn a_counter_starts_at_zero(#[harness_context] counter: &mut u32) {
+///     *counter = 0;
+/// }
+/// ```
+///
+/// `#[harness_context]` is an inert marker: the step attribute consumes it, so
+/// it needs no `use` declaration and names no item in this crate or in
+/// `rstest-bdd`. It is valid only on a step function, and it cannot be
+/// combined with `#[from]`, `#[datatable]`, or `#[step_args]`.
 #[proc_macro_attribute]
 pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::given(attr, item))
@@ -95,6 +114,25 @@ pub fn given(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[when(expr = "the user logs in")]
 /// fn the_user_logs_in() {}
 /// ```
+///
+/// # Parameter attributes
+///
+/// Mark one parameter with `#[harness_context]` to receive the scenario's
+/// harness context, the value shared by every step of the scenario:
+///
+/// ```ignore
+/// use rstest_bdd_macros::when;
+///
+/// #[when("the counter is incremented")]
+/// fn the_counter_is_incremented(#[harness_context] counter: &mut u32) {
+///     *counter += 1;
+/// }
+/// ```
+///
+/// `#[harness_context]` is an inert marker: the step attribute consumes it, so
+/// it needs no `use` declaration and names no item in this crate or in
+/// `rstest-bdd`. It is valid only on a step function, and it cannot be
+/// combined with `#[from]`, `#[datatable]`, or `#[step_args]`.
 #[proc_macro_attribute]
 pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::when(attr, item))
@@ -119,6 +157,25 @@ pub fn when(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[then(expr = "a success message is shown")]
 /// fn a_success_message_is_shown() {}
 /// ```
+///
+/// # Parameter attributes
+///
+/// Mark one parameter with `#[harness_context]` to receive the scenario's
+/// harness context, the value shared by every step of the scenario:
+///
+/// ```ignore
+/// use rstest_bdd_macros::then;
+///
+/// #[then("the counter reads one")]
+/// fn the_counter_reads_one(#[harness_context] counter: &u32) {
+///     assert_eq!(*counter, 1);
+/// }
+/// ```
+///
+/// `#[harness_context]` is an inert marker: the step attribute consumes it, so
+/// it needs no `use` declaration and names no item in this crate or in
+/// `rstest-bdd`. It is valid only on a step function, and it cannot be
+/// combined with `#[from]`, `#[datatable]`, or `#[step_args]`.
 #[proc_macro_attribute]
 pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::then(attr, item))

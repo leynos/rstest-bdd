@@ -152,6 +152,7 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) -> io::Result<()> {
         UiFixtureCase::from("harness_context_takes_no_arguments.rs"),
         UiFixtureCase::from("harness_context_duplicate.rs"),
         UiFixtureCase::from("harness_context_on_placeholder.rs"),
+        UiFixtureCase::from("harness_context_without_step.rs"),
         UiFixtureCase::from("placeholder_missing_param.rs"),
         UiFixtureCase::from("implicit_fixture_missing.rs"),
         UiFixtureCase::from("placeholder_missing_params.rs"),
