@@ -39,6 +39,67 @@ from prelude_drift import readme_violations, spelled_violations, table_violation
 from prelude_exports import CRATE_ROOT, PRELUDE, crate_root_exports, prelude_bindings
 
 
+def read_sources(root: Path) -> tuple[dict[Path, str], list[str]]:
+    """
+    Read the three files the check compares, reporting each that is unreadable.
+
+    Parameters
+    ----------
+    root : Path
+        Repository root directory.
+
+    Returns
+    -------
+    tuple[dict[Path, str], list[str]]
+        The readable sources keyed by repository-relative path, and one
+        violation per file that could not be read.
+    """
+    sources = {
+        relative_path: read_text(root, relative_path)
+        for relative_path in (PRELUDE, CRATE_ROOT, USERS_GUIDE)
+    }
+    unreadable = [
+        f"{relative_path}: unreadable"
+        for relative_path, source in sources.items()
+        if source is None
+    ]
+    readable = {
+        relative_path: source
+        for relative_path, source in sources.items()
+        if source is not None
+    }
+    return readable, unreadable
+
+
+def rust_violations(
+    prelude_source: str, crate_root_source: str
+) -> tuple[set[tuple[str, str]], set[str], list[str]]:
+    """
+    Compare the prelude's bindings with the crate root's exports.
+
+    Parameters
+    ----------
+    prelude_source : str
+        The text of ``crates/rstest-bdd/src/prelude.rs``.
+    crate_root_source : str
+        The text of ``crates/rstest-bdd/src/lib.rs``.
+
+    Returns
+    -------
+    tuple[set[tuple[str, str]], set[str], list[str]]
+        The prelude's bindings, the crate root's exports, and the violations
+        from reading both and from comparing them.
+    """
+    bindings, binding_violations = prelude_bindings(prelude_source)
+    exports, export_violations = crate_root_exports(crate_root_source)
+    unreachable = [
+        f"the prelude exports {crate}::{item}, which the crate root does not re-export"
+        for crate, item in sorted(bindings)
+        if item not in exports
+    ]
+    return bindings, exports, [*binding_violations, *export_violations, *unreachable]
+
+
 def check_prelude_exports(root: Path) -> list[str]:
     """
     Check the documented prelude imports against the crate's real exports.
@@ -53,38 +114,20 @@ def check_prelude_exports(root: Path) -> list[str]:
     list[str]
         Human-readable violations; empty when everything agrees.
     """
-    sources = {
-        relative_path: read_text(root, relative_path)
-        for relative_path in (PRELUDE, CRATE_ROOT, USERS_GUIDE)
-    }
-    violations = [
-        f"{relative_path}: unreadable"
-        for relative_path, source in sources.items()
-        if source is None
-    ]
+    sources, violations = read_sources(root)
     if violations:
         return violations
 
-    bindings, binding_violations = prelude_bindings(sources[PRELUDE] or "")
-    exports, export_violations = crate_root_exports(sources[CRATE_ROOT] or "")
-    violations.extend(binding_violations)
-    violations.extend(export_violations)
-    for crate, item in sorted(bindings):
-        if item not in exports:
-            violations.append(
-                f"the prelude exports {crate}::{item}, "
-                f"which the crate root does not re-export"
-            )
-
-    section = find_section(sources[USERS_GUIDE] or "", SECTION_ANCHOR)
+    bindings, exports, rust = rust_violations(sources[PRELUDE], sources[CRATE_ROOT])
+    section = find_section(sources[USERS_GUIDE], SECTION_ANCHOR)
     if section is None:
-        violations.append(f"{USERS_GUIDE}: no section with anchor #{SECTION_ANCHOR}")
-        return violations
-
-    violations.extend(table_violations(table_rows(section), bindings))
-    violations.extend(spelled_violations(code_block_bodies(section), bindings))
-    violations.extend(readme_violations(root, exports))
-    return violations
+        return [*rust, f"{USERS_GUIDE}: no section with anchor #{SECTION_ANCHOR}"]
+    return [
+        *rust,
+        *table_violations(table_rows(section), bindings),
+        *spelled_violations(code_block_bodies(section), bindings),
+        *readme_violations(root, exports),
+    ]
 
 
 def main() -> int:
@@ -95,9 +138,6 @@ def main() -> int:
         print(violation, file=sys.stderr)
     return 1 if violations else 0
 
-
-if __name__ == "__main__":
-    sys.exit(main())
 
 if __name__ == "__main__":
     sys.exit(main())

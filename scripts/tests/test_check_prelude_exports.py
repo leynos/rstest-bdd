@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
-from check_prelude_exports import check_prelude_exports
+from check_prelude_exports import check_prelude_exports, read_sources
+from prelude_docs import find_section
 from prelude_drift import HARNESS_CONTEXT, NO_IMPORT
-from prelude_exports import MACROS_CRATE, RUNTIME_CRATE
+from prelude_exports import MACROS_CRATE, RUNTIME_CRATE, prelude_bindings
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
@@ -201,6 +202,68 @@ def test_unreadable_source_is_reported(tmp_path: Path) -> None:
     violations = check_prelude_exports(tmp_path)
     assert any("prelude.rs: unreadable" in item for item in violations), (
         f"expected the unreadable-source violation, got {violations}"
+    )
+
+
+def test_fenced_heading_does_not_close_the_section() -> None:
+    """Read past a heading that is sample content inside a fenced block."""
+    markdown = (
+        "## Importing `rstest-bdd`\n\n"
+        "```markdown\n## Step definitions\n```\n\n"
+        "after the sample\n\n"
+        "## Step definitions\n\ntext\n"
+    )
+    section = find_section(markdown, "importing-rstest-bdd")
+    assert section is not None, "the section should have been found"
+    assert "after the sample" in section, f"sample heading ended it early: {section}"
+    assert "text" not in section, f"the next section leaked in: {section}"
+
+
+def test_subsection_stays_inside_the_section() -> None:
+    """Treat a deeper heading as part of the section rather than its end."""
+    markdown = (
+        "## Importing `rstest-bdd`\n\nintro\n\n"
+        "### Canonical paths\n\nmore\n\n"
+        "## Step definitions\n\ntext\n"
+    )
+    section = find_section(markdown, "importing-rstest-bdd")
+    assert section is not None, "the section should have been found"
+    assert "more" in section, f"the subsection ended it early: {section}"
+    assert "text" not in section, f"the next section leaked in: {section}"
+
+
+def test_absent_anchor_has_no_section() -> None:
+    """Return ``None`` when no heading carries the requested anchor."""
+    markdown = "## Step definitions\n\ntext\n"
+    assert find_section(markdown, "importing-rstest-bdd") is None, (
+        "an absent anchor should not match the document's other headings"
+    )
+
+
+def test_prelude_rejects_a_foreign_root_and_a_glob() -> None:
+    """Report a prelude importing from elsewhere or hiding items in a glob."""
+    bindings, violations = prelude_bindings(
+        "pub use somewhere_else::{given};\npub use rstest_bdd_macros::*;\n"
+    )
+    assert not bindings, f"neither statement contributes a binding: {bindings}"
+    assert any("unexpected root" in item for item in violations), (
+        f"expected the foreign-root violation, got {violations}"
+    )
+    assert any("glob import" in item for item in violations), (
+        f"expected the glob violation, got {violations}"
+    )
+
+
+def test_read_sources_reports_the_file_it_could_not_read(tmp_path: Path) -> None:
+    """Return the readable sources next to one violation per unreadable file."""
+    write_tree(tmp_path, ROWS)
+    (tmp_path / "crates/rstest-bdd/src/prelude.rs").unlink()
+    sources, violations = read_sources(tmp_path)
+    assert violations == ["crates/rstest-bdd/src/prelude.rs: unreadable"], (
+        f"expected one unreadable-file violation, got {violations}"
+    )
+    assert Path("crates/rstest-bdd/src/lib.rs") in sources, (
+        f"the readable sources should survive: {sorted(sources)}"
     )
 
 
