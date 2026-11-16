@@ -28,6 +28,21 @@ enum AttemptAction {
     ResumeUnwind(Box<dyn Any + Send>),
 }
 
+/// Per-seed inputs for this vendored GPUI retry controller.
+///
+/// Keep this value local to the shim; it is not a general test-run API.
+#[derive(Clone, Copy)]
+struct SeedRun {
+    /// Seed passed to the test closure.
+    seed: u64,
+    /// Whether the invocation contains multiple seeds.
+    is_multiple_runs: bool,
+    /// Maximum number of retries allowed after the first attempt.
+    max_retries: usize,
+    /// Current zero-based attempt, where zero is the first run.
+    attempt: usize,
+}
+
 /// Minimal dispatcher value passed through `run_test`.
 #[derive(Clone, Debug, Default)]
 pub struct TestDispatcher {
@@ -164,25 +179,36 @@ pub fn run_test(
     let (seeds, is_multiple_runs) = calculate_seeds(num_iterations as u64, explicit_seeds);
 
     for seed in seeds {
-        run_seed(seed, is_multiple_runs, max_retries, test_fn, on_fail_fn);
+        run_seed(
+            SeedRun {
+                seed,
+                is_multiple_runs,
+                max_retries,
+                attempt: 0,
+            },
+            test_fn,
+            on_fail_fn,
+        );
     }
 }
 
 /// Runs one seed until it succeeds or exhausts the configured retries.
 fn run_seed(
-    seed: u64,
-    is_multiple_runs: bool,
-    max_retries: usize,
+    seed_run: SeedRun,
     test_fn: &mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
     on_fail_fn: Option<fn()>,
 ) {
-    for attempt in 0..=max_retries {
-        report_seed(seed, is_multiple_runs);
-        match classify_attempt(seed, attempt, max_retries, test_fn) {
+    for attempt in 0..=seed_run.max_retries {
+        let seed_run = SeedRun {
+            attempt,
+            ..seed_run
+        };
+        report_seed(seed_run);
+        match classify_attempt(seed_run, test_fn) {
             AttemptAction::Success => return,
-            AttemptAction::Retry => report_retry(attempt),
+            AttemptAction::Retry => report_retry(seed_run),
             AttemptAction::ResumeUnwind(payload) => {
-                resume_failed_seed(seed, is_multiple_runs, on_fail_fn, payload);
+                resume_failed_seed(seed_run, on_fail_fn, payload);
             }
         }
     }
@@ -195,9 +221,9 @@ fn run_seed(
     clippy::print_stderr,
     reason = "seed diagnostics must remain visible without a global tracing subscriber"
 )]
-fn report_seed(seed: u64, is_multiple_runs: bool) {
-    if is_multiple_runs {
-        eprintln!("seed = {seed}");
+fn report_seed(seed_run: SeedRun) {
+    if seed_run.is_multiple_runs {
+        eprintln!("seed = {}", seed_run.seed);
     }
 }
 
@@ -206,18 +232,17 @@ fn report_seed(seed: u64, is_multiple_runs: bool) {
     clippy::print_stdout,
     reason = "retry progress must remain visible without a global tracing subscriber"
 )]
-fn report_retry(attempt: usize) {
-    println!("attempt {attempt} failed, retrying");
+fn report_retry(seed_run: SeedRun) {
+    println!("attempt {} failed, retrying", seed_run.attempt);
 }
 
 /// Reports a terminal seed failure and resumes its original panic payload.
 fn resume_failed_seed(
-    seed: u64,
-    is_multiple_runs: bool,
+    seed_run: SeedRun,
     on_fail_fn: Option<fn()>,
     payload: Box<dyn Any + Send>,
 ) -> ! {
-    report_failing_seed(seed, is_multiple_runs);
+    report_failing_seed(seed_run);
     if let Some(on_fail_fn) = on_fail_fn {
         on_fail_fn();
     }
@@ -229,9 +254,9 @@ fn resume_failed_seed(
     clippy::print_stderr,
     reason = "the failing seed must remain visible without a global tracing subscriber"
 )]
-fn report_failing_seed(seed: u64, is_multiple_runs: bool) {
-    if is_multiple_runs {
-        eprintln!("failing seed: {seed}");
+fn report_failing_seed(seed_run: SeedRun) {
+    if seed_run.is_multiple_runs {
+        eprintln!("failing seed: {}", seed_run.seed);
     }
 }
 
@@ -240,19 +265,17 @@ fn report_failing_seed(seed: u64, is_multiple_runs: bool) {
 /// Only the final failure retains its payload, so callers can run their
 /// callback before resuming the original panic without changing its value.
 fn classify_attempt(
-    seed: u64,
-    attempt: usize,
-    max_retries: usize,
+    seed_run: SeedRun,
     test_fn: &(dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
 ) -> AttemptAction {
     let result = panic::catch_unwind(|| {
-        let dispatcher = TestDispatcher::new(seed);
-        test_fn(dispatcher, seed);
+        let dispatcher = TestDispatcher::new(seed_run.seed);
+        test_fn(dispatcher, seed_run.seed);
     });
 
     match result {
         Ok(()) => AttemptAction::Success,
-        Err(_) if attempt < max_retries => AttemptAction::Retry,
+        Err(_) if seed_run.attempt < seed_run.max_retries => AttemptAction::Retry,
         Err(error) => AttemptAction::ResumeUnwind(error),
     }
 }
