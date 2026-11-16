@@ -1716,7 +1716,7 @@ in their own manifest.
 - [x] EP-M1 — dependency edge, crate-root re-export, lockfile refresh.
 - [x] EP-M2 — the prelude module.
 - [x] EP-M3 — marker documentation and the missing trybuild fixture.
-- [ ] EP-M4 — example migration and the two fixture crates.
+- [x] EP-M4 — example migration and the two fixture crates.
 - [ ] EP-M5 — the drift gate and the users-guide table.
 - [ ] EP-M6 — remaining documentation and ADR-024.
 - [ ] EP-M7 — roadmap amendment, full gates, pull request.
@@ -1756,6 +1756,30 @@ findings. Its log is
 The finish-line amendment (DL-9) remains accepted. The plan was rebased onto
 `main` at `4d585b789dcc8f070c3c7b7cb141388a65afcbe5` without conflicts; all
 seven plan commits matched in `git range-diff`.
+
+EP-M4 is implemented and committed alongside this paragraph. On the tree it
+certifies, all four gates passed: `make check-fmt` in 1 s, `make lint` in 20 s
+with all nine steps reaching verdicts, `make typecheck` in 4 s, and `make test`
+in 549 s across its four legs (2,393 nextest, 180 doc tests, 812
+no-default-features, and 303 Python tests). The gates ran at HEAD
+`c67cd87c11c08ae5693f347cb624232756beb6b4` with the dirty tree hashing to
+`1d6a00e3a54cb64957dde9c37a572e343cfcc5173dba0d5f4b673093ec366705` both at
+start and at end. Transcripts are
+`/tmp/{check-fmt,lint,typecheck,test}-rstest-bdd-11-2-2-public-prelude-execplan-ep-m4b.out`.
+This paragraph was added after that run; it changes no gate input those four
+gates compile, so `make check-fmt` and `make markdownlint` were re-run over the
+final tree and are recorded in the commit message.
+
+The milestone delivered three things beyond the plan's steps. The
+`prelude_only` fixture carries a doc-only `src/lib.rs` so the crate is a legal
+library target while the claim lives in its `tests/`, and its manifest keeps
+`rstest` with the reason written down. `macros_direct` is the negative control:
+it declares `rstest-bdd-macros` and imports the attributes from there, so the
+manifest assertion runs against a case where the crate is genuinely present,
+and the direct entry point keeps a compiled consumer once no example names it.
+And `scripts/check_example_imports.py` reports an empty scan as a violation in
+both halves, because a structural gate whose search silently matches nothing
+passes for the wrong reason.
 
 On 2026-11-03, the sequential M2 recheck passed `make check-fmt` but
 `CARGO_BUILD_JOBS=2 make test` again timed out in a nested Cargo fixture.
@@ -1926,6 +1950,19 @@ Recorded during planning and execution as evidence was confirmed.
   such tag; copying Cargo's standard tag from the nested probe target restored
   the test. **Impact:** check for the tag before reading that panic as a
   regression, and keep it in place when a cleanup tool empties `target/`.
+
+- **Observation:** the Whitaker suite rejects `std::fs` even in a test helper,
+  so the first EP-M4 gate run failed at `make lint`'s Whitaker step rather than
+  at Clippy. **Evidence:** the step reported "std::fs operation
+  `std::fs::read_to_string` bypasses the capability-based filesystem policy" at
+  `crates/rstest-bdd/tests/prelude_fixture/support.rs:59` and `:85`, failing to
+  compile the `prelude_fixture` test binary; `make check-fmt` had already
+  failed separately on the same three new files being unformatted. **Impact:**
+  a new helper that reads a fixture manifest or source must open the directory
+  with `cap_std::fs::Dir::open_ambient_dir` and call `read_to_string` on the
+  handle, as `crates/rstest-bdd/tests/nextest_config/support.rs` already does.
+  Run `cargo +nightly-2026-08-07 fmt --all` over new files before the first
+  gate run, since `rustfmt` re-wraps them and the check gate reads the result.
 
 - **Observation:** the first wildcard probe attempts failed on module-document
   lint rules before reaching the wildcard decision. **Evidence:** Whitaker

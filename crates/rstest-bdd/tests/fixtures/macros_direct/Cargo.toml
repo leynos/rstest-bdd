@@ -1,0 +1,25 @@
+[package]
+name = "rstest-bdd-macros-direct-fixture"
+version = "0.1.0"
+edition = "2024"
+
+# The negative control for V-2 and the R-10 coverage for the macro crate's own
+# entry point. `prelude_only` asserts that a consumer manifest names only the
+# facade; this manifest names `rstest-bdd-macros` as well, so the same reading
+# has a case where the crate is genuinely present. Without it, a manifest
+# assertion that silently failed to find any dependency would report the
+# prelude fixture as clean for the wrong reason.
+#
+# It also keeps a compiled consumer of the direct import path, which the four
+# examples no longer provide once they migrate to `rstest_bdd::prelude`.
+#
+# `rstest` is required for the same reason as in the prelude fixture: fixture
+# and scenario expansion resolve it from the consuming manifest.
+[dependencies]
+rstest-bdd = { path = "../../../../../crates/rstest-bdd", features = ["diagnostics", "test-support"] }
+rstest-bdd-macros = { path = "../../../../../crates/rstest-bdd-macros" }
+
+[dev-dependencies]
+rstest = "0.26.1"
+
+[workspace]
