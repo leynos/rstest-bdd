@@ -95,7 +95,7 @@ const REQUIRED_DEPENDENCIES: &[&str] = &[
 
 /// The declaration agrees with the fixture's real dependency graph.
 ///
-/// `REQUIRED_DEPENDENCIES` above is a second hand-written copy of the same
+/// `REQUIRED_DEPENDENCIES` above is a second handwritten copy of the same
 /// names, so the two go stale together: a crate the fixture gains is missing
 /// from both, and every test here stays green while the timed suite pays for
 /// the rebuild. This case reads the graph instead of restating it, so the

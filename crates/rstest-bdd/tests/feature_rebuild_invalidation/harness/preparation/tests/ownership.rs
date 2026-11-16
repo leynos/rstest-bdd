@@ -72,7 +72,7 @@ fn local_dependency_closure(
 
 /// The declaration agrees with what each fixture's real graph resolves to.
 ///
-/// [`WORKSPACE_DEPENDENCIES`] is a hand-written copy of the crate names a
+/// [`WORKSPACE_DEPENDENCIES`] is a handwritten copy of the crate names a
 /// preparation builds, and the ownership mechanism cannot catch it going
 /// stale: a crate the fixture gains is missing from the declaration *and* from
 /// the recorded name list, so it compares equal to itself and the gate passes
