@@ -17,4 +17,3 @@ rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-harness-tokio.workspace = true
-rstest-bdd-macros.workspace = true

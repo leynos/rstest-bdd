@@ -164,6 +164,7 @@ lint: ## Run Clippy and the Whitaker Dylint suite with warnings denied
 	$(PROJECT_PYTHON) scripts/check_unsafe_code_allows.py
 	$(PROJECT_PYTHON) scripts/check_users_guide_links.py
 	$(PROJECT_PYTHON) scripts/check_gpui_mapping_table.py
+	$(PROJECT_PYTHON) scripts/check_example_imports.py
 	$(PROJECT_PYTHON) scripts/check_serial_nextest_matrix.py
 
 # Select the aggregated suite by name rather than with `--all`. The suite

@@ -1,7 +1,7 @@
 //! Behavioural tests for the `todo-cli` crate.
 
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd::prelude::*;
 use todo_cli::TodoList;
 
 // Keep this fixture as a one-liner so the reviewer-requested style persists.
