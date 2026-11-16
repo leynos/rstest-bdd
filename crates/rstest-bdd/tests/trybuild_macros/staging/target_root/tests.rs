@@ -10,14 +10,50 @@ use rstest::rstest;
 
 use super::*;
 
+/// A temporary directory's path as a UTF-8 path.
+///
+/// A temporary directory is not guaranteed to have a UTF-8 path, and the
+/// fixtures below need one to push Cargo's layout onto. Reporting the
+/// conversion failure here keeps it out of the fixtures, where it would be one
+/// more closure for the complexity lint to count.
+fn temp_root(directory: &tempfile::TempDir) -> std::io::Result<Utf8PathBuf> {
+    Utf8PathBuf::from_path_buf(directory.path().to_path_buf())
+        .map_err(|path| std::io::Error::other(format!("not utf-8: {}", path.display())))
+}
+
+/// The directory that must exist before `executable` can be written.
+///
+/// A path built from a non-empty structure always has a parent, so this only
+/// reports for an empty one. Naming it keeps the caller free of the closure
+/// that would otherwise express the same thing.
+fn parent_of(executable: &Utf8Path) -> std::io::Result<&Utf8Path> {
+    executable
+        .parent()
+        .ok_or_else(|| std::io::Error::other(format!("{executable} has no parent")))
+}
+
+/// Whether `directory` sits beneath something Cargo tagged.
+///
+/// The lookup walks every ancestor rather than only the temporary directory
+/// itself, so a case that expects no tag above it is only meaningful when the
+/// temporary directory has no tagged ancestor. It does when `TMPDIR` points
+/// beneath a Cargo target directory, which is common on CI, and the assertion
+/// would then fail for the environment rather than for the code.
+fn under_tagged_ancestor(directory: &tempfile::TempDir) -> bool {
+    directory
+        .path()
+        .ancestors()
+        .skip(1)
+        .any(|ancestor| ancestor.join("CACHEDIR.TAG").is_file())
+}
+
 /// A target root that Cargo would have tagged, holding `executable` beneath it.
 ///
 /// The marker is what makes the root discoverable, so a fixture without one
 /// would test the absence path rather than the layout under test.
 fn tagged_root(structure: &[&str]) -> std::io::Result<(tempfile::TempDir, Utf8PathBuf)> {
     let directory = tempfile::tempdir()?;
-    let root = Utf8PathBuf::from_path_buf(directory.path().to_path_buf())
-        .map_err(|path| std::io::Error::other(format!("not utf-8: {}", path.display())))?;
+    let root = temp_root(&directory)?;
     std::fs::write(
         root.join("CACHEDIR.TAG"),
         b"Signature: 8a477f597d28d172789f06886806bc55",
@@ -26,10 +62,7 @@ fn tagged_root(structure: &[&str]) -> std::io::Result<(tempfile::TempDir, Utf8Pa
     for part in structure {
         executable.push(part);
     }
-    let parent = executable
-        .parent()
-        .ok_or_else(|| std::io::Error::other(format!("{executable} has no parent")))?;
-    std::fs::create_dir_all(parent)?;
+    std::fs::create_dir_all(parent_of(&executable)?)?;
     std::fs::write(executable.as_std_path(), b"binary")?;
     Ok((directory, executable))
 }
@@ -62,8 +95,7 @@ fn tagged_root(structure: &[&str]) -> std::io::Result<(tempfile::TempDir, Utf8Pa
 ])]
 fn derives_target_root_from_test_executable(#[case] structure: &[&str]) -> std::io::Result<()> {
     let (directory, executable) = tagged_root(structure)?;
-    let expected = Utf8PathBuf::from_path_buf(directory.path().to_path_buf())
-        .map_err(|path| std::io::Error::other(format!("not utf-8: {}", path.display())))?;
+    let expected = temp_root(&directory)?;
 
     assert_eq!(
         target_directory_from_test_executable(executable.as_path()),
@@ -92,12 +124,7 @@ fn derives_target_root_from_test_executable(#[case] structure: &[&str]) -> std::
 ])]
 fn an_untagged_layout_yields_no_root(#[case] structure: &[&str]) {
     let directory = tempfile::tempdir().expect("temp dir");
-    let tagged_ancestor = directory
-        .path()
-        .ancestors()
-        .skip(1)
-        .find(|ancestor| ancestor.join("CACHEDIR.TAG").is_file());
-    if tagged_ancestor.is_some() {
+    if under_tagged_ancestor(&directory) {
         return;
     }
     let mut executable = directory.path().to_path_buf();
@@ -138,12 +165,7 @@ fn an_untagged_layout_yields_no_root(#[case] structure: &[&str]) {
 #[test]
 fn an_untagged_tree_yields_no_target_root() {
     let directory = tempfile::tempdir().expect("temp dir");
-    let tagged_ancestor = directory
-        .path()
-        .ancestors()
-        .skip(1)
-        .find(|ancestor| ancestor.join("CACHEDIR.TAG").is_file());
-    if tagged_ancestor.is_some() {
+    if under_tagged_ancestor(&directory) {
         return;
     }
     let executable = directory.path().join("debug/deps/trybuild_macros-a1b2c3");
@@ -159,6 +181,16 @@ fn an_untagged_tree_yields_no_target_root() {
 
 /// The live run resolves its own target root, so the discovery works against
 /// the layout this toolchain actually produces rather than only the fixtures.
+///
+/// Gated on the running executable actually having a tagged ancestor, for the
+/// same reason as [`an_untagged_tree_yields_no_target_root`]: Cargo writes
+/// `CACHEDIR.TAG` into the target directory it creates, but a tree assembled or
+/// copied by other means need not carry one — `cargo llvm-cov --target-dir`, a
+/// restored CI cache, and a hand-made `target/` all can lack it. The production
+/// path then falls back to `cargo metadata` by design, which this test would
+/// otherwise report as a defect in the lookup. Skipping states the precondition
+/// instead; the fixture cases above already prove the lookup itself on any
+/// host.
 #[test]
 #[serial_test::serial(trybuild_target_directory)]
 fn target_directory_uses_running_test_executable() {
@@ -166,9 +198,9 @@ fn target_directory_uses_running_test_executable() {
         .parent()
         .and_then(Utf8Path::parent)
         .expect("workspace root must be two levels above the manifest directory");
-    let expected = target_directory_from_running_test_executable().expect(
-        "integration tests should run beneath a target directory carrying Cargo's `CACHEDIR.TAG`",
-    );
+    let Some(expected) = target_directory_from_running_test_executable() else {
+        return;
+    };
 
     assert_eq!(trybuild_target_directory(workspace_root), expected);
 }
