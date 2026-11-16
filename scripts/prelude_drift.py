@@ -103,6 +103,30 @@ def documented_row(row: list[str]) -> tuple[list[str], tuple[str, str] | None]:
     return violations, (defining_crate, item)
 
 
+def header_violations(header: list[str]) -> list[str]:
+    """
+    Check that the item table's header names the four expected columns.
+
+    Parameters
+    ----------
+    header : list[str]
+        The cells of the table's first row.
+
+    Returns
+    -------
+    list[str]
+        A violation when the header's columns are not ``TABLE_HEADER``.
+    """
+    if tuple(header) == TABLE_HEADER:
+        return []
+    return [
+        (
+            f"{USERS_GUIDE}: the import table header is {tuple(header)}; "
+            f"expected {TABLE_HEADER}"
+        )
+    ]
+
+
 def table_violations(
     rows: list[list[str]], bindings: set[tuple[str, str]]
 ) -> list[str]:
@@ -123,12 +147,7 @@ def table_violations(
     """
     if not rows:
         return [f"{USERS_GUIDE}: the import table is missing"]
-    violations: list[str] = []
-    if tuple(rows[0]) != TABLE_HEADER:
-        violations.append(
-            f"{USERS_GUIDE}: the import table header is {tuple(rows[0])}; "
-            f"expected {TABLE_HEADER}"
-        )
+    violations = header_violations(rows[0])
     documented: set[tuple[str, str]] = set()
     for row in rows[2:]:
         row_violations, binding = documented_row(row)
@@ -143,6 +162,25 @@ def table_violations(
             f"which the prelude does not export"
         )
     return violations
+
+
+def first_example(bodies: list[str], marker: str) -> str | None:
+    """
+    Return the first fenced block that contains a marker.
+
+    Parameters
+    ----------
+    bodies : list[str]
+        Bodies of the section's fenced blocks, in document order.
+    marker : str
+        The text that identifies the example wanted.
+
+    Returns
+    -------
+    str | None
+        The first matching block's body, or ``None`` when no block matches.
+    """
+    return next((body for body in bodies if marker in body), None)
 
 
 def spelled_imports(body: str) -> list[tuple[str, str]]:
@@ -189,6 +227,24 @@ def foreign_imports(imports: list[tuple[str, str]]) -> list[str]:
     ]
 
 
+def rooted_names(imports: list[tuple[str, str]]) -> set[str]:
+    """
+    Return the names the example imports through the crate root.
+
+    Parameters
+    ----------
+    imports : list[tuple[str, str]]
+        The ``(path, name)`` pairs the example names.
+
+    Returns
+    -------
+    set[str]
+        The names reached through ``rstest_bdd`` itself.
+    """
+    root_prefix = f"{ROOT_PREFIX}::"
+    return {name for path, name in imports if path.startswith(root_prefix)}
+
+
 def name_set_violations(names: set[str], expected: set[str]) -> list[str]:
     """
     Report the names the example omits and the names it should not import.
@@ -205,16 +261,38 @@ def name_set_violations(names: set[str], expected: set[str]) -> list[str]:
     list[str]
         Violations; empty when the two sets agree.
     """
-    return [
-        *(
-            f"{USERS_GUIDE}: the spelled example omits {name}"
-            for name in sorted(expected - names)
-        ),
-        *(
+    violations: list[str] = []
+    for name in sorted(names ^ expected):
+        if name in expected:
+            violations.append(f"{USERS_GUIDE}: the spelled example omits {name}")
+            continue
+        violations.append(
             f"{USERS_GUIDE}: the spelled example names {name}, "
             f"which the prelude does not export"
-            for name in sorted(names - expected)
-        ),
+        )
+    return violations
+
+
+def example_violations(example: str, bindings: set[tuple[str, str]]) -> list[str]:
+    """
+    Compare one spelled-out example with the prelude's bindings.
+
+    Parameters
+    ----------
+    example : str
+        The body of the fenced block carrying the spelled-out import.
+    bindings : set[tuple[str, str]]
+        The ``(defining crate, name)`` pairs the prelude exports.
+
+    Returns
+    -------
+    list[str]
+        Violations; empty when the example imports exactly the prelude.
+    """
+    imports = spelled_imports(example)
+    return [
+        *foreign_imports(imports),
+        *name_set_violations(rooted_names(imports), {name for _, name in bindings}),
     ]
 
 
@@ -234,18 +312,12 @@ def spelled_violations(bodies: list[str], bindings: set[tuple[str, str]]) -> lis
     list[str]
         Violations; empty when the example is present and agrees.
     """
-    if not any(GLOB_IMPORT in body for body in bodies):
+    if first_example(bodies, GLOB_IMPORT) is None:
         return [f"{USERS_GUIDE}: the prelude glob example is missing"]
-    spelled = [body for body in bodies if SPELLED_IMPORT in body]
-    if not spelled:
+    example = first_example(bodies, SPELLED_IMPORT)
+    if example is None:
         return [f"{USERS_GUIDE}: the spelled-out import example is missing"]
-    imports = spelled_imports(spelled[0])
-    root_prefix = f"{ROOT_PREFIX}::"
-    rooted = {name for path, name in imports if path.startswith(root_prefix)}
-    return [
-        *foreign_imports(imports),
-        *name_set_violations(rooted, {name for _, name in bindings}),
-    ]
+    return example_violations(example, bindings)
 
 
 def import_line_violations(
