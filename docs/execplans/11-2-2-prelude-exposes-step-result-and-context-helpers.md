@@ -6,13 +6,15 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 be kept up to date as work proceeds.
 
 Status: IN PROGRESS — the user approved this plan on 2026-10-25 and directed
-full implementation through PR completion on 2026-11-01. EP-M0 and EP-M1 are
-complete; EP-M2 implementation is in progress. Its red doctest failed as
-expected, its green doctest passes, and the prelude-surface integration test
-passes; milestone gates remain. The corrected package-identity count is 129
-normal packages, within the approved ceiling of 135; see DL-14. DL-11 records
-the revised file-count tolerance; DL-12 adapts EP-M0 to the shared build
-environment.
+full implementation through PR completion on 2026-11-01. EP-M0, EP-M1 and EP-M2
+are complete: the dependency edge is in place, the crate root re-exports the
+macro surface, and `rstest_bdd::prelude` binds all thirteen names across eleven
+spellings. The rebased branch is green on all four gates at
+`8972fb920cf2406f51509febfb3a2d351ced4672`, and pull request 773 now targets the
+`issue-901` branch. EP-M3 onwards remain. The corrected package-identity count
+is 129 normal packages, within the approved ceiling of 135; see DL-14. DL-11
+records the revised file-count tolerance; DL-12 adapts EP-M0 to the shared
+build environment.
 
 ## Purpose / big picture
 
@@ -1802,6 +1804,37 @@ edge that the new `rstest-bdd` dependency requires. The target's `libc 0.2.189`
 pins are preserved, so DL-15's constraint continues to hold without a separate
 precise update.
 
+The rebased branch was then gated at `8972fb920cf2406f51509febfb3a2d351ced4672`.
+`make test` passed with 2,386 of 2,386 nextest tests (seven skipped) in
+618.591 s, 805 of 805 on the `--no-default-features` leg in 168.977 s, every
+doctest, the `check-fixture-lockfiles` check, and 296 pytest checks.
+`make typecheck` and `make lint` passed on the same revision in 77 s and 81 s
+against a warm tree, and `make check-fmt` passed on the revision this section
+is committed with. Transcripts are
+`/tmp/gates-11-2-2-public-prelude/test-window.out`, `typecheck.out` and
+`lint.out`.
+
+Two host conditions shaped that evidence. Neither is a property of the branch,
+and recording them keeps a later reader from mistaking either for one.
+
+First, the host's `rust-cleanup.service` deleted this worktree's `target/` at
+21:33 UTC on 2026-11-15, between gate runs. The filesystem is in that tool's
+pressure band (`/home` at 85% used, ten-minute inactivity cutoff), and no build
+was running at that instant. The deletion is journaled as a
+`rust-cleanup-event` with `"deleted": 1`; it discarded a completed 935.8 s
+trybuild preparation and forced a 30 m 42 s cold workspace rebuild. The warm
+tree is now kept in use by the repository's own incremental build while a gate
+window is awaited.
+
+Second, the shared four-slot compiler pool carried between 100 and 236 queued
+requests from other agents' workspaces for the whole period.
+`step_macros_compile` compiles roughly a hundred fixtures one after another, so
+its 1200 s nextest period is sensitive to that backlog: it timed out at depths
+of 116 and 236 and passed in 418.788 s once the queue fell to 33. No bound was
+raised and no test was skipped to obtain that pass. The same tree failed only
+on wall-clock time, and `make prepare-nested-fixtures` was run before the suite
+in the order `.config/nextest.toml` prescribes.
+
 EP-M0 passed on `162798e8a457921288ce510f89fe899e8254daf6` with
 `CARGO_BUILD_JOBS=2`: `make check-fmt`, `make lint`, `make typecheck`,
 `make test`, `make markdownlint`, and `make nixie` all passed. The test gate
@@ -1885,6 +1918,23 @@ Recorded during planning and execution as evidence was confirmed.
   moving the temporary root to the user cache made the complete dry run pass.
   **Impact:** use the user cache for `TMPDIR` on this gate and keep `/tmp` for
   logs only.
+
+- **Observation:** a `target/` directory can disappear between gate runs.
+  **Evidence:** `rust-cleanup.timer` deleted this worktree's `target/` at 21:33
+  UTC on 2026-11-15 while `/home` was 85% full, which is that tool's pressure
+  band with a ten-minute inactivity cutoff; the journal records
+  `rust-cleanup-event` with `"deleted": 1` and no build was running. The cost
+  was a discarded 935.8 s trybuild preparation and a 30 m 42 s rebuild.
+  **Impact:** a gate cycle interrupted between stages may be recovering from a
+  host cleanup rather than from its own failure, so check whether `target/`
+  still exists before diagnosing the next failure.
+
+- **Observation:** `step_macros_compile`'s 1200 s period measures the shared
+  admission queue as much as the compiler. **Evidence:** the test timed out at
+  queue depths of 116 and 236 and passed in 418.788 s at depth 33, on an
+  unchanged tree whose nested fixtures were already prepared. **Impact:** when
+  this single test fails on time, re-run the suite in a shallow-queue window
+  rather than changing the test, its period, or its fixture count.
 
 - **Observation:** the compile-time export inventory has thirteen namespace
   bindings across eleven distinct spellings. **Evidence:** `ScenarioState` and
