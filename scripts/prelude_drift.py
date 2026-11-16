@@ -145,6 +145,79 @@ def table_violations(
     return violations
 
 
+def spelled_imports(body: str) -> list[tuple[str, str]]:
+    """
+    Return every ``(path, name)`` pair an example's imports name.
+
+    Parameters
+    ----------
+    body : str
+        One fenced block's text, which may hold several ``use`` statements.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        One pair per imported name, in document order.
+    """
+    return [
+        pair
+        for match in IMPORT_STATEMENT.finditer(body)
+        for pair in use_names(match.group("body"))
+    ]
+
+
+def foreign_imports(imports: list[tuple[str, str]]) -> list[str]:
+    """
+    Report each import that reaches past the crate root.
+
+    Parameters
+    ----------
+    imports : list[tuple[str, str]]
+        The ``(path, name)`` pairs the example names.
+
+    Returns
+    -------
+    list[str]
+        One violation per import of a path other than the crate root.
+    """
+    root_prefix = f"{ROOT_PREFIX}::"
+    return [
+        f"{USERS_GUIDE}: the spelled example imports {path}; "
+        f"only the crate root should be named"
+        for path, _ in imports
+        if not path.startswith(root_prefix)
+    ]
+
+
+def name_set_violations(names: set[str], expected: set[str]) -> list[str]:
+    """
+    Report the names the example omits and the names it should not import.
+
+    Parameters
+    ----------
+    names : set[str]
+        The names the spelled example imports through the crate root.
+    expected : set[str]
+        The names the prelude exports.
+
+    Returns
+    -------
+    list[str]
+        Violations; empty when the two sets agree.
+    """
+    return [
+        *(
+            f"{USERS_GUIDE}: the spelled example omits {name}"
+            for name in sorted(expected - names)
+        ),
+        *(
+            f"{USERS_GUIDE}: the spelled example names {name}, "
+            f"which the prelude does not export"
+            for name in sorted(names - expected)
+        ),
+    ]
+
+
 def spelled_violations(bodies: list[str], bindings: set[tuple[str, str]]) -> list[str]:
     """
     Compare the guide's spelled-out example with the prelude's bindings.
@@ -166,28 +239,13 @@ def spelled_violations(bodies: list[str], bindings: set[tuple[str, str]]) -> lis
     spelled = [body for body in bodies if SPELLED_IMPORT in body]
     if not spelled:
         return [f"{USERS_GUIDE}: the spelled-out import example is missing"]
-    names: set[str] = set()
-    violations: list[str] = []
-    for match in IMPORT_STATEMENT.finditer(spelled[0]):
-        for path, name in use_names(match.group("body")):
-            if not path.startswith(f"{ROOT_PREFIX}::"):
-                violations.append(
-                    f"{USERS_GUIDE}: the spelled example imports {path}; "
-                    f"only the crate root should be named"
-                )
-                continue
-            names.add(name)
-    expected = {name for _, name in bindings}
-    violations.extend(
-        f"{USERS_GUIDE}: the spelled example omits {name}"
-        for name in sorted(expected - names)
-    )
-    violations.extend(
-        f"{USERS_GUIDE}: the spelled example names {name}, "
-        f"which the prelude does not export"
-        for name in sorted(names - expected)
-    )
-    return violations
+    imports = spelled_imports(spelled[0])
+    root_prefix = f"{ROOT_PREFIX}::"
+    rooted = {name for path, name in imports if path.startswith(root_prefix)}
+    return [
+        *foreign_imports(imports),
+        *name_set_violations(rooted, {name for _, name in bindings}),
+    ]
 
 
 def import_line_violations(

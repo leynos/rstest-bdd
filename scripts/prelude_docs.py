@@ -53,6 +53,109 @@ def read_text(root: Path, relative_path: Path) -> str | None:
         return None
 
 
+def heading_level(line: str) -> int:
+    """
+    Return a Markdown heading line's level, which is its leading hash count.
+
+    Parameters
+    ----------
+    line : str
+        The line to measure. It must be a heading.
+
+    Returns
+    -------
+    int
+        The heading level, from 1 for ``# `` upward.
+    """
+    return len(line) - len(line.lstrip("#"))
+
+
+def opens_section(line: str, anchor: str) -> bool:
+    """
+    Return whether a line is the heading that opens the requested section.
+
+    Parameters
+    ----------
+    line : str
+        The line to inspect.
+    anchor : str
+        GitHub anchor fragment of the heading that opens the section.
+
+    Returns
+    -------
+    bool
+        Whether the line is a level-two heading with that anchor.
+    """
+    heading = HEADING.match(line)
+    if heading is None:
+        return False
+    return (
+        heading_level(line) == SECTION_HEADING_LEVEL
+        and github_heading_anchor(heading.group("text").strip()) == anchor
+    )
+
+
+def prose_headings(lines: list[str]) -> list[tuple[int, int]]:
+    """
+    Return every heading that sets document structure, with its line index.
+
+    A heading inside a fenced block is sample content rather than structure, so
+    it is skipped; otherwise an example that shows a heading would truncate the
+    section that contains it.
+
+    Parameters
+    ----------
+    lines : list[str]
+        Lines of one document.
+
+    Returns
+    -------
+    list[tuple[int, int]]
+        ``(line index, heading level)`` per structural heading, in order.
+    """
+    in_fence = False
+    headings: list[tuple[int, int]] = []
+    for index, line in enumerate(lines):
+        if FENCE.match(line) is not None:
+            in_fence = not in_fence
+            continue
+        if in_fence or HEADING.match(line) is None:
+            continue
+        headings.append((index, heading_level(line)))
+    return headings
+
+
+def section_bounds(lines: list[str], anchor: str) -> tuple[int, int] | None:
+    """
+    Return the half-open line range of a section's body, heading excluded.
+
+    Parameters
+    ----------
+    lines : list[str]
+        Lines of one document.
+    anchor : str
+        GitHub anchor fragment of the heading that opens the section.
+
+    Returns
+    -------
+    tuple[int, int] | None
+        The body's start and end line indexes, or ``None`` when the anchor is
+        absent. A section that runs to the end of the document ends at its
+        length.
+    """
+    headings = prose_headings(lines)
+    starts = [index + 1 for index, _ in headings if opens_section(lines[index], anchor)]
+    if not starts:
+        return None
+    start = starts[0]
+    closes = [
+        index
+        for index, level in headings
+        if index >= start and level <= SECTION_HEADING_LEVEL
+    ]
+    return start, closes[0] if closes else len(lines)
+
+
 def find_section(markdown: str, anchor: str) -> list[str] | None:
     """
     Return the lines of the level-two section whose heading anchor matches.
@@ -70,28 +173,8 @@ def find_section(markdown: str, anchor: str) -> list[str] | None:
         The section's lines without its heading, or ``None`` when absent.
     """
     lines = markdown.splitlines()
-    in_fence = False
-    start: int | None = None
-    for index, line in enumerate(lines):
-        if FENCE.match(line) is not None:
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
-        heading = HEADING.match(line)
-        if heading is None:
-            continue
-        level = len(line) - len(line.lstrip("#"))
-        if start is None:
-            if (
-                level == SECTION_HEADING_LEVEL
-                and github_heading_anchor(heading.group("text").strip()) == anchor
-            ):
-                start = index + 1
-            continue
-        if level <= SECTION_HEADING_LEVEL:
-            return lines[start:index]
-    return None if start is None else lines[start:]
+    bounds = section_bounds(lines, anchor)
+    return None if bounds is None else lines[bounds[0] : bounds[1]]
 
 
 def table_rows(section: list[str]) -> list[list[str]]:

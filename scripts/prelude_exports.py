@@ -141,6 +141,35 @@ def use_names(tree: str, prefix: str = "") -> list[tuple[str, str]]:
     return pairs
 
 
+def statement_bindings(body: str) -> tuple[set[tuple[str, str]], list[str]]:
+    """
+    Return the bindings one ``pub use`` statement contributes to the prelude.
+
+    Parameters
+    ----------
+    body : str
+        The text of one ``pub use`` statement, without ``pub use`` or ``;``.
+
+    Returns
+    -------
+    tuple[set[tuple[str, str]], list[str]]
+        The statement's bindings, and any violations found while reading them.
+        A statement from an unexpected root contributes no bindings.
+    """
+    root, separator, rest = body.partition("::")
+    if not separator or root not in DEFINING_CRATES:
+        return set(), [f"prelude imports from an unexpected root: {body}"]
+    defining_crate = DEFINING_CRATES[root]
+    bindings: set[tuple[str, str]] = set()
+    violations: list[str] = []
+    for _, name in use_names(rest):
+        if name == "*":
+            violations.append(f"prelude glob import defeats the check: {body}")
+            continue
+        bindings.add((defining_crate, name))
+    return bindings, violations
+
+
 def prelude_bindings(source: str) -> tuple[set[tuple[str, str]], list[str]]:
     """
     Return the ``(defining crate, name)`` pairs a prelude re-exports.
@@ -158,16 +187,11 @@ def prelude_bindings(source: str) -> tuple[set[tuple[str, str]], list[str]]:
     bindings: set[tuple[str, str]] = set()
     violations: list[str] = []
     for match in USE_STATEMENT.finditer(source):
-        body = match.group("body").strip()
-        root, separator, rest = body.partition("::")
-        if not separator or root not in DEFINING_CRATES:
-            violations.append(f"prelude imports from an unexpected root: {body}")
-            continue
-        for _, name in use_names(rest):
-            if name == "*":
-                violations.append(f"prelude glob import defeats the check: {body}")
-                continue
-            bindings.add((DEFINING_CRATES[root], name))
+        statement, statement_violations = statement_bindings(
+            match.group("body").strip()
+        )
+        bindings.update(statement)
+        violations.extend(statement_violations)
     if not bindings:
         violations.append("prelude re-exports nothing; the check would be vacuous")
     return bindings, violations
