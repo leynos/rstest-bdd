@@ -1729,6 +1729,63 @@ rather than by reading this branch's comments.
       same thread corrected all three points and quoted the source comments.
       The lesson: a reply that describes internal behaviour should be written
       from a read of the source, not from memory of having written it.
+- [x] Learn that `make lint` cannot prove a change to this repository on a
+      checkout whose `vendor/gpui` fails, and that CI is the only place the
+      whole gate runs. The Whitaker `bumpy-road-function` lint refused
+      `tagged_root` in `trybuild_macros/staging/target_root/tests.rs` and then
+      `a_recorded_sibling_does_not_answer_for_a_removed_hashed_build` in
+      `artefacts/tests/replacements.rs`, on two successive heads, while `make
+      lint` reported only the `vendor/gpui` violation on both. The lint stops
+      at the first failing crate, so a pre-existing failure anywhere earlier in
+      its order hides every later one. Two things follow. Run
+      `make lint-whitaker` directly with `CARGO_FLAGS` narrowed to the crates
+      the change touches, because that reaches them regardless of what fails
+      before them; and scope it to the *whole* set of touched crates, not the
+      first one that comes to mind — the first attempt named only
+      `-p rstest-bdd` and so reported the fix while the harness crate was still
+      broken. `grep` the captured log for the finding rather than trusting the
+      exit status, and prefer a full-workspace run once the earlier crate is
+      known to pass. Both findings were the same defect shape: a test body with
+      two small extraction-shaped closures or `?`-clusters. Extracting them
+      into named helpers is what the lint asks for, and it reads better than an
+      `#[allow]`.
+- [x] Note that a live-environment test may assert a precondition its CI host
+      happens to satisfy. `target_directory_uses_running_test_executable`
+      asserted unconditionally that the running test executable has an ancestor
+      carrying Cargo's `CACHEDIR.TAG`. That holds for a target directory Cargo
+      created, and this worktree's did not have one, so the test failed locally
+      while the production path correctly fell back to `cargo metadata`. The
+      tag is a build artefact and is not tracked, so "it passes in CI" was the
+      only thing making the test look sound. It now states the precondition and
+      returns early, matching the two `an_untagged_*` cases beside it. Writing
+      the tag by hand confirmed the diagnosis before any code changed: all
+      eight cases passed with it and eight passed without it once guarded.
+- [x] Record that discovery decides what a unit directory *is* by the dep-info
+      it holds, which is a fixture-writing rule as much as an implementation
+      one. The first version of `evicting_a_target_named_output_invalidates_the_preparation`
+      wrote `deps/libengine-<hash>.rlib` with no `.d` beside it, and the gate
+      accepted the profile after that output was removed — not because
+      ownership was wrong but because `layout::classify` only treats a
+      directory as a unit directory when it holds a `dep_info_stem`. An output
+      alone is never recorded, so its removal cannot be seen however
+      `owned_packages` is declared. Writing the pair, as rustc does, made the
+      case pass and the mutation fail. A fixture that models half of what a
+      compiler writes can make a regression test pass for a reason unrelated to
+      the defect it names.
+- [x] Close the two follow-ups CodeRabbit left rather than only the original
+      findings. Its last word on two threads was that the finding was *not*
+      addressed: the graph tests resolved fixtures with a bare `cargo metadata`
+      that could reach the registry despite committed lockfiles, and the
+      target-name contract was pinned only by a predicate test, which asks
+      whether a name is owned and cannot ask whether a removal is seen. Both
+      held. `--locked --offline` now matches the form the harness already used
+      for the same call in `preparation/mod.rs`, and the eviction regression
+      drives the real gate: prepare through `prepare_now`, remove only the
+      target-named output, keep the fingerprint records, assert refusal.
+      Mutation-checked by dropping the target name, which fails that case and
+      leaves the dependency case green. A reviewer declining to mark a thread
+      addressed is a coverage statement about the test, and the right answer is
+      a test that fails without the contract.
 
 ## Surprises & Discoveries
 
