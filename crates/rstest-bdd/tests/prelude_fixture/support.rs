@@ -7,6 +7,7 @@
 
 use std::{
     env,
+    fmt,
     io,
     path::{Path, PathBuf},
     process::Command,
@@ -17,9 +18,27 @@ use cap_std::{ambient_authority, fs::Dir};
 use rstest_bdd_harness::nested_cargo::{self, NestedCargoEnv, ProfileDestination};
 use toml::Value;
 
+/// The name of one fixture crate beneath `tests/fixtures/`.
+///
+/// A newtype rather than a plain `&str`: nearly every function here takes a
+/// fixture name beside another string — a test-source file name, a dependency
+/// name — and a bare `&str` would let a caller supply one where the other was
+/// meant without a compile error.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Fixture(&'static str);
+
+impl Fixture {
+    /// The fixture's directory name beneath `tests/fixtures/`.
+    pub(crate) fn as_str(self) -> &'static str { self.0 }
+}
+
+impl fmt::Display for Fixture {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result { formatter.write_str(self.0) }
+}
+
 /// Fixture directory names under `tests/fixtures/`.
-pub(crate) const PRELUDE_ONLY: &str = "prelude_only";
-pub(crate) const MACROS_DIRECT: &str = "macros_direct";
+pub(crate) const PRELUDE_ONLY: Fixture = Fixture("prelude_only");
+pub(crate) const MACROS_DIRECT: Fixture = Fixture("macros_direct");
 
 /// The crate the `rstest-bdd` facade re-exports, and which a consumer writing
 /// through the prelude must not name.
@@ -29,7 +48,7 @@ pub(crate) const MACROS_CRATE: &str = "rstest-bdd-macros";
 const DEPENDENCY_TABLES: [&str; 3] = ["dependencies", "dev-dependencies", "build-dependencies"];
 
 /// Every fixture this binary drives, in the order the preparation builds them.
-pub(crate) const FIXTURES: [&str; 2] = [PRELUDE_ONLY, MACROS_DIRECT];
+pub(crate) const FIXTURES: [Fixture; 2] = [PRELUDE_ONLY, MACROS_DIRECT];
 
 /// Wall-clock bound for one fixture run.
 ///
@@ -40,10 +59,10 @@ pub(crate) const FIXTURES: [&str; 2] = [PRELUDE_ONLY, MACROS_DIRECT];
 pub(crate) const RUN_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// The source directory of one fixture crate.
-pub(crate) fn fixture_directory(fixture: &str) -> PathBuf {
+pub(crate) fn fixture_directory(fixture: Fixture) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
-        .join(fixture)
+        .join(fixture.as_str())
 }
 
 /// The workspace's shared build-output directory.
@@ -56,7 +75,7 @@ pub(crate) fn shared_target_directory() -> PathBuf {
 }
 
 /// Read a fixture's manifest as parsed TOML.
-pub(crate) fn read_manifest(fixture: &str) -> io::Result<Value> {
+pub(crate) fn read_manifest(fixture: Fixture) -> io::Result<Value> {
     let directory = open_fixture(fixture)?;
     let text = directory.read_to_string("Cargo.toml")?;
     toml::from_str(&text).map_err(|error| {
@@ -75,7 +94,7 @@ pub(crate) fn read_manifest(fixture: &str) -> io::Result<Value> {
 /// Every read below goes through a `cap_std` directory handle rather than
 /// `std::fs`, so a path component the fixture supplies cannot escape the
 /// directory the test opened.
-fn open_fixture(fixture: &str) -> io::Result<Dir> {
+fn open_fixture(fixture: Fixture) -> io::Result<Dir> {
     Dir::open_ambient_dir(fixture_directory(fixture), ambient_authority())
 }
 
@@ -95,7 +114,7 @@ pub(crate) fn declared_dependencies(manifest: &Value) -> Vec<&str> {
 }
 
 /// Read one of a fixture's integration-test sources.
-pub(crate) fn read_test_source(fixture: &str, file: &str) -> io::Result<String> {
+pub(crate) fn read_test_source(fixture: Fixture, file: &str) -> io::Result<String> {
     open_fixture(fixture)?.read_to_string(Path::new("tests").join(file))
 }
 
@@ -150,7 +169,7 @@ pub(crate) fn child_environment() -> io::Result<NestedCargoEnv> {
 /// appended to the shared prefix.
 pub(crate) fn fixture_command(
     environment: &NestedCargoEnv,
-    fixture: &str,
+    fixture: Fixture,
     extra: &[&str],
 ) -> Command {
     let mut command = nested_cargo::cargo_command(environment, &fixture_directory(fixture));

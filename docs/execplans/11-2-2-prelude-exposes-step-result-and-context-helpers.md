@@ -1467,6 +1467,23 @@ should be filed rather than forgotten:
 
 ## Decision log
 
+- **DL-20 — The CodeScene findings against the prelude gate were fixed by
+  decomposition, not suppressed.** Resolved on 2026-11-16 after the hosted
+  CodeScene check failed at `492b457f` on three of its gates. Every finding was
+  against code this branch introduced, and each described a shape problem
+  rather than a threshold: `dependency_crates` in
+  `scripts/check_example_imports.py` reached five levels of conditional nesting
+  across two branch bumps, `writes_step_attributes` and `names_macro_crate`
+  were the same comprehension over different marker tuples, the two
+  dependency-table tests differed only in a constant, and `support.rs` took
+  fixture names as bare strings beside file and dependency names. The repairs
+  are structural. The per-table walk moved into `dependency_names`, the two
+  marker predicates collapsed into the single `is_in_scope` predicate that was
+  their only caller, the two tests became one `pytest.mark.parametrize` case,
+  and the fixture name became a `Fixture` newtype so a test-source file name
+  can no longer be passed where a fixture is meant. All three files then score
+  10.00 under `cs review`. Date/Author: 2026-11-16, implementation agent.
+
 - **DL-19 — A compile-fail fixture proves the prelude's exclusions, so the
   guide's list is enforced by the compiler.** Resolved on 2026-11-16 while
   answering the review. The pin in DL-18 proves the guide's two prelude imports
@@ -2167,6 +2184,16 @@ checks passed — 4,447 s in total. `make check-fmt` (2 s), `make markdownlint`
 by one sentence in this file and no step of those three gates reads it.
 `REV_START` and `REV_END` were `d440bade` for the four re-run gates and
 `11516ce6` for the three carried forward.
+
+Pushing `492b457f` turned the hosted CodeScene check red on three of its gates,
+all of them against files this branch adds. The findings and the structural
+repair are DL-20; what belongs here is why the local gates had nothing to say
+about them. CodeScene is not one of the seven commit targets, so the failure
+was invisible until a push ran the hosted check — the same shape of gap that
+`make lint` and CodeScene can disagree about. The repair changes
+`scripts/check_example_imports.py`, its test module, and the `prelude_fixture`
+test support, so it is a code change and needs the full gate set rather than
+the Markdown-only subset the previous round could rely on.
 
 ## Surprises & discoveries
 

@@ -119,7 +119,7 @@ pub(crate) fn prepare() -> io::Result<PreparationSummary> {
 }
 
 /// Compile one fixture, reporting what it cost.
-fn build_fixture(environment: &NestedCargoEnv, fixture: &str) -> io::Result<usize> {
+fn build_fixture(environment: &NestedCargoEnv, fixture: support::Fixture) -> io::Result<usize> {
     let mut command = support::fixture_command(environment, fixture, &["--no-run"]);
     let output = nested_cargo::run_bounded_with_timeout(
         &mut command,
