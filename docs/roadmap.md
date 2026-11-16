@@ -1049,12 +1049,41 @@ remove the existing `StepContext`, harness, or macro surfaces.
   spelling still works. See ExecPlan
   `docs/execplans/11-2-1-annotate-parameters-with-harness-context.md` and the
   ADR-007 addendum.
-- [ ] 11.2.2. The public prelude exposes `StepResult`, `Slot`, `ScenarioState`,
-  harness-context helpers, and marker attributes from 11.2.1, so examples can
-  import one predictable module without hiding the underlying crates. Finish
-  line: compile tests prove examples import only the prelude plus their harness
-  crate, and docs list the exported items. Prerequisite: 11.2.1. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
+- [x] 11.2.2. The public prelude exposes `StepResult`, `Slot`, `ScenarioState`,
+  and `StepContext` with its harness-context helpers, so examples can import
+  one predictable module without hiding the underlying crates. The
+  `#[harness_context]` marker from 11.2.1 is inert parameter syntax with no
+  importable item behind it, so documentation covers it rather than an export.
+  Finish line: every example reaches its `rstest-bdd` surface through
+  `rstest_bdd::prelude` alone, with `rstest-bdd-macros` absent from every
+  example manifest and every example source file, enforced in both directions
+  by the compiler and by a repository gate; a fixture crate naming only
+  `rstest-bdd` and `rstest` compiles and runs a scenario; and
+  `docs/users-guide.md` lists the exported items under a gate that fails when
+  the list and the code disagree. Examples continue to name `rstest`, their
+  harness crate, and the test-only scaffolding crate directly: those are not
+  re-exported and are meant to stay visible. Prerequisite: 11.2.1. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump). Completed 2026-11-16:
+  `rstest_bdd::prelude` re-exports eleven names — `given`, `when`, `then`,
+  `scenario`, `scenarios`, `ScenarioState`, `StepArgs`, `Slot`, `StepContext`,
+  `StepError`, and `StepResult` — and thirteen items in all, because
+  `ScenarioState` and `StepArgs` each name a derive macro *and* a trait. The
+  crate root mirrors every one of them, so the prelude stays a strict subset
+  with no names of its own. Every example reaches its `rstest-bdd` surface
+  through the prelude, no example manifest declares `rstest-bdd-macros`, and
+  the compiler and `scripts/check_example_imports.py` hold that in both
+  directions. The fixture crate `crates/rstest-bdd/tests/fixtures/prelude_only`
+  names only `rstest-bdd` and `rstest` in its manifest and compiles and runs a
+  scenario, and `scripts/check_prelude_exports.py` fails when the
+  `docs/users-guide.md` item table, the spelled-out import example, or the
+  README imports disagree with the code. Deliberately not exported: the
+  datatable items (`DataTable`, `DataTableRow`, `datatable::Rows`,
+  `DataTableError`), the harness traits, `rstest::fixture` and `rstest::rstest`,
+  `panic_message`, and the reserved harness-context fixture key. A public-API
+  gate remains absent; the follow-up items this entry surfaced are filed as
+  issues #952-#959. See ExecPlan
+  `docs/execplans/11-2-2-prelude-exposes-step-result-and-context-helpers.md` and
+  `docs/adr-026-publish-a-facade-prelude.md`.
 - [ ] 11.2.3. Diagnostics detect non-canonical harness paths and missing or
   ambiguous attribute-policy annotations, with actionable guidance such as
   adding `attributes = ...` explicitly or using the canonical path. Finish
