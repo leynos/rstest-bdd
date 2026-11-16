@@ -117,15 +117,23 @@ fn evicting_a_target_named_output_invalidates_the_preparation() {
         .expect("the preparation describes the profile directory it reuses");
 
     // The output is named for the target, the records for the package, exactly
-    // as Cargo writes them when the two disagree. The `.d` record shares the
-    // output's hashed stem and is what makes the directory a *unit* directory
-    // at all: discovery classifies a directory by the dep-info it holds, so an
-    // output written alone would never be recorded and the removal would be
-    // invisible for a reason that has nothing to do with ownership.
+    // as Cargo writes them when the two disagree. The `.d` record is what makes
+    // the directory a *unit* directory at all: discovery classifies a directory
+    // by the dep-info it holds, so an output written alone would never be
+    // recorded and the removal would be invisible for a reason that has nothing
+    // to do with ownership.
+    //
+    // The record is named `<stem>.d` beside `lib<stem>.rlib`, not
+    // `lib<stem>.d`: rustc spells the dep-info with the unit's own stem, which
+    // carries no `lib`, and only then does `is_output_of` pair the two through
+    // its *library* branch. A `lib`-prefixed record instead makes the stem
+    // `libengine-<hash>`, which the output matches by its *binary* branch — the
+    // same shape `write_unit` writes, so this case keeps the fixture helper's
+    // fidelity rather than inventing a naming rustc does not produce.
     let deps = profile.join("deps");
     fs::create_dir_all(&deps).expect("create the unit directory");
-    let unit = format!("lib{ENGINE_TARGET}-0123456789abcdef");
-    let output = deps.join(format!("{unit}.rlib"));
+    let unit = format!("{ENGINE_TARGET}-0123456789abcdef");
+    let output = deps.join(format!("lib{unit}.rlib"));
     fs::write(&output, b"unit").expect("write the target-named output");
     fs::write(deps.join(format!("{unit}.d")), b"dep-info").expect("write the dep-info record");
     let records = profile
