@@ -35,6 +35,16 @@
 /// nested `build/<package>-<hash>/out` adds a third. Matching any component is
 /// what lets one rule cover all three without this module having to know which
 /// layout Cargo is using today.
+///
+/// A *target* name is matched exactly as a package name is, because a unit's
+/// stem comes from the target while its record directory comes from the
+/// package: a package `adapter` declaring `[lib] name = "engine"` produces
+/// `deps/libengine-<hash>.rlib` beside `.fingerprint/adapter-<hash>/`.
+/// Matching the package name therefore covers that unit's records and not its
+/// output, so such a package must list the target name too; see
+/// [`super::super::Preparation::owned_packages`]. This rule cannot derive the
+/// pair itself — it sees only the recorded names, and what is absent from them
+/// is exactly what it cannot look up.
 pub(super) fn name_is_owned(name: &str, owned: &[String]) -> bool {
     if owned.is_empty() {
         return true;

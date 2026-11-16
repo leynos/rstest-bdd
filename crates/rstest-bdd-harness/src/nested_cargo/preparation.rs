@@ -214,6 +214,15 @@ pub struct Preparation {
     /// exists to protect. Only the caller knows the dependency list, which is
     /// why it is declared here rather than derived.
     ///
+    /// A name here is a Cargo *target* name as well as a package name, because
+    /// the two need not agree: a package called `adapter` may declare
+    /// `[lib] name = "engine"`, and its output is then
+    /// `deps/libengine-<hash>.rlib` while its fingerprint records stay under
+    /// `.fingerprint/adapter-<hash>/`. The records would be owned and the
+    /// output would not, so removing only the output is invisible. Such a
+    /// caller must list `engine` as well; a package name covers the targets
+    /// that share it, which is every target in this workspace.
+    ///
     /// Empty means the family owns the whole profile, which is right for
     /// [`Preparation::for_fixture`]: such a family sets `CARGO_TARGET_DIR` to
     /// the directory it stamps, so no other family writes there.

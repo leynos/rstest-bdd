@@ -67,6 +67,45 @@ fn a_prefix_of_a_package_name_is_another_package() {
     }
 }
 
+/// An independently named target must be declared by its own name.
+///
+/// A package `adapter` may declare `[lib] name = "engine"`, and Cargo then
+/// files the output under the *target* name while the records keep the
+/// *package* name. Declaring only `adapter` therefore owns
+/// `.fingerprint/adapter-<hash>/` and not `deps/libengine-<hash>.rlib`, so
+/// removing just the output leaves the recorded-name check satisfied while the
+/// unit it needs is gone. Listing the target name as well is what closes that,
+/// and this case pins both halves: the package name alone is not enough, and
+/// the pair owns every shape Cargo writes.
+#[test]
+fn an_independently_named_target_needs_its_own_entry() {
+    let package_only = ["adapter".to_owned()];
+    let records = ".fingerprint/adapter-0123456789abcdef/invoked.timestamp";
+    let output = "deps/libengine-0123456789abcdef.rlib";
+    assert!(
+        name_is_owned(records, &package_only),
+        "the records are filed under the package name and stay owned"
+    );
+    assert!(
+        !name_is_owned(output, &package_only),
+        "the output is filed under the target name, which the package name does not match — this \
+         is the hole the caller closes by naming the target"
+    );
+
+    let both = ["adapter".to_owned(), "engine".to_owned()];
+    for name in [
+        records,
+        output,
+        "deps/libengine-0123456789abcdef.rmeta",
+        "deps/engine-0123456789abcdef.d",
+    ] {
+        assert!(
+            name_is_owned(name, &both),
+            "`{name}` must be owned once the target is declared"
+        );
+    }
+}
+
 /// A family that names no package owns the whole profile.
 ///
 /// [`super::super::super::Preparation::for_fixture`] sets `CARGO_TARGET_DIR`
