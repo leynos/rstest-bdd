@@ -87,60 +87,45 @@ fn extract_placeholders_returns_error_for_invalid_pattern() {
     );
 }
 
+/// Assert that *pattern* captures exactly *expected* from *input*.
+fn assert_capture(pattern: &'static str, input: &str, expected: &str) {
+    let Ok(caps) = extract_placeholders(&compiled(pattern), StepText::from(input)) else {
+        panic!("expected `{input}` to match `{pattern}`");
+    };
+    assert_eq!(
+        caps,
+        vec![expected],
+        "capture for `{pattern}` against `{input}`"
+    );
+}
+
+/// Assert whether *pattern* matches *input*.
+fn assert_matches(pattern: &'static str, input: &str, should_match: bool) {
+    let matched = extract_placeholders(&compiled(pattern), StepText::from(input)).is_ok();
+    assert_eq!(
+        matched, should_match,
+        "match of `{input}` against `{pattern}`"
+    );
+}
+
 #[test]
-fn type_hint_uses_specialized_fragment() {
-    // u32: positive integer
-    let pat = compiled("value {n:u32}");
-    let text = StepText::from("value 42");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for u32");
-    };
-    assert_eq!(caps, vec!["42"]);
-    assert!(
-        extract_placeholders(&pat, StepText::from("value none")).is_err(),
-        "non-numeric text should not match u32",
-    );
+fn type_hint_matches_integer_literals() {
+    assert_capture("value {n:u32}", "value 42", "42");
+    assert_matches("value {n:u32}", "value none", false);
 
-    // i32: negative integer
-    let pat = compiled("value {n:i32}");
-    let text = StepText::from("value -42");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for negative i32");
-    };
-    assert_eq!(caps, vec!["-42"]);
-    assert!(
-        extract_placeholders(&pat, StepText::from("value 42.5")).is_err(),
-        "float should not match i32",
-    );
+    assert_capture("value {n:i32}", "value -42", "-42");
+    assert_matches("value {n:i32}", "value 42.5", false);
 
-    // isize: negative integer
-    let pat = compiled("value {n:isize}");
-    let text = StepText::from("value -7");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for negative isize");
-    };
-    assert_eq!(caps, vec!["-7"]);
+    assert_capture("value {n:isize}", "value -7", "-7");
+}
 
-    // f64: floating point
-    let pat = compiled("value {n:f64}");
-    let text = StepText::from("value 2.71828");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for f64");
-    };
-    assert_eq!(caps, vec!["2.71828"]);
-    assert!(
-        extract_placeholders(&pat, StepText::from("value none")).is_err(),
-        "non-numeric text should not match f64",
-    );
-    assert!(
-        extract_placeholders(&pat, StepText::from("value 1e-3")).is_ok(),
-        "scientific notation should match f64",
-    );
-    assert!(
-        extract_placeholders(&pat, StepText::from("value -0.001")).is_ok(),
-        "negative float should match f64",
-    );
+#[test]
+fn type_hint_matches_float_literals() {
+    assert_capture("value {n:f64}", "value 2.71828", "2.71828");
+    assert_matches("value {n:f64}", "value none", false);
     for sample in [
+        "value 1e-3",
+        "value -0.001",
         "value .5",
         "value 42.",
         "value 1e3",
@@ -151,19 +136,11 @@ fn type_hint_uses_specialized_fragment() {
         "value inf",
         "value Infinity",
     ] {
-        assert!(
-            extract_placeholders(&pat, StepText::from(sample)).is_ok(),
-            "{sample} should match f64",
-        );
+        assert_matches("value {n:f64}", sample, true);
     }
 
-    // f32: special float values
-    let pat = compiled("value {n:f32}");
     for sample in ["value NaN", "value inf", "value Infinity"] {
-        assert!(
-            extract_placeholders(&pat, StepText::from(sample)).is_ok(),
-            "{sample} should match f32",
-        );
+        assert_matches("value {n:f32}", sample, true);
     }
 }
 

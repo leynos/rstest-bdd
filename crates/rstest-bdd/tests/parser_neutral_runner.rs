@@ -109,7 +109,13 @@ fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) 
 /// built: a field the seed forgets is dropped silently by the rebuild, and
 /// `tags` was.
 fn reopen(plan: &ScenarioPlan) -> ScenarioPlanBuilder {
-    let mut builder = ScenarioPlanBuilder::new(plan.name().to_owned(), plan.source().to_owned());
+    let builder = ScenarioPlanBuilder::new(plan.name().to_owned(), plan.source().to_owned());
+    let builder = carry_plan_fields(builder, plan);
+    carry_steps(builder, plan)
+}
+
+/// Re-apply the plan-wide fields: its tags, skip policy and source line.
+fn carry_plan_fields(mut builder: ScenarioPlanBuilder, plan: &ScenarioPlan) -> ScenarioPlanBuilder {
     for tag in plan.tags() {
         builder = builder.tag(tag.to_owned());
     }
@@ -117,6 +123,11 @@ fn reopen(plan: &ScenarioPlan) -> ScenarioPlanBuilder {
     if let Some(source_line) = plan.source_line() {
         builder = builder.at_line(source_line);
     }
+    builder
+}
+
+/// Re-apply every step the plan already holds, in order.
+fn carry_steps(mut builder: ScenarioPlanBuilder, plan: &ScenarioPlan) -> ScenarioPlanBuilder {
     for existing in plan.steps() {
         builder = builder.step(existing.clone());
     }

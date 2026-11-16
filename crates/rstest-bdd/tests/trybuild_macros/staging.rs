@@ -252,30 +252,49 @@ fn apply_snapshot_target_root(original: &str, rendered_target_root: &str) -> Str
 /// Stage temporary target-root-specific snapshots for a trybuild run.
 pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuard> {
     let crate_root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = crate_root
-        .parent()
-        .and_then(Utf8Path::parent)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
+    let workspace_root = workspace_root_of(&crate_root)?;
     let target_root = trybuild_target_directory(workspace_root);
     let snapshot_target_root = snapshot_target_root(&target_root, workspace_root);
     let crate_dir = Dir::open_ambient_dir(crate_root.as_std_path(), ambient_authority())?;
-    let mut originals = Vec::new();
+    let originals = read_snapshot_originals(&crate_dir)?;
+    let guard = TargetRootSnapshotGuard {
+        crate_root,
+        originals,
+    };
+    rewrite_snapshots(&crate_dir, &guard.originals, snapshot_target_root.as_str())?;
+    Ok(guard)
+}
 
+/// The workspace root, two directories above the crate manifest directory.
+fn workspace_root_of(crate_root: &Utf8Path) -> io::Result<&Utf8Path> {
+    crate_root
+        .parent()
+        .and_then(Utf8Path::parent)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))
+}
+
+/// Read every snapshot the rewrite may touch, retaining the original text.
+fn read_snapshot_originals(crate_dir: &Dir) -> io::Result<Vec<(Utf8PathBuf, String)>> {
+    let mut originals = Vec::new();
     for path in TARGET_ROOT_SNAPSHOTS {
         let path = Utf8PathBuf::from(path);
         let original = crate_dir.read_to_string(path.as_std_path())?;
         originals.push((path, original));
     }
+    Ok(originals)
+}
 
-    let guard = TargetRootSnapshotGuard {
-        crate_root,
-        originals,
-    };
-    for (path, original) in &guard.originals {
-        let adjusted = apply_snapshot_target_root(original, snapshot_target_root.as_str());
+/// Rewrite each staged snapshot to name the temporary target root.
+fn rewrite_snapshots(
+    crate_dir: &Dir,
+    originals: &[(Utf8PathBuf, String)],
+    snapshot_target_root: &str,
+) -> io::Result<()> {
+    for (path, original) in originals {
+        let adjusted = apply_snapshot_target_root(original, snapshot_target_root);
         crate_dir.write(path.as_std_path(), adjusted.as_bytes())?;
     }
-    Ok(guard)
+    Ok(())
 }
 fn write_feature_files(
     root: &Dir,

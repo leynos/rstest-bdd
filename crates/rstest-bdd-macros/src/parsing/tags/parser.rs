@@ -147,25 +147,11 @@ impl<'a> Parser<'a> {
             Token {
                 kind: TokenKind::Tag(tag),
                 ..
-            } => {
-                self.advance()?;
-                Ok(Expr::Tag(tag))
-            }
+            } => self.consume_tag(tag),
             Token {
                 kind: TokenKind::LParen,
                 ..
-            } => {
-                let span = self.current.start;
-                self.advance()?;
-                let expr = self.parse_expression()?;
-                match self.current.kind {
-                    TokenKind::RParen => {
-                        self.advance()?;
-                        Ok(expr)
-                    }
-                    _ => Err(TagExprError::new(span, "missing ')'")),
-                }
-            }
+            } => self.parse_parenthesized(),
             Token {
                 kind: TokenKind::End,
                 start,
@@ -174,6 +160,34 @@ impl<'a> Parser<'a> {
                 token.start,
                 format!("expected tag or '(' but found {}", token.describe()),
             )),
+        }
+    }
+
+    /// Consume a tag token and return it as a leaf expression.
+    fn consume_tag(&mut self, tag: String) -> Result<Expr, TagExprError> {
+        self.advance()?;
+        Ok(Expr::Tag(tag))
+    }
+
+    /// Parse a parenthesized sub-expression and require its closing bracket.
+    ///
+    /// The opening bracket's offset is retained so a missing `)` is reported
+    /// against the group rather than against whatever token stopped it.
+    fn parse_parenthesized(&mut self) -> Result<Expr, TagExprError> {
+        let span = self.current.start;
+        self.advance()?;
+        let expr = self.parse_expression()?;
+        self.expect_rparen(span, expr)
+    }
+
+    /// Return *expr* when the next token closes the group, else a diagnostic.
+    fn expect_rparen(&mut self, span: usize, expr: Expr) -> Result<Expr, TagExprError> {
+        match self.current.kind {
+            TokenKind::RParen => {
+                self.advance()?;
+                Ok(expr)
+            }
+            _ => Err(TagExprError::new(span, "missing ')'")),
         }
     }
 

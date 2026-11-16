@@ -88,36 +88,46 @@ impl Parse for BindingArgument {
 
         let name: syn::Ident = input.parse()?;
         input.parse::<syn::Token![=]>()?;
-        match name.to_string().as_str() {
-            "path" | "dir" => Ok(Self::Path(input.parse()?)),
-            "libraries" => parse_libraries(input),
-            "fixtures" => {
-                let content;
-                syn::bracketed!(content in input);
-                let _: proc_macro2::TokenStream = content.parse()?;
-                Ok(Self::Ignored)
-            }
-            "index" => {
-                let _: syn::LitInt = input.parse()?;
-                Ok(Self::Ignored)
-            }
-            "name" | "tags" | "runtime" => {
-                let _: LitStr = input.parse()?;
-                Ok(Self::Ignored)
-            }
-            "harness" | "attributes" => {
-                let _: syn::Path = input.parse()?;
-                Ok(Self::Ignored)
-            }
-            _ => Err(syn::Error::new(
-                name.span(),
-                concat!(
-                    "unknown scenario-binding argument; expected `path`, `dir`, `libraries`, ",
-                    "`fixtures`, `index`, `name`, `tags`, `runtime`, `harness`, or `attributes`",
-                ),
-            )),
-        }
+        parse_named_argument(input, &name)
     }
+}
+
+/// Classify the value of a `name = value` binding argument.
+fn parse_named_argument(input: ParseStream<'_>, name: &syn::Ident) -> syn::Result<BindingArgument> {
+    match name.to_string().as_str() {
+        "path" | "dir" => Ok(BindingArgument::Path(input.parse()?)),
+        "libraries" => parse_libraries(input),
+        "fixtures" => skip_bracketed(input),
+        "index" => skip_value::<syn::LitInt>(input),
+        "name" | "tags" | "runtime" => skip_value::<LitStr>(input),
+        "harness" | "attributes" => skip_value::<syn::Path>(input),
+        _ => Err(unknown_argument(name)),
+    }
+}
+
+/// Consume a `fixtures = [...]` argument, which does not affect scope.
+fn skip_bracketed(input: ParseStream<'_>) -> syn::Result<BindingArgument> {
+    let content;
+    syn::bracketed!(content in input);
+    let _: proc_macro2::TokenStream = content.parse()?;
+    Ok(BindingArgument::Ignored)
+}
+
+/// Consume an argument value that the indexing pass does not read.
+fn skip_value<T: Parse>(input: ParseStream<'_>) -> syn::Result<BindingArgument> {
+    let _: T = input.parse()?;
+    Ok(BindingArgument::Ignored)
+}
+
+/// The diagnostic for an argument name the indexing pass does not recognise.
+fn unknown_argument(name: &syn::Ident) -> syn::Error {
+    syn::Error::new(
+        name.span(),
+        concat!(
+            "unknown scenario-binding argument; expected `path`, `dir`, `libraries`, ",
+            "`fixtures`, `index`, `name`, `tags`, `runtime`, `harness`, or `attributes`",
+        ),
+    )
 }
 
 /// Parse a `libraries = [path, ...]` argument.

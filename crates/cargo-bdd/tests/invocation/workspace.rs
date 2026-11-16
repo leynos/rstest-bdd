@@ -46,40 +46,62 @@ pub(super) struct IsolatedWorkspace {
     binary_directory: Utf8PathBuf,
 }
 
+/// Return *path* as UTF-8, reporting a non-UTF-8 temporary root as invalid data.
+fn utf8_root(path: &std::path::Path) -> io::Result<&Utf8Path> {
+    Utf8Path::from_path(path).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "test directory path is not UTF-8",
+        )
+    })
+}
+
+/// Create the `home`, `work` and `bin` directories the child process expects.
+fn create_layout(root: &Dir) -> io::Result<()> {
+    for directory in ["home", "work", "bin"] {
+        root.create_dir(directory)?;
+    }
+    Ok(())
+}
+
+/// Copy the `cargo-bdd` binary under test into the workspace's `bin` directory.
+///
+/// The child runs the copy rather than the build artefact so a test can assert
+/// on the binary's own behaviour without touching the target directory.
+fn copy_binary(root: &Dir) -> io::Result<()> {
+    let binary_path = Utf8Path::new(env!("CARGO_BIN_EXE_cargo-bdd"));
+    let binary_parent = binary_path.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Cargo binary has no parent directory",
+        )
+    })?;
+    let binary_name = binary_path.file_name().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Cargo binary path has no file name",
+        )
+    })?;
+    let source_directory = Dir::open_ambient_dir(binary_parent, ambient_authority())?;
+    let destination_directory = root.open_dir("bin")?;
+    source_directory.copy(binary_name, &destination_directory, binary_name)?;
+    Ok(())
+}
+
 impl IsolatedWorkspace {
     /// Build the directory tree and copy the binary under test into it.
     pub(super) fn new() -> io::Result<Self> {
         let temporary_directory = tempfile::tempdir()?;
-        let temporary_root = Utf8Path::from_path(temporary_directory.path()).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "test directory path is not UTF-8",
-            )
-        })?;
+        let temporary_root = utf8_root(temporary_directory.path())?;
         let root = Dir::open_ambient_dir(temporary_root.as_std_path(), ambient_authority())?;
-        for directory in ["home", "work", "bin"] {
-            root.create_dir(directory)?;
-        }
+        create_layout(&root)?;
+        copy_binary(&root)?;
+
+        // Resolve the layout paths before the struct takes ownership of the
+        // temporary directory that `temporary_root` borrows.
         let home = temporary_root.join("home");
         let working_directory = temporary_root.join("work");
         let binary_directory = temporary_root.join("bin");
-        let binary_path = Utf8Path::new(env!("CARGO_BIN_EXE_cargo-bdd"));
-        let binary_parent = binary_path.parent().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Cargo binary has no parent directory",
-            )
-        })?;
-        let source_directory = Dir::open_ambient_dir(binary_parent, ambient_authority())?;
-        let destination_directory = root.open_dir("bin")?;
-        let binary_name = binary_path.file_name().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Cargo binary path has no file name",
-            )
-        })?;
-        source_directory.copy(binary_name, &destination_directory, binary_name)?;
-
         Ok(Self {
             temporary_directory,
             root,

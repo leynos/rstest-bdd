@@ -43,37 +43,50 @@ fn find_first_table_row_line(table_text: &str) -> Option<(&str, usize)> {
 /// Split a table header row into spans for each cell's trimmed content.
 fn split_table_header_cells(line: LineContent<'_>, global_line_start: usize) -> Vec<Span> {
     let bytes = line.as_str().as_bytes();
-    let mut pipe_positions = Vec::new();
-    for (idx, b) in bytes.iter().enumerate() {
-        if *b == b'|' {
-            pipe_positions.push(idx);
-        }
-    }
-    if pipe_positions.len() < 2 {
+    let pipes = pipe_offsets(bytes);
+    if pipes.len() < 2 {
         return Vec::new();
     }
+    cell_spans(bytes, global_line_start, &pipes)
+}
 
-    let mut spans = Vec::with_capacity(pipe_positions.len().saturating_sub(1));
-    for window in pipe_positions.windows(2) {
-        let &[left, right] = window else {
-            continue;
-        };
-        if right <= left + 1 {
-            spans.push(Span {
-                start: global_line_start + right,
-                end: global_line_start + right,
-            });
-            continue;
+/// Byte offsets of every pipe in a table row, in source order.
+fn pipe_offsets(bytes: &[u8]) -> Vec<usize> {
+    bytes
+        .iter()
+        .enumerate()
+        .filter_map(|(index, byte)| (*byte == b'|').then_some(index))
+        .collect()
+}
+
+/// One span per cell, delimited by consecutive pipes.
+fn cell_spans(bytes: &[u8], global_line_start: usize, pipes: &[usize]) -> Vec<Span> {
+    let mut spans = Vec::with_capacity(pipes.len().saturating_sub(1));
+    for window in pipes.windows(2) {
+        if let &[left, right] = window {
+            spans.push(cell_span(bytes, global_line_start, left, right));
         }
-        let cell_start = left + 1;
-        let cell_end = right;
-        let (trimmed_start, trimmed_end) = trim_ascii_whitespace(bytes, cell_start, cell_end);
-        spans.push(Span {
-            start: global_line_start + trimmed_start,
-            end: global_line_start + trimmed_end,
-        });
     }
     spans
+}
+
+/// Span covering the cell between two pipes, trimmed of surrounding spaces.
+///
+/// Adjacent pipes delimit an empty cell, whose span is the zero-width position
+/// just after the left pipe.
+fn cell_span(bytes: &[u8], global_line_start: usize, left: usize, right: usize) -> Span {
+    if right <= left + 1 {
+        let offset = global_line_start + right;
+        return Span {
+            start: offset,
+            end: offset,
+        };
+    }
+    let (trimmed_start, trimmed_end) = trim_ascii_whitespace(bytes, left + 1, right);
+    Span {
+        start: global_line_start + trimmed_start,
+        end: global_line_start + trimmed_end,
+    }
 }
 
 /// Trim ASCII spaces and tabs from a byte range.

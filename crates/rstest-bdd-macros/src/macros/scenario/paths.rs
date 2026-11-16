@@ -78,24 +78,38 @@ mod windows_paths {
 
 /// Provides the internal `canonicalize_with_cap_std` operation.
 fn canonicalize_with_cap_std(path: &Path) -> Option<PathBuf> {
-    let authority = ambient_authority();
     if path.is_absolute() {
-        let Some(parent) = path.parent() else {
-            return Some(path.to_path_buf());
-        };
-        let Some(name) = path.file_name() else {
-            return Some(path.to_path_buf());
-        };
-        let name = PathBuf::from(name);
-        let dir = Dir::open_ambient_dir(parent, authority).ok()?;
-        let resolved = dir.canonicalize(&name).ok()?;
-        Some(parent.to_path_buf().join(resolved))
+        canonicalize_absolute(path)
     } else {
-        let cwd = std::env::current_dir().ok()?;
-        let dir = Dir::open_ambient_dir(&cwd, authority).ok()?;
-        let resolved = dir.canonicalize(path).ok()?;
-        Some(cwd.join(resolved))
+        canonicalize_relative(path)
     }
+}
+
+/// Resolve an absolute path through the directory that holds it.
+///
+/// A path with no parent or file name has nothing left to resolve, so it is
+/// returned unchanged; the cache key and diagnostics then still name what the
+/// caller wrote.
+fn canonicalize_absolute(path: &Path) -> Option<PathBuf> {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return Some(path.to_path_buf());
+    };
+    let dir = open_ambient_dir(parent)?;
+    let resolved = dir.canonicalize(PathBuf::from(name)).ok()?;
+    Some(parent.to_path_buf().join(resolved))
+}
+
+/// Resolve a relative path against the process working directory.
+fn canonicalize_relative(path: &Path) -> Option<PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    let dir = open_ambient_dir(&cwd)?;
+    let resolved = dir.canonicalize(path).ok()?;
+    Some(cwd.join(resolved))
+}
+
+/// Open an ambient directory, reporting an I/O failure as `None`.
+fn open_ambient_dir(path: &Path) -> Option<Dir> {
+    Dir::open_ambient_dir(path, ambient_authority()).ok()
 }
 
 /// Canonicalize the feature path for stable diagnostics.

@@ -60,21 +60,8 @@ pub(crate) fn extract_examples(
         return Ok(None);
     }
 
-    let first_table = get_first_examples_table(scenario)?;
-    let headers = extract_and_validate_headers(first_table)?;
-    validate_header_consistency(scenario, &headers)?;
-    let rows = flatten_and_validate_rows(scenario, headers.len())?;
-
-    let mut row_tags = Vec::with_capacity(rows.len());
-    for ex in &scenario.examples {
-        let Some(table) = ex.table.as_ref() else {
-            continue;
-        };
-        let examples_tags = crate::parsing::tags::merge_tag_sets(base_tags, &ex.tags);
-        for _ in table.rows.iter().skip(1) {
-            row_tags.push(examples_tags.clone());
-        }
-    }
+    let (headers, rows) = extract_table(scenario)?;
+    let row_tags = collect_row_tags(scenario, base_tags);
 
     debug_assert_eq!(
         row_tags.len(),
@@ -87,6 +74,43 @@ pub(crate) fn extract_examples(
         rows,
         row_tags,
     }))
+}
+
+/// Extract the outline's header row and data rows, cross-checking the two.
+fn extract_table(
+    scenario: &gherkin::Scenario,
+) -> Result<(Vec<String>, Vec<Vec<String>>), TokenStream> {
+    let first_table = get_first_examples_table(scenario)?;
+    let headers = extract_and_validate_headers(first_table)?;
+    validate_header_consistency(scenario, &headers)?;
+    let rows = flatten_and_validate_rows(scenario, headers.len())?;
+    Ok((headers, rows))
+}
+
+/// Collect the tag set inherited by each data row of every examples block.
+///
+/// The header row binds names rather than values, so it inherits nothing and
+/// contributes no entry; that keeps `row_tags` aligned with the data rows.
+fn collect_row_tags(scenario: &gherkin::Scenario, base_tags: &[String]) -> Vec<Vec<String>> {
+    scenario
+        .examples
+        .iter()
+        .flat_map(|examples| examples_row_tags(base_tags, examples))
+        .collect()
+}
+
+/// The tag set every data row of one examples block inherits.
+fn examples_row_tags(base_tags: &[String], examples: &gherkin::Examples) -> Vec<Vec<String>> {
+    let Some(table) = examples.table.as_ref() else {
+        return Vec::new();
+    };
+    let row_tags = crate::parsing::tags::merge_tag_sets(base_tags, &examples.tags);
+    table
+        .rows
+        .iter()
+        .skip(1)
+        .map(|_| row_tags.clone())
+        .collect()
 }
 
 #[cfg(test)]

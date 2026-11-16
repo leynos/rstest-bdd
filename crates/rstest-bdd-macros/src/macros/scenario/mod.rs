@@ -39,7 +39,7 @@ use crate::parsing::feature::{
     parse_and_load_feature, ScenarioData,
 };
 use self::{
-    args::{ScenarioArgs, library_scope_tokens, library_validation_names},
+    args::{ScenarioArgs, ScenarioSelector, library_scope_tokens, library_validation_names},
     paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
@@ -124,16 +124,8 @@ fn resolve_scenario(
     let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
     let tag_filter = parse_tag_filter(tag_filter.clone())?;
     ensure_feature_not_empty(path_lit, &feature)?;
-    let candidate_indices = resolve_candidate_indices(selector.as_ref(), &feature, path_lit)?;
-    let data = select_scenario(
-        ScenarioLookup {
-            feature: &feature,
-            candidate_indices: &candidate_indices,
-            tag_filter: tag_filter.as_ref(),
-        },
-        selector.as_ref(),
-        path_lit,
-    )?;
+    let data =
+        select_requested_scenario(&feature, selector.as_ref(), tag_filter.as_ref(), path_lit)?;
 
     // Decision D3: the embedded feature path is manifest-relative within the
     // crate, absolute otherwise (see `manifest_relative_feature_path`).
@@ -141,10 +133,7 @@ fn resolve_scenario(
     let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&data.tags);
 
     // Validate placeholder references in scenario outline steps
-    if let Some(ref ex) = data.examples {
-        validate_step_placeholders(&data.steps, ExampleHeaders::new(&ex.headers))
-            .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
-    }
+    validate_outline_placeholders(&data)?;
 
     if let Some(err) = validate_steps_compile_time(&data.steps, libraries.as_deref()) {
         return Err(err);
@@ -166,6 +155,39 @@ fn resolve_scenario(
         scope,
         allow_skipped,
     })
+}
+
+/// Pick the scenario the selector names, honouring any tag filter.
+///
+/// The candidate indices are local to this step: `select_scenario` reads them
+/// while choosing, and later expansion only needs the chosen scenario.
+fn select_requested_scenario(
+    feature: &gherkin::Feature,
+    selector: Option<&ScenarioSelector>,
+    tag_filter: Option<&ScenarioTagFilter>,
+    path_lit: &syn::LitStr,
+) -> std::result::Result<ScenarioData, TokenStream> {
+    let candidate_indices = resolve_candidate_indices(selector, feature, path_lit)?;
+    select_scenario(
+        ScenarioLookup {
+            feature,
+            candidate_indices: &candidate_indices,
+            tag_filter,
+        },
+        selector,
+        path_lit,
+    )
+}
+
+/// Reject placeholders the scenario outline's examples do not bind.
+///
+/// A scenario without examples has no placeholders to check, so it passes.
+fn validate_outline_placeholders(data: &ScenarioData) -> std::result::Result<(), TokenStream> {
+    let Some(examples) = data.examples.as_ref() else {
+        return Ok(());
+    };
+    validate_step_placeholders(&data.steps, ExampleHeaders::new(&examples.headers))
+        .map_err(|error| proc_macro::TokenStream::from(error.into_compile_error()))
 }
 
 /// Wire the scenario's fixture parameters into the generated step context.

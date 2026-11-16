@@ -256,47 +256,78 @@ fn a_profile_without_both_halves_is_an_eviction() {
         all_present(&preparation, None).expect("populated check"),
         "the fixture must start usable"
     );
-    let profile = profile_of(&preparation);
 
-    // One unit's record and output go together while a sibling unit keeps the
-    // directory non-empty. That is the state the structural layer alone cannot
-    // see, and the reason a record of what preparation produced is needed at
-    // all.
+    assert_a_unit_leaving_with_its_record_is_structurally_invisible(&preparation);
+    assert_an_empty_unit_directory_is_evicted(&preparation);
+    assert_a_missing_fingerprint_store_is_evicted(&preparation);
+    assert_an_absent_profile_is_evicted(&preparation);
+}
+
+/// A unit's record and output leaving together leaves a non-empty tree.
+///
+/// That is the state the structural layer alone cannot see, and the reason a
+/// record of what preparation produced is needed at all.
+fn assert_a_unit_leaving_with_its_record_is_structurally_invisible(preparation: &Preparation) {
+    let profile = profile_of(preparation);
     fs::remove_file(profile.join("deps/libunit.rlib")).expect("evict");
     fs::remove_file(profile.join("deps/unit.d")).expect("evict record");
     assert!(
-        all_present(&preparation, None).expect("structural check"),
+        all_present(preparation, None).expect("structural check"),
         "a unit leaving together with its record leaves a non-empty tree, which the structural \
          layer alone accepts: only a record of what was produced can say more"
     );
+}
 
-    // No units at all, while the fingerprint store survives.
-    let units = profile.join("deps");
-    let saved = fs::read_dir(&units)
-        .expect("list the unit dir")
-        .map(|entry| entry.expect("entry").file_name())
-        .collect::<Vec<_>>();
-    for name in &saved {
-        fs::remove_file(units.join(name)).expect("evict the unit");
-    }
+/// No units at all, while the fingerprint store survives, is an eviction.
+fn assert_an_empty_unit_directory_is_evicted(preparation: &Preparation) {
+    let units = profile_of(preparation).join("deps");
+    let saved = unit_file_names(&units);
+    remove_units(&units, &saved);
     assert!(
-        !all_present(&preparation, None).expect("check"),
+        !all_present(preparation, None).expect("check"),
         "a profile holding no units must never pass, however many fingerprints it keeps"
     );
-    for name in &saved {
+    restore_units(&units, &saved);
+}
+
+/// The file names a unit directory currently holds.
+fn unit_file_names(units: &std::path::Path) -> Vec<std::ffi::OsString> {
+    fs::read_dir(units)
+        .expect("list the unit dir")
+        .map(|entry| entry.expect("entry").file_name())
+        .collect()
+}
+
+/// Delete each named unit file from *units*.
+fn remove_units(units: &std::path::Path, names: &[std::ffi::OsString]) {
+    for name in names {
+        fs::remove_file(units.join(name)).expect("evict the unit");
+    }
+}
+
+/// Put the units back, since later checks inspect the whole profile.
+fn restore_units(units: &std::path::Path, names: &[std::ffi::OsString]) {
+    for name in names {
         fs::write(units.join(name), b"restore").expect("restore the unit");
     }
+}
 
-    // No fingerprint store, while the units survive.
+/// No fingerprint store, while the units survive, is an eviction.
+fn assert_a_missing_fingerprint_store_is_evicted(preparation: &Preparation) {
+    let profile = profile_of(preparation);
     fs::remove_dir_all(profile.join(".fingerprint")).expect("evict the store");
     assert!(
-        !all_present(&preparation, None).expect("check"),
+        !all_present(preparation, None).expect("check"),
         "a profile holding no fingerprint records must never pass"
     );
+}
 
+/// An absent profile is an eviction rather than a fault.
+fn assert_an_absent_profile_is_evicted(preparation: &Preparation) {
+    let profile = profile_of(preparation);
     fs::remove_dir_all(&profile).expect("evict the profile");
     assert!(
-        !all_present(&preparation, None).expect("check"),
+        !all_present(preparation, None).expect("check"),
         "an absent profile must never pass"
     );
 }
