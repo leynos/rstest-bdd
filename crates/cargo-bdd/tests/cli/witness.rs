@@ -49,34 +49,55 @@ pub(super) fn fixture_binaries_present(profile: &Path) -> std::io::Result<bool> 
     let mut pending: Vec<std::fs::DirEntry> = root.collect::<std::io::Result<_>>()?;
     let mut present = vec![false; FIXTURE_TEST_BINARIES.len()];
     while let Some(entry) = pending.pop() {
-        // `fs::metadata` follows a symlink, so a linked binary still counts:
-        // what makes an entry a candidate is being a file at that path, not
-        // how the directory entry was recorded. A directory named like the
-        // fixture's binary fails here, which is the point — its name is the
-        // only thing it shares with one.
-        //
-        // The metadata is consulted once per entry and decides both questions:
-        // a file is a candidate, a directory is descended into, and nothing
-        // else is either. Reading the directory first instead costs a failing
-        // `ENOTDIR` syscall on every file, in every timed test that calls this.
-        let Some(metadata) = std::fs::metadata(entry.path()).ok() else {
-            // A path that vanished between the listing and this read is
-            // skipped: the profile is the thing under test, not the race.
-            continue;
-        };
-        if metadata.is_file() {
-            note_binary(&entry.file_name().to_string_lossy(), &mut present);
-            if present.iter().all(|found| *found) {
-                return Ok(true);
+        match classify(&entry) {
+            Entry::Binary(name) => {
+                note_binary(&name, &mut present);
+                if present.iter().all(|found| *found) {
+                    return Ok(true);
+                }
             }
-        } else if metadata.is_dir() {
-            // A subdirectory that vanishes here is skipped for the same reason.
-            if let Ok(children) = std::fs::read_dir(entry.path()) {
-                pending.extend(children.filter_map(std::io::Result::ok));
-            }
+            Entry::Directory(children) => pending.extend(children),
+            // A path that vanished, or a pipe or socket, answers nothing
+            // either way: the profile is the thing under test, not the race.
+            Entry::Other => {}
         }
     }
     Ok(present.iter().all(|found| *found))
+}
+
+/// What one directory entry contributes to the walk.
+enum Entry {
+    /// A file, under the name recorded in its directory entry.
+    Binary(std::borrow::Cow<'static, str>),
+    /// A directory, with the entries below it to walk next.
+    Directory(Vec<std::fs::DirEntry>),
+    /// Neither, or a path that vanished between the listing and this read.
+    Other,
+}
+
+/// Classify `entry` by one `fs::metadata` call.
+///
+/// `fs::metadata` follows a symlink, so a linked binary still counts: what
+/// makes an entry a candidate is being a file at that path, not how the
+/// directory entry was recorded. A directory named like the fixture's binary
+/// is therefore not a binary, which is the point — its name is the only thing
+/// it shares with one.
+///
+/// The metadata decides both questions at once: a file is a candidate, a
+/// directory is descended into, and nothing else is either. Asking the
+/// directory first instead costs a failing `ENOTDIR` syscall on every file, in
+/// every timed test that calls this.
+fn classify(entry: &std::fs::DirEntry) -> Entry {
+    match std::fs::metadata(entry.path()) {
+        Ok(metadata) if metadata.is_file() => {
+            Entry::Binary(entry.file_name().to_string_lossy().into_owned().into())
+        }
+        Ok(metadata) if metadata.is_dir() => std::fs::read_dir(entry.path())
+            .map_or(Entry::Other, |children| {
+                Entry::Directory(children.filter_map(std::io::Result::ok).collect())
+            }),
+        _ => Entry::Other,
+    }
 }
 
 /// Record `name` against the fixture binary it witnesses, if it witnesses one.
