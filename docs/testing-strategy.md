@@ -245,6 +245,16 @@ not use nextest. `make prepare-nested-fixtures` names the same preparation
 tests, in the configuration `make test` uses, for a filtered nextest run that
 would otherwise skip them.
 
+The filtered run must go through `make nextest-run`, which is the other half of
+that policy. The preparation stamps the build-relevant environment, `RUSTFLAGS`
+among it, and every timed test refuses a stamp composed under a different one.
+A hand-typed `cargo nextest run` inherits `RUSTFLAGS` from the caller — unset
+in an ordinary shell — so it computes a different fingerprint and refuses the
+stamp the preparation has just written. Both commands are individually correct
+and still fail to compose, which is a failure the stamp can report but not
+explain: it names the environment as the cause without naming the value it
+wants.
+
 ## Tested living documentation
 
 A second new class of test executes fenced examples extracted from user-facing

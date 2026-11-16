@@ -1829,6 +1829,76 @@ rather than by reading this branch's comments.
       what the check can and cannot see, and when the remedy is out of scope,
       say so with the evidence and leave it unresolved rather than
       manufacturing a fix or a dismissal.
+- [x] Close the declined `Testing (Unit And Behavioural)` row instead of
+      leaving it declined, because CodeRabbit supplied a non-recursive shape.
+      Its first remedy needed nextest inside nextest, which is why it was
+      declined; a standalone driver running three separate commands needs no
+      recursion at all, so the objection no longer applied. The driver is
+      `scripts/check_prepared_fixture_workflow.py`: run the timed test against
+      an empty private target and require the refusal, run the remedy against
+      the same directory, then require the test to pass *and* to report no
+      `Compiling` lines, since a bare pass is also what a warm shared cache
+      produces.
+- [x] Find — by building the gate rather than by reasoning about it — that
+      `make prepare-nested-fixtures` and a hand-typed filtered
+      `cargo nextest run` **do not compose**. The recipe pins
+      `RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)"`, which expands to
+      `-D warnings -Clink-arg=-fuse-ld=mold`; `RUSTFLAGS` is one of the five
+      `FINGERPRINT_EXACT` variables in `stamp.rs`; and a bare `cargo nextest
+      run` inherits `RUSTFLAGS` from the caller, unset in an ordinary shell. The
+      two therefore compose different fingerprint text and the run refuses the
+      stamp the preparation has just written. The evidence is direct, not
+      inferred: a stamp written by the recipe records
+      `RUSTFLAGS=-D warnings -Clink-arg=-fuse-ld=mold`, and step 3 of the
+      driver reproduced step 1's refusal verbatim, naming the same stamp path.
+      The refusal message had warned about exactly this — "preparing under a
+      different environment only warms a tree this run will not reuse" — while
+      never naming the value it wanted, which is why the documented command in
+      that same message is itself the broken half. Fixed by adding
+      `make nextest-run EXPR=...`, so the build environment has one owner
+      instead of a copy in Python; the driver's earlier
+      `extra_env={"RUSTFLAGS": ...}` was the wrong shape for the same reason.
+      Lessons: a two-command workflow with a shared fingerprint has to be
+      *composed* by something, and "both commands are individually correct" is
+      not evidence that they agree; and a gate is worth building because
+      running it found a defect that reading the same two recipes did not.
+- [x] Pin the run half in the Makefile contract test rather than trusting the
+      new target to stay matched: `test_the_run_half_pins_the_same_build_environment`
+      asserts the exact `RUSTFLAGS` assignment (not merely that `RUSTFLAGS=`
+      appears, which a later edit could satisfy with a different value), and
+      three siblings cover verbatim `EXPR` forwarding, the absent-`EXPR` guard
+      and `.PHONY`. Mutation-checked by deleting the assignment from the
+      `nextest-run` recipe: exactly that one test failed and the other seven
+      passed, so the assertion discriminates. Verified end to end afterwards —
+      the driver refused, prepared, then passed with zero `Compiling` lines;
+      a bare `cargo nextest run` against that same prepared tree still exits
+      100, which is the divergence the target exists to remove.
+- [x] Settle where the driver runs in CI — and find that it belongs nowhere
+      new. I had opened this as "a standalone job needs a `runner_placement_test`
+      amendment", and that framing was wrong twice over. First, the contract's
+      own rationale is about *duplicate execution*: `test_one_job_executes_the_
+      workspace_suite` fails "a further job with the same platform and features",
+      which "would execute nothing new". Second, and decisively, no lane needs to
+      invoke the preparation at all: the six `nested_fixture_preparation` tests
+      are ordinary members of the suite and carry `priority = 100`, so they run
+      ahead of the assertions that read their stamps inside the *existing* Linux
+      lane. `prepare-nested-fixtures` exists for the **filtered** case — one timed
+      test on its own, where nothing else would warm the tree — which is exactly
+      the case the driver covers and exactly what CI never does. So the driver is
+      a local and PR-author aid, and adding a job would have paid for a cold
+      compile (measured: a 5.7–7.3 GB private target) to re-test a sequence the
+      suite already exercises for free.
+      The real defect this surfaced was in prose, not structure:
+      `.config/nextest.toml` claimed "`make prepare-nested-fixtures` runs these
+      tests before the suite, so a normal lane spends only the stamp read", and
+      nothing in `.github/workflows/` invokes that target — it is this PR's own
+      addition. The claim described an intent no lane executes. Corrected to name
+      `priority` as what actually orders the preparations, and to say the target
+      serves the filtered case. Lesson: an invariant asserted in a comment is a
+      claim about the tree, and `grep` over the workflows is what distinguishes a
+      policy from a wish; a "where does this run in CI?" question is worth asking
+      before building the CI job, because the honest answer is sometimes "it does
+      not, and does not need to".
 
 ## Surprises & Discoveries
 

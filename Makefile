@@ -7,7 +7,7 @@ VALE ?= vale
 .PHONY: check-published-gpui-e2e-lock
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
 .PHONY: update-feature-rebuild-fixtures-lock
-.PHONY: check-fixture-lockfiles update-fixture-lockfiles prefetch-fixture-deps prepare-nested-fixtures
+.PHONY: check-fixture-lockfiles update-fixture-lockfiles prefetch-fixture-deps prepare-nested-fixtures nextest-run
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -361,6 +361,31 @@ prefetch-fixture-deps: ## Warm the Cargo cache for the mutation lane's offline f
 prepare-nested-fixtures: ## Prepare the nested-Cargo fixture build trees before a filtered test run
 	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS) \
 		-E 'test(/nested_fixture_preparation$$/)'
+
+# Run a filtered nextest selection in the environment the preparation stamps.
+#
+# The two targets are one policy. `prepare-nested-fixtures` records the
+# build-relevant environment in its stamp, `RUSTFLAGS` among it, and every
+# timed test refuses a stamp composed under a different one. A filtered
+# `cargo nextest run` typed by hand inherits whatever the caller's shell holds
+# — nothing, for `RUSTFLAGS` — so it computes a different fingerprint and
+# refuses the stamp the preparation has just written. Both halves are then
+# correct and still fail to compose, which is the failure the stamp exists to
+# report but cannot explain: it names the environment as the cause without
+# ever naming the value it wants.
+#
+# Use this for the run half, so the environment has one owner:
+#
+#   make nextest-run EXPR='binary_id(cargo-bdd::cli) & test(=list_steps_runs)'
+#
+# `EXPR` is passed to nextest verbatim. Quote it for your shell, not for Make:
+# a `$` inside it is Make's to expand, so an anchored `test(/^name$/)` reaches
+# nextest as `test(/^name/)` unless written `$$` — or avoided, as the exact
+# `test(=name)` operator avoids it.
+nextest-run: ## Run a filtered nextest selection in the preparation's build environment
+	$(if $(EXPR),,$(error nextest-run: set EXPR to a nextest filter expression, e.g. EXPR='test(=list_steps_runs)'))
+	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS) \
+		-E '$(EXPR)'
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

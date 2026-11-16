@@ -11,6 +11,15 @@ zero when the filter matches nothing, so a target whose filter drifted — a
 renamed test, a lost ``$$``, an anchor that no longer matches — still prints a
 successful run. It would simply have prepared nothing, and every timed test
 behind it would then meet the fail-fast gate the whole split exists to satisfy.
+
+The *run* half has its own contract, and it is the one that failed first in
+practice. The stamp fingerprints ``RUSTFLAGS``, which ``prepare-nested-fixtures``
+pins; a hand-typed ``cargo nextest run`` inherits it from the caller, so the two
+commands compute different fingerprints and the run refuses the stamp the
+preparation just wrote. Both halves are then correct in isolation and fail to
+compose, so ``nextest-run`` is pinned here as the only supported run half: it
+must carry the same pinned ``RUSTFLAGS``, must forward ``EXPR`` to nextest
+unevaluated, and must refuse to run without one.
 """
 
 from pathlib import Path
@@ -19,9 +28,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKEFILE = REPO_ROOT / "Makefile"
 
 TARGET = "prepare-nested-fixtures"
+RUNNER = "nextest-run"
 
 #: The filter the nextest override budgets, as nextest receives it.
 PREPARATION_FILTER = "test(/nested_fixture_preparation$/)"
+
+#: The environment assignment both halves of the policy must share.
+PINNED_FLAGS = 'RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)"'
 
 
 def recipe(target: str) -> list[str]:
@@ -97,6 +110,65 @@ def test_the_target_uses_the_same_build_environment_as_the_suite() -> None:
     )
     assert any("$(RUST_FLAGS)" in line for line in lines), (
         f"{TARGET} should use the shared RUST_FLAGS, got {lines!r}"
+    )
+
+
+def test_the_run_half_pins_the_same_build_environment() -> None:
+    """Both halves must stamp and read the *same* fingerprint.
+
+    This is the defect that broke the workflow the first time it ran end to
+    end: the preparation pinned ``RUSTFLAGS``, the documented run command did
+    not, and step 3 reproduced step 1's refusal verbatim. Asserting the exact
+    assignment rather than the presence of ``RUSTFLAGS=`` is what keeps a
+    later edit from pinning a *different* one.
+    """
+    lines = recipe(RUNNER)
+
+    assert any(PINNED_FLAGS in line for line in lines), (
+        f"{RUNNER} must use the same pinned build environment as {TARGET}, or"
+        f" it refuses the stamp the preparation just wrote; got {lines!r}"
+    )
+
+
+def test_the_run_half_forwards_the_filter_expression_unevaluated() -> None:
+    """``EXPR`` is nextest's to parse, so Make must not rewrite it.
+
+    A ``$(EXPR)`` in ``-E`` is what carries the caller's expression through.
+    An expanded or re-quoted literal here would silently reduce the selection,
+    and an empty one selects everything — the opposite of a filtered run.
+    """
+    lines = recipe(RUNNER)
+
+    assert any("-E '$(EXPR)'" in line for line in lines), (
+        f"{RUNNER} must pass EXPR to nextest verbatim, got {lines!r}"
+    )
+
+
+def test_the_run_half_refuses_an_absent_filter_expression() -> None:
+    """An unset ``EXPR`` must stop the target, not run the whole suite.
+
+    ``-E ''`` is an empty filter, which nextest reads as *everything*. A run
+    that silently widened from one test to the suite would report success while
+    measuring nothing the caller asked for, so the guard is part of the
+    contract rather than a convenience.
+    """
+    lines = recipe(RUNNER)
+
+    assert any("$(if $(EXPR)" in line for line in lines), (
+        f"{RUNNER} must refuse an absent EXPR, got {lines!r}"
+    )
+
+
+def test_the_run_half_is_phony() -> None:
+    """The run target names a command, not a file, so it must be phony."""
+    phony = [
+        line
+        for line in MAKEFILE.read_text(encoding="utf-8").splitlines()
+        if line.startswith(".PHONY:")
+    ]
+
+    assert any(RUNNER in line for line in phony), (
+        f"{RUNNER} should be .PHONY, got {phony!r}"
     )
 
 

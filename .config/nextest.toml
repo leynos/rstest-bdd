@@ -41,11 +41,15 @@ max-threads = 1
 # gets these tests started early.
 #
 # This budget is not a deadline on any assertion, and it is not sized to be
-# spent: `make prepare-nested-fixtures` runs these tests before the suite, so a
-# normal lane spends only the stamp read. It bounds the genuinely cold case for
-# a single preparation test; the sibling preparations queue behind it in the
-# `cargo-spawning` group, and nextest starts a test's slow-timeout when the
-# test begins running, not while it waits for the group. Measured on the
+# spent. No lane prepares ahead of the suite: the six preparation tests are
+# ordinary members of it, and `priority` below is what starts them early, so
+# the timed assertions that follow find the stamp and spend only the read. The
+# `prepare-nested-fixtures` target serves the *filtered* case instead — a
+# single timed test run on its own, where nothing else would warm the tree —
+# and `make nextest-run` is its matching half. It bounds the genuinely cold
+# case for a single preparation test; the sibling preparations queue behind it
+# in the `cargo-spawning` group, and nextest starts a test's slow-timeout when
+# the test begins running, not while it waits for the group. Measured on the
 # development host with every nested target empty, the two most expensive
 # families were the server crate's trybuild tree at 864.239 s and the
 # `rstest-bdd` trybuild binary's two graphs at 645.412 s, so a fully cold
