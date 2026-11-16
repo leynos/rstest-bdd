@@ -208,6 +208,12 @@ carries no harness traits, for the reason given in
 above, and `crates/rstest-bdd/src/prelude.rs` against each other, so the three
 cannot drift silently.
 
+The prelude does not re-export `rstest::fixture` or `rstest::rstest`. The
+generated code resolves `rstest` through the consuming crate's own manifest, so
+keep `rstest` as a direct dependency and pick its version there. This release
+is built and tested against `rstest` `^0.26.1`; a newer compatible `0.26.x`
+should work, and a different minor version is untested.
+
 ## Step definitions
 
 Developers implement the behaviour described in a feature by writing step
@@ -469,7 +475,7 @@ exactly as before; mutability is an opt‑in convenience.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd::prelude::*;
 
 #[derive(Default)]
 struct CounterWorld {
@@ -540,8 +546,7 @@ without consuming the outcome.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd::{ScenarioState as _, Slot};
-use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
+use rstest_bdd::prelude::*;
 
 #[derive(Default, ScenarioState)]
 struct CartState {
@@ -638,7 +643,7 @@ not overwritten.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, when, then, scenario};
+use rstest_bdd::prelude::*;
 
 #[fixture]
 fn number() -> i32 { 1 }
@@ -671,7 +676,7 @@ without affecting table-row policies.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenario, then, when, StepArgs};
+use rstest_bdd::prelude::*;
 
 #[derive(StepArgs)]
 struct CartInput {
@@ -721,7 +726,7 @@ Example:
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, when, then, scenario};
+use rstest_bdd::prelude::*;
 
 // A fixture used by multiple steps.
 #[fixture]
@@ -771,8 +776,7 @@ logic.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd::{ScenarioState, Slot};
-use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
+use rstest_bdd::prelude::*;
 
 #[derive(ScenarioState)]
 struct CliState {
@@ -830,7 +834,7 @@ only whitespace. In either case, the macro derives a pattern from the function
 name by replacing underscores with spaces.
 
 ```rust,no_run
-use rstest_bdd_macros::given;
+use rstest_bdd::prelude::*;
 
 #[given]
 fn user_logs_in() {
@@ -895,7 +899,7 @@ Feature: User management
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd::prelude::*;
 use std::sync::OnceLock;
 
 struct DbPool;
@@ -1101,6 +1105,13 @@ types that implement `HarnessAdapter` and `AttributePolicy` from the
 `rstest-bdd-harness` crate. These enable third-party framework integrations
 (per Architectural Decision Record (ADR-0027)) without coupling the core crates
 to any specific runtime.
+
+The prelude does not re-export `HarnessAdapter` or `AttributePolicy`. The
+facade takes `rstest-bdd-harness` only as a development dependency, so neither
+trait is reachable at the `rstest_bdd` crate root, and the prelude adds no name
+that the root does not already have. Adapters are selected per scenario rather
+than imported for step writing, so import these traits from
+`rstest-bdd-harness` or from a first-party adapter crate.
 
 Use them in this order of preference:
 
@@ -1977,7 +1988,7 @@ steps of its own. Bind the shared fixture with a module-qualified
 #[path = "common/ledger_steps.rs"]
 mod ledger_steps;
 
-use rstest_bdd_macros::scenario;
+use rstest_bdd::prelude::*;
 
 #[scenario(
     path = "tests/features/first.feature",
@@ -2388,7 +2399,7 @@ occur. The `dir` argument is resolved relative to `CARGO_MANIFEST_DIR` at
 macro-expansion time.
 
 ```rust,no_run
-use rstest_bdd_macros::{given, then, when, scenarios};
+use rstest_bdd::prelude::*;
 
 #[given("a precondition")] fn precondition() {}
 #[when("an action occurs")] fn action() {}
@@ -2443,7 +2454,7 @@ corresponding parameter.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenarios};
+use rstest_bdd::prelude::*;
 
 struct TestWorld { value: i32 }
 
@@ -2475,8 +2486,8 @@ Declare the test function as `async fn` and add
 The macro detects the async signature and generates an async step executor:
 
 ```rust,no_run
-use rstest_bdd_macros::{given, scenario, then, when};
 use rstest::fixture;
+use rstest_bdd::prelude::*;
 
 #[derive(Default)]
 struct Counter {
@@ -2541,7 +2552,7 @@ predictable. This section summarizes the canonical guidance in
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenarios, when};
+use rstest_bdd::prelude::*;
 
 struct StreamEnd;
 
@@ -2578,7 +2589,7 @@ scenarios!(
   scenarios, prefer async steps, async fixtures, or the async test body.
 
 ```rust,no_run
-use rstest_bdd_macros::when;
+use rstest_bdd::prelude::*;
 
 #[when("the stream ends")]
 fn end_stream() {

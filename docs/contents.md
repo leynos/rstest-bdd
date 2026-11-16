@@ -147,6 +147,9 @@
   dependency.
 - [ADR 0027: harness adapter crates][adr-0027-harness]
   records the harness-adapter crate decision.
+- [ADR 0028: publish a facade prelude][adr-0028] records the decision to
+  re-export the procedural macros from `rstest-bdd` and to publish
+  `rstest_bdd::prelude` as a gated subset of the crate root.
 
 ## Execution plans
 
@@ -174,6 +177,7 @@
 [adr-0025]: adrs/adr-0025-nested-cargo-preparation-gate-query-boundary.md
 [adr-0026]: adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md
 [adr-0027-harness]: adrs/adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md
+[adr-0028]: adrs/adr-0028-publish-a-facade-prelude.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
