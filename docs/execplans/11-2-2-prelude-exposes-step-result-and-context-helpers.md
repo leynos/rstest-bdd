@@ -2139,6 +2139,35 @@ which is why the check exists. Generating the snapshot by running the whole
 abandoned: it recompiles every registered fixture in one run and had to be
 killed at its timeout, having produced no snapshot for this case.
 
+DL-19 and its fixture are committed as `d440bade`, an amend of the first attempt
+`11516ce6`: the `spelling` prerequisite of `make markdownlint` rejected the
+hyphenated form of "written by hand" in this section, a defect the earlier
+round had already corrected once and this paragraph reintroduced. The gates on
+the fixture commit are worth recording in full, because `make test` failed
+twice there and neither failure was the new fixture. At `11516ce6`,
+`make check-fmt` (3 s), `make lint` (215 s, all eleven recipe steps),
+`make typecheck` (49 s), `make nixie` (3 s) and `make publish-check` (824 s)
+were green, while `make test` twice ended at
+`rstest-bdd::trybuild_macros runner::step_macros_compile` with
+`TIMEOUT [1200.005s]`: sixteen fixtures had completed in the first attempt and
+forty-eight in the second, with the shared compiler pool holding four slots and
+between 25 and 153 requests waiting on every sample. `build-limits-status`
+reported `healthy` throughout, so the gate was queued, not broken, and the
+second attempt was an authorized re-run rather than a fix.
+
+At `d440bade` the same test passed in 684.647 s with every fixture, the new one
+included, and again in 327.951 s in the no-default-features leg. The gate then
+ran to its end for the first time: 2,396 nextest tests passed with seven
+skipped, every crate's doctests passed, the no-default-features leg passed 815
+with seven skipped, seven fixture lockfiles were up to date, and 323 pytest
+checks passed — 4,447 s in total. `make check-fmt` (2 s), `make markdownlint`
+(21 s, both steps, `typos.toml` unchanged) and `make nixie` (1 s) were re-run at
+`d440bade`. `make lint`, `make typecheck` and `make publish-check` are the
+`11516ce6` verdicts, carried forward because `d440bade` differs from `11516ce6`
+by one sentence in this file and no step of those three gates reads it.
+`REV_START` and `REV_END` were `d440bade` for the four re-run gates and
+`11516ce6` for the three carried forward.
+
 ## Surprises & discoveries
 
 Recorded during planning and execution as evidence was confirmed.
