@@ -1899,6 +1899,22 @@ rather than by reading this branch's comments.
       policy from a wish; a "where does this run in CI?" question is worth asking
       before building the CI job, because the honest answer is sometimes "it does
       not, and does not need to".
+- [x] Make the driver reachable from `make`, because a file nothing invokes is
+      not coverage. It began as an orphan: every sibling `scripts/check_*.py` is
+      named by a Makefile target, and this one could only be run by typing its
+      path. That matters for the row it answers — the finding asked for "an
+      automated, cross-process test that runs the filtered Nextest workflow end
+      to end", and a script no target or suite calls is not automated by any
+      reading a reviewer could defend. Added as
+      `check-prepared-fixture-workflow`, deliberately *not* a leg of `make test`
+      for the same reason the driver exists: it starts from an empty target
+      directory, so it pays a cold build on every run and would tax every local
+      edit. The sibling checkers are the precedent — reachable targets, not suite
+      legs. Verified by running it through the target rather than by inspecting
+      the recipe: all three steps held and it exited 0. Two contract tests pin
+      the target to the script and to `.PHONY`; mutation-checked by deleting the
+      recipe line, which failed exactly `test_the_workflow_driver_is_reachable_
+      from_make` and left the other nine green.
 
 ## Surprises & Discoveries
 

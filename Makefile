@@ -8,6 +8,7 @@ VALE ?= vale
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
 .PHONY: update-feature-rebuild-fixtures-lock
 .PHONY: check-fixture-lockfiles update-fixture-lockfiles prefetch-fixture-deps prepare-nested-fixtures nextest-run
+.PHONY: check-prepared-fixture-workflow
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -386,6 +387,20 @@ nextest-run: ## Run a filtered nextest selection in the preparation's build envi
 	$(if $(EXPR),,$(error nextest-run: set EXPR to a nextest filter expression, e.g. EXPR='test(=list_steps_runs)'))
 	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS) \
 		-E '$(EXPR)'
+
+# Prove the two halves above compose, as a runnable target rather than a
+# recipe-text pin.
+#
+# Deliberately not a leg of `test`. A cold preparation of one family was
+# measured at 89 s on a warm cache and 239 s on CI, and the driver begins from
+# an empty target directory by design, so it costs a cold build every time and
+# has no place in a suite that runs on every local edit. It is a checker in the
+# same sense as its siblings — `check_fixture_lockfiles`, `check_users_guide_links`
+# — which are also reachable targets rather than suite legs, and it is listed
+# with them for that reason. Run it when changing the preparation, the stamp, or
+# either target.
+check-prepared-fixture-workflow: ## Prove the filtered preparation workflow end to end
+	$(PROJECT_PYTHON) scripts/check_prepared_fixture_workflow.py
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

@@ -255,6 +255,16 @@ and still fail to compose, which is a failure the stamp can report but not
 explain: it names the environment as the cause without naming the value it
 wants.
 
+`make check-prepared-fixture-workflow` runs that pair end to end, as three
+separate commands rather than one nextest inside another: the timed test
+refuses an empty private target directory and names the remedy, the remedy
+succeeds against that same directory, and the test then passes without
+reporting a `Compiling` line. Requiring zero compiles is what separates a
+prepared tree from a warm shared cache, which is how a bare pass could
+otherwise be mistaken for one. It is a checker in the same sense as
+`check-fixture-lockfiles`, not a leg of `make test`: it begins from an empty
+target directory by design, so it pays a cold build every run.
+
 ## Tested living documentation
 
 A second new class of test executes fenced examples extracted from user-facing

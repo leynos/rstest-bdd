@@ -30,6 +30,9 @@ MAKEFILE = REPO_ROOT / "Makefile"
 TARGET = "prepare-nested-fixtures"
 RUNNER = "nextest-run"
 
+#: The target that runs the end-to-end workflow driver.
+DRIVER = "check-prepared-fixture-workflow"
+
 #: The filter the nextest override budgets, as nextest receives it.
 PREPARATION_FILTER = "test(/nested_fixture_preparation$/)"
 
@@ -182,4 +185,34 @@ def test_the_target_is_phony() -> None:
 
     assert any(TARGET in line for line in phony), (
         f"{TARGET} should be .PHONY, got {phony!r}"
+    )
+
+
+def test_the_workflow_driver_is_reachable_from_make() -> None:
+    """The end-to-end driver must be invocable, not merely present.
+
+    Every sibling ``scripts/check_*.py`` is reachable from a Makefile target,
+    and this one began as an orphan: a Python file the suite could only run by
+    naming its path. A driver nothing invokes is not automated coverage, which
+    is the whole reason it exists — it answers a pre-merge row asking for a test
+    that runs the documented workflow across process boundaries.
+    """
+    lines = recipe(DRIVER)
+    script = "scripts/check_prepared_fixture_workflow.py"
+
+    assert any(script in line for line in lines), (
+        f"{DRIVER} must run {script}, got {lines!r}"
+    )
+
+
+def test_the_workflow_driver_is_phony() -> None:
+    """The driver names a command, not a file, so it must be declared phony."""
+    phony = [
+        line
+        for line in MAKEFILE.read_text(encoding="utf-8").splitlines()
+        if line.startswith(".PHONY:")
+    ]
+
+    assert any(DRIVER in line for line in phony), (
+        f"{DRIVER} should be .PHONY, got {phony!r}"
     )
