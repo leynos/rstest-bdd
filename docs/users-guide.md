@@ -166,8 +166,17 @@ of its own, so spelling the same import out in full needs no second path:
 
 ```rust
 use rstest_bdd::{
-    ScenarioState, Slot, StepArgs, StepContext, StepError, StepResult, given, scenario,
-    scenarios, then, when,
+    ScenarioState,
+    Slot,
+    StepArgs,
+    StepContext,
+    StepError,
+    StepResult,
+    given,
+    scenario,
+    scenarios,
+    then,
+    when,
 };
 ```
 
@@ -178,30 +187,32 @@ records which item each spelling delivers and which crate defines it. The
 canonical path is the crate root rather than the defining module, because the
 prelude re-exports these items instead of redefining them.
 
-| Item                 | Kind             | Defining crate      | Canonical path              |
-| -------------------- | ---------------- | ------------------- | --------------------------- |
-| `given`              | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::given`         |
-| `when`               | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::when`          |
-| `then`               | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::then`          |
-| `scenario`           | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::scenario`      |
-| `scenarios`          | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::scenarios`     |
-| `ScenarioState`      | derive macro     | `rstest-bdd-macros` | `rstest_bdd::ScenarioState` |
-| `ScenarioState`      | trait            | `rstest-bdd`        | `rstest_bdd::ScenarioState` |
-| `StepArgs`           | derive macro     | `rstest-bdd-macros` | `rstest_bdd::StepArgs`      |
-| `StepArgs`           | trait            | `rstest-bdd`        | `rstest_bdd::StepArgs`      |
-| `Slot`               | struct           | `rstest-bdd`        | `rstest_bdd::Slot`          |
-| `StepContext`        | struct           | `rstest-bdd`        | `rstest_bdd::StepContext`   |
-| `StepError`          | enum             | `rstest-bdd`        | `rstest_bdd::StepError`     |
-| `StepResult`         | type alias       | `rstest-bdd`        | `rstest_bdd::StepResult`    |
-| `#[harness_context]` | parameter marker | none                | no import required          |
+| Item                 | Kind                | Defining crate      | Canonical path              |
+| -------------------- | ------------------- | ------------------- | --------------------------- |
+| `given`              | attribute macro     | `rstest-bdd-macros` | `rstest_bdd::given`         |
+| `when`               | attribute macro     | `rstest-bdd-macros` | `rstest_bdd::when`          |
+| `then`               | attribute macro     | `rstest-bdd-macros` | `rstest_bdd::then`          |
+| `scenario`           | attribute macro     | `rstest-bdd-macros` | `rstest_bdd::scenario`      |
+| `scenarios`          | function-like macro | `rstest-bdd-macros` | `rstest_bdd::scenarios`     |
+| `ScenarioState`      | derive macro        | `rstest-bdd-macros` | `rstest_bdd::ScenarioState` |
+| `ScenarioState`      | trait               | `rstest-bdd`        | `rstest_bdd::ScenarioState` |
+| `StepArgs`           | derive macro        | `rstest-bdd-macros` | `rstest_bdd::StepArgs`      |
+| `StepArgs`           | trait               | `rstest-bdd`        | `rstest_bdd::StepArgs`      |
+| `Slot`               | struct              | `rstest-bdd`        | `rstest_bdd::Slot`          |
+| `StepContext`        | struct              | `rstest-bdd`        | `rstest_bdd::StepContext`   |
+| `StepError`          | enum                | `rstest-bdd`        | `rstest_bdd::StepError`     |
+| `StepResult`         | type alias          | `rstest-bdd`        | `rstest_bdd::StepResult`    |
+| `#[harness_context]` | parameter marker    | none                | no import required          |
 
 `#[harness_context]` is an inert marker that the step macros read from the
 parameter's attribute syntax, so it needs no import at all.
 
-The import a user writes should never have to name the macro crate
-`rstest-bdd-macros` directly: it is an implementation detail of the facade,
-which re-exports everything the prelude offers. The prelude deliberately
-carries no harness traits, for the reason given in
+The import a user writes never names the macro crate `rstest-bdd-macros`
+directly: it is an implementation detail of the facade, which re-exports every
+macro that crate publishes. The prelude carries the subset a step definition or
+a scenario needs. `#[step_library]` sits outside it, at
+`rstest_bdd::step_library`, and the datatable derives sit at the crate root.
+The prelude deliberately carries no harness traits, for the reason given in
 [Harness adapter and attribute policy](#harness-adapter-and-attribute-policy).
 
 `scripts/check_prelude_exports.py` compares this table, the spelled example
@@ -244,11 +255,12 @@ selects an exact, closed list through `libraries = [...]`; an omitted list
 selects only `rstest_bdd::global`, which contains unannotated definitions.
 
 ```rust,no_run
-use rstest_bdd_macros::{given, scenario, step_library};
+use rstest_bdd::prelude::*;
+use rstest_bdd::step_library;
 
 #[step_library]
 mod accounts {
-    use super::given;
+    use super::*;
 
     #[given("the domain is empty")]
     fn account_is_empty() {}
@@ -2424,11 +2436,12 @@ When the argument is omitted, `scenarios!` selects only the built-in
 invocation also needs unannotated steps.
 
 ```rust,no_run
-use rstest_bdd_macros::{given, scenarios, step_library};
+use rstest_bdd::prelude::*;
+use rstest_bdd::step_library;
 
 #[step_library]
 mod accounts {
-    use super::given;
+    use super::*;
 
     #[given("the account is empty")]
     fn account_is_empty() {}

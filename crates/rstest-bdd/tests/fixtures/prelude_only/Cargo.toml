@@ -20,6 +20,11 @@ edition = "2024"
 # consuming manifest omits it, and because `#[scenario]` emits `#[rstest::rstest]`
 # as a bare path. It is the one remaining entry the prelude cannot hide, so the
 # fixture's point is that it is the *only* one.
+#
+# This standalone workspace cannot inherit `[workspace.dependencies]`, so the
+# literal below is the workspace's requirement rather than a second opinion:
+# `prelude_only_fixture_takes_its_rstest_requirement_from_the_workspace` fails
+# when the two diverge.
 [dependencies]
 rstest-bdd = { path = "../../../../../crates/rstest-bdd", features = ["diagnostics", "test-support"] }
 

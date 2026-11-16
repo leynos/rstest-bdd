@@ -58,7 +58,7 @@ ITEM_KINDS = {
     (MACROS_CRATE, "StepArgs"): "derive macro",
     (MACROS_CRATE, "given"): "attribute macro",
     (MACROS_CRATE, "scenario"): "attribute macro",
-    (MACROS_CRATE, "scenarios"): "attribute macro",
+    (MACROS_CRATE, "scenarios"): "function-like macro",
     (MACROS_CRATE, "then"): "attribute macro",
     (MACROS_CRATE, "when"): "attribute macro",
     (RUNTIME_CRATE, "ScenarioState"): "trait",

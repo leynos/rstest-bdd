@@ -122,9 +122,18 @@ pub use rstest_bdd_macros::given;
 /// Re-export of the `scenario` attribute macro.
 #[doc(inline)]
 pub use rstest_bdd_macros::scenario;
-/// Re-export of the `scenarios` attribute macro.
+/// Re-export of the `scenarios` function-like macro.
 #[doc(inline)]
 pub use rstest_bdd_macros::scenarios;
+/// Re-export of the `step_library` attribute macro.
+///
+/// A scoped vocabulary is declared with this macro, so a consumer that uses
+/// step libraries would otherwise have to name `rstest-bdd-macros`. It stays
+/// out of [`prelude`] because no step signature, `#[derive]`, or attribute in
+/// the examples needs it yet; the facade's re-export is what keeps the macro
+/// crate an implementation detail.
+#[doc(inline)]
+pub use rstest_bdd_macros::step_library;
 /// Re-export of the `then` attribute macro.
 #[doc(inline)]
 pub use rstest_bdd_macros::then;

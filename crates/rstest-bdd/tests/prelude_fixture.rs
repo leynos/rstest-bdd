@@ -67,6 +67,30 @@ fn prelude_only_fixture_declares_only_the_facade_and_rstest() -> io::Result<()> 
     Ok(())
 }
 
+/// The fixture's `rstest` requirement is the workspace's, not a second literal.
+///
+/// R-11's mitigation asks the fixture to derive its requirement from
+/// `[workspace.dependencies]`. A standalone fixture opts out of the workspace,
+/// so `rstest.workspace = true` cannot resolve there; the equality is asserted
+/// here instead. A workspace bump that forgets the fixture therefore fails this
+/// test rather than leaving two literals to drift.
+#[test]
+fn prelude_only_fixture_takes_its_rstest_requirement_from_the_workspace() -> io::Result<()> {
+    let workspace = support::read_workspace_manifest()?;
+    let fixture = support::read_manifest(PRELUDE_ONLY)?;
+    let expected = support::workspace_requirement(&workspace, "rstest");
+    assert!(
+        expected.is_some(),
+        "the workspace must state a version requirement for rstest",
+    );
+    assert_eq!(
+        support::dependency_requirement(&fixture, "dev-dependencies", "rstest"),
+        expected,
+        "the fixture must state the workspace's rstest requirement",
+    );
+    Ok(())
+}
+
 /// The negative control: the same reading finds the macros crate where it is
 /// really declared.
 #[test]
