@@ -267,30 +267,32 @@ impl ScenarioData {
     /// Provides the internal `filter_by_tags` operation.
     pub(crate) fn filter_by_tags(&mut self, expr: &TagExpression) -> bool {
         match &mut self.examples {
-            Some(examples) => {
-                let mut retained_rows = Vec::new();
-                let mut retained_tags = Vec::new();
-                for (row, tags) in examples
-                    .rows
-                    .iter()
-                    .cloned()
-                    .zip(examples.row_tags.iter().cloned())
-                {
-                    if expr.evaluate(tags.iter().map(String::as_str)) {
-                        retained_rows.push(row);
-                        retained_tags.push(tags);
-                    }
-                }
-
-                if retained_rows.is_empty() {
-                    false
-                } else {
-                    examples.rows = retained_rows;
-                    examples.row_tags = retained_tags;
-                    true
-                }
-            }
+            Some(examples) => retain_matching_example_rows(examples, expr),
             None => expr.evaluate(self.tags.iter().map(String::as_str)),
         }
     }
+}
+
+/// Keep the example rows whose tags satisfy `expr`, reporting whether any did.
+///
+/// The rows and their tags are filtered together so the table's
+/// `row_tags.len() == rows.len()` invariant survives the filter. A table whose
+/// rows all fail the expression is left untouched and reported as filtered
+/// out, so the caller can drop the scenario without losing the table it would
+/// have run had the expression matched.
+fn retain_matching_example_rows(examples: &mut ExampleTable, expr: &TagExpression) -> bool {
+    let retained: Vec<(Vec<String>, Vec<String>)> = examples
+        .rows
+        .iter()
+        .cloned()
+        .zip(examples.row_tags.iter().cloned())
+        .filter(|(_, tags)| expr.evaluate(tags.iter().map(String::as_str)))
+        .collect();
+    if retained.is_empty() {
+        return false;
+    }
+    let (rows, row_tags) = retained.into_iter().unzip();
+    examples.rows = rows;
+    examples.row_tags = row_tags;
+    true
 }

@@ -170,14 +170,6 @@ where
 ///
 /// The retry diagnostics deliberately go directly to the test process because
 /// this minimal shim does not install a global tracing subscriber.
-#[expect(
-    clippy::print_stdout,
-    reason = "retry progress must remain visible without a global tracing subscriber"
-)]
-#[expect(
-    clippy::print_stderr,
-    reason = "seed diagnostics must remain visible when a test eventually panics"
-)]
 pub fn run_test(
     num_iterations: usize,
     explicit_seeds: &[u64],
@@ -188,31 +180,69 @@ pub fn run_test(
     let (seeds, is_multiple_runs) = calculate_seeds(num_iterations as u64, explicit_seeds);
 
     for seed in seeds {
-        let mut attempt = 0;
-        loop {
-            if is_multiple_runs {
-                eprintln!("seed = {seed}");
-            }
-
-            let action = classify_attempt(seed, attempt, max_retries, test_fn);
-            if action.is_success() {
-                break;
-            }
-            if action.is_retry() {
-                println!("attempt {attempt} failed, retrying");
-                attempt += 1;
-                continue;
-            }
-
-            if is_multiple_runs {
-                eprintln!("failing seed: {seed}");
-            }
-            if let Some(on_fail_fn) = on_fail_fn {
-                on_fail_fn();
-            }
-            panic::resume_unwind(action.into_panic());
-        }
+        run_seed(seed, is_multiple_runs, max_retries, test_fn, on_fail_fn);
     }
+}
+
+/// Run one seed to success, retrying the failures its policy allows.
+///
+/// `attempt` counts the attempts already made for this seed, which is what
+/// `classify_attempt` compares against `max_retries`. The loop therefore only
+/// falls through to [`report_exhausted_retries`], which resumes the final
+/// panic instead of returning.
+#[expect(
+    clippy::print_stdout,
+    reason = "retry progress must remain visible without a global tracing subscriber"
+)]
+#[expect(
+    clippy::print_stderr,
+    reason = "seed diagnostics must remain visible when a test eventually panics"
+)]
+fn run_seed(
+    seed: u64,
+    is_multiple_runs: bool,
+    max_retries: usize,
+    test_fn: &mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
+    on_fail_fn: Option<fn()>,
+) {
+    let mut attempt = 0;
+    loop {
+        if is_multiple_runs {
+            eprintln!("seed = {seed}");
+        }
+
+        let action = classify_attempt(seed, attempt, max_retries, test_fn);
+        if action.is_success() {
+            break;
+        }
+        if action.is_retry() {
+            println!("attempt {attempt} failed, retrying");
+            attempt += 1;
+            continue;
+        }
+
+        report_exhausted_retries(seed, is_multiple_runs, on_fail_fn, action);
+    }
+}
+
+/// Report a seed whose retries are spent, then resume its panic.
+#[expect(
+    clippy::print_stderr,
+    reason = "seed diagnostics must remain visible when a test eventually panics"
+)]
+fn report_exhausted_retries(
+    seed: u64,
+    is_multiple_runs: bool,
+    on_fail_fn: Option<fn()>,
+    action: AttemptAction,
+) -> ! {
+    if is_multiple_runs {
+        eprintln!("failing seed: {seed}");
+    }
+    if let Some(on_fail_fn) = on_fail_fn {
+        on_fail_fn();
+    }
+    panic::resume_unwind(action.into_panic())
 }
 
 /// Run one attempt under unwind capture and classify the retry decision.
