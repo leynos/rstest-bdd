@@ -90,50 +90,39 @@ def source_files(root: Path) -> list[Path]:
     )
 
 
-def writes_step_attributes(source: str) -> bool:
+def dependency_names(specs: dict[str, object]) -> cabc.Iterator[str]:
     """
-    Return whether *source* writes a scenario or step attribute.
+    Yield every crate one dependency table declares, by every spelling.
 
     Parameters
     ----------
-    source : str
-        The text of one Rust source file.
+    specs : dict[str, object]
+        The contents of one dependency table, mapping each dependency's key to
+        its specification.
 
-    Returns
-    -------
-    bool
-        ``True`` when the source uses any attribute the facade provides.
+    Yields
+    ------
+    str
+        Each dependency's key, and its ``package`` rename when it has one. A
+        key is the name the example's source writes, which is not the crate it
+        resolves to once the entry is renamed, so
+        ``macros = { package = "rstest-bdd-macros" }`` is found under either
+        spelling.
     """
-    return any(marker in source for marker in STEP_ATTRIBUTE_MARKERS)
-
-
-def names_macro_crate(source: str) -> bool:
-    """
-    Return whether *source* names the macro crate, imported or qualified.
-
-    Parameters
-    ----------
-    source : str
-        The text of one Rust source file.
-
-    Returns
-    -------
-    bool
-        ``True`` when the source reaches the macro crate directly.
-    """
-    return any(marker in source for marker in MACROS_IMPORT_MARKERS)
+    for name, spec in specs.items():
+        yield name
+        package = spec.get("package") if isinstance(spec, dict) else None
+        if isinstance(package, str):
+            yield package
 
 
 def dependency_crates(table: dict[str, object]) -> cabc.Iterator[str]:
     """
     Yield every crate a parsed manifest subtree depends on.
 
-    A dependency's key is the name the example's source writes, which is not
-    the crate it resolves to when the entry is renamed with ``package``. Both
-    are yielded, so ``macros = { package = "rstest-bdd-macros" }`` is
-    found under either spelling. The walk recurses, so a dependency declared in
-    a target-specific table such as ``[target.'cfg(unix)'.dependencies]`` is
-    found as well as one in a top-level table.
+    The walk recurses, so a dependency declared in a target-specific table such
+    as ``[target.'cfg(unix)'.dependencies]`` is found as well as one in a
+    top-level table.
 
     Parameters
     ----------
@@ -150,14 +139,9 @@ def dependency_crates(table: dict[str, object]) -> cabc.Iterator[str]:
         if not isinstance(value, dict):
             continue
         if key in DEPENDENCY_TABLES:
-            for name, spec in value.items():
-                yield name
-                if isinstance(spec, dict):
-                    package = spec.get("package")
-                    if isinstance(package, str):
-                        yield package
-            continue
-        yield from dependency_crates(value)
+            yield from dependency_names(value)
+        else:
+            yield from dependency_crates(value)
 
 
 def declared_dependencies(manifest: Path) -> set[str]:
@@ -200,7 +184,9 @@ def is_in_scope(source: str) -> bool:
     bool
         ``True`` when the source rule applies to the file.
     """
-    return writes_step_attributes(source) or names_macro_crate(source)
+    return any(
+        marker in source for marker in (*STEP_ATTRIBUTE_MARKERS, *MACROS_IMPORT_MARKERS)
+    )
 
 
 def step_attribute_sources(root: Path) -> list[Path]:

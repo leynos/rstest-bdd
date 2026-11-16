@@ -30,7 +30,7 @@ mod preparation;
 #[path = "prelude_fixture/support.rs"]
 mod support;
 
-use support::{MACROS_CRATE, MACROS_DIRECT, PRELUDE_ONLY};
+use support::{Fixture, MACROS_CRATE, MACROS_DIRECT, PRELUDE_ONLY};
 
 /// Compile both fixture graphs before the timed assertions run.
 ///
@@ -126,7 +126,7 @@ fn prelude_only_fixture_imports_only_the_prelude() -> io::Result<()> {
 }
 
 /// Run one fixture's suite and report a failure with its captured output.
-fn run_fixture(fixture: &str) -> io::Result<()> {
+fn run_fixture(fixture: Fixture) -> io::Result<()> {
     preparation::ensure()?;
     let environment = support::child_environment()?;
     let mut command = support::fixture_command(&environment, fixture, &[]);

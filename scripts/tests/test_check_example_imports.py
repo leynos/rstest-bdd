@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from check_example_imports import (
     MACROS_CRATE,
     check_example_imports,
@@ -225,36 +226,30 @@ def test_reports_macro_crate_named_without_attributes(tmp_path: Path) -> None:
     )
 
 
-def test_reports_a_renamed_macros_dependency(tmp_path: Path) -> None:
-    """A dependency renamed with `package` still declares the macro crate."""
-    write_example(
-        tmp_path,
-        "renamed",
-        RENAMED_MACROS_MANIFEST,
-        {"tests/steps.rs": PRELUDE_SOURCE},
-    )
+@pytest.mark.parametrize(
+    ("example", "manifest", "reason"),
+    [
+        (
+            "renamed",
+            RENAMED_MACROS_MANIFEST,
+            "the resolved package name should be reported, not the local alias",
+        ),
+        (
+            "target-table",
+            TARGET_MACROS_MANIFEST,
+            "a target-specific dependency table is not an escape hatch",
+        ),
+    ],
+)
+def test_reports_macros_dependency_in_any_spelling(
+    tmp_path: Path, example: str, manifest: str, reason: str
+) -> None:
+    """A renamed or target-specific dependency still declares the macro crate."""
+    write_example(tmp_path, example, manifest, {"tests/steps.rs": PRELUDE_SOURCE})
 
     violations = check_example_imports(tmp_path)
 
-    assert any(MACROS_CRATE in violation for violation in violations), (
-        "the resolved package name should be reported, not the local alias"
-    )
-
-
-def test_reports_a_target_specific_macros_dependency(tmp_path: Path) -> None:
-    """A dependency under a target-specific table is still declared."""
-    write_example(
-        tmp_path,
-        "target-table",
-        TARGET_MACROS_MANIFEST,
-        {"tests/steps.rs": PRELUDE_SOURCE},
-    )
-
-    violations = check_example_imports(tmp_path)
-
-    assert any(MACROS_CRATE in violation for violation in violations), (
-        "a target-specific dependency table is not an escape hatch"
-    )
+    assert any(MACROS_CRATE in violation for violation in violations), reason
 
 
 def test_reports_a_scan_that_found_nothing(tmp_path: Path) -> None:
