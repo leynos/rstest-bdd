@@ -1918,6 +1918,19 @@ rather than by reading this branch's comments.
 
 ## Surprises & Discoveries
 
+- **`make check-fmt` is not the Markdown gate, and `mdtablefix --wrap` can
+  emit a line markdownlint rejects.** 2026-11-16. The two formatters disagree:
+  `mdtablefix --wrap` wrapped one prose line to 81 characters, while
+  `.markdownlint-cli2.jsonc` sets `MD013` to 80. `make check-fmt` runs
+  `mdtablefix --check` and passed, so the local gate was green while CI's
+  `Markdown lint` step failed on `docs/execplans/...:1898`. The `--wrap` output
+  is therefore not conformant by itself: after wrapping, markdownlint is a
+  separate gate and it is the one that decides. Two habits follow. Verify a
+  Markdown edit with `make markdownlint`, not `make check-fmt`, because the
+  latter cannot see `MD013`. And when a hosted lane fails on something a local
+  gate passed, suspect the gate's *coverage* before the code: the failure was
+  one column of width that no local command I had run would report.
+
 - **Filtering both sides by one rule makes an unowned name equal to itself.**
   2026-11-15. The ownership layer keeps only names `name_is_owned` accepts, and
   `eviction_of` filters the *present* list by the same predicate. That is
