@@ -146,6 +146,68 @@ Running `cargo test -p japanese-ledger` executes both Japanese scenarios. The
 full source lives under `examples/japanese-ledger/` for teams that want to copy
 the structure into their projects.
 
+## Importing `rstest-bdd`
+
+An integration test that drives BDD scenarios usually needs the step
+attributes, the scenario macros, the state and capture types, and the runtime
+context. One glob import supplies them all:
+
+<!-- tested-example: prelude-glob-import -->
+
+```rust
+use rstest_bdd::prelude::*;
+```
+
+The prelude is a convenience over the crate root, not a separate API. Every
+name it exports is available at `rstest_bdd`'s root as well, and it adds none
+of its own, so spelling the same import out in full needs no second path:
+
+<!-- tested-example: prelude-spelled-import -->
+
+```rust
+use rstest_bdd::{
+    ScenarioState, Slot, StepArgs, StepContext, StepError, StepResult, given, scenario,
+    scenarios, then, when,
+};
+```
+
+`ScenarioState` and `StepArgs` each name two items, a trait and a derive macro.
+Rust keeps traits and macros in separate namespaces, so the single import above
+brings both halves into scope, exactly as `serde::Serialize` does. The table
+records which item each spelling delivers and which crate defines it. The
+canonical path is the crate root rather than the defining module, because the
+prelude re-exports these items instead of redefining them.
+
+| Item                 | Kind             | Defining crate      | Canonical path              |
+| -------------------- | ---------------- | ------------------- | --------------------------- |
+| `given`              | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::given`         |
+| `when`               | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::when`          |
+| `then`               | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::then`          |
+| `scenario`           | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::scenario`      |
+| `scenarios`          | attribute macro  | `rstest-bdd-macros` | `rstest_bdd::scenarios`     |
+| `ScenarioState`      | derive macro     | `rstest-bdd-macros` | `rstest_bdd::ScenarioState` |
+| `ScenarioState`      | trait            | `rstest-bdd`        | `rstest_bdd::ScenarioState` |
+| `StepArgs`           | derive macro     | `rstest-bdd-macros` | `rstest_bdd::StepArgs`      |
+| `StepArgs`           | trait            | `rstest-bdd`        | `rstest_bdd::StepArgs`      |
+| `Slot`               | struct           | `rstest-bdd`        | `rstest_bdd::Slot`          |
+| `StepContext`        | struct           | `rstest-bdd`        | `rstest_bdd::StepContext`   |
+| `StepError`          | enum             | `rstest-bdd`        | `rstest_bdd::StepError`     |
+| `StepResult`         | type alias       | `rstest-bdd`        | `rstest_bdd::StepResult`    |
+| `#[harness_context]` | parameter marker | none                | no import required          |
+
+`#[harness_context]` is an inert marker that the step macros read from the
+parameter's attribute syntax, so it needs no import at all.
+
+The import a user writes should never have to name the macro crate
+`rstest-bdd-macros` directly: it is an implementation detail of the facade,
+which re-exports everything the prelude offers. The prelude deliberately
+carries no harness traits, for the reason given in
+[Harness adapter and attribute policy](#harness-adapter-and-attribute-policy).
+
+`scripts/check_prelude_exports.py` compares this table, the spelled example
+above, and `crates/rstest-bdd/src/prelude.rs` against each other, so the three
+cannot drift silently.
+
 ## Step definitions
 
 Developers implement the behaviour described in a feature by writing step

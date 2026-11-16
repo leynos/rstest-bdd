@@ -119,7 +119,7 @@ fn skip_value<T: Parse>(input: ParseStream<'_>) -> syn::Result<BindingArgument> 
     Ok(BindingArgument::Ignored)
 }
 
-/// The diagnostic for an argument name the indexing pass does not recognise.
+/// The diagnostic for an argument name the indexing pass does not recognize.
 fn unknown_argument(name: &syn::Ident) -> syn::Error {
     syn::Error::new(
         name.span(),

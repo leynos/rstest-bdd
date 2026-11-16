@@ -230,6 +230,9 @@ fn enforced_regions_list_is_what_we_think() {
         .collect();
     assert_eq!(
         regions,
-        vec![("docs/users-guide.md", "Feature file rebuild invalidation")]
+        vec![
+            ("docs/users-guide.md", "Feature file rebuild invalidation"),
+            ("docs/users-guide.md", "Importing `rstest-bdd`"),
+        ]
     );
 }
