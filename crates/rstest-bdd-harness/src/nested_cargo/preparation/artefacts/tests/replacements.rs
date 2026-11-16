@@ -28,6 +28,16 @@ use crate::nested_cargo::{
     },
 };
 
+/// The metadata hash of the generation the sibling case removes.
+const REMOVED_HASH: &str = "0123456789abcdef";
+
+/// The metadata hash of a second generation, recorded alongside the removed
+/// one, which must not answer for it.
+const SIBLING_HASH: &str = "fedcba9876543210";
+
+/// The metadata hash a recompile writes, which no stamp has seen.
+const REBUILT_HASH: &str = "0011223344556677";
+
 /// A profile holding the metadata-only unit that keeps it structurally usable.
 ///
 /// Both cases remove an `.rlib`; without a second unit the profile would lose
@@ -47,6 +57,41 @@ fn write_build(deps: &std::path::Path, hash: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+/// The recorded name of the unit's output at `hash`, as the caller spells it.
+fn output_of(hash: &str) -> String { format!("deps/libunit-{hash}.rlib") }
+
+/// Assert that `name` is among the names the stamp recorded.
+///
+/// Both builds have to be recorded, or the surviving one is not the sibling
+/// this case is about — an unrecorded survivor proves nothing about a recorded
+/// name answering for a removal.
+fn assert_recorded(recorded: &[Vec<String>], name: &str) {
+    assert!(
+        recorded.iter().flatten().any(|entry| entry == name),
+        "both builds must be recorded, or the sibling is not the case under test: {recorded:?}"
+    );
+}
+
+/// The single eviction a profile with one removed output reports.
+fn only_eviction(preparation: &Preparation, recorded: Vec<Vec<String>>) -> Vec<String> {
+    let stamp = Stamp { recorded };
+    let evictions = evicted(preparation, Some(&stamp)).expect("check");
+    let [Eviction { missing, .. }] = evictions.as_slice() else {
+        panic!("exactly one profile must be evicted, got {evictions:?}");
+    };
+    missing.clone()
+}
+
+/// A profile holding two recorded builds of one crate, both still present.
+fn profile_with_two_builds() -> std::io::Result<(tempfile::TempDir, Preparation, std::path::PathBuf)>
+{
+    let (directory, preparation) = profile_with_metadata_unit()?;
+    let deps = profile_of(&preparation)?.join("deps");
+    write_build(&deps, REMOVED_HASH)?;
+    write_build(&deps, SIBLING_HASH)?;
+    Ok((directory, preparation, deps))
+}
+
 /// Two recorded builds of one crate, one removed: the survivor must not answer.
 ///
 /// A profile can hold one crate compiled twice under different metadata hashes —
@@ -57,23 +102,11 @@ fn write_build(deps: &std::path::Path, hash: &str) -> std::io::Result<()> {
 /// exactly the moment Cargo recompiles.
 #[test]
 fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() -> std::io::Result<()> {
-    const REMOVED_HASH: &str = "0123456789abcdef";
-    const SIBLING_HASH: &str = "fedcba9876543210";
-
-    let (directory, preparation) = profile_with_metadata_unit()?;
-    let deps = profile_of(&preparation)?.join("deps");
-    write_build(&deps, REMOVED_HASH)?;
-    write_build(&deps, SIBLING_HASH)?;
-
+    let (directory, preparation, deps) = profile_with_two_builds()?;
     let recorded = record(&preparation).expect("record");
-    let removed = format!("deps/libunit-{REMOVED_HASH}.rlib");
-    let sibling = format!("deps/libunit-{SIBLING_HASH}.rlib");
-    for name in [&removed, &sibling] {
-        assert!(
-            recorded.iter().flatten().any(|recorded| recorded == name),
-            "both builds must be recorded, or the sibling is not the case under test: {recorded:?}"
-        );
-    }
+    let removed = output_of(REMOVED_HASH);
+    assert_recorded(&recorded, &removed);
+    assert_recorded(&recorded, &output_of(SIBLING_HASH));
 
     fs::remove_file(deps.join(format!("libunit-{REMOVED_HASH}.rlib")))?;
     assert!(
@@ -81,14 +114,9 @@ fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() -> std::io::R
         "the recorded sibling must survive, so it can be the thing that must not answer"
     );
 
-    let stamp = Stamp { recorded };
-    let evictions = evicted(&preparation, Some(&stamp)).expect("check");
-    let [Eviction { missing, .. }] = evictions.as_slice() else {
-        panic!("exactly one profile must be evicted, got {evictions:?}");
-    };
     assert_eq!(
-        missing,
-        &vec![removed],
+        only_eviction(&preparation, recorded),
+        vec![removed],
         "a hashed build recorded alongside the missing one must not stand in for it"
     );
     assert!(directory.path().exists(), "the fixture must stay alive");
@@ -104,14 +132,7 @@ fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() -> std::io::R
 /// names without excluding the rebuilds it is supposed to accept.
 #[test]
 fn an_unrecorded_rebuild_answers_for_the_name_it_replaced() -> std::io::Result<()> {
-    const REMOVED_HASH: &str = "0123456789abcdef";
-    const SIBLING_HASH: &str = "fedcba9876543210";
-    const REBUILT_HASH: &str = "0011223344556677";
-
-    let (directory, preparation) = profile_with_metadata_unit()?;
-    let deps = profile_of(&preparation)?.join("deps");
-    write_build(&deps, REMOVED_HASH)?;
-    write_build(&deps, SIBLING_HASH)?;
+    let (directory, preparation, deps) = profile_with_two_builds()?;
     let recorded = record(&preparation).expect("record");
 
     // The recompile Cargo performs: the old generation goes and a new one the
