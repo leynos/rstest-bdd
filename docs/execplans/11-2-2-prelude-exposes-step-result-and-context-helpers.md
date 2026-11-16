@@ -1467,6 +1467,53 @@ should be filed rather than forgotten:
 
 ## Decision log
 
+- **DL-22 — The round-three assessment's two guard gaps were closed, and the
+  example guard's manifest half moved into its own module.** Resolved on
+  2026-11-17 against head `00c564ea`, whose verdict was "not yet complete
+  against the whole approved plan" with two named gaps.
+
+  The example guard matched a path into `rstest_bdd::` but not a facade alias.
+  A step-bearing file could write `use rstest_bdd as bdd;`, satisfy the prelude
+  half, and reach the crate root through `#[bdd::when(...)]`, which the path
+  rule never saw. `FACADE_ALIAS_IMPORT` now finds `use rstest_bdd as bdd;` and
+  `extern crate rstest_bdd as bdd;`, reports the import as a reach of its own,
+  and reports any `<alias>::` path written through it. A declared-but-unused
+  alias therefore still fails, and a used one is reported twice because it is
+  two reaches. Two parameterized rows in `test_reports_a_facade_alias` assert
+  both messages.
+
+  Both dependency guards resolved a `package` rename from the declaring
+  manifest alone, so a workspace alias —
+  `macros = { package = "rstest-bdd-macros" }` in `[workspace.dependencies]`,
+  inherited as `macros.workspace = true` — was read as its local key. The V-1
+  guard in `crates/rstest-bdd/tests/prelude_surface.rs` now reads the workspace
+  manifest once and resolves `workspace = true` entries through it, falling
+  back to the key when no workspace entry names the entry rather than inventing
+  a crate. The example guard does the same through `dependency_aliases(root)`.
+  In both, `package` wins over inheritance, matching Cargo: an entry cannot
+  both rename a crate and inherit it.
+
+  That resolution and the alias rules pushed `scripts/check_example_imports.py`
+  past the 400-line Python module budget the pylint gate enforces, so the
+  manifest half moved to `scripts/example_dependencies.py`, with its own test
+  module `scripts/tests/test_example_dependencies.py`. The split is by concern,
+  not by size alone: the resolver answers a question about Cargo manifests and
+  knows nothing about examples, and the example guard's own tests keep their
+  fixtures.
+
+  One portability note belongs here because it misled the first attempt. The
+  new modules annotate with `Path` imported under `typing.TYPE_CHECKING`, which
+  ruff requires of an annotation-only import and which works only because the
+  project's floor is Python 3.14, whose annotations are lazily evaluated. The
+  host's ambient `python3` is 3.12, under which the same module raises
+  `NameError` at `def` time. Every gate runs these scripts through
+  `$(PROJECT_PYTHON)`, which is `uv run --python 3.14 python`, so the gate is
+  unaffected; the df12 lint also rejects `from __future__ import annotations`
+  on this baseline, which is why the future import is absent rather than the
+  `TYPE_CHECKING` import.
+
+  Date/Author: 2026-11-17, implementation agent.
+
 - **DL-21 — The round-two assessment's three gaps were closed by widening the
   guards and finishing the documentation conversion.** Resolved on 2026-11-16
   against head `f13a8f39`, whose verdict was "not yet complete against the
@@ -2247,6 +2294,32 @@ fifteen now use the facade, so the sentence is true of the guide's own examples.
 
 These edits touch Rust, Python and Markdown, so this round needs the full gate
 set again rather than a subset.
+
+The round-two gates ran at `00c564ea` and all seven passed: `make check-fmt` in
+2 s, `make lint` in 39 s with all eleven recipe steps reaching a verdict,
+`make typecheck` in 9 s, `make markdownlint` over 144 files with no resulting
+`typos.toml` diff, `make nixie` over 147 files, and `make publish-check` in 359
+s. `make test` needed a second attempt. The first failed in fixture setup, not
+in an assertion: `feature_addition_triggers_rebuild` reported that the
+`feature-addition` stamp vouched for build artefacts that no longer existed.
+The cause was an ad-hoc `cargo test` run outside the gate's `RUSTFLAGS`. A
+nested-fixture stamp is a function of the compiler flags and the feature
+selection, so that run wrote stamps under a different fingerprint, the gate's
+own preparation then rewrote them, and Cargo produced new hash directories
+while the timed test read a stamp whose artefacts were gone.
+`make prepare-nested-fixtures` passed 7/7 at the same revision and the re-run
+passed in 549 s with 2,398 of 2,398 nextest tests in both legs, all doctests,
+817 of 817 in the no-default-features leg, seven fixture lockfiles, and 325
+pytest checks. Do not run a bare `cargo test` in this worktree while a gate
+window is pending.
+
+The third whole-plan assessment, returned against `00c564ea`, accepted those
+three repairs and named two guard gaps: the example guard could not see a
+facade alias, and both dependency guards read an inherited workspace alias as
+its local key. Both repairs also required moving the manifest half of the
+example guard into its own module to stay inside the 400-line Python budget.
+The round touches Rust, Python and Markdown, so it needs the full gate set
+again. The findings and their repairs are DL-22.
 
 ## Surprises & discoveries
 
