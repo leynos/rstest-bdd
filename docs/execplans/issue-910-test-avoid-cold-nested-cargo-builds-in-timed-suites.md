@@ -1895,7 +1895,7 @@ rather than by reading this branch's comments.
       addition. The claim described an intent no lane executes. Corrected to name
       `priority` as what actually orders the preparations, and to say the target
       serves the filtered case. Lesson: an invariant asserted in a comment is a
-      claim about the tree, and `grep` over the workflows is what distinguishes a
+      claim about the tree, and `grep` over the workflows is what separates a
       policy from a wish; a "where does this run in CI?" question is worth asking
       before building the CI job, because the honest answer is sometimes "it does
       not, and does not need to".
