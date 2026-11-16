@@ -1931,6 +1931,23 @@ rather than by reading this branch's comments.
   gate passed, suspect the gate's *coverage* before the code: the failure was
   one column of width that no local command I had run would report.
 
+- **A third copy is what turns two tolerated functions into a CodeScene issue.**
+  2026-11-16. The contract test already had two near-identical `*_is_phony`
+  functions, and the hosted `CodeScene Code Health Review` passed on every head
+  that had only those. Adding a third, for the driver target, produced a
+  `CodeDuplication` finding and turned the check to FAILURE — the same shape
+  that had been below the threshold twice became a defect on the third. So the
+  failure was not caused by the new target being wrong; it was caused by the
+  new test being the copy that tipped the module over. The repair is the one
+  CodeScene asked for and was worth making on its own merits: collapse the
+  three into `test_every_target_is_phony[target]` over the target names, and
+  lift the shared `.PHONY` read into `phony_lines()`. Lesson: when a quality
+  gate fails on a change that "only adds one more of the same", the addition is
+  the trigger but the duplication is the defect, and suppressing or reordering
+  the check hides a real simplification. Confirm the fix with the same tool
+  that reported it — `cs delta origin/main` — rather than with the local suite,
+  which never had an opinion about duplication.
+
 - **Filtering both sides by one rule makes an unowned name equal to itself.**
   2026-11-15. The ownership layer keeps only names `name_is_owned` accepts, and
   `eviction_of` filters the *present* list by the same predicate. That is
