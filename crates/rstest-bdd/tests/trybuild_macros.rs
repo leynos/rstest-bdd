@@ -156,6 +156,7 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) -> io::Result<()> {
         UiFixtureCase::from("placeholder_missing_param.rs"),
         UiFixtureCase::from("implicit_fixture_missing.rs"),
         UiFixtureCase::from("placeholder_missing_params.rs"),
+        UiFixtureCase::from("prelude_omits_datatable.rs"),
         UiFixtureCase::from("return_override_result_requires_result.rs"),
         UiFixtureCase::from("step_return_nested_result.rs"),
         UiFixtureCase::from("step_return_impl_trait.rs"),

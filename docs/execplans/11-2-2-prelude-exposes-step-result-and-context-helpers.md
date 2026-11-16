@@ -1467,6 +1467,22 @@ should be filed rather than forgotten:
 
 ## Decision log
 
+- **DL-19 — A compile-fail fixture proves the prelude's exclusions, so the
+  guide's list is enforced by the compiler.** Resolved on 2026-11-16 while
+  answering the review. The pin in DL-18 proves the guide's two prelude imports
+  are the text the suite compiles, but nothing proved the complement: that an
+  item the guide says the prelude leaves out really is unreachable through it.
+  Without that, "the prelude omits the datatable items" was a sentence a future
+  edit could falsify in silence, and a reader who ignored the guide would get a
+  different, unrecorded verdict. `tests/ui_macros/prelude_omits_datatable.rs`
+  imports `rstest_bdd::prelude::DataTable` and is registered in
+  `run_failing_ui_tests` with a checked-in `.stderr`, so the exclusion fails to
+  resolve for exactly the reason recorded. Its snapshot is trybuild's own
+  preferred rendering: the fixture was compiled through the staged crate and
+  then re-checked through trybuild before the `.stderr` was accepted, rather
+  than written from memory of what rustc prints. Date/Author: 2026-11-16,
+  implementation agent.
+
 - **DL-18 — The example gate enforces the prelude alone, and the guide's
   imports are compiled copies.** Resolved on 2026-11-16 while answering the
   review. DL-9's accepted wording is that every example reaches its
@@ -2109,6 +2125,20 @@ tree. Two bounds on what the green means are recorded rather than glossed:
 shown to resolve from the registry, and both nextest summaries report seven
 skipped tests. DL-16 records the scope measurement and the escalation.
 
+The review's third gap had a second half the repair commit left open: it asked
+for "a negative test that proves invalid Rust fails", and DL-18 supplied only
+the positive pin. DL-19 closes it in the following commit with
+`tests/ui_macros/prelude_omits_datatable.rs` and its `.stderr`, registered in
+`run_failing_ui_tests`. The snapshot was not written by hand. The new case was
+compiled as a bin of the trybuild staging crate to capture rustc's rendering,
+that rendering was cut down to what trybuild's normalization leaves, and the
+result was then re-checked by running the case through trybuild itself before
+the file was accepted; the first attempt failed on a missing final newline,
+which is why the check exists. Generating the snapshot by running the whole
+`step_macros_compile` suite under `TRYBUILD=overwrite` was tried first and
+abandoned: it recompiles every registered fixture in one run and had to be
+killed at its timeout, having produced no snapshot for this case.
+
 ## Surprises & discoveries
 
 Recorded during planning and execution as evidence was confirmed.
@@ -2562,8 +2592,11 @@ include a rustfmt-formatted sample as a fixture. Verify this by running
 New tests:
 
 - `crates/rstest-bdd/tests/prelude_surface.rs`
+- `crates/rstest-bdd/tests/prelude_fixture.rs` and its support modules
 - `crates/rstest-bdd/tests/fixtures/prelude_only/`
 - `crates/rstest-bdd/tests/ui_macros/harness_context_without_step.rs`
+- `crates/rstest-bdd/tests/ui_macros/prelude_omits_datatable.rs`
+- `crates/rstest-bdd/tests/documentation_examples/tests/prelude_examples/`
 - `scripts/tests/test_check_prelude_exports.py`
 - `scripts/tests/test_check_example_imports.py`
 
