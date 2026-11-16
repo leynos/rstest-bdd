@@ -24,6 +24,8 @@ unevaluated, and must refuse to run without one.
 
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKEFILE = REPO_ROOT / "Makefile"
 
@@ -162,29 +164,29 @@ def test_the_run_half_refuses_an_absent_filter_expression() -> None:
     )
 
 
-def test_the_run_half_is_phony() -> None:
-    """The run target names a command, not a file, so it must be phony."""
-    phony = [
+def phony_lines() -> list[str]:
+    """Return the Makefile's ``.PHONY`` declaration lines.
+
+    Returns
+    -------
+    list[str]
+        Every line beginning with ``.PHONY:``, unparsed. Membership is tested
+        with ``in`` because one declaration may name several targets.
+    """
+    return [
         line
         for line in MAKEFILE.read_text(encoding="utf-8").splitlines()
         if line.startswith(".PHONY:")
     ]
 
-    assert any(RUNNER in line for line in phony), (
-        f"{RUNNER} should be .PHONY, got {phony!r}"
-    )
 
+@pytest.mark.parametrize("target", [TARGET, RUNNER, DRIVER])
+def test_every_target_is_phony(target: str) -> None:
+    """Each target names a command, not a file, so each must be phony."""
+    phony = phony_lines()
 
-def test_the_target_is_phony() -> None:
-    """The target names a command, not a file, so it must be declared phony."""
-    phony = [
-        line
-        for line in MAKEFILE.read_text(encoding="utf-8").splitlines()
-        if line.startswith(".PHONY:")
-    ]
-
-    assert any(TARGET in line for line in phony), (
-        f"{TARGET} should be .PHONY, got {phony!r}"
+    assert any(target in line for line in phony), (
+        f"{target} should be .PHONY, got {phony!r}"
     )
 
 
@@ -202,17 +204,4 @@ def test_the_workflow_driver_is_reachable_from_make() -> None:
 
     assert any(script in line for line in lines), (
         f"{DRIVER} must run {script}, got {lines!r}"
-    )
-
-
-def test_the_workflow_driver_is_phony() -> None:
-    """The driver names a command, not a file, so it must be declared phony."""
-    phony = [
-        line
-        for line in MAKEFILE.read_text(encoding="utf-8").splitlines()
-        if line.startswith(".PHONY:")
-    ]
-
-    assert any(DRIVER in line for line in phony), (
-        f"{DRIVER} should be .PHONY, got {phony!r}"
     )
