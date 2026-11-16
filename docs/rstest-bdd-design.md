@@ -2250,13 +2250,19 @@ The release strategy is therefore split by compatibility risk:
   11.2.1). It desugars to the reserved fixture key `rstest_bdd_harness_context`
   internally, and the legacy `#[from(rstest_bdd_harness_context)]` form is
   retained without deprecation. See the
-  [ADR-007 addendum](adr-007-harness-context-injection.md). Remaining
-  candidates, not yet shipped: a prelude for common integration imports, a
-  typed borrow-error enum, and generated-wrapper coverage for mutable harness
-  context plus scenario state. A first-party scenario-state helper
-  (`ScenarioStore<T>` in `rstest-bdd`, `GpuiScenarioStore` in
-  `rstest-bdd-harness-gpui`) and a cleanup-guard fixture macro were proposed
-  under [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) but were
+  [ADR-007 addendum](adr-007-harness-context-injection.md). Delivered: the
+  public prelude for common integration imports (roadmap 11.2.2).
+  `rstest_bdd::prelude` publishes the step attributes, the scenario macros,
+  `ScenarioState`, `StepArgs`, `Slot`, `StepContext`, `StepError`, and
+  `StepResult` as a strict subset of the crate root, and the facade re-exports
+  each of them, so an integration test reaches its whole surface through one
+  import. See [ADR-026](adr-026-publish-a-facade-prelude.md). Remaining
+  candidates, not yet shipped: a typed borrow-error enum, and generated-wrapper
+  coverage for mutable harness context plus scenario state. A first-party
+  scenario-state helper (`ScenarioStore<T>` in `rstest-bdd`,
+  `GpuiScenarioStore` in `rstest-bdd-harness-gpui`) and a cleanup-guard fixture
+  macro were proposed under
+  [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) but were
   superseded by ADR-012 before implementation and never shipped.
 
 ##### 2.7.6.5 v0.7.0 pre-1.0.0 redesign

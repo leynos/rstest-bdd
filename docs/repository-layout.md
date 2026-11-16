@@ -28,10 +28,13 @@ where to place code, tests, examples, documentation, and support automation.
 The [crates](../crates/) directory contains all workspace crates.
 
 - [crates/rstest-bdd](../crates/rstest-bdd/) is the primary user-facing crate.
-  It exposes the behaviour-driven development macros, diagnostics, and
-  localization assets.
+  It depends on `rstest-bdd-macros`, re-exports the step attributes and
+  scenario macros at its crate root, and publishes `rstest_bdd::prelude` for
+  integration imports. It also exposes the runtime diagnostics and localization
+  assets.
 - [crates/rstest-bdd-macros](../crates/rstest-bdd-macros/) owns procedural
-  macro parsing and expansion.
+  macro parsing and expansion. It must never depend on `rstest-bdd`, in any
+  dependency table, so the facade edge is one-way.
 - [crates/rstest-bdd-patterns](../crates/rstest-bdd-patterns/) contains shared
   step-pattern parsing and matching logic.
 - [crates/rstest-bdd-policy](../crates/rstest-bdd-policy/) contains policy

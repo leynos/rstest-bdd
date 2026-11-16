@@ -202,6 +202,39 @@ fn create_user(user_data: NewUser) {
 }
 ```
 
+### 2.4. One import for step definitions
+
+**Goal:** Let a step module reach the attributes, the scenario macros, the
+state and capture types, and the step context through one predictable import,
+without hiding the crates that define them.
+
+Proposed Design:
+
+`rstest-bdd` re-exports the procedural macros from `rstest-bdd-macros` at its
+crate root and publishes `rstest_bdd::prelude` as a strict subset of that root.
+The prelude adds no name of its own, so an integration test can write either
+the glob or the spelled import and see the same items. The macros crate remains
+usable on its own, and it never depends on the runtime crate; the facade edge
+points one way only. The admission bar for the module, and the drift gate that
+compares it with its documentation, are recorded in
+[ADR-026](adr-026-publish-a-facade-prelude.md) and the
+[developers' guide](developers-guide.md#the-prelude-admission-bar).
+
+**User Experience:**
+
+- **Before:**
+
+```rust,no_run
+use rstest_bdd::{ScenarioState as _, Slot};
+use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
+```
+
+- **After:**
+
+```rust,no_run
+use rstest_bdd::prelude::*;
+```
+
 ## 3. Improving data flow and state management
 
 These features focus on making state management across steps more robust and

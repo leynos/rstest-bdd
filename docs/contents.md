@@ -143,6 +143,9 @@
   interface][adr-025] records the decision to layer the diagnostic tool's
   settings through OrthoConfig while keeping every library crate free of the
   dependency.
+- [ADR 026: publish a facade prelude][adr-026] records the decision to
+  re-export the procedural macros from `rstest-bdd` and to publish
+  `rstest_bdd::prelude` as a gated subset of the crate root.
 
 ## Execution plans
 
@@ -169,6 +172,7 @@
 [adr-023]: adr-023-adopt-the-shared-cv005-contract-library.md
 [adr-024]: adr-024-structural-usage-tracking-in-registry-lookups.md
 [adr-025]: adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md
+[adr-026]: adr-026-publish-a-facade-prelude.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
