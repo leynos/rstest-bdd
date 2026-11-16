@@ -49,20 +49,31 @@ pub(super) fn fixture_binaries_present(profile: &Path) -> std::io::Result<bool> 
     let mut pending: Vec<std::fs::DirEntry> = root.collect::<std::io::Result<_>>()?;
     let mut present = vec![false; FIXTURE_TEST_BINARIES.len()];
     while let Some(entry) = pending.pop() {
-        let path = entry.path();
-        // A subdirectory that vanishes between the listing and this read is
-        // skipped: the profile is the thing under test, not the race.
-        if let Ok(children) = std::fs::read_dir(&path) {
-            pending.extend(children.filter_map(std::io::Result::ok));
-        }
         // `fs::metadata` follows a symlink, so a linked binary still counts:
         // what makes an entry a candidate is being a file at that path, not
         // how the directory entry was recorded. A directory named like the
         // fixture's binary fails here, which is the point — its name is the
         // only thing it shares with one.
-        let is_file = std::fs::metadata(&path).is_ok_and(|metadata| metadata.is_file());
-        if is_file {
+        //
+        // The metadata is consulted once per entry and decides both questions:
+        // a file is a candidate, a directory is descended into, and nothing
+        // else is either. Reading the directory first instead costs a failing
+        // `ENOTDIR` syscall on every file, in every timed test that calls this.
+        let Some(metadata) = std::fs::metadata(entry.path()).ok() else {
+            // A path that vanished between the listing and this read is
+            // skipped: the profile is the thing under test, not the race.
+            continue;
+        };
+        if metadata.is_file() {
             note_binary(&entry.file_name().to_string_lossy(), &mut present);
+            if present.iter().all(|found| *found) {
+                return Ok(true);
+            }
+        } else if metadata.is_dir() {
+            // A subdirectory that vanishes here is skipped for the same reason.
+            if let Ok(children) = std::fs::read_dir(entry.path()) {
+                pending.extend(children.filter_map(std::io::Result::ok));
+            }
         }
     }
     Ok(present.iter().all(|found| *found))

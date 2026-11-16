@@ -275,20 +275,10 @@ fn eviction_of(
         return Ok(None);
     };
     let present = recorded_names(directory, &layout, owned)?;
-    // What is left once the names this stamp recorded are taken out: only a
-    // name that was *not* recorded can stand as a rebuild of one that was. Two
-    // builds of one crate can sit side by side, both recorded, and reading the
-    // survivor as the other's replacement would report a lost unit as present.
-    let replacements: Vec<String> = present
-        .iter()
-        .filter(|name| !recorded.contains(name))
-        .cloned()
-        .collect();
-    let missing: Vec<String> = recorded
-        .iter()
-        .filter(|name| !replacement::is_vouched_for(name.as_str(), &present, &replacements))
-        .cloned()
-        .collect();
+    // Which recorded names survived, and whether a rebuild answers for one that
+    // did not, is the membership rule's whole content; it lives in the module
+    // that documents the rule so this function only decides what to report.
+    let missing = replacement::missing_names(recorded, &present);
     if missing.is_empty() {
         return Ok(None);
     }

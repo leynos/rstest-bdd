@@ -43,6 +43,27 @@ const REBUILD_PACKAGE: &str = "rstest-bdd-rebuild-invalidation-fixture";
 /// See [`REBUILD_PACKAGE`] for why each family names its own.
 const ADDITION_PACKAGE: &str = "rstest-bdd-feature-addition-fixture";
 
+/// The workspace crates both fixtures build through their path dependencies.
+///
+/// `PREPARE_ARGS` compiles each fixture's whole closure, not only the fixture:
+/// `rstest-bdd` is a normal path dependency and `rstest-bdd-macros` a
+/// dev-dependency, and each pulls the three harness-side crates in turn.
+/// [`nested_cargo::Preparation::owned_packages`] requires every package the
+/// preparation built, and declaring only the fixture would filter a
+/// dependency's records out of both the recorded and the present lists — so an
+/// evicted dependency would compare equal to itself and pass the gate, leaving
+/// the timed rebuild to compile it. Measured from the fixtures rather than
+/// assumed: `cargo tree --prefix none` in either fixture directory names all
+/// five. The narrower `--edges normal,build` view is *not* the answer, because
+/// it omits the two proc-macro host units.
+const WORKSPACE_DEPENDENCIES: &[&str] = &[
+    "rstest-bdd",
+    "rstest-bdd-macros",
+    "rstest-bdd-harness",
+    "rstest-bdd-patterns",
+    "rstest-bdd-policy",
+];
+
 /// The `cargo` arguments that compile both fixture test binaries without
 /// running them.
 const PREPARE_ARGS: [&str; 5] = ["test", "--no-run", "--locked", "--offline", "--color=never"];
@@ -193,7 +214,10 @@ fn fixture_preparation(
         artefact_directory(process::child_target_directory(env), family.artefact_subdir),
         process::preparation_view(env)?,
     )?;
-    preparation.owned_packages = vec![family.package.to_owned()];
+    preparation.owned_packages = std::iter::once(family.package)
+        .chain(WORKSPACE_DEPENDENCIES.iter().copied())
+        .map(str::to_owned)
+        .collect();
     Ok(preparation)
 }
 

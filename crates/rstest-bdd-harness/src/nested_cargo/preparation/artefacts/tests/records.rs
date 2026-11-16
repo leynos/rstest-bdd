@@ -23,15 +23,15 @@ use crate::nested_cargo::preparation::{
 /// genuine metadata-only unit that Cargo does reuse. Only the record of what
 /// preparation left separates them.
 #[test]
-fn a_recorded_output_that_was_removed_is_an_eviction() {
-    let (directory, preparation) = preparation_with(&[("unit", "rlib")]);
+fn a_recorded_output_that_was_removed_is_an_eviction() -> std::io::Result<()> {
+    let (directory, preparation) = preparation_with(&[("unit", "rlib")])?;
     // A second, metadata-only unit keeps the profile structurally valid and
     // gives the evicted unit's sibling something to be compared against.
     // Without it, removing `unit`'s last two files would empty the directory
     // and the structural layer would refuse for a reason that has nothing to do
     // with the record.
-    let profile = profile_of(&preparation);
-    write_units(&profile.join("deps"), &[("checked", "rmeta")]);
+    let profile = profile_of(&preparation)?;
+    write_units(&profile.join("deps"), &[("checked", "rmeta")])?;
     assert!(directory.path().exists(), "the fixture must stay alive");
     let recorded = record(&preparation).expect("record");
 
@@ -55,6 +55,7 @@ fn a_recorded_output_that_was_removed_is_an_eviction() {
         &vec!["deps/libunit.rlib".to_owned()],
         "the message must name the artefact that went, not the metadata that stayed"
     );
+    Ok(())
 }
 
 /// The same eviction when the surviving form is one the unit really did
@@ -68,13 +69,13 @@ fn a_recorded_output_that_was_removed_is_an_eviction() {
 /// actually left is what refuses it, and the message must name the form that
 /// went rather than the form that stayed.
 #[test]
-fn an_rlib_removed_beside_a_surviving_rmeta_is_an_eviction() {
-    let (directory, preparation) = preparation_with(&[("unit", "rlib")]);
-    let profile = profile_of(&preparation);
+fn an_rlib_removed_beside_a_surviving_rmeta_is_an_eviction() -> std::io::Result<()> {
+    let (directory, preparation) = preparation_with(&[("unit", "rlib")])?;
+    let profile = profile_of(&preparation)?;
     // A unit with both forms, exactly as `rustc` leaves a compiled library that
     // Cargo also kept metadata for.
     fs::write(profile.join("deps/libunit.rmeta"), b"unit").expect("metadata output");
-    write_units(&profile.join("deps"), &[("checked", "rmeta")]);
+    write_units(&profile.join("deps"), &[("checked", "rmeta")])?;
     assert!(directory.path().exists(), "the fixture must stay alive");
     let recorded = record(&preparation).expect("record");
     assert!(
@@ -102,12 +103,13 @@ fn an_rlib_removed_beside_a_surviving_rmeta_is_an_eviction() {
         &vec!["deps/libunit.rlib".to_owned()],
         "a surviving same-stem output must not be read as the unit's witness"
     );
+    Ok(())
 }
 
 /// A unit that never emitted an `.rlib` is not required to have one.
 #[test]
-fn a_metadata_only_unit_is_accepted() {
-    let (_directory, preparation) = preparation_with(&[("checked", "rmeta")]);
+fn a_metadata_only_unit_is_accepted() -> std::io::Result<()> {
+    let (_directory, preparation) = preparation_with(&[("checked", "rmeta")])?;
     let recorded = record(&preparation).expect("record");
     assert_eq!(
         recorded,
@@ -123,18 +125,19 @@ fn a_metadata_only_unit_is_accepted() {
         all_present(&preparation, Some(&stamp)).expect("check"),
         "a crate type that emits only metadata must not be refused"
     );
+    Ok(())
 }
 
 /// A unit leaving together with its own record is invisible to the structural
 /// layer, so it is the reason a record of what preparation produced exists.
 #[test]
-fn a_unit_leaving_with_its_record_is_structurally_invisible() {
-    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")]);
+fn a_unit_leaving_with_its_record_is_structurally_invisible() -> std::io::Result<()> {
+    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")])?;
     assert!(
         all_present(&preparation, None).expect("populated check"),
         "the fixture must start usable"
     );
-    let profile = profile_of(&preparation);
+    let profile = profile_of(&preparation)?;
 
     // One unit's record and output go together while a sibling unit keeps the
     // directory non-empty. That is the state the structural layer alone cannot
@@ -147,6 +150,7 @@ fn a_unit_leaving_with_its_record_is_structurally_invisible() {
         "a unit leaving together with its record leaves a non-empty tree, which the structural \
          layer alone accepts: only a record of what was produced can say more"
     );
+    Ok(())
 }
 
 /// Evict the compiled units, leaving the directory itself in place.
@@ -191,34 +195,36 @@ fn a_profile_without_either_half_is_an_eviction(
     #[case] evict: fn(&Path),
     #[case] survivor: &str,
     #[case] why: &str,
-) {
-    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")]);
-    let profile = profile_of(&preparation);
+) -> std::io::Result<()> {
+    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")])?;
+    let profile = profile_of(&preparation)?;
     assert!(
         all_present(&preparation, None).expect("populated check"),
         "the fixture must start usable"
     );
 
     evict(&profile);
-    let mut kept = fs::read_dir(profile.join(survivor)).expect("list the surviving half");
+    let mut kept = fs::read_dir(profile.join(survivor))?;
     assert!(
         kept.next().is_some(),
         "only one half may be missing, so {survivor} has to satisfy its own check"
     );
     assert!(!all_present(&preparation, None).expect("check"), "{why}");
+    Ok(())
 }
 
 /// An absent profile is an eviction rather than an inspection error.
 #[test]
-fn an_absent_profile_is_an_eviction() {
-    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")]);
-    let profile = profile_of(&preparation);
+fn an_absent_profile_is_an_eviction() -> std::io::Result<()> {
+    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")])?;
+    let profile = profile_of(&preparation)?;
 
     fs::remove_dir_all(&profile).expect("evict the profile");
     assert!(
         !all_present(&preparation, None).expect("check"),
         "an absent profile must never pass"
     );
+    Ok(())
 }
 
 /// A unit whose fingerprint record went is an eviction, even though every
@@ -231,14 +237,14 @@ fn an_absent_profile_is_an_eviction() {
 /// tree whose next build recompiles that unit and its dependants — inside the
 /// timed assertion this preparation exists to keep out of its deadline.
 #[test]
-fn a_removed_fingerprint_record_is_an_eviction() {
-    let (directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")]);
-    let profile = profile_of(&preparation);
+fn a_removed_fingerprint_record_is_an_eviction() -> std::io::Result<()> {
+    let (directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")])?;
+    let profile = profile_of(&preparation)?;
     // A second unit's records, so the store stays populated after the first
     // unit's are removed. Without them the store would empty and the
     // structural layer would refuse for a reason that has nothing to do with
     // the record.
-    write_store(&profile.join(".fingerprint"), "checked");
+    write_store(&profile.join(".fingerprint"), "checked")?;
     assert!(directory.path().exists(), "the fixture must stay alive");
     let recorded = record(&preparation).expect("record");
     assert!(
@@ -281,6 +287,7 @@ fn a_removed_fingerprint_record_is_an_eviction() {
         !missing.is_empty(),
         "a removed record must be reported, not silently accepted"
     );
+    Ok(())
 }
 
 /// A removed fingerprint *file*, with its directory left behind, is an
@@ -291,10 +298,10 @@ fn a_removed_fingerprint_record_is_an_eviction() {
 /// store still looks populated from above. Cargo reads the file, so deleting it
 /// makes the unit dirty however intact the tree around it is.
 #[test]
-fn a_removed_fingerprint_file_is_an_eviction() {
-    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")]);
-    let profile = profile_of(&preparation);
-    write_store(&profile.join(".fingerprint"), "checked");
+fn a_removed_fingerprint_file_is_an_eviction() -> std::io::Result<()> {
+    let (_directory, preparation) = preparation_with(&[("unit", "rlib"), ("checked", "rmeta")])?;
+    let profile = profile_of(&preparation)?;
+    write_store(&profile.join(".fingerprint"), "checked")?;
     let recorded = record(&preparation).expect("record");
 
     let record_file = profile.join(".fingerprint/unit-0123456789abcdef/lib-unit");
@@ -318,6 +325,7 @@ fn a_removed_fingerprint_file_is_an_eviction() {
         &vec![".fingerprint/unit-0123456789abcdef/lib-unit".to_owned()],
         "the deletion must be named as the record that went"
     );
+    Ok(())
 }
 
 /// Two recorded builds of one unit: removing one is an eviction, and the
@@ -329,13 +337,13 @@ fn a_removed_fingerprint_file_is_an_eviction() {
 /// rebuild would report a lost unit as present at exactly the moment Cargo
 /// recompiles.
 #[test]
-fn a_recorded_sibling_does_not_answer_for_a_removed_build() {
-    let (_directory, preparation) = preparation_with(&[("unit", "rlib")]);
-    let profile = profile_of(&preparation);
+fn a_recorded_sibling_does_not_answer_for_a_removed_build() -> std::io::Result<()> {
+    let (_directory, preparation) = preparation_with(&[("unit", "rlib")])?;
+    let profile = profile_of(&preparation)?;
     // A metadata-only sibling keeps the profile structurally usable once the
     // `.rlib` goes; the sibling under test is the *second build of the same
     // unit*, written with the hash Cargo would give a recompile.
-    write_units(&profile.join("deps"), &[("checked", "rmeta")]);
+    write_units(&profile.join("deps"), &[("checked", "rmeta")])?;
     let sibling = profile.join("deps/libunit-fedcba9876543210.rlib");
     fs::write(&sibling, b"unit").expect("second build");
     // The second build needs its own `.d` record to be discovered as a unit
@@ -364,4 +372,5 @@ fn a_recorded_sibling_does_not_answer_for_a_removed_build() {
         &vec!["deps/libunit.rlib".to_owned()],
         "a name recorded alongside the missing one must not stand in for it"
     );
+    Ok(())
 }

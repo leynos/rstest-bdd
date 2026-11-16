@@ -9,22 +9,26 @@ use crate::nested_cargo::{Preparation, ProfileDestination, Sources, env_from_var
 ///
 /// The fixture always creates exactly one, so a missing one is a broken
 /// fixture rather than a case under test.
-pub(super) fn profile_of(preparation: &Preparation) -> std::path::PathBuf {
+pub(super) fn profile_of(preparation: &Preparation) -> std::io::Result<std::path::PathBuf> {
     preparation
         .artefacts
         .first()
-        .expect("the fixture describes one profile")
-        .clone()
+        .cloned()
+        .ok_or_else(|| std::io::Error::other("the fixture describes no profile"))
 }
 
 /// Write units into `directory` as rustc leaves them: a `.d` record and its
 /// output side by side.
-pub(super) fn write_units(directory: &std::path::Path, units: &[(&str, &str)]) {
-    fs::create_dir_all(directory).expect("unit dir");
+pub(super) fn write_units(
+    directory: &std::path::Path,
+    units: &[(&str, &str)],
+) -> std::io::Result<()> {
+    fs::create_dir_all(directory)?;
     for (stem, extension) in units {
-        fs::write(directory.join(format!("{stem}.d")), b"dep-info").expect("record");
-        fs::write(directory.join(format!("lib{stem}.{extension}")), b"unit").expect("output");
+        fs::write(directory.join(format!("{stem}.d")), b"dep-info")?;
+        fs::write(directory.join(format!("lib{stem}.{extension}")), b"unit")?;
     }
+    Ok(())
 }
 
 /// A profile holding `units` in `unit_dir` and a store at `store`, both named
@@ -37,14 +41,14 @@ fn preparation_in(
     unit_dir: &str,
     store: &str,
     units: &[(&str, &str)],
-) -> (tempfile::TempDir, Preparation) {
-    let directory = tempfile::tempdir().expect("temp dir");
+) -> std::io::Result<(tempfile::TempDir, Preparation)> {
+    let directory = tempfile::tempdir()?;
     let target = directory.path().join("target");
     let profile = target.join("debug");
-    write_units(&profile.join(unit_dir), units);
-    write_store(&profile.join(store), "unit");
-    let preparation = preparation_for(directory.path(), &target);
-    (directory, preparation)
+    write_units(&profile.join(unit_dir), units)?;
+    write_store(&profile.join(store), "unit")?;
+    let preparation = preparation_for(directory.path(), &target)?;
+    Ok((directory, preparation))
 }
 
 /// Write a fingerprint store holding one unit's record directory.
@@ -53,20 +57,25 @@ fn preparation_in(
 /// them loose in the store would model a layout Cargo never writes and would
 /// leave the record layer untested. The unit name carries the hash the compiled
 /// unit carries, because that is what pairs the two.
-pub(super) fn write_store(store: &std::path::Path, unit: &str) {
+pub(super) fn write_store(store: &std::path::Path, unit: &str) -> std::io::Result<()> {
     let records = store.join(format!("{unit}-0123456789abcdef"));
-    fs::create_dir_all(&records).expect("record dir");
-    fs::write(records.join(format!("lib-{unit}")), b"record").expect("fingerprint");
-    fs::write(records.join(format!("lib-{unit}.json")), b"{}").expect("sidecar");
+    fs::create_dir_all(&records)?;
+    fs::write(records.join(format!("lib-{unit}")), b"record")?;
+    fs::write(records.join(format!("lib-{unit}.json")), b"{}")?;
+    Ok(())
 }
 
 /// A profile in the classic `<profile>/deps` + `<profile>/.fingerprint` shape.
-pub(super) fn preparation_with(units: &[(&str, &str)]) -> (tempfile::TempDir, Preparation) {
+pub(super) fn preparation_with(
+    units: &[(&str, &str)],
+) -> std::io::Result<(tempfile::TempDir, Preparation)> {
     preparation_in("deps", ".fingerprint", units)
 }
 
 /// A profile in Cargo 1.100.0's `<profile>/build/<pkg>/<hash>/out` shape.
-fn preparation_with_new_layout(units: &[(&str, &str)]) -> (tempfile::TempDir, Preparation) {
+fn preparation_with_new_layout(
+    units: &[(&str, &str)],
+) -> std::io::Result<(tempfile::TempDir, Preparation)> {
     preparation_in(
         "build/unit/0123456789abcdef/out",
         "build/unit/0123456789abcdef/fingerprint",
@@ -76,15 +85,16 @@ fn preparation_with_new_layout(units: &[(&str, &str)]) -> (tempfile::TempDir, Pr
 
 /// Describe `target/debug` as the artefacts a preparation rooted at `root`
 /// vouches for.
-fn preparation_for(root: &std::path::Path, target: &std::path::Path) -> Preparation {
-    let environment = env_from_vars(Vec::new(), Some(target), ProfileDestination::Caller)
-        .expect("the fixture environment should resolve");
+fn preparation_for(
+    root: &std::path::Path,
+    target: &std::path::Path,
+) -> std::io::Result<Preparation> {
+    let environment = env_from_vars(Vec::new(), Some(target), ProfileDestination::Caller)?;
     Preparation::new(
         Sources::new("unit", "v", "hash"),
         root.to_path_buf(),
         environment,
     )
-    .expect("the fixture preparation should describe its artefacts")
 }
 
 /// Both Cargo layouts are discovered and accepted.
@@ -95,15 +105,16 @@ fn preparation_for(root: &std::path::Path, target: &std::path::Path) -> Preparat
 /// on Windows CI it failed every preparation of the CLI family. Discovery must
 /// accept both shapes, because the workspace supports both toolchains.
 #[test]
-fn both_cargo_layouts_are_accepted() {
+fn both_cargo_layouts_are_accepted() -> std::io::Result<()> {
     for (name, build) in [
         (
             "classic deps",
-            preparation_with as fn(&[(&str, &str)]) -> (tempfile::TempDir, Preparation),
+            preparation_with
+                as fn(&[(&str, &str)]) -> std::io::Result<(tempfile::TempDir, Preparation)>,
         ),
         ("build-dir out", preparation_with_new_layout),
     ] {
-        let (_directory, preparation) = build(&[("unit", "rlib")]);
+        let (_directory, preparation) = build(&[("unit", "rlib")])?;
         assert!(
             all_present(&preparation, None).expect("structural check"),
             "{name} must be a usable prepared profile"
@@ -138,6 +149,7 @@ fn both_cargo_layouts_are_accepted() {
             "{name} must record the unit's fingerprint record: {names:?}"
         );
     }
+    Ok(())
 }
 
 /// The same unit in two different directories is recorded twice.
@@ -146,13 +158,13 @@ fn both_cargo_layouts_are_accepted() {
 /// for the library — and the record must not let one witness the other. The
 /// directory is part of the recorded name for that reason.
 #[test]
-fn units_in_different_directories_are_recorded_separately() {
-    let (_directory, preparation) = preparation_with_new_layout(&[("unit", "rlib")]);
-    let profile = profile_of(&preparation);
+fn units_in_different_directories_are_recorded_separately() -> std::io::Result<()> {
+    let (_directory, preparation) = preparation_with_new_layout(&[("unit", "rlib")])?;
+    let profile = profile_of(&preparation)?;
     write_units(
         &profile.join("build/other/fedcba9876543210/out"),
         &[("unit", "rlib")],
-    );
+    )?;
 
     let recorded = record(&preparation).expect("record");
     let names = recorded.first().expect("the fixture describes one profile");
@@ -175,21 +187,22 @@ fn units_in_different_directories_are_recorded_separately() {
         ],
         "each unit's output must be recorded under the directory holding it"
     );
+    Ok(())
 }
 
 /// A profile that cannot be inspected reports the fault, not an eviction.
 #[cfg(unix)]
 #[test]
-fn an_uninspectable_profile_reports_the_read_error() {
+fn an_uninspectable_profile_reports_the_read_error() -> std::io::Result<()> {
     // Folding a metadata fault into an eviction reports a tree that cannot be
     // inspected as one that is known to be gone. The reader cannot act on that,
     // and an unreadable tree is exactly the case where guessing is unsafe.
     // A symlink loop reaches the state without any permission setup, which
     // would not hold when the suite runs as root.
-    let (_directory, preparation) = preparation_with(&[("unit", "rlib")]);
-    let profile = profile_of(&preparation);
-    fs::remove_dir_all(&profile).expect("evict the directory");
-    std::os::unix::fs::symlink(&profile, &profile).expect("symlink loop");
+    let (_directory, preparation) = preparation_with(&[("unit", "rlib")])?;
+    let profile = profile_of(&preparation)?;
+    fs::remove_dir_all(&profile)?;
+    std::os::unix::fs::symlink(&profile, &profile)?;
 
     let error = all_present(&preparation, None)
         .expect_err("a profile that cannot be inspected must not pass as evicted or present");
@@ -198,6 +211,7 @@ fn an_uninspectable_profile_reports_the_read_error() {
         std::io::ErrorKind::NotFound,
         "a loop is not an absence: {error}"
     );
+    Ok(())
 }
 
 // The recorded-name cases live in a submodule so this file keeps its own

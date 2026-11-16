@@ -27,13 +27,13 @@ use super::{FIXTURE_PACKAGE, FIXTURE_PATH_DEPENDENCIES, nested_cargo};
 /// family's, not a copy of it — that is the whole point of the case.
 fn family_preparation(
     scratch: &std::path::Path,
-) -> (nested_cargo::Preparation, std::path::PathBuf) {
+) -> std::io::Result<(nested_cargo::Preparation, std::path::PathBuf)> {
     let target = scratch.join("target");
     let profile = target.join(nested_cargo::DEFAULT_PROFILE);
     let deps = profile.join("deps");
-    fs::create_dir_all(&deps).expect("deps dir");
+    fs::create_dir_all(&deps)?;
     let store = profile.join(".fingerprint");
-    fs::create_dir_all(&store).expect("store dir");
+    fs::create_dir_all(&store)?;
 
     // One unit and one record set per crate the family claims, named the way
     // Cargo names them: a hyphenated record directory, and an underscored
@@ -43,30 +43,28 @@ fn family_preparation(
     {
         let stem = package.replace('-', "_");
         let unit = format!("{stem}-0123456789abcdef");
-        fs::write(deps.join(format!("{unit}.d")), b"dep-info").expect("dep-info");
-        fs::write(deps.join(format!("lib{unit}.rlib")), b"unit").expect("output");
+        fs::write(deps.join(format!("{unit}.d")), b"dep-info")?;
+        fs::write(deps.join(format!("lib{unit}.rlib")), b"unit")?;
         let records = store.join(format!("{package}-0123456789abcdef"));
-        fs::create_dir_all(&records).expect("record dir");
-        fs::write(records.join(format!("lib-{package}")), b"record").expect("record");
+        fs::create_dir_all(&records)?;
+        fs::write(records.join(format!("lib-{package}")), b"record")?;
     }
 
     let environment = nested_cargo::env_from_vars(
         Vec::new(),
         Some(&target),
         nested_cargo::ProfileDestination::Caller,
-    )
-    .expect("the fixture environment should resolve");
+    )?;
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", "test", "hash"),
         scratch.join("stamp-root"),
         environment,
-    )
-    .expect("the fixture preparation should describe its artefacts");
+    )?;
     preparation.owned_packages = std::iter::once(FIXTURE_PACKAGE)
         .chain(FIXTURE_PATH_DEPENDENCIES.iter().copied())
         .map(str::to_owned)
         .collect();
-    (preparation, profile)
+    Ok((preparation, profile))
 }
 
 /// The crates this family's preparation must vouch for, named independently.
@@ -95,6 +93,76 @@ const REQUIRED_DEPENDENCIES: &[&str] = &[
     "rstest-bdd-policy",
 ];
 
+/// The declaration agrees with the fixture's real dependency graph.
+///
+/// `REQUIRED_DEPENDENCIES` above is a second hand-written copy of the same
+/// names, so the two go stale together: a crate the fixture gains is missing
+/// from both, and every test here stays green while the timed suite pays for
+/// the rebuild. This case reads the graph instead of restating it, so the
+/// declaration fails only when the tree and the constant actually disagree.
+///
+/// `cargo metadata` is what decides, not a compile: it resolves the fixture's
+/// own manifest and lockfile and reports every package without building one.
+/// Path packages are the ones the preparation compiles from this checkout —
+/// registry dependencies are immutable and the workspace lockfile pins them,
+/// so they are the wrong set to compare against.
+#[test]
+fn the_declaration_matches_the_fixtures_resolved_graph() {
+    let manifest =
+        super::super::workspace_root().join("crates/cargo-bdd/tests/fixtures/minimal/Cargo.toml");
+    let metadata = cargo_metadata::MetadataCommand::new()
+        .manifest_path(manifest)
+        .exec()
+        .expect("the fixture manifest must resolve");
+    let resolve = metadata.resolve.as_ref().expect("a resolved graph");
+    let packages: std::collections::BTreeMap<_, _> = metadata
+        .packages
+        .iter()
+        .map(|package| (&package.id, package))
+        .collect();
+
+    // Walk the resolved graph from the fixture. `deps` names the package ids
+    // each node resolved to, so following them reaches the whole closure
+    // without the fixture's sources being compiled.
+    let fixture = metadata
+        .packages
+        .iter()
+        .find(|package| package.name.as_str() == FIXTURE_PACKAGE)
+        .expect("the fixture is in its own manifest");
+    let nodes: std::collections::BTreeMap<_, _> =
+        resolve.nodes.iter().map(|node| (&node.id, node)).collect();
+    let mut reached = std::collections::BTreeSet::new();
+    let mut pending = vec![&fixture.id];
+    while let Some(id) = pending.pop() {
+        if !reached.insert(id) {
+            continue;
+        }
+        if let Some(node) = nodes.get(id) {
+            pending.extend(node.deps.iter().map(|dep| &dep.pkg));
+        }
+    }
+
+    // Only this checkout's packages are the preparation's own work: a registry
+    // crate is immutable and already pinned by the fixture's lockfile, so its
+    // units are neither declared nor at risk of a local edit.
+    let local: std::collections::BTreeSet<String> = reached
+        .into_iter()
+        .filter_map(|id| packages.get(id))
+        .filter(|package| package.source.is_none() && package.name.as_str() != FIXTURE_PACKAGE)
+        .map(|package| package.name.to_string())
+        .collect();
+    let declared: std::collections::BTreeSet<String> = FIXTURE_PATH_DEPENDENCIES
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect();
+
+    assert_eq!(
+        local, declared,
+        "FIXTURE_PATH_DEPENDENCIES must be exactly the fixture's local dependency closure; the \
+         timed suite rebuilds any crate it omits"
+    );
+}
+
 /// Evicting any required crate's fingerprint records must fail the gate.
 ///
 /// The declaration is what decides whether an eviction is visible at all: a
@@ -103,7 +171,7 @@ const REQUIRED_DEPENDENCIES: &[&str] = &[
 /// therefore evicted in turn from a profile that has *already* been prepared
 /// and stamped, and the gate must refuse every one.
 #[test]
-fn evicting_each_required_crate_fails_the_gate() {
+fn evicting_each_required_crate_fails_the_gate() -> std::io::Result<()> {
     for package in REQUIRED_DEPENDENCIES {
         assert!(
             FIXTURE_PATH_DEPENDENCIES.contains(package),
@@ -115,7 +183,7 @@ fn evicting_each_required_crate_fails_the_gate() {
 
     for package in REQUIRED_DEPENDENCIES {
         let scratch = tempfile::tempdir().expect("temp dir");
-        let (preparation, profile) = family_preparation(scratch.path());
+        let (preparation, profile) = family_preparation(scratch.path())?;
         nested_cargo::prepare_now(&preparation, || {
             Ok(nested_cargo::PreparationSummary::default())
         })
@@ -126,7 +194,7 @@ fn evicting_each_required_crate_fails_the_gate() {
             records.is_dir(),
             "the fixture must write {package}'s records"
         );
-        fs::remove_dir_all(&records).expect("evict the crate's fingerprint records");
+        fs::remove_dir_all(&records)?;
 
         let error = nested_cargo::ensure_prepared_with(&preparation, true, || {
             panic!("a timed test must never prepare")
@@ -138,4 +206,5 @@ fn evicting_each_required_crate_fails_the_gate() {
             "the refusal must name {package}, not just the profile: {message}"
         );
     }
+    Ok(())
 }

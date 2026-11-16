@@ -14,6 +14,12 @@ use rstest_bdd_harness::nested_cargo;
 use super::{REBUILD, fixture_preparation, workspace_inputs};
 use crate::harness::{fixtures, process};
 
+// The families' ownership declaration, exercised against what their fixtures
+// actually resolve to. Its own module because it is a separate claim from the
+// stamp-location regressions above.
+#[path = "tests/ownership.rs"]
+mod ownership;
+
 /// A child environment whose artefacts go to `target_directory`.
 fn child_env(target_directory: &std::path::Path) -> std::io::Result<process::ChildEnv> {
     process::child_env_from_vars(vec![(

@@ -309,7 +309,7 @@ impl Preparation {
 /// point the build somewhere the stamp does not describe.
 ///
 /// Callers that only need an environment for a nested build should reach for
-/// [`build_child_env`] or [`env_from_vars`] instead: this helper exists to
+/// [`super::build_child_env`] or [`env_from_vars`] instead: this helper exists to
 /// serve [`Preparation::for_fixture`], because dropping the inherited value is
 /// a decision about what a *stamp* describes rather than a general filtering
 /// rule.

@@ -33,6 +33,8 @@
 //! separate artefact the stamp already accounts for. Answering from it would
 //! report nothing missing while the profile had lost a compiled unit.
 
+use std::collections::BTreeSet;
+
 /// Whether `recorded` is still answered for by what the profile now holds.
 ///
 /// Exact presence is the ordinary answer: the unit the preparation left is
@@ -40,8 +42,38 @@
 /// by this module's documentation. `replacements` must exclude every name the
 /// stamp recorded, so a recorded sibling cannot answer for a name that also
 /// went.
-pub(super) fn is_vouched_for(recorded: &str, present: &[String], replacements: &[String]) -> bool {
-    present.iter().any(|name| name == recorded) || superseded(recorded, replacements)
+pub(super) fn is_vouched_for(
+    recorded: &str,
+    present: &BTreeSet<&str>,
+    replacements: &[String],
+) -> bool {
+    present.contains(recorded) || superseded(recorded, replacements)
+}
+
+/// The recorded names the profile no longer holds.
+///
+/// This is the whole decision [`super::eviction_of`] reports, kept here so the
+/// membership indexes and the rule that reads them are in one place: a warm
+/// profile holds thousands of names, and asking "is this one present" of a
+/// list for every recorded name is quadratic. `present` is filtered by the
+/// same build the predicate reads, so the two cannot disagree.
+pub(super) fn missing_names(recorded: &[String], present: &[String]) -> Vec<String> {
+    let recorded_index: BTreeSet<&str> = recorded.iter().map(String::as_str).collect();
+    // Only a name that was *not* recorded can stand as a rebuild of one that
+    // was. Two builds of one crate can sit side by side, both recorded, and
+    // reading the survivor as the other's replacement would report a lost unit
+    // as present.
+    let replacements: Vec<String> = present
+        .iter()
+        .filter(|name| !recorded_index.contains(name.as_str()))
+        .cloned()
+        .collect();
+    let present_index: BTreeSet<&str> = present.iter().map(String::as_str).collect();
+    recorded
+        .iter()
+        .filter(|name| !is_vouched_for(name.as_str(), &present_index, &replacements))
+        .cloned()
+        .collect()
 }
 
 /// Whether some name in `replacements` is a different build of `recorded`.

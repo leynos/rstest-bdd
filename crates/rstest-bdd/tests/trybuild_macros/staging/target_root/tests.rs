@@ -14,22 +14,24 @@ use super::*;
 ///
 /// The marker is what makes the root discoverable, so a fixture without one
 /// would test the absence path rather than the layout under test.
-fn tagged_root(structure: &[&str]) -> (tempfile::TempDir, Utf8PathBuf) {
-    let directory = tempfile::tempdir().expect("temp dir");
-    let root = Utf8PathBuf::from_path_buf(directory.path().to_path_buf()).expect("utf-8 path");
+fn tagged_root(structure: &[&str]) -> std::io::Result<(tempfile::TempDir, Utf8PathBuf)> {
+    let directory = tempfile::tempdir()?;
+    let root = Utf8PathBuf::from_path_buf(directory.path().to_path_buf())
+        .map_err(|path| std::io::Error::other(format!("not utf-8: {}", path.display())))?;
     std::fs::write(
         root.join("CACHEDIR.TAG"),
         b"Signature: 8a477f597d28d172789f06886806bc55",
-    )
-    .expect("cache tag");
+    )?;
     let mut executable = root.clone();
     for part in structure {
         executable.push(part);
     }
-    std::fs::create_dir_all(executable.parent().expect("executable parent"))
-        .expect("executable dir");
-    std::fs::write(executable.as_std_path(), b"binary").expect("executable");
-    (directory, executable)
+    let parent = executable
+        .parent()
+        .ok_or_else(|| std::io::Error::other(format!("{executable} has no parent")))?;
+    std::fs::create_dir_all(parent)?;
+    std::fs::write(executable.as_std_path(), b"binary")?;
+    Ok((directory, executable))
 }
 
 /// Both layouts resolve to the tagged root, whatever directory holds the
@@ -58,15 +60,17 @@ fn tagged_root(structure: &[&str]) -> (tempfile::TempDir, Utf8PathBuf) {
     "out",
     "trybuild_macros-ce1892561403e9e7",
 ])]
-fn derives_target_root_from_test_executable(#[case] structure: &[&str]) {
-    let (directory, executable) = tagged_root(structure);
-    let expected = Utf8PathBuf::from_path_buf(directory.path().to_path_buf()).expect("utf-8 path");
+fn derives_target_root_from_test_executable(#[case] structure: &[&str]) -> std::io::Result<()> {
+    let (directory, executable) = tagged_root(structure)?;
+    let expected = Utf8PathBuf::from_path_buf(directory.path().to_path_buf())
+        .map_err(|path| std::io::Error::other(format!("not utf-8: {}", path.display())))?;
 
     assert_eq!(
         target_directory_from_test_executable(executable.as_path()),
         Some(expected),
         "the tagged root must be found from {executable}"
     );
+    Ok(())
 }
 
 /// An executable outside Cargo's layouts resolves only through a tag above it.

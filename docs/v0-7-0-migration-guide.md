@@ -134,8 +134,13 @@ when the call holds step text and placeholder matching is wanted.
 ## Nested fixture preparation is a separate pass
 
 `rstest_bdd_harness::nested_cargo` gained a preparation gate for suites that
-shell out to a nested `cargo`. It is additive — nothing that compiled before
-stops compiling — but a suite that adopts it changes how it is run.
+shell out to a nested `cargo`. The gate is opt-in: a suite that does not call
+it keeps its old behaviour, and nothing is built that was not built before. Two
+changes are nonetheless source-breaking for existing callers. Seven functions
+return `io::Result` where they returned a value directly, so an existing call
+site needs `?` or an unwrap. And the bounded runners cap their captured output,
+so code that treated `Output::stderr` as the child's complete text must read it
+as a prefix. Both are described below.
 
 ### Timed tests no longer prepare their own nested builds
 
@@ -209,8 +214,13 @@ do not rely on a complete final line or a trailing terminator. The exit status
 is unaffected.
 
 If a nested build hands its diagnostics to a helper that outlives it, or the
-captured text is truncated, wrap the invocation in a supervisor that waits for
-the whole tree when complete output is required.
+captured text is truncated, do not rely on waiting longer: the cap applies to
+the drainers' *own* reading, so the direct child's text can still be cut short
+after the child exits. Where complete output is required — a parser that needs
+the final line, an exit summary, a `.stderr` comparison — capture with a
+mechanism that drains the pipes to completion instead, such as reading them to
+EOF on threads you join, or letting the child inherit the parent's streams and
+collecting them outside this helper.
 
 ## Migration checklist
 

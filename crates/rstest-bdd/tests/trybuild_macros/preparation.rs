@@ -180,10 +180,28 @@ fn ui_clippy_preparation() -> io::Result<nested_cargo::Preparation> {
 ///
 /// Shared by the timed cases and the preparation so the two cannot drift: the
 /// timed call appends `--` and its deny arguments, the preparation adds none.
-pub(crate) fn ui_clippy_command(bin: &str) -> Command {
+///
+/// The environment is applied here rather than left to the caller, so a
+/// command built for one mode cannot run with a different one's variables. It
+/// is resolved the same way [`nested_cargo::Preparation::for_fixture`] resolves
+/// it for this family — [`nested_cargo::env_for_directory`] over the stamped
+/// directory — because that is the environment the preparation warmed the
+/// graph under. Handing the child this process's inherited variables instead
+/// would leave `CARGO_MAKEFLAGS` and `CARGO_PKG_*` set: the former names a
+/// jobserver the child cannot open and stalls on Windows, and the latter
+/// describes a different crate. The target directory is therefore set *before*
+/// `apply_to`, which would otherwise clear it.
+pub(crate) fn ui_clippy_command(bin: &str) -> io::Result<Command> {
     let manifest_dir = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
     let manifest_path = manifest_dir.join("tests/ui_lints/Cargo.toml");
     let mut command = Command::new("cargo");
+    let environment = nested_cargo::env_for_directory(
+        ui_clippy_target_directory().as_std_path(),
+        nested_cargo::ProfileDestination::Caller,
+    )?;
+    // `apply_to` clears the environment first, so it must run before the
+    // target directory is set: anything set earlier would be discarded.
+    environment.apply_to(&mut command);
     command
         .current_dir(manifest_dir.as_std_path())
         .env("CARGO_TARGET_DIR", ui_clippy_target_directory().as_str())
@@ -193,7 +211,7 @@ pub(crate) fn ui_clippy_command(bin: &str) -> Command {
         .arg(manifest_path.as_str())
         .arg("--bin")
         .arg(bin);
-    command
+    Ok(command)
 }
 
 /// Prepare both families unconditionally, for the named preparation test.
@@ -304,7 +322,7 @@ fn prepare_trybuild() -> io::Result<nested_cargo::PreparationSummary> {
 /// and lose its output, and under plain `cargo test` the lazy path has no
 /// runner bound at all.
 fn prepare_ui_clippy() -> io::Result<nested_cargo::PreparationSummary> {
-    let mut command = ui_clippy_command(UI_CLIPPY_PROBE);
+    let mut command = ui_clippy_command(UI_CLIPPY_PROBE)?;
     let output = nested_cargo::run_bounded_with_timeout(
         &mut command,
         nested_cargo::PREPARATION_COMMAND_TIMEOUT,

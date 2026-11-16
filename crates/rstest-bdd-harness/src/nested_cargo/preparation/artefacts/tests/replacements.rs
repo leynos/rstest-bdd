@@ -33,7 +33,7 @@ use crate::nested_cargo::{
 /// Both cases remove an `.rlib`; without a second unit the profile would lose
 /// its last compiled output and the structural layer would refuse for a reason
 /// that has nothing to do with replacements, hiding what is under test.
-fn profile_with_metadata_unit() -> (tempfile::TempDir, Preparation) {
+fn profile_with_metadata_unit() -> std::io::Result<(tempfile::TempDir, Preparation)> {
     preparation_with(&[("checked", "rmeta")])
 }
 
@@ -41,9 +41,10 @@ fn profile_with_metadata_unit() -> (tempfile::TempDir, Preparation) {
 ///
 /// A `.d` record beside an `.rlib`, sharing one hashed stem: that pairing is
 /// what makes the directory listing discover the output at all.
-fn write_build(deps: &std::path::Path, hash: &str) {
-    fs::write(deps.join(format!("unit-{hash}.d")), b"dep-info").expect("dep-info record");
-    fs::write(deps.join(format!("libunit-{hash}.rlib")), b"unit").expect("compiled output");
+fn write_build(deps: &std::path::Path, hash: &str) -> std::io::Result<()> {
+    fs::write(deps.join(format!("unit-{hash}.d")), b"dep-info")?;
+    fs::write(deps.join(format!("libunit-{hash}.rlib")), b"unit")?;
+    Ok(())
 }
 
 /// Two recorded builds of one crate, one removed: the survivor must not answer.
@@ -55,14 +56,14 @@ fn write_build(deps: &std::path::Path, hash: &str) {
 /// Reading it as the missing one's rebuild reports a lost unit as present at
 /// exactly the moment Cargo recompiles.
 #[test]
-fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() {
+fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() -> std::io::Result<()> {
     const REMOVED_HASH: &str = "0123456789abcdef";
     const SIBLING_HASH: &str = "fedcba9876543210";
 
-    let (directory, preparation) = profile_with_metadata_unit();
-    let deps = profile_of(&preparation).join("deps");
-    write_build(&deps, REMOVED_HASH);
-    write_build(&deps, SIBLING_HASH);
+    let (directory, preparation) = profile_with_metadata_unit()?;
+    let deps = profile_of(&preparation)?.join("deps");
+    write_build(&deps, REMOVED_HASH)?;
+    write_build(&deps, SIBLING_HASH)?;
 
     let recorded = record(&preparation).expect("record");
     let removed = format!("deps/libunit-{REMOVED_HASH}.rlib");
@@ -74,7 +75,7 @@ fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() {
         );
     }
 
-    fs::remove_file(deps.join(format!("libunit-{REMOVED_HASH}.rlib"))).expect("remove one build");
+    fs::remove_file(deps.join(format!("libunit-{REMOVED_HASH}.rlib")))?;
     assert!(
         deps.join(format!("libunit-{SIBLING_HASH}.rlib")).is_file(),
         "the recorded sibling must survive, so it can be the thing that must not answer"
@@ -91,6 +92,7 @@ fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() {
         "a hashed build recorded alongside the missing one must not stand in for it"
     );
     assert!(directory.path().exists(), "the fixture must stay alive");
+    Ok(())
 }
 
 /// The control: a rebuild the stamp never recorded *is* accepted.
@@ -101,24 +103,22 @@ fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() {
 /// could never run. Together the pair shows the call site excludes recorded
 /// names without excluding the rebuilds it is supposed to accept.
 #[test]
-fn an_unrecorded_rebuild_answers_for_the_name_it_replaced() {
+fn an_unrecorded_rebuild_answers_for_the_name_it_replaced() -> std::io::Result<()> {
     const REMOVED_HASH: &str = "0123456789abcdef";
     const SIBLING_HASH: &str = "fedcba9876543210";
     const REBUILT_HASH: &str = "0011223344556677";
 
-    let (directory, preparation) = profile_with_metadata_unit();
-    let deps = profile_of(&preparation).join("deps");
-    write_build(&deps, REMOVED_HASH);
-    write_build(&deps, SIBLING_HASH);
+    let (directory, preparation) = profile_with_metadata_unit()?;
+    let deps = profile_of(&preparation)?.join("deps");
+    write_build(&deps, REMOVED_HASH)?;
+    write_build(&deps, SIBLING_HASH)?;
     let recorded = record(&preparation).expect("record");
 
     // The recompile Cargo performs: the old generation goes and a new one the
     // stamp has never seen takes its place.
-    fs::remove_file(deps.join(format!("libunit-{REMOVED_HASH}.rlib")))
-        .expect("remove the superseded build");
-    fs::remove_file(deps.join(format!("unit-{REMOVED_HASH}.d")))
-        .expect("remove the superseded record");
-    write_build(&deps, REBUILT_HASH);
+    fs::remove_file(deps.join(format!("libunit-{REMOVED_HASH}.rlib")))?;
+    fs::remove_file(deps.join(format!("unit-{REMOVED_HASH}.d")))?;
+    write_build(&deps, REBUILT_HASH)?;
     assert!(
         !recorded
             .iter()
@@ -135,4 +135,5 @@ fn an_unrecorded_rebuild_answers_for_the_name_it_replaced() {
         "a unit rebuilt under a new hash must satisfy the gate, got {evictions:?}"
     );
     assert!(directory.path().exists(), "the fixture must stay alive");
+    Ok(())
 }

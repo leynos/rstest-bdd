@@ -54,6 +54,7 @@ pub use preparation::{
     ensure_prepared,
     ensure_prepared_with,
     ensure_prepared_with_probe,
+    env_for_directory,
     input_hash,
     invalidate,
     prepare_now,

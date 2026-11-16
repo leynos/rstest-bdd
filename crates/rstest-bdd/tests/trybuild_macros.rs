@@ -198,7 +198,7 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) -> io::Result<()> {
     // artefact/cache conflicts and cross-test contamination; this makes
     // per-bin `cargo clippy` checks deterministic. The command shape is
     // shared with preparation so the two warm the same graph.
-    let output = preparation::ui_clippy_command(bin)
+    let output = preparation::ui_clippy_command(bin)?
         .arg("--")
         .args(lint_args)
         .output()?;

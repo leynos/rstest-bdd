@@ -38,17 +38,15 @@ fn unit_stem(package: &str) -> String { format!("{}-{HASH}", package.replace('-'
 
 /// Describe a family rooted at `root` that builds into `target` and claims
 /// `packages`.
-fn owning(root: &Path, target: &Path, packages: &[&str]) -> Preparation {
-    let environment = env_from_vars(Vec::new(), Some(target), ProfileDestination::Caller)
-        .expect("the fixture environment should resolve");
+fn owning(root: &Path, target: &Path, packages: &[&str]) -> std::io::Result<Preparation> {
+    let environment = env_from_vars(Vec::new(), Some(target), ProfileDestination::Caller)?;
     let sources = Sources::new("unit", "v", "hash");
-    let mut preparation = Preparation::new(sources, root.to_path_buf(), environment)
-        .expect("the fixture preparation should describe its artefacts");
+    let mut preparation = Preparation::new(sources, root.to_path_buf(), environment)?;
     preparation.owned_packages = packages
         .iter()
         .map(|package| (*package).to_owned())
         .collect();
-    preparation
+    Ok(preparation)
 }
 
 /// A profile both packages built into, with one unit and one fingerprint
@@ -56,35 +54,34 @@ fn owning(root: &Path, target: &Path, packages: &[&str]) -> Preparation {
 ///
 /// `packages` is what the family under test declares it built; the two fixture
 /// units are written either way, exactly as a shared profile would hold them.
-fn shared_profile(packages: &[&str]) -> (tempfile::TempDir, Preparation) {
-    let directory = tempfile::tempdir().expect("temp dir");
+fn shared_profile(packages: &[&str]) -> std::io::Result<(tempfile::TempDir, Preparation)> {
+    let directory = tempfile::tempdir()?;
     let target = directory.path().join("target");
     let profile = target.join("debug");
     write_units(
         &profile.join("deps"),
         &[(&unit_stem(OWN), "rlib"), (&unit_stem(SIBLING), "rlib")],
-    );
-    write_store(&profile.join(".fingerprint"), OWN);
-    write_store(&profile.join(".fingerprint"), SIBLING);
-    let preparation = owning(directory.path(), &target, packages);
-    (directory, preparation)
+    )?;
+    write_store(&profile.join(".fingerprint"), OWN)?;
+    write_store(&profile.join(".fingerprint"), SIBLING)?;
+    let preparation = owning(directory.path(), &target, packages)?;
+    Ok((directory, preparation))
 }
 
 /// Remove what `cargo clean -p SIBLING` removes: its unit and its records.
-fn clean_sibling(profile: &Path) {
+fn clean_sibling(profile: &Path) -> std::io::Result<()> {
     let deps = profile.join("deps");
     let stem = unit_stem(SIBLING);
-    fs::remove_file(deps.join(format!("{stem}.d"))).expect("remove the sibling's record");
-    fs::remove_file(deps.join(format!("lib{stem}.rlib"))).expect("remove the sibling's output");
+    fs::remove_file(deps.join(format!("{stem}.d")))?;
+    fs::remove_file(deps.join(format!("lib{stem}.rlib")))?;
     let store = profile.join(".fingerprint");
     fs::remove_dir_all(store.join(format!("{SIBLING}-{HASH}")))
-        .expect("remove the sibling's records");
 }
 
 /// The sibling's units are not recorded, and the family's own are.
 #[test]
-fn a_sibling_packages_units_are_not_recorded() {
-    let (_directory, preparation) = shared_profile(&[OWN]);
+fn a_sibling_packages_units_are_not_recorded() -> std::io::Result<()> {
+    let (_directory, preparation) = shared_profile(&[OWN])?;
     let recorded = record(&preparation).expect("record");
     let names = recorded.first().expect("the fixture describes one profile");
     assert!(
@@ -107,6 +104,7 @@ fn a_sibling_packages_units_are_not_recorded() {
         names.iter().any(|name| name.contains("feature-addition")),
         "the family's own fingerprint record must still be recorded: {names:?}"
     );
+    Ok(())
 }
 
 /// A sibling's designed clean leaves this family's stamp valid.
@@ -115,21 +113,22 @@ fn a_sibling_packages_units_are_not_recorded() {
 /// baseline, which used to strand the addition family's stamp with sixteen
 /// missing names the tree could never restore.
 #[test]
-fn a_sibling_packages_clean_does_not_refuse_the_stamp() {
-    let (_directory, preparation) = shared_profile(&[OWN]);
+fn a_sibling_packages_clean_does_not_refuse_the_stamp() -> std::io::Result<()> {
+    let (_directory, preparation) = shared_profile(&[OWN])?;
     let recorded = record(&preparation).expect("record");
-    let profile = profile_of(&preparation);
+    let profile = profile_of(&preparation)?;
     assert!(
         all_present(&preparation, None).expect("structural check"),
         "the fixture must start usable"
     );
 
-    clean_sibling(&profile);
+    clean_sibling(&profile)?;
 
     assert!(
         all_present(&preparation, Some(&Stamp { recorded })).expect("check"),
         "a clean of a package this family never built must not refuse its stamp"
     );
+    Ok(())
 }
 
 /// The family's own units are still required.
@@ -137,14 +136,13 @@ fn a_sibling_packages_clean_does_not_refuse_the_stamp() {
 /// The other side of the boundary: scoping the record must not let a family
 /// vouch for nothing. Removing its own output is still an eviction.
 #[test]
-fn the_family_s_own_units_are_still_required() {
-    let (_directory, preparation) = shared_profile(&[OWN]);
+fn the_family_s_own_units_are_still_required() -> std::io::Result<()> {
+    let (_directory, preparation) = shared_profile(&[OWN])?;
     let recorded = record(&preparation).expect("record");
-    let profile = profile_of(&preparation);
+    let profile = profile_of(&preparation)?;
 
     let stem = unit_stem(OWN);
-    fs::remove_file(profile.join("deps").join(format!("lib{stem}.rlib")))
-        .expect("evict the family's own output");
+    fs::remove_file(profile.join("deps").join(format!("lib{stem}.rlib")))?;
     assert!(
         profile.join("deps").join(format!("{stem}.d")).is_file(),
         "the unit's record must survive, so the structural layer cannot refuse instead"
@@ -154,6 +152,7 @@ fn the_family_s_own_units_are_still_required() {
         !all_present(&preparation, Some(&Stamp { recorded })).expect("check"),
         "an eviction of the family's own work must still refuse the stamp"
     );
+    Ok(())
 }
 
 /// A family that names no package still vouches for the whole profile.
@@ -163,8 +162,8 @@ fn the_family_s_own_units_are_still_required() {
 /// the regression above was measured in, so the case is kept as the before
 /// picture: the sibling's clean refuses this stamp.
 #[test]
-fn a_family_that_names_no_package_claims_the_whole_profile() {
-    let (_directory, preparation) = shared_profile(&[]);
+fn a_family_that_names_no_package_claims_the_whole_profile() -> std::io::Result<()> {
+    let (_directory, preparation) = shared_profile(&[])?;
     let recorded = record(&preparation).expect("record");
     let names = recorded.first().expect("the fixture describes one profile");
     assert!(
@@ -174,11 +173,12 @@ fn a_family_that_names_no_package_claims_the_whole_profile() {
         "with no declared ownership every name in the profile is recorded: {names:?}"
     );
 
-    let profile = profile_of(&preparation);
-    clean_sibling(&profile);
+    let profile = profile_of(&preparation)?;
+    clean_sibling(&profile)?;
     assert!(
         !all_present(&preparation, Some(&Stamp { recorded })).expect("check"),
         "this is the failure the declared ownership removes: the sibling's designed clean refuses \
          a stamp that claimed its units"
     );
+    Ok(())
 }

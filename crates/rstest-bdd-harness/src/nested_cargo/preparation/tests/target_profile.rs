@@ -23,6 +23,23 @@ use crate::nested_cargo::{
 /// `trybuild` passes `--target <triple>` for every generated crate, so a
 /// preparation that runs it leaves the host units in `<root>/debug` and every
 /// other unit in `<root>/<triple>/debug`. Both are part of one prepared tree.
+/// Write the host profile a `--target <triple>` build also leaves behind.
+///
+/// The twin of [`write_target_profile`], and shared by both cases for the same
+/// reason: the two tests have to describe one tree. A profile is a unit
+/// directory and a fingerprint store, and a copy of that shape drifting in one
+/// case would silently test something other than the other.
+fn write_host_profile(root: &std::path::Path) -> io::Result<std::path::PathBuf> {
+    let host = root.join(DEFAULT_PROFILE);
+    let deps = host.join("deps");
+    fs::create_dir_all(&deps)?;
+    fs::create_dir_all(host.join(".fingerprint"))?;
+    fs::write(host.join(".fingerprint/unit"), b"fingerprint record")?;
+    fs::write(deps.join("unit.d"), b"dep-info")?;
+    fs::write(deps.join("libunit.rlib"), b"unit")?;
+    Ok(host)
+}
+
 fn write_target_profile(root: &std::path::Path, triple: &str) -> io::Result<()> {
     let profile = root.join(triple).join("debug");
     let deps = profile.join("deps");
@@ -45,12 +62,7 @@ fn evicting_only_the_target_profile_invalidates_the_preparation() {
     // the rebuild inside its own deadline.
     let directory = tempfile::tempdir().expect("fixture dir");
     let root = directory.path().join("trybuild-root");
-    let host = root.join(DEFAULT_PROFILE);
-    fs::create_dir_all(host.join("deps")).expect("deps dir");
-    fs::create_dir_all(host.join(".fingerprint")).expect("fingerprint dir");
-    fs::write(host.join(".fingerprint/unit"), b"fingerprint record").expect("fingerprint record");
-    fs::write(host.join("deps/unit.d"), b"dep-info").expect("dep-info");
-    fs::write(host.join("deps/libunit.rlib"), b"unit").expect("unit output");
+    let host = write_host_profile(&root).expect("host profile");
     write_target_profile(&root, "x86_64-unknown-linux-gnu").expect("target profile");
 
     let preparation = Preparation::for_fixture("unit-fixture", root.clone(), "v", "hash")
@@ -91,12 +103,7 @@ fn the_advertised_preparation_repairs_an_evicted_target_profile() {
     // accept the repaired tree.
     let directory = tempfile::tempdir().expect("fixture dir");
     let root = directory.path().join("trybuild-root");
-    let host = root.join(DEFAULT_PROFILE);
-    fs::create_dir_all(host.join("deps")).expect("deps dir");
-    fs::create_dir_all(host.join(".fingerprint")).expect("fingerprint dir");
-    fs::write(host.join(".fingerprint/unit"), b"fingerprint record").expect("fingerprint record");
-    fs::write(host.join("deps/unit.d"), b"dep-info").expect("dep-info");
-    fs::write(host.join("deps/libunit.rlib"), b"unit").expect("unit output");
+    write_host_profile(&root).expect("host profile");
     write_target_profile(&root, "x86_64-unknown-linux-gnu").expect("target profile");
 
     let preparation = Preparation::for_fixture("unit-fixture", root.clone(), "v", "hash")

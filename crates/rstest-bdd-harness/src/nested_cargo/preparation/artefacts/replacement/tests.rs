@@ -5,6 +5,8 @@
 //! case is what specifies it; the store it protects is covered by the parent
 //! module's own eviction cases.
 
+use std::collections::BTreeSet;
+
 use super::is_vouched_for;
 
 /// The hash the recorded name carries.
@@ -15,13 +17,16 @@ const NEW_HASH: &str = "fedcba9876543210";
 /// The present-name list a check is run against.
 fn present(names: &[&str]) -> Vec<String> { names.iter().map(|name| (*name).to_owned()).collect() }
 
+/// The index the predicate consults, built from the same names.
+fn index(names: &[String]) -> BTreeSet<&str> { names.iter().map(String::as_str).collect() }
+
 /// The unit the preparation left is still there, so nothing was replaced.
 #[test]
 fn an_exactly_present_name_is_vouched_for() {
     let recorded = format!("deps/libunit-{OLD_HASH}.rlib");
     let present = present(&[recorded.as_str()]);
     assert!(
-        is_vouched_for(&recorded, &present, &[]),
+        is_vouched_for(&recorded, &index(&present), &[]),
         "a name the preparation recorded and that is still present must pass"
     );
 }
@@ -40,7 +45,7 @@ fn a_recompiled_unit_answers_for_the_name_it_replaced() {
     let rebuilt = format!("deps/libunit-{NEW_HASH}.rlib");
     let replacements = present(&[rebuilt.as_str()]);
     assert!(
-        is_vouched_for(&recorded, &replacements, &replacements),
+        is_vouched_for(&recorded, &index(&replacements), &replacements),
         "the same unit under a new metadata hash must not be an eviction"
     );
 }
@@ -57,7 +62,7 @@ fn a_replacement_in_another_form_does_not_answer_for_a_lost_output() {
     let surviving = format!("deps/libunit-{NEW_HASH}.rmeta");
     let replacements = present(&[surviving.as_str()]);
     assert!(
-        !is_vouched_for(&recorded, &replacements, &replacements),
+        !is_vouched_for(&recorded, &index(&replacements), &replacements),
         "a surviving `.rmeta` must not witness a removed `.rlib`"
     );
 }
@@ -73,7 +78,7 @@ fn a_replacement_in_another_directory_does_not_answer_for_the_name() {
     let elsewhere = format!("build/unit/{NEW_HASH}/out/libunit-{NEW_HASH}.rlib");
     let replacements = present(&[elsewhere.as_str()]);
     assert!(
-        !is_vouched_for(&recorded, &replacements, &replacements),
+        !is_vouched_for(&recorded, &index(&replacements), &replacements),
         "the same stem in another directory is a different unit"
     );
 }
@@ -88,7 +93,7 @@ fn a_replacement_in_another_directory_does_not_answer_for_the_name() {
 fn an_unhashed_name_is_never_answered_for_by_another() {
     let replacements = present(&["deps/libunit.rlib.rmeta"]);
     assert!(
-        !is_vouched_for("deps/libunit.rlib", &replacements, &replacements),
+        !is_vouched_for("deps/libunit.rlib", &index(&replacements), &replacements),
         "an unhashed name has no hash to differ in, so no lookalike may replace it"
     );
 }
@@ -104,7 +109,7 @@ fn a_non_hexadecimal_hash_is_not_a_cargo_unit() {
     let lookalike = "deps/libunit-zzzzzzzzzzzzzzzz.rlib";
     let replacements = present(&[lookalike]);
     assert!(
-        !is_vouched_for(&recorded, &replacements, &replacements),
+        !is_vouched_for(&recorded, &index(&replacements), &replacements),
         "a 16-character non-hexadecimal tail is not a Cargo metadata hash"
     );
 }
@@ -116,7 +121,7 @@ fn a_suffix_prefix_is_not_the_same_output_form() {
     let lookalike = format!("deps/libunit-{NEW_HASH}.rlib.bak");
     let replacements = present(&[lookalike.as_str()]);
     assert!(
-        !is_vouched_for(&recorded, &replacements, &replacements),
+        !is_vouched_for(&recorded, &index(&replacements), &replacements),
         "`.rlib.bak` is not the `.rlib` the preparation recorded"
     );
 }
@@ -139,7 +144,7 @@ fn a_recorded_sibling_does_not_answer_for_a_name_that_went() {
     // The replacement set is what the caller derives by removing every recorded
     // name from what is present, so a recorded sibling leaves nothing behind.
     assert!(
-        !is_vouched_for(&recorded, &present, &[]),
+        !is_vouched_for(&recorded, &index(&present), &[]),
         "a name recorded alongside the missing one must not stand in for it"
     );
 }
@@ -158,7 +163,7 @@ fn a_rebuilt_units_record_answers_for_the_name_it_replaced() {
     let rebuilt = format!(".fingerprint/unit-{NEW_HASH}/lib-unit");
     let replacements = present(&[rebuilt.as_str()]);
     assert!(
-        is_vouched_for(&recorded, &replacements, &replacements),
+        is_vouched_for(&recorded, &index(&replacements), &replacements),
         "a record filed under the rebuilt unit's directory is the same record"
     );
 }
@@ -174,7 +179,7 @@ fn a_record_in_another_store_does_not_answer_for_the_name() {
     let elsewhere = format!("build/unit/{NEW_HASH}/fingerprint/unit-{NEW_HASH}/lib-unit");
     let replacements = present(&[elsewhere.as_str()]);
     assert!(
-        !is_vouched_for(&recorded, &replacements, &replacements),
+        !is_vouched_for(&recorded, &index(&replacements), &replacements),
         "a record in another store is another unit's record"
     );
 }
@@ -190,7 +195,7 @@ fn a_record_of_another_kind_does_not_answer_for_the_name() {
     let rebuilt = format!(".fingerprint/unit-{NEW_HASH}/lib-unit.json");
     let replacements = present(&[rebuilt.as_str()]);
     assert!(
-        !is_vouched_for(&recorded, &replacements, &replacements),
+        !is_vouched_for(&recorded, &index(&replacements), &replacements),
         "a JSON sidecar is not the fingerprint record that went"
     );
 }
