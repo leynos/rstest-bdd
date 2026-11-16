@@ -1786,6 +1786,26 @@ rather than by reading this branch's comments.
       leaves the dependency case green. A reviewer declining to mark a thread
       addressed is a coverage statement about the test, and the right answer is
       a test that fails without the contract.
+- [x] Write the dep-info record the way rustc names it, `<stem>.d` beside
+      `lib<stem>.rlib`, rather than `lib<stem>.d`. The first version of the
+      target-name fixture used the `lib` prefix on both halves, and the prefix
+      on the record is what decided which branch of `is_output_of` ran:
+      `dep_info_stem` strips only `.d`, so `libengine-<hash>.d` yields the stem
+      `libengine-<hash>` and the output matches by the *binary* branch — the
+      name beginning with the stem. Only a record without the prefix yields the
+      stem `engine-<hash>` and reaches the *library* branch, which strips `lib`
+      and then matches. Real Cargo settles it: this worktree's
+      `target/debug/deps` holds 1667 `.d` records and every one is
+      `<crate>-<hash>.d`; the five `lib`-prefixed entries are the `libc` crate
+      itself, a package name rather than an output prefix. The shared
+      `write_unit` helper already wrote the correct shape, so the fixture now
+      agrees with both the helper and the compiler. Two lessons: a fixture that
+      is *nearly* faithful can still exercise the wrong branch, so trace which
+      branch a naming reaches instead of assuming one; and read a reviewer's
+      branch claim by running it, because the intuition "the output name
+      matches the record, so it must be the same branch" is backwards here.
+      Re-mutation-checked after the edit, since a fidelity fix is exactly the
+      kind of change that can quietly cost a case its discriminating power.
 
 ## Surprises & Discoveries
 
