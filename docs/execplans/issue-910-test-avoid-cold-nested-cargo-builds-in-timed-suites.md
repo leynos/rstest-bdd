@@ -1838,7 +1838,8 @@ rather than by reading this branch's comments.
       an empty private target and require the refusal, run the remedy against
       the same directory, require the test to pass *and* to report no nested
       compilation (a bare pass is also what a warm shared cache produces), then
-      require a mutated fixture to make that reuse check fail.
+      require a mutated fixture source to make the next run refuse and name the
+      remedy, which proves the stamp covers its inputs.
 - [x] Find — by building the gate rather than by reasoning about it — that
       `make prepare-nested-fixtures` and a hand-typed filtered
       `cargo nextest run` **do not compose**. The recipe pins
@@ -1959,7 +1960,7 @@ rather than by reading this branch's comments.
       by a manual Make target*. Both readings of "no job needed" were about
       duplicate execution, and that contract still holds: a
       `make check-prepared-fixture-workflow` step matches none of the three
-      `WORKSPACE_TEST_COMMANDS` in `runner_placement_test.py`
+      `WORKSPACE_TEST_COMMANDS` in `tests/workflow_contracts/cache_step_support.py`
       (`cargo test`, `cargo nextest`, `make test`), so it is not a second run of
       the suite and needs no runner-placement amendment. What the earlier
       reasoning missed is that reachability and *exercise* are different facts.
