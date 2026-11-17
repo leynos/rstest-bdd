@@ -2011,8 +2011,33 @@ rather than by reading this branch's comments.
       two `compiling=0` lines: the gate's count and the timed command's own.
       That two-line shape is the observable difference this change exists to
       make, and it was checked as a file rather than inferred from a pass.
+- [x] Clear the second wave of `bumpy_road_function` denials the rolling suite
+      raised, this time in first-party code rather than `vendor/gpui`:
+      `crates/rstest-bdd/src/reporting/junit.rs` was flagged at `write` and
+      `write_escaped`. Extracted `write_testcase`, `write_skipped_testcase`,
+      `write_escaped_character`; the `if !valid { ...; continue }` shape that
+      the suite charges as an early-return branch became a guard with an
+      explicit `return`, and the escaping `match` now yields a string instead of
+      writing from each arm. Verified against the same freshly extracted rolling
+      suite the hosted lane loads (`libwhitaker_suite@nightly-2026-05-28.so`,
+      nested through admission): zero `bumpy_road` diagnostics, `Finished`
+      cleanly. The 13 `reporting` and `junit` tests pass, so the refactor is
+      behavioural no-op as intended.
 
 ## Surprises & Discoveries
+
+- **A green lint run is a temporary observation, not a property of the tree.**
+  2026-11-17. Fixing `vendor/gpui` cleared the `bumpy_road_function` finding
+  the suite reported at 00:39Z, and the local rolling-suite check then passed.
+  Five hours later the same rolling suite flagged `write` and `write_escaped` in
+  `crates/rstest-bdd/src/reporting/junit.rs`, which had not changed since the
+  branch began and which earlier heads had passed. The suite is republished
+  continuously and consumers track the default-branch tip; only the installer
+  is pinnable, and `install-whitaker` refuses `suite-version` outright. So a
+  pass certifies the tree against one snapshot of a moving checker. The
+  practical consequence is to re-run the lint gate against a freshly extracted
+  suite after any republish, and to expect findings in untouched first-party
+  code rather than treating the first clean run as closure.
 
 - **A single-threaded test group turns one slow test into a cancelled suite.**
   2026-11-17. `.config/nextest.toml` puts every `cargo`-spawning test in
