@@ -2871,16 +2871,17 @@ fn timed_test(preparation: &Preparation) -> io::Result<()> {
 
 A preparation writes a stamp inside `Preparation::directory`, recording a
 fingerprint of the build-relevant environment, the toolchain identity (Cargo's
-`-vV` and the compiler's own), the variant label and the caller's input hash. `input_hash` and
-`cargo_config_inputs` derive that hash from fixture sources and the workspace
-Cargo configuration; the latter returns an error, rather than skipping an
-entry, when a configuration path exists but cannot be inspected. A later run
-trusts the stamp only when the fingerprint matches and every directory in
-`Preparation::artefacts` still holds its outputs. Each preparation command is
-bounded by `PREPARATION_COMMAND_TIMEOUT`, which is deliberately separate from
-every assertion deadline. That constant is a value, not a wrapper: it does not
-bound anything by itself. A caller that spawns a preparation command must pass
-it to `run_bounded_with_timeout`, or the command runs unbounded.
+`-vV` and the compiler's own), the variant label and the caller's input hash.
+`input_hash` and `cargo_config_inputs` derive that hash from fixture sources
+and the workspace Cargo configuration; the latter returns an error, rather than
+skipping an entry, when a configuration path exists but cannot be inspected. A
+later run trusts the stamp only when the fingerprint matches and every
+directory in `Preparation::artefacts` still holds its outputs. Each preparation
+command is bounded by `PREPARATION_COMMAND_TIMEOUT`, which is deliberately
+separate from every assertion deadline. That constant is a value, not a
+wrapper: it does not bound anything by itself. A caller that spawns a
+preparation command must pass it to `run_bounded_with_timeout`, or the command
+runs unbounded.
 
 One preparation path cannot be bounded this way. `trybuild` spawns its own
 nested `cargo` and offers no hook to bound or capture that child, so a trybuild

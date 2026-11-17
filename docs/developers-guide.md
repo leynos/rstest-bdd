@@ -942,12 +942,12 @@ be spelled to look like a compiler one.
 The probes run on each fingerprint computation rather than being cached: they
 are cheap beside the stamp read they accompany, and a cached value would
 survive a toolchain change within the same process. Each probe overlays the
-nested environment onto the inherited one rather than clearing it, so the child's
-`RUSTC` and `RUSTUP_TOOLCHAIN` decide which compiler is identified while a
-`rustup` shim still finds its toolchains. A toolchain that cannot be identified
-is a preparation error rather than an `"unknown"` fingerprint field: that
-placeholder is identical on every host where identification fails, so a stamp
-written under it would survive a toolchain change, which is exactly the
+nested environment onto the inherited one rather than clearing it, so the
+child's `RUSTC` and `RUSTUP_TOOLCHAIN` decide which compiler is identified
+while a `rustup` shim still finds its toolchains. A toolchain that cannot be
+identified is a preparation error rather than an `"unknown"` fingerprint field:
+that placeholder is identical on every host where identification fails, so a
+stamp written under it would survive a toolchain change, which is exactly the
 invalidation the field exists to force.
 
 The inputs hashed are the workspace manifest and lockfile, the `crates/` tree,
@@ -1109,12 +1109,12 @@ path: a profile may lay a unit out under `deps` or under
 `build/<crate>/<hash>/out`, and both are supported. The first rule is that some
 discovered unit directory and some discovered fingerprint store must still be
 populated. The second is that every name recorded from a dep-info stem must
-still be present in the directory it was recorded from. That second rule pairs
-a `.d` record with the outputs rustc named for its stem, but the pairing only
+still be present in the directory it was recorded from. That second rule pairs a
+`.d` record with the outputs rustc named for its stem, but the pairing only
 *discovers* which names belong together — it never decides that a tree is
 usable. `.fingerprint` is checked for being populated and nothing more: its
-per-unit records are Cargo's business, and re-deriving them here would duplicate
-Cargo's own format.
+per-unit records are Cargo's business, and re-deriving them here would
+duplicate Cargo's own format.
 
 Consequently `cargo clean -p <package>` **does** make the gate refuse, and that
 is correct rather than something to work around. It removes that package's `.d`
@@ -1158,9 +1158,9 @@ without changing a fixture source. Every family therefore includes it through
 legacy `.cargo/config` from every `.cargo` directory Cargo's walk would read —
 the workspace root and each of its ancestors — plus `$CARGO_HOME/config.toml`
 when `CARGO_HOME` is set. A missing file is skipped, but a path that exists and
-cannot be inspected — a permission denial or a symlink loop — is an error rather
-than an absence: reporting it absent would drop the configuration from the
-input hash and let a stamp survive a change the build notices.
+cannot be inspected — a permission denial or a symlink loop — is an error
+rather than an absence: reporting it absent would drop the configuration from
+the input hash and let a stamp survive a change the build notices.
 
 Configuration deeper in the tree needs no separate entry — every caller already
 hashes `crates/` and its own fixture directory, and `input_hash` walks both.
@@ -1186,14 +1186,14 @@ the diagnostic that motivated the bound was never produced.
 
 `nested_cargo::drain::Drain` therefore collects through a channel and stops at
 EOF **or** at a fixed post-kill grace period. Captured output is a *possibly
-truncated prefix*, on both the success and the timeout path — including when the
-direct child exits, because a descendant may still hold the pipe. Only EOF
+truncated prefix*, on both the success and the timeout path — including when
+the direct child exits, because a descendant may still hold the pipe. Only EOF
 promises complete output. That is why the grace period costs nothing on the
 normal path while still capping the path that used to hang, and why a caller
-must not read the captured text as the whole of what the child wrote. Any future
-bounded spawner over a process that forks needs the same treatment; the shared
-helper is the only implementation so the rule is applied once rather than
-rediscovered per suite.
+must not read the captured text as the whole of what the child wrote. Any
+future bounded spawner over a process that forks needs the same treatment; the
+shared helper is the only implementation so the rule is applied once rather
+than rediscovered per suite.
 
 ## Rust documentation policy and gates
 

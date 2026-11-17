@@ -226,8 +226,9 @@ Three properties make this a fix rather than a deferral:
   hash of the build-relevant environment, the toolchain identity (both Cargo's
   and the compiler's own `-vV`), a variant label and the fixture inputs, so a
   changed compiler, feature set or fixture source forces preparation again
-  rather than reusing artefacts that no longer correspond. It lives inside the directory it describes, so evicting that
-  directory evicts the claim of preparedness with it.
+  rather than reusing artefacts that no longer correspond. It lives inside the
+  directory it describes, so evicting that directory evicts the claim of
+  preparedness with it.
 - **The preparation has a budget of its own, and the assertion keeps the one it
   had.** Under nextest the preparation test's `slow-timeout` is set in
   `.config/nextest.toml` to a figure sized for a cold compile; no timed

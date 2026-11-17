@@ -2115,6 +2115,35 @@ rather than by reading this branch's comments.
       not raised — the local reproduction used `cargo clippy -p ... --tests`
       outside the gate's flag set.
 
+- [x] Record the commit-gate outcome for `2e46a6fb` and why three nested-build
+      tests failed locally while the same head is green in hosted CI. The three
+      failures are all wall-clock bounds spent in the shared compile-admission
+      queue, not defects in the change:
+      - `rstest-bdd-harness` — `binary_test_support_cargo::locate_or_build_returns_command_for_workspace_binary`
+        hit its own 180 s override with 215/218 passing. The test builds
+        `todo-cli` when `<target>/debug/todo-cli` is absent, which it was.
+      - `cargo-bdd --test cli` — `preparation::nested_fixture_preparation` hit
+        `PREPARATION_COMMAND_TIMEOUT` (540 s) after compiling 49 crates,
+        queueing at 55–85 ahead.
+      - `rstest-bdd --test feature_rebuild_invalidation` —
+        `feature_addition_triggers_rebuild` killed its second nested
+        `cargo test` at `CHILD_TIMEOUT` (300 s) after both scenario assertions
+        had already reported `ok`.
+      Admission depth rose monotonically across the three gates: 159, then 241
+      "ahead" in the captured child output, with 290 requests waiting against
+      capacity 4 by the end. `build-limits-status` reported `healthy` throughout
+      and never printed a fault, `drain` or `recovery` line, so this is a
+      saturated-but-healthy pool — queue time, which per the operating
+      instructions is a wait and not a failure of this work.
+      Evidence it is not this PR: `process.rs` (`CHILD_TIMEOUT`),
+      `addition.rs`, and `binary_test_support_cargo.rs` are all unmodified since
+      `d70f37c1`, and the only file this branch touches under
+      `feature_rebuild_invalidation/` is the `preparation/tests.rs` helper.
+      The controlling observation is hosted CI on `f4245f37`, which ran this
+      same suite on clean runners with no competing agents and passed all three
+      `build-test` lanes. The new head `2e46a6fb` is therefore gated on its own
+      hosted run rather than on a re-run that would queue behind the same pool.
+
 ## Surprises & Discoveries
 
 - **A green lint run is a temporary observation, not a property of the tree.**
