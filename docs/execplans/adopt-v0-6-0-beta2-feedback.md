@@ -36,11 +36,11 @@ After this plan is executed, a reader of the repository can observe:
    real published `gpui 0.2.2` API, or clearly flag which gpui they target) and
    *extended* with a feature-file rebuild-invalidation subsection and a nextest
    parallelism subsection.
-3. Three new ADRs (`adr-0010`, `adr-0011`, `adr-0012`) exist. ADR-0010 is
-   `Accepted` as of 2026-08-17; ADR-0011 remains `Proposed`; ADR-0012 is
-   `Accepted` and its guard-based borrowing contract is implemented in v0.7.0.
-   ADR-0008 was accepted on 2026-09-14, satisfying the prerequisite recorded on
-   the roadmap.
+3. Three new ADRs (`adr-0010`, `adr-0011`, `adr-0012`) exist. ADR-0010 was
+   accepted on 2026-08-17; ADR-0011 was superseded by ADR-0012 on 2026-06-11;
+   ADR-0012 is `Accepted` and its guard-based borrowing contract is implemented
+   in v0.7.0. ADR-0008 was accepted on 2026-09-14, satisfying the prerequisite
+   recorded on the roadmap.
 4. The adoption guides carry the same corrections, so the next adopter does not
    repeat the four-shape gpui API mismatch, the lint-profile collisions, or the
    stale-feature-file confusion.
@@ -54,8 +54,8 @@ This was a planning-and-documentation deliverable, so it did not itself
 implement the code work it scheduled. Since its completion, ADR-0012 has been
 accepted and the guard-based `StepContext` contract has landed in v0.7.0.
 ADR-0010's rebuild-invalidation fix was completed under roadmap item 10.3.3.
-Roadmap item 11.3.1 covers the separate result-alias work; ADR-0011 remains
-proposed.
+Roadmap item 11.3.1 covers the separate result-alias work; ADR-0011 was
+superseded by ADR-0012 on 2026-06-11.
 
 ## Constraints
 
@@ -422,8 +422,8 @@ All four observable outcomes from `Purpose / big picture` are met:
    detection), ADR-0011 (first-party scenario-state helpers and cleanup), and
    ADR-0012 (guard-based `StepContext` borrowing) in `Proposed` status, each
    cross-referencing the roadmap items and design subsections they govern.
-   ADR-0012 was subsequently accepted and implemented in v0.7.0; ADR-0010 and
-   ADR-0011 remain proposed.
+   ADR-0012 was subsequently accepted and implemented in v0.7.0; ADR-0010 was
+   accepted on 2026-08-17 and ADR-0011 was superseded by ADR-0012 on 2026-06-11.
 
 4. **Adoption guides carry the corrections.** `docs/users-guide.md` carries the
    gpui-version banner + mapping table, nextest/`serial_test` caveat,
@@ -507,8 +507,8 @@ Done. Findings are recorded in `Surprises & discoveries`, with sources in
 This stage created each ADR in `Proposed` status, following the house format.
 The prescriptive content (context, options, decision, consequences) is given in
 `Interfaces and dependencies`. This records the pre-implementation snapshot:
-ADR-0012 was subsequently accepted and implemented in v0.7.0, while ADR-0010
-and ADR-0011 remain proposed.
+ADR-0012 was subsequently accepted and implemented in v0.7.0, ADR-0010 was
+accepted on 2026-08-17, and ADR-0011 was superseded by ADR-0012 on 2026-06-11.
 
 1. `docs/adrs/adr-0010-feature-file-change-detection.md` — how compile-time
    scenario binding makes `.feature` edits visible to Cargo.
@@ -628,11 +628,13 @@ vsleep "$(shuf -i 45-90 -n 1)m"
 Acceptance is observable in the repository:
 
 - `docs/adrs/adr-0010-feature-file-change-detection.md` and
-  `docs/adrs/adr-0011-first-party-scenario-state-and-cleanup.md` exist in
-  `Proposed` status. `docs/adrs/adr-0012-guard-based-stepcontext-borrowing.md`
-  is `Accepted`, and its guard-based `StepContext` contract is implemented in
-  v0.7.0. All three follow the house format and cross-reference their roadmap
-  item and design subsection.
+  `docs/adrs/adr-0011-first-party-scenario-state-and-cleanup.md` existed in
+  `Proposed` status at completion (ADR-0010 was later accepted on 2026-08-17,
+  and ADR-0011 was superseded by ADR-0012 on 2026-06-11).
+  `docs/adrs/adr-0012-guard-based-stepcontext-borrowing.md` is `Accepted`, and
+  its guard-based `StepContext` contract is implemented in v0.7.0. All three
+  follow the house format and cross-reference their roadmap item and design
+  subsection.
 - `docs/roadmap.md` contains: the new feature-file rebuild item referencing
   `adr-0010`; a clarified 10.1.4 naming the `scenario_name_in_logs.rs`
   evidence; the four new documentation items; re-scoped 10.3.1/10.3.2

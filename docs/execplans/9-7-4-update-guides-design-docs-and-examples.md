@@ -6,9 +6,9 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
-This plan covers roadmap item 9.7.4 only. It was subject to approval before
-implementation began. ADR-0008 was accepted on 2026-09-14, satisfying the
-decision prerequisite.
+This plan covers roadmap item 9.7.4 only. Implementation began on 2026-05-26
+under contingent maintainer authorization, while ADR-0008 was still `Proposed`;
+the ADR was accepted later, on 2026-09-14.
 
 ## Purpose / big picture
 

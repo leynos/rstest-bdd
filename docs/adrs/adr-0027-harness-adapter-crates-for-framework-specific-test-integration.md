@@ -11,8 +11,8 @@ Bill of Materials) entries), while enabling Behaviour-Driven Development
 will follow the same pattern.
 
 Amended (2026-09-14): Renumber this record as ADR-005a to distinguish the
-harness-adapter decision from ADR-0005's async-step-functions decision; the
-accepted decision content is unchanged.
+harness-adapter decision from ADR-005's async-step-functions decision (later
+renumbered ADR-0005); the accepted decision content is unchanged.
 
 Amended (2026-11-03): Renumber this record as ADR-0025 to follow the adopted
 four-digit serial convention; the accepted decision content is unchanged.
@@ -248,10 +248,10 @@ execution semantics.
 
 ### 2026-09-14: assign the 005a identifier
 
-This record was renumbered from ADR-0005 to ADR-005a because ADR-0005 now
-identifies the async-step-functions decision. The harness-adapter decision and
-its accepted content are unchanged; the filename and heading carry the new
-identifier to remove the collision.
+This record was renumbered from ADR-005 to ADR-005a because ADR-005 now
+identifies the async-step-functions decision (later renumbered ADR-0005). The
+harness-adapter decision and its accepted content are unchanged; the filename
+and heading carry the new identifier to remove the collision.
 
 ### 2026-11-03: adopt the four-digit serial convention
 
