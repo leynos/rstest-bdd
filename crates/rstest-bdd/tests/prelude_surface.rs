@@ -2,6 +2,7 @@
 
 use camino::Utf8Path;
 use cap_std::{ambient_authority, fs::Dir};
+use rstest::rstest;
 #[expect(
     unused_imports,
     reason = "every prelude binding must also resolve at the crate root"
@@ -172,35 +173,27 @@ fn macros_crate_does_not_depend_on_runtime() {
     );
 }
 
-#[test]
-fn guard_sees_a_renamed_runtime_dependency() {
-    let manifest: Value = toml::from_str(
-        r#"
+#[rstest]
+#[case::renamed(
+    r#"
 [dev-dependencies]
 runtime = { package = "rstest-bdd", path = "../rstest-bdd" }
 "#,
-    )
-    .expect("the inline manifest should parse");
-
-    assert!(
-        declared_crates(&manifest, None).contains(&"rstest-bdd"),
-        "a `package` rename declares the runtime under the alias it hides behind",
-    );
-}
-
-#[test]
-fn guard_sees_a_target_specific_runtime_dependency() {
-    let manifest: Value = toml::from_str(
-        r#"
+    "a `package` rename declares the runtime under the alias it hides behind"
+)]
+#[case::target_specific(
+    r#"
 [target.'cfg(unix)'.dependencies]
 rstest-bdd = { path = "../rstest-bdd" }
 "#,
-    )
-    .expect("the inline manifest should parse");
+    "a target-specific table declares the runtime for the targets it selects"
+)]
+fn guard_sees_a_runtime_dependency_in_any_spelling(#[case] manifest: &str, #[case] reason: &str) {
+    let manifest: Value = toml::from_str(manifest).expect("the inline manifest should parse");
 
     assert!(
         declared_crates(&manifest, None).contains(&"rstest-bdd"),
-        "a target-specific table declares the runtime for the targets it selects",
+        "{reason}",
     );
 }
 
