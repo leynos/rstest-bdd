@@ -382,18 +382,4 @@ fn build_seed_range(start: u64, iterations: u64) -> Vec<u64> {
 }
 
 #[cfg(test)]
-mod tests {
-    //! Tests the environment-override boundary without mutating process state.
-
-    use std::{env::VarError, ffi::OsString};
-
-    use super::parse_env_u64_value;
-
-    /// Treats an injected non-Unicode lookup failure as an invalid override.
-    #[test]
-    fn discards_non_unicode_environment_override() {
-        let value = VarError::NotUnicode(OsString::from("invalid-byte-sequence"));
-
-        assert_eq!(parse_env_u64_value("SEED", Err(value)), None);
-    }
-}
+mod retry_tests;
