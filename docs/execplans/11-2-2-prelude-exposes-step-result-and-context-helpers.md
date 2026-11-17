@@ -859,7 +859,10 @@ Stop and escalate — do not improvise — when any of these is reached.
   through their own dev-dependencies. Mitigation: Milestone 1 measures a cold
   nested-fixture build before and after and records both figures. If the margin
   is breached, raise `global-timeout` in the same commit and say why in the
-  nextest.toml comment block that already documents the arithmetic.
+  nextest.toml comment block that already documents the arithmetic. DL-23
+  records six alternating paired builds; the measured compile-work delta is
+  +2.237 s per cold invocation, so the margin was not breached and no bound
+  changed.
 
 - **R-7 — The mutation lane multiplies R-6.**
   Severity: low. Likelihood: medium.
@@ -1466,6 +1469,47 @@ should be filed rather than forgotten:
    does not belong in a v0.6.1 additive item. See R-11. Filed as #959.
 
 ## Decision log
+
+- **DL-23 — The CodeScene duplication finding was repaired by restructuring,
+  and R-6's paired measurement was taken on this host.** Resolved on 2026-11-17
+  against head `cde5c782`, whose assessment returned "substantially complete,
+  but whole-plan completion remains unverified" and named a failed CodeScene
+  check.
+
+  The check failed at 9.39 on `crates/rstest-bdd/tests/prelude_surface.rs`: the
+  renamed-dependency and target-specific-dependency guards had identical bodies
+  and differed only in the manifest they parse. Suppressing the rule was not an
+  option — the repository forbids silenced lints — and deleting either case
+  would drop a regression. They became one `rstest` table, `case::renamed` and
+  `case::target_specific`, each keeping its own assertion message, which is
+  also what the repository's testing guidance prescribes for duplicated cases.
+  `cs review` on the file then reported 10.0 with no findings, and both cases
+  still fail if the guard stops walking nested tables or resolving `package`
+  renames.
+
+  R-6 asked Milestone 1 to measure a cold nested-fixture build before and after
+  the edge. The plan carried a post-edge figure but no comparable baseline, so
+  this round took six alternating pairs: the
+  `crates/cargo-bdd/tests/fixtures/minimal` fixture, its own `target/` removed
+  before each run, `cargo test --locked --offline`, at the base `7b617013` in a
+  detached worktree and at `fd92a1b7` in this one. Wall time (min/median/max):
+  base 26.764/43.748/143.783 s, head 18.583/40.721/83.444 s. Compile work, as
+  `user` plus `sys` seconds, is the queue-independent figure: median 22.745 s
+  at the base and 24.982 s at the head, a delta of +2.237 s (+9.8%) per cold
+  invocation. Every run recorded `build-limits-status` first: the shared
+  four-slot pool held between zero and four slots, and the wall readings track
+  that contention, not the edge — the head was faster than the base in four of
+  the six pairs. Scaled to the lane's roughly ten invocations, +2.2 s of
+  compile work each is about +22 s against the 120 s of slack
+  `.config/nextest.toml` documents, so no `global-timeout` change is warranted
+  on this evidence and none was made. Two limits belong with these figures:
+  they are this workstation's, where four admission slots and a six-core host
+  hide ordering costs a 2-vCPU runner would expose, and the reference machine's
+  25-second limit is not applied to an unlike host. CodeScene's other
+  requirement — a maintainer's acceptance of the tolerance overage — is DL-16's
+  escalation and remains outside this plan's authority.
+
+  Date/Author: 2026-11-17, implementation agent.
 
 - **DL-22 — The round-three assessment's two guard gaps were closed, and the
   example guard's manifest half moved into its own module.** Resolved on
@@ -2320,6 +2364,15 @@ its local key. Both repairs also required moving the manifest half of the
 example guard into its own module to stay inside the 400-line Python budget.
 The round touches Rust, Python and Markdown, so it needs the full gate set
 again. The findings and their repairs are DL-22.
+
+The fourth whole-plan assessment, returned against `cde5c782`, found the
+implementation substantially complete and named three remaining items. Two are
+actionable here: a failed CodeScene check on duplicated guard bodies, repaired
+by consolidating them into an `rstest` table, and R-6's missing baseline, now
+measured as six alternating paired builds. The third — a maintainer's
+acceptance of the 84-file, 10,029-line tolerance overage — is the escalation
+DL-16 recorded and is not this plan's to grant. Both repairs and the figures
+are DL-23. The code change means this round needs the full gate set again.
 
 ## Surprises & discoveries
 
