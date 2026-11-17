@@ -414,7 +414,10 @@ jobs:
   # runner, or the local directory in the RSTEST_BDD_SCCACHE_LOCAL fallback.
   coverage-warmup:
     runs-on: ubicloud-standard-2
-    timeout-minutes: 190
+    # The watchdog below plus the job's measured non-coverage work; see
+    # "Test timeouts: four tiers, outermost last" in
+    # docs/developers-guide.md. Matches the other coverage lanes.
+    timeout-minutes: 240
     permissions:
       contents: read
     env:
@@ -613,6 +616,14 @@ jobs:
       # lane reads. Nothing runs, so no test result can keep the cache cold.
       - name: Compile the instrumented tests
         uses: leynos/shared-actions/.github/actions/generate-coverage@f84a7def5646a6fc7ba77c1f486906f66a0fed96
+        env:
+          # The cargo watchdog, one of four tiers that can end a run. This
+          # step stops after the build, so nextest's timers never start, but
+          # the action's 1,800 s default is invisible and would kill a cold
+          # instrumented compile. It takes the same explicit budget as the
+          # other coverage lanes. See "Test timeouts: four tiers, outermost
+          # last" in docs/developers-guide.md.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '9900'
         with:
           cache-provider: external
           output-path: coverage.xml

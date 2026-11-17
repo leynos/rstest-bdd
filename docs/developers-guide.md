@@ -1190,6 +1190,12 @@ build phase inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly
 cold cache, so the 15 minutes is generous on purpose, and the extra minutes of
 rounding cost nothing because the watchdog only fires on an overrun.
 
+`coverage-warmup` runs `build-only`, so nextest's per-test and global timers
+never start there. It nonetheless declares the same watchdog and job ceiling as
+the other coverage lanes: the action's 1,800-second default is invisible, which
+is the fault this contract exists to remove, and a cold instrumented compile
+must not be killed by a timer nobody chose.
+
 An earlier version of this section claimed that a test already running when the
 global timeout expires is allowed to finish, and sized the middle term at the
 20-minute trybuild allowance. That was wrong: nextest terminates the run when
