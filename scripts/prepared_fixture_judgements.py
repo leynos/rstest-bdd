@@ -91,6 +91,54 @@ def expect_refusal(result: subprocess.CompletedProcess[str]) -> None:
         raise StepFailureError(msg)
 
 
+def judge_run_counts(
+    target_dir: Path,
+    previous_counts: int,
+    combined: str,
+) -> tuple[list[int], list[int]]:
+    """Split the report into this run's counts and the counts before it.
+
+    The gate's report file accumulates a line per run, so the counts written
+    during the run under judgement have to be told apart from the lines already
+    there. A run that added nothing is a failure rather than a pass: it means
+    the gate never wrote a report, so nothing vouches for what the timed command
+    compiled.
+
+    Parameters
+    ----------
+    target_dir : Path
+        The private target directory, which holds the report.
+    previous_counts : int
+        How many report lines existed before this run.
+    combined : str
+        The run's stdout and stderr, used for the failure message.
+
+    Returns
+    -------
+    tuple[list[int], list[int]]
+        The counts this run appended, then the counts that predate it. Both
+        halves appear in the caller's failure messages.
+
+    Raises
+    ------
+    StepFailureError
+        If the run appended no report line at all.
+    """
+    counts = read_build_reports(target_dir)
+    prior = counts[:previous_counts]
+    this_run = counts[previous_counts:]
+    if not this_run:
+        msg = (
+            "the timed test left no nested-build report, so nothing shows "
+            "whether it reused the prepared tree. The gate writes one to "
+            f"${BUILD_REPORT_ENV} on every run, so its absence means the gate "
+            f"never ran. Counts before this run: {prior}; "
+            f"after: {counts}. Output:\n{combined}"
+        )
+        raise StepFailureError(msg)
+    return this_run, prior
+
+
 def expect_pass_without_rebuild(
     result: subprocess.CompletedProcess[str],
     *,
@@ -149,23 +197,13 @@ def expect_pass_without_rebuild(
             f"{combined}"
         )
         raise StepFailureError(msg)
-    counts = read_build_reports(target_dir)
-    this_run = counts[previous_counts:]
-    if not this_run:
-        msg = (
-            "the timed test left no nested-build report, so nothing shows "
-            "whether it reused the prepared tree. The gate writes one to "
-            f"${BUILD_REPORT_ENV} on every run, so its absence means the gate "
-            f"never ran. Counts before this run: {counts[:previous_counts]}; "
-            f"after: {counts}. Output:\n{combined}"
-        )
-        raise StepFailureError(msg)
+    this_run, prior = judge_run_counts(target_dir, previous_counts, combined)
     rebuilt = [count for count in this_run if count != 0]
     if rebuilt:
         msg = (
             "the timed test's nested build compiled after preparation, so the "
             f"prepared tree was not reused: this run reported {this_run} "
-            f"(the preparation's own count was {counts[:previous_counts]})"
+            f"(the preparation's own count was {prior})"
         )
         raise StepFailureError(msg)
 

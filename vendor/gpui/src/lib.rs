@@ -179,9 +179,27 @@ pub fn run_test(
 ) {
     let (seeds, is_multiple_runs) = calculate_seeds(num_iterations as u64, explicit_seeds);
 
+    let mut ctx = RunSeedContext {
+        max_retries,
+        test_fn,
+        on_fail_fn,
+        is_multiple_runs,
+    };
     for seed in seeds {
-        run_seed(seed, max_retries, test_fn, on_fail_fn, is_multiple_runs);
+        run_seed(seed, &mut ctx);
     }
+}
+
+/// The per-run settings shared by every seed a single test drives.
+struct RunSeedContext<'a> {
+    /// How many times one seed may be retried before it fails terminally.
+    max_retries: usize,
+    /// The closure under test, invoked once per attempt.
+    test_fn: &'a mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
+    /// Optional hook invoked when a seed fails terminally.
+    on_fail_fn: Option<fn()>,
+    /// Whether the run spans several seeds, which enables progress output.
+    is_multiple_runs: bool,
 }
 
 /// Drives one seed through its attempts until it succeeds or fails terminally.
@@ -189,18 +207,12 @@ pub fn run_test(
     clippy::print_stdout,
     reason = "retry progress must remain visible without a global tracing subscriber"
 )]
-fn run_seed(
-    seed: u64,
-    max_retries: usize,
-    test_fn: &mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
-    on_fail_fn: Option<fn()>,
-    is_multiple_runs: bool,
-) {
+fn run_seed(seed: u64, ctx: &mut RunSeedContext<'_>) {
     let mut attempt = 0;
     loop {
-        announce_seed(seed, is_multiple_runs);
+        announce_seed(seed, ctx.is_multiple_runs);
 
-        let action = classify_attempt(seed, attempt, max_retries, test_fn);
+        let action = classify_attempt(seed, attempt, ctx.max_retries, ctx.test_fn);
         if action.is_success() {
             break;
         }
@@ -210,8 +222,8 @@ fn run_seed(
             continue;
         }
 
-        announce_failing_seed(seed, is_multiple_runs);
-        handle_terminal_failure(action, on_fail_fn);
+        announce_failing_seed(seed, ctx.is_multiple_runs);
+        handle_terminal_failure(action, ctx.on_fail_fn);
     }
 }
 
