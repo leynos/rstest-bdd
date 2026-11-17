@@ -2023,6 +2023,28 @@ rather than by reading this branch's comments.
       nested through admission): zero `bumpy_road` diagnostics, `Finished`
       cleanly. The 13 `reporting` and `junit` tests pass, so the refactor is
       behavioural no-op as intended.
+- [x] Clear the third wave of `bumpy_road_function` denials, at
+      `crates/rstest-bdd-macros/src/codegen/wrapper/args/extract.rs:165`
+      (`extract_args`). The `'args:`-labelled loop carried three
+      `continue 'args;` early exits, each charged as a branch. Replaced the
+      labelled loop with a plain `for` over `func.sig.inputs` delegating to a
+      new `classify_argument` helper that returns `syn::Result<()>`; the three
+      `continue`s became `return`s from that helper. Because a labelled
+      `continue` also skips to the next iteration of an outer loop, the helper
+      had to preserve the exact classifier ordering — notably that
+      `classify_harness_context` runs *before* the placeholder
+      short-circuit, or a placeholder-named `#[harness_context]` parameter
+      would leak its marker into generated code. The reasoning is captured in
+      the helper's doc comment so a later refactor cannot silently reorder it.
+      Verified against the same freshly extracted rolling suite:
+      `cargo check -p rstest-bdd-macros --all-features` finished cleanly with
+      zero `Multiple clusters` diagnostics, and a **full-workspace** sweep
+      (`--workspace --all-targets --all-features`) also finished with zero
+      `bumpy_road_function` findings in 22m10s. Local gates: `cargo fmt --check`
+      exit 0, `cargo clippy -p rstest-bdd-macros --all-targets --all-features
+      -- -D warnings` exit 0, and 566/566 `rstest-bdd-macros` lib tests pass.
+      The workspace sweep is the important new evidence: it enumerates *every*
+      remaining site in one pass instead of discovering one crate per CI cycle.
 
 ## Surprises & Discoveries
 
@@ -2105,6 +2127,26 @@ rather than by reading this branch's comments.
   reproduce a hosted Whitaker finding, so a local `make lint` pass proves
   nothing there; verify against a freshly extracted rolling suite, or trust
   only CI.
+- **One republish, three sites: sweep the workspace, do not chase the lane.**
+  2026-11-17. The same rolling charge has now surfaced at three distinct sites
+  in this PR's lifetime, one crate per CI cycle: `vendor/gpui/src/lib.rs:181`
+  (`run_test`), then `crates/rstest-bdd/src/reporting/junit.rs:33` (`write`) and
+  `:109` (`write_escaped`), then
+  `crates/rstest-bdd-macros/src/codegen/wrapper/args/extract.rs:165`
+  (`extract_args`). Each was found by a hosted lane failing, fixed, pushed, and
+  then the *next* lane found the next one — three round trips through a CI that
+  takes tens of minutes per head. The suite charges every early exit, so the
+  expensive shapes are uniform even where the causes differ: `?` counts as a
+  branch (`leynos/whitaker#641`), and so do `continue` and `break`-style early
+  exits, which is what forced the `junit.rs` guard rewrite and the
+  `continue 'args;` elimination. Both fixes therefore had the same shape:
+  replace the early exit with a call to a helper that decides and returns.
+  Lesson: once a rolling suite has flagged two sites it never checked before,
+  stop paying per-cycle discovery and run the freshly extracted suite over the
+  **whole workspace** (`--workspace --all-targets --all-features`) once, to
+  enumerate every remaining site in a single pass. That sweep is now clean and
+  is the reason this commit claims completeness rather than another green
+  observation.
 - **A quarantined local suite is a fact to check, not to assume.** 2026-11-17.
   The local suite's library was dated 2026-11-15 05:17, so `make lint-whitaker`
   with `CARGO_FLAGS` narrowed to `-p gpui` exited `0` and reported nothing

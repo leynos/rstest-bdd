@@ -107,6 +107,36 @@ fn classify_special_argument(
     Ok(false)
 }
 
+/// Classify one function parameter, updating `state` in place.
+///
+/// The classifiers that consume a parameter are tried in order, and the first
+/// that claims it ends the work for that parameter. Ordering matters for
+/// `#[harness_context]`: it runs before the placeholder short-circuit so the
+/// marker is always consumed. It strips the attribute even when the parameter
+/// name matches a step placeholder, and rejects that combination with a
+/// targeted diagnostic. Were it placed after the `is_placeholder` check, a
+/// placeholder-named parameter would skip it and the marker would leak into
+/// generated code as `cannot find attribute`.
+fn classify_argument(
+    state: &mut ExtractedArgs,
+    input: &mut syn::FnArg,
+    placeholders: &mut HashSet<String>,
+) -> syn::Result<()> {
+    let (arg, pat, ty) = next_typed_argument(input)?;
+    if extract_step_struct_attribute(arg)? {
+        return classify_step_struct(state, arg, placeholders);
+    }
+    if classify_harness_context(state, arg, placeholders)? {
+        return Ok(());
+    }
+    let is_placeholder = placeholders.contains(&pat.to_string());
+    if !is_placeholder && classify_special_argument(state, arg, &pat, &ty)? {
+        return Ok(());
+    }
+    let mut ctx = ClassificationContext::new(state, placeholders);
+    classify_step_or_fixture(&mut ctx, arg)
+}
+
 /// Classifies an argument as either a fixture or step argument after all
 /// special cases have been evaluated.
 fn classify_step_or_fixture(
@@ -168,31 +198,8 @@ pub fn extract_args(
 ) -> syn::Result<ExtractedArgs> {
     let mut state = ExtractedArgs::default();
 
-    'args: for input in &mut func.sig.inputs {
-        let (arg, pat, ty) = next_typed_argument(input)?;
-        if extract_step_struct_attribute(arg)? {
-            classify_step_struct(&mut state, arg, placeholders)?;
-            continue 'args;
-        }
-
-        // The `#[harness_context]` classifier runs before the placeholder
-        // short-circuit so the marker is always consumed: it strips the
-        // attribute even when the parameter name matches a step placeholder,
-        // and rejects that combination with a targeted diagnostic. If it were
-        // placed after the `is_placeholder` check, a placeholder-named
-        // parameter would skip it and the marker would leak into generated
-        // code as `cannot find attribute`.
-        if classify_harness_context(&mut state, arg, placeholders)? {
-            continue 'args;
-        }
-
-        let is_placeholder = placeholders.contains(&pat.to_string());
-        if !is_placeholder && classify_special_argument(&mut state, arg, &pat, &ty)? {
-            continue 'args;
-        }
-
-        let mut ctx = ClassificationContext::new(&mut state, placeholders);
-        classify_step_or_fixture(&mut ctx, arg)?;
+    for input in &mut func.sig.inputs {
+        classify_argument(&mut state, input, placeholders)?;
     }
     if !placeholders.is_empty() {
         let mut missing: Vec<_> = placeholders.iter().cloned().collect();
