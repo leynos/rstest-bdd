@@ -211,11 +211,33 @@ fn run_cargo_bdd_failure(args: &[&str]) -> Result<String> {
 
 fn run_cargo_bdd_steps() -> Result<String> { run_cargo_bdd(&["steps"]) }
 
+/// Run `cargo bdd steps`, keeping the timed command's own stderr.
+///
+/// [`run_cargo_bdd_steps`] returns stdout alone, because its other callers
+/// assert on the reported steps. The reuse evidence lives in stderr, so the one
+/// call site that files it needs both halves of the capture.
+fn run_cargo_bdd_steps_captured() -> Result<(String, String)> {
+    let args_debug = "steps";
+    let (status, stdout, stderr) = run_cargo_bdd_captured(&["steps"])?;
+    assert!(
+        status.success(),
+        "`cargo bdd` should succeed (args: [{args_debug}], status: {status})"
+    );
+    Ok((stdout, stderr))
+}
+
 #[test]
 #[serial]
 fn list_steps_runs() {
     ensure_cli_prepared().expect("test setup should succeed");
-    let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
+    let (stdout, stderr) = run_cargo_bdd_steps_captured().expect("test setup should succeed");
+    // File the timed command's own compile evidence before asserting anything.
+    // The gate above already recorded that no *preparation* ran, which is a
+    // different fact: it says nothing about what this `cargo bdd steps` did. Its
+    // stderr is the only witness to a rebuild here, and the helper that returns
+    // it discards it on success, so a checker reading the run's output would
+    // never see one. Recording it makes the reuse assertion measurable.
+    preparation::record_timed_compilations(&stderr);
     assert!(
         !stdout.is_empty(),
         "Expected non-empty output from steps command",

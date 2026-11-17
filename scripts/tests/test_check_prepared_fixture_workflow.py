@@ -108,6 +108,27 @@ def test_a_pass_reporting_a_compile_is_rejected(tmp_path: Path) -> None:
         expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=1)
 
 
+def test_a_timed_command_that_compiled_is_rejected_despite_the_gates_zero(
+    tmp_path: Path,
+) -> None:
+    """The case the gate's own count could never catch.
+
+    A run files two lines: the gate's zero, because admitting a stamp means no
+    preparation ran, then the timed command's own count. Reading only the first
+    reported reuse while the command was free to rebuild, so a zero from the
+    gate followed by a compile from the timed command must still fail.
+    """
+    write_reports(tmp_path, 0, 3)
+    with pytest.raises(StepFailureError, match="not reused"):
+        expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
+
+
+def test_both_counts_being_zero_is_the_accepted_reuse_shape(tmp_path: Path) -> None:
+    """The positive control for the pair: gate zero and timed zero together."""
+    write_reports(tmp_path, 0, 0)
+    expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
+
+
 def test_a_pass_with_no_report_is_rejected(tmp_path: Path) -> None:
     """Success with no evidence either way is a failure.
 

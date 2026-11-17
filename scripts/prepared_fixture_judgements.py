@@ -14,10 +14,18 @@ the cases in ``tests/test_check_prepared_fixture_workflow.py``.
 
 The evidence channel deserves a word, because it is the reason the reuse check
 is not a second scan of stdout. A step's captured output cannot show a nested
-compilation: the helper which spawns ``cargo bdd steps`` discards its capture on
-success, and nextest suppresses a passing test's output. The two carriers this
-module could have read are both empty by construction, so the count arrives
+compilation: nextest suppresses a passing test's output, and the crate's own
+helper returns the child's stderr only to discard it on success. Both carriers
+this module could have read are empty by construction, so the count arrives
 through the file ``read_build_reports`` reads instead.
+
+Two facts reach that file, and the reuse check needs both. The gate files a
+zero when it admits a stamp, which proves no *preparation* ran. The timed
+command files its own count from the stderr it captures before discarding it,
+which is the only evidence about the timed run itself. An earlier version of
+this check read the gate's zero alone and reported it as reuse; that was true
+and beside the point, because the command it was supposed to be judging had not
+run yet.
 """
 
 import typing as typ
@@ -96,15 +104,26 @@ def expect_pass_without_rebuild(
     shows preparation built *this* target directory rather than the run finding
     the graph warm by accident.
 
-    The count is read from the report file rather than from the step's output
-    precisely because the output cannot carry it. See [`read_build_reports`].
+    Two counts arrive per run and both must be zero, because they answer
+    different questions. The gate's ``record_reuse`` reports that no
+    *preparation* ran, which by itself says nothing about the timed command: it
+    runs afterwards, in the test body. The timed command files its own count
+    from the stderr it captures, which is the only witness to a rebuild there —
+    its caller discards that stderr on success, so a scan of the run's output
+    would find nothing however much was compiled. Judging the pair is what
+    keeps "the gate skipped preparation" from passing in place of "the timed
+    command compiled nothing".
 
-    Only *this* step's line is judged, not the whole file. The file accumulates
-    one line per gate run, and step 2's cold preparation legitimately compiles
-    tens of units and has its count written at the end of that run; comparing
-    the whole history would fail this step for the preparation that is supposed
-    to precede it. The counts read *before* the run are passed in so the lines
-    written during it can be told apart from the lines already there.
+    The counts are read from the report file rather than from the step's output
+    precisely because the output cannot carry them. See [`read_build_reports`].
+
+    Only the lines *this* run added are judged, not the whole file. The file
+    accumulates lines across gate runs, and step 2's cold preparation
+    legitimately compiles tens of units and has its count written at the end of
+    that run; comparing the whole history would fail this step for the
+    preparation that is supposed to precede it. The counts read *before* the run
+    are passed in so the lines written during it can be told apart from the
+    lines already there.
 
     Parameters
     ----------

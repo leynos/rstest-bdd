@@ -81,6 +81,22 @@ pub(super) fn capture_preparation(
 /// observation, which is exactly the confusion a rebuild check has to exclude.
 pub(super) fn record_reuse() { record(0); }
 
+/// Record the compilations the timed `cargo bdd steps` itself paid for.
+///
+/// [`record_reuse`] reports the gate, which is a different fact: it proves no
+/// *preparation* ran. It cannot show that the timed command reused the tree,
+/// because that command runs later, in the test body. The only evidence for
+/// the timed run is its own captured stderr, which the crate's helper returns
+/// and its `run_cargo_bdd` caller discards on success — so a check reading it
+/// must happen here, while the text is still in hand, rather than by a later
+/// scan of output nothing writes.
+///
+/// Recording the count unconditionally keeps the two observations distinct: a
+/// zero here means the timed command compiled nothing, which is the property
+/// the workflow gate asserts, and a nonzero value is a rebuild that no scan of
+/// the run's output could have seen.
+pub(super) fn record_timed(compiling: usize) { record(compiling); }
+
 /// Record the nested build this preparation paid for.
 fn record_built(captured: &nested_cargo::CapturedOutput) -> nested_cargo::PreparationSummary {
     let compiled_units = nested_cargo::count_compiling(captured.stderr.as_bytes())

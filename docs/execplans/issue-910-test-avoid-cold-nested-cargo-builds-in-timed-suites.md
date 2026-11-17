@@ -1975,9 +1975,123 @@ rather than by reading this branch's comments.
       run?" and "is anything checking this?" are separate questions, and
       answering the first with "the suite already covers it" left the second
       unanswered.
+- [x] Close the surviving pre-merge row by measuring the timed command rather
+      than the gate. CodeRabbit's reply to the reconciliation was right: the
+      reuse count came from `record_reuse` inside `ensure_gated_with`, which
+      describes the gate's decision and not the `cargo bdd steps` that runs
+      afterwards. `run_cargo_bdd_steps_captured` now keeps the timed command's
+      stderr and `list_steps_runs` files `count_compiling` over it before
+      asserting, so a run leaves the gate's zero *and* the timed command's own
+      count. The judgement already rejected any nonzero line this run added, so
+      it needed no logic change — only a producer that describes the right
+      command. A `--keep` run confirmed the three-line shape:
+      `compiling=51` (step 2's preparation), `0` (step 3's gate), `0` (step 3's
+      timed command). Stated to CodeRabbit rather than glossed: no automated
+      case reaches a real nonzero timed count, because every input the stamp
+      hashes is the whole input set, so any edit to force a rebuild makes the
+      stamp stale and the timed command never runs.
+- [x] Clear the Whitaker `bumpy_road_function` denial the republished rolling
+      suite raised on `vendor/gpui/src/lib.rs:181`, by splitting `run_test` into
+      `run_seed`, `announce_seed`, `announce_failing_seed` and
+      `handle_terminal_failure`. Not suppressed with an allow: this file already
+      decomposes its neighbours into named helpers, and the repository's own
+      recorded position is that extraction is what the lint asks for. Each
+      extracted function keeps the `#[expect]` for the macro it contains, which
+      was verified rather than assumed — removing `run_seed`'s `print_stdout`
+      expect failed clippy on its `println!`. Verified against the freshly
+      extracted rolling suite (not the stale local one): the whole workspace
+      `cargo check --workspace --all-targets --all-features` exits 0, so the new
+      `?` charge does not flag any of this PR's own code either.
+- [x] Obtain execution evidence for the new call site after the full suite
+      failed to provide it. `make test` timed out on an unrelated cold
+      preparation and cancelled 125 tests, so `list_steps_runs` — the one test
+      this change edits — never ran in a gate. A filtered nextest selection
+      (`-E 'test(list_steps_runs)'`) passed in 2.213 s, and re-running it with
+      `RSTEST_BDD_NESTED_BUILD_REPORT` pointed at a fresh file produced exactly
+      two `compiling=0` lines: the gate's count and the timed command's own.
+      That two-line shape is the observable difference this change exists to
+      make, and it was checked as a file rather than inferred from a pass.
 
 ## Surprises & Discoveries
 
+- **A single-threaded test group turns one slow test into a cancelled suite.**
+  2026-11-17. `.config/nextest.toml` puts every `cargo`-spawning test in
+  `cargo-spawning` with `max-threads = 1`, and every test in
+  `crates/cargo-bdd/ tests/cli.rs` is `#[serial]` in that group. When
+  `rstest-bdd::trybuild_macros preparation::nested_fixture_preparation` burned
+  its 30 m period, it was holding the only slot: 42 of that binary's tests
+  never started, and the run reported `1 timed out` while silently skipping the
+  test the change edits. "2246 passed" therefore said nothing about this PR.
+  The lesson is to read which tests a green-looking number excludes, and to
+  check a changed test's own result rather than the suite total. Nextest names
+  `binary_id(cargo-bdd:: cli)` in its own override, so the config already knew
+  this family competes for one slot.
+- **Two full-suite timeouts in a row is a budget fact, not a flake.**
+  2026-11-17. `make check-prepared-fixture-workflow` failed twice on its own
+  `STEP_TIMEOUT_SECONDS = 1800` at step 2 (`make prepare-nested-fixtures`),
+  with load average near 26 and roughly 270 compiler requests queued across
+  seven other repositories. The same gate had completed all four steps at 02:44
+  on byte-identical code files (the only later edit is ExecPlan prose, which is
+  not an input to it). Repeating a third time would have consumed another 53
+  minutes to reproduce a number already explained; the honest record is one
+  green run plus two documented environmental failures, not a claim that the
+  gate is green *now*.
+- **Compile admission is worth watching before blaming the code.** The failing
+  `make test` log carried 144 `waiting for a compile slot` lines and 72
+  `sccache server is not serving compilations` notices, and the timed-out
+  test's last stderr was a successful `Finished dev profile in 4m 39s` — it was
+  progressing, not stuck. `build-limits-status` reported capacity 4 with 4 held
+  and a `live_work` drain fault accompanied by a `cache recovery` line, which
+  the host rules define as automatic recovery needing no operator action.
+
+- **Evidence about the gate is not evidence about the command.** 2026-11-17.
+  CodeRabbit located this and was right. `nested_build::record_reuse` is called
+  from `ensure_gated_with`, which is the *gate*, and it writes `0` because a
+  gate that admitted a stamp ran no preparation. The timed command is
+  `run_cargo_bdd_steps`, and it had not run yet when that zero was written.
+  Step 3 therefore reported "the gate skipped preparation" as though it were
+  "the timed command reused the tree" — a true statement about the wrong
+  subject. The count could not answer the question the step existed to ask, and
+  the earlier entry above, which reads as though attribution had solved this,
+  had only fixed *which* lines were judged, not *whose* work they described.
+  `run_cargo_bdd_raw` already returns a full `Output`; `run_cargo_bdd` discards
+  its stderr as `_stderr`, so the evidence existed and was thrown away one call
+  above where it was needed. Fixed by a sibling that keeps both halves and
+  files the timed command's own count from its own stderr, at the last point
+  the text is in hand. A verified run now leaves three lines: `51` from step
+  2's preparation, then two zeros from step 3 — the gate's and the timed
+  command's. Two zeros is the whole fix; only the first existed before. Lesson:
+  when a check consults a count, ask which command produced it, and whether
+  that command has run yet.
+- **A rolling lint suite makes a green head a temporary observation.**
+  2026-11-17. Head `409a3884` failed the hosted Linux `Lint` step on
+  `vendor/gpui/src/lib.rs:181` with `bumpy_road_function`, skipping the new
+  prepared-fixture step as collateral, while the two Windows lanes passed. No
+  change in this PR caused it: `vendor/` is byte-identical across the branch,
+  and the *same head* had passed full CI six hours earlier. Upstream
+  `leynos/whitaker#641` merged at 00:34:26Z, the rolling lint archive was
+  republished at 23:26Z, and the `install-whitaker` action refuses
+  `suite-version` outright — "the Whitaker lint suite is a rolling release and
+  is never pinned" — so only the installer is pinned and every consumer tracks
+  the default-branch tip. The new charge is that `?` now costs a branch, a
+  nesting depth and flow weight 2.0, "as the handwritten early-return `if` it
+  abbreviates", which pushed `run_test`'s existing loop-and-retry shape over
+  the threshold. Lesson: a locally installed suite older than the head cannot
+  reproduce a hosted Whitaker finding, so a local `make lint` pass proves
+  nothing there; verify against a freshly extracted rolling suite, or trust
+  only CI.
+- **A quarantined local suite is a fact to check, not to assume.** 2026-11-17.
+  The local suite's library was dated 2026-11-15 05:17, so `make lint-whitaker`
+  with `CARGO_FLAGS` narrowed to `-p gpui` exited `0` and reported nothing
+  while CI reported the finding on the same tree. Extracting the republished
+  archive into its own empty directory, symlinking it to the toolchain-suffixed
+  name the driver requires (`libwhitaker_suite@nightly-2026-05-28.so`), and
+  nesting the driver *through* `build-limits-rustc` reproduced CI's exact
+  diagnostic locally — same two bumps, same 3- and 16-line spans — which is
+  what made the fix iterable in one edit instead of one round trip per
+  45-minute CI run. Lesson: reproduce the hosted failure locally before
+  reasoning about the repair; the cost of the harness is minutes, and the cost
+  of CI-only iteration is hours.
 - **An accumulating evidence file needs attribution, not a stricter value
   test.** 2026-11-17. Step 3 first read the whole report file and required
   every count in it to be zero. Its first real run failed with

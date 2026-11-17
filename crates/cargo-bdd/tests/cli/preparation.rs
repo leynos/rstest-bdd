@@ -40,6 +40,16 @@ mod ownership;
 
 use witness::fixture_binaries_present;
 
+/// File the compilations the timed `cargo bdd steps` paid for.
+///
+/// The gate's [`nested_build::record_reuse`] reports a different fact — that no
+/// *preparation* ran — so it cannot stand as evidence about the timed command,
+/// which runs afterwards. This is the only place that command's captured stderr
+/// is still in hand, so the count has to be filed from here.
+pub(super) fn record_timed_compilations(stderr: &str) {
+    nested_build::record_timed(nested_cargo::count_compiling(stderr.as_bytes()));
+}
+
 /// The directories and fingerprint that describe this suite's prepared
 /// artefacts.
 ///
