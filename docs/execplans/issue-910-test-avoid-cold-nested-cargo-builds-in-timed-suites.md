@@ -1832,13 +1832,13 @@ rather than by reading this branch's comments.
 - [x] Close the declined `Testing (Unit And Behavioural)` row instead of
       leaving it declined, because CodeRabbit supplied a non-recursive shape.
       Its first remedy needed nextest inside nextest, which is why it was
-      declined; a standalone driver running three separate commands needs no
+      declined; a standalone driver running separate commands needs no
       recursion at all, so the objection no longer applied. The driver is
       `scripts/check_prepared_fixture_workflow.py`: run the timed test against
       an empty private target and require the refusal, run the remedy against
-      the same directory, then require the test to pass *and* to report no
-      `Compiling` lines, since a bare pass is also what a warm shared cache
-      produces.
+      the same directory, require the test to pass *and* to report no nested
+      compilation (a bare pass is also what a warm shared cache produces), then
+      require a mutated fixture to make that reuse check fail.
 - [x] Find — by building the gate rather than by reasoning about it — that
       `make prepare-nested-fixtures` and a hand-typed filtered
       `cargo nextest run` **do not compose**. The recipe pins
@@ -1911,12 +1911,101 @@ rather than by reading this branch's comments.
       directory, so it pays a cold build on every run and would tax every local
       edit. The sibling checkers are the precedent — reachable targets, not suite
       legs. Verified by running it through the target rather than by inspecting
-      the recipe: all three steps held and it exited 0. Two contract tests pin
-      the target to the script and to `.PHONY`; mutation-checked by deleting the
+      the recipe: every step held and it exited 0. Two contract tests pin the
+      target to the script and to `.PHONY`; mutation-checked by deleting the
       recipe line, which failed exactly `test_the_workflow_driver_is_reachable_
       from_make` and left the other nine green.
+- [x] Close the Major finding (review comment `4589698035`) that step 3 could
+      not observe a nested compile at all. The finding was correct, and I
+      verified each link against the source rather than taking it on the
+      reviewer's word: `run_cargo_bdd` does
+      `let (status, stdout, _stderr) = run_cargo_bdd_captured(args)?;`, so the
+      nested `cargo`'s `Compiling` lines — which go to stderr — are discarded on
+      success; `list_steps_runs` never prints the returned stdout; and nextest
+      suppresses a passing test's output. The scan of the captured output
+      therefore found nothing whatever the build did and read that emptiness as
+      reuse, which is the exact defect the driver existed to catch, one layer
+      up. Both plausible streams are dropped, so the report moves to a third
+      carrier: a file named by `RSTEST_BDD_NESTED_BUILD_REPORT`, appended by the
+      fixture's gate and read by the driver from inside its private target
+      directory. The gate reports `0` unconditionally when it admits a stamp and
+      runs no preparation, because a report only on the built path would make
+      "nothing was written" and "nothing was compiled" the same observation. And
+      because a check that cannot fail cannot vouch for anything, step 4 is a
+      negative control: appending a comment line to the fixture source changes
+      the stamp-relevant hash while changing nothing compiled, so the next run
+      must *refuse* and name the remedy, with the original bytes restored in a
+      `finally`. The driver's predicates now carry unit coverage of their own in
+      `scripts/tests/test_check_prepared_fixture_workflow.py`, including a case
+      that requires a missing report to fail and one that requires a reported
+      compile to fail. Lesson: "read the output the step printed" is a claim
+      about the output's *carrier*, and here two independent layers both
+      dropped it — the check has to be built where the evidence is written, not
+      where it is convenient to read.
+- [x] Answer the same review round's Minor finding (`4589698026`) that a
+      timed-out step leaves its `cargo` descendants alive. `subprocess.run`'s
+      timeout kills only the direct child, which here is `make`; its `cargo` and
+      `rustc` descendants keep writing into the target directory the driver then
+      deletes. `run_step` now spawns with `start_new_session=True` and
+      `terminate_tree` signals the whole process group with `SIGTERM`, then
+      `SIGKILL` after a bounded wait; `os.getpgid` is used rather than
+      `process.pid` because the child is the group leader, and
+      `ProcessLookupError` is caught because a tree that exited between the
+      `poll()` and the signal needs nothing further. The Rust side documents the
+      same hazard in `nested_cargo/bounded.rs` and is tracked by #923; this is
+      the Python driver's own copy of the fix, since it cannot reuse that code.
+- [x] Reverse the earlier "the driver belongs in no CI lane" conclusion, because
+      the pre-merge row's actual requirement was that it not be *reachable only
+      by a manual Make target*. Both readings of "no job needed" were about
+      duplicate execution, and that contract still holds: a
+      `make check-prepared-fixture-workflow` step matches none of the three
+      `WORKSPACE_TEST_COMMANDS` in `runner_placement_test.py`
+      (`cargo test`, `cargo nextest`, `make test`), so it is not a second run of
+      the suite and needs no runner-placement amendment. What the earlier
+      reasoning missed is that reachability and *exercise* are different facts.
+      The suite runs the preparation tests, but nothing anywhere runs the
+      *filtered* path the target serves, so a green lane said nothing about the
+      workflow this PR adds. Added as a step inside `build-test` rather than as
+      a new job, guarded to Linux and to `matrix.tools`, and placed after the
+      suite so the cold private build (measured 89 s warm, 239 s in CI) does not
+      compete for the compiler slot the instrumented coverage build needs.
+      Windows is excluded because those lanes run `cargo test`, not nextest, so
+      the target's filter selects nothing there. Lesson: "does this need to
+      run?" and "is anything checking this?" are separate questions, and
+      answering the first with "the suite already covers it" left the second
+      unanswered.
 
 ## Surprises & Discoveries
+
+- **An accumulating evidence file needs attribution, not a stricter value
+  test.** 2026-11-17. Step 3 first read the whole report file and required
+  every count in it to be zero. Its first real run failed with
+  `counts [51, 0]`. An isolated probe of step 1
+  (`CARGO_TARGET_DIR=$PWD/target/probe-step1 make nextest-run …`) showed step 1
+  writes *no* report at all — the gate refuses before reaching `record_reuse` —
+  so `51` was step 2's cold preparation and `0` was step 3's genuine reuse. The
+  driver was observing real evidence; the check was wrong, because it could not
+  tell the lines a step wrote from the lines already there. Fixed by
+  snapshotting `len(read_build_reports(target_dir))` before the judged run and
+  reading `counts[previous_counts:]`, and the same attribution was given to the
+  negative control, which had the same weakness hidden behind `counts[-1:]`. A
+  verified run then left exactly two lines, `51` then `0`, confirming that
+  steps 1 and 4 contribute nothing because both refuse. Lesson: when one file
+  accumulates a line per run, "all the evidence" and "this run's evidence" are
+  different questions, and the wrong one fails for the step that is supposed to
+  come before.
+- **A negative control has to ask for a state the design permits.** 2026-11-17.
+  Step 4 originally required the run after a fixture edit to report a *nonzero
+  compile*. It failed on the first end-to-end run, and the reason was the
+  design, not the code: once the stamp is admitted the gate prepares nothing,
+  and once it is stale the gate refuses rather than preparing — the nested
+  build happens on the remedy path only. Asking the timed run for a compile
+  asked for a state the gate can never produce. The control now requires the
+  next run to *refuse and name the remedy*, which is the actual mechanism (the
+  stamp hashes the fixture inputs) and is also stronger, since naming the
+  remedy distinguishes the stamp's refusal from any other failure wearing the
+  same exit status. Lesson: a control that fails is sometimes telling you its
+  premise was impossible; check the mechanism before weakening the assertion.
 
 - **`make check-fmt` is not the Markdown gate, and `mdtablefix --wrap` can
   emit a line markdownlint rejects.** 2026-11-16. The two formatters disagree:
@@ -1947,6 +2036,25 @@ rather than by reading this branch's comments.
   the check hides a real simplification. Confirm the fix with the same tool
   that reported it — `cs delta origin/main` — rather than with the local suite,
   which never had an opinion about duplication.
+
+- **A line-count lint is a real design signal, and here it named the right
+  seam.** 2026-11-16. `preparation.rs` sat at 391 lines against the Whitaker
+  suite's 400-line `module-max-lines` limit, and the reporting contract I added
+  for the nested-build evidence pushed it to 459. The tempting repair is
+  `#[allow(module_max_lines)]`; the cheap repair is to move *anything* out.
+  Both would have been worse than what the limit was pointing at, which is that
+  the module held two concerns: the family's description and gate, and the
+  nested build plus the report it files. Splitting them left `preparation.rs`
+  at 365 lines and put the marker, the variable name and the line format
+  together in `preparation/nested_build.rs`, where a reader looking for the
+  contract finds it as one thing. The same shape recurred in Python within the
+  hour: the driver hit pylint's 400-line `too-many-lines` at 537, and the seam
+  was again run-a-step versus judge-the-outcome, giving
+  `prepared_fixture_step.py` for spawning, bounding and the report channel.
+  Lesson: when a size limit trips, read it as a question about cohesion rather
+  than a quota to satisfy, and split on the axis that makes each half
+  explainable in one sentence — the suppression and the arbitrary split both
+  leave the reader paying.
 
 - **Filtering both sides by one rule makes an unowned name equal to itself.**
   2026-11-15. The ownership layer keeps only names `name_is_owned` accepts, and

@@ -15,19 +15,35 @@ them together. The pieces that existed each miss the point:
 
 The gap those leave is the workflow itself: a timed test must *fail* on an
 unprepared tree with a message naming the remedy, and must *pass* after the
-remedy runs. This script drives exactly that, as three separate commands in
+remedy runs. This script drives exactly that, as four separate commands in
 this process so there is no ``nextest`` inside ``nextest``:
 
 1. Run the timed test against an empty private target directory and require
    the refusal, checking the message names ``make prepare-nested-fixtures``.
 2. Run ``make prepare-nested-fixtures`` against the same directory.
-3. Run the same timed test again and require it to pass, and require that its
-   output reports no compilation so a rebuild cannot be mistaken for a pass.
+3. Run the same timed test again and require it to pass, and require the
+   nested-build report to show it compiled nothing, so a rebuild cannot be
+   mistaken for a pass.
+4. Mutate the fixture source and require the next run to refuse, naming the
+   remedy. Without this the third step's check could be a predicate that never
+   fails, and a check that cannot fail cannot vouch for anything. The stamp
+   hashes the fixture inputs, so an edit must invalidate it: the zero in step 3
+   is a reused prepared tree, not an unconditional constant.
+
+The report step 3 reads is a *file*, named by ``RSTEST_BDD_NESTED_BUILD_REPORT``
+and written by the fixture's gate, rather than a line in the step's output. The
+first version of this script scanned the captured output for ``Compiling``
+lines, and that scan could never have worked: the helper which spawns
+``cargo bdd steps`` discards its capture on success, and nextest suppresses a
+passing test's output, so the nested compilation reached neither stream. The
+scan found nothing whatever the build did and reported reuse. A report on a
+channel both carriers drop is the same defect as no check at all.
 
 The private target directory is what makes step 1 meaningful: the workspace
 ``target/`` is shared with the rest of a lane and is warm, so a timed test
 there would pass for a reason unrelated to preparation. It is also what keeps
-the three steps from disturbing any other job.
+the steps from disturbing any other job, and it is where the nested-build
+report lives so the evidence is removed along with the tree it describes.
 
 Steps 1 and 3 go through ``make nextest-run``, not a bare ``cargo nextest
 run``. That is not a stylistic choice. The stamp fingerprints ``RUSTFLAGS``,
@@ -44,206 +60,114 @@ This is deliberately *not* part of ``make test``. A cold preparation of this
 family was measured at 89.382 s on a warm cache and 239.213 s on CI, which is
 too expensive for every local run; it belongs in its own CI job.
 
+Starting a step, bounding it, and reading its report live in
+``prepared_fixture_step``; this module composes the steps and decides what
+each outcome must be.
+
 Usage: ``python3 scripts/check_prepared_fixture_workflow.py [--keep]``.
 
-Exit codes: 0 when all three steps hold, 1 when any step does not. ``--keep``
+Exit codes: 0 when all four steps hold, 1 when any step does not. ``--keep``
 leaves the private target directory in place for inspection.
 """
 
 import argparse
-import os
 import shutil
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs fixed argvs built above; no shell.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - only catches TimeoutExpired.
 import sys
 import tempfile
 import typing as typ
 from pathlib import Path
 
-#: The repository root, two levels above ``scripts/``.
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from prepared_fixture_judgements import (
+    StepFailureError,
+    expect_pass_without_rebuild,
+    expect_preparation,
+    expect_refusal,
+    expect_stale_stamp_refusal,
+)
+from prepared_fixture_step import (
+    REMEDY,
+    REPO_ROOT,
+    STEP_TIMEOUT_SECONDS,
+    build_report_path,
+    preparation_argv,
+    read_build_reports,
+    run_step,
+    timed_test_argv,
+)
 
-#: The timed test the CLI family gates on preparation.
+__all__ = [
+    "REMEDY",
+    "StepFailureError",
+    "build_report_path",
+    "expect_mutation_invalidates_the_stamp",
+    "expect_pass_without_rebuild",
+    "expect_preparation",
+    "expect_refusal",
+    "expect_stale_stamp_refusal",
+    "main",
+    "read_build_reports",
+    "run_workflow",
+]
+
+#: Where the stamp-invalidation control edits a fixture source.
+FIXTURE_SOURCE = "crates/cargo-bdd/tests/fixtures/minimal/src/lib.rs"
+
+#: The bytes that control adds, and then removes again.
 #:
-#: Chosen because it is cheap, it is a real user-visible command
-#: (``cargo bdd steps``), and its binary also holds the family's
-#: ``nested_fixture_preparation`` test, so the target and the timed test share
-#: one filtered suite.
-#:
-#: The filter is binary-qualified and uses nextest's *exact* test-name
-#: operator. Both parts are load-bearing. A ``test(/.../)`` regex is matched
-#: against the *test name*, not the ``<binary>::<test>`` path nextest prints,
-#: so a filter written as ``test(/cargo-bdd::cli::list_steps_runs$/)`` matches
-#: nothing at all; nextest then exits non-zero with ``no tests to run``, which
-#: a driver reading only the exit status would score as the expected refusal,
-#: and the whole gate would "pass" while running no test. This is the same
-#: empty-filter hazard the Makefile contract test exists for.
-#:
-#: ``test(=name)`` is also why this string survives Make. Make expands ``$``
-#: in a command-line variable, so an anchored ``test(/^list_steps_runs$/)``
-#: would reach nextest as ``test(/^list_steps_runs/)`` unless escaped as
-#: ``$$``. Exact match needs no anchor and so needs no escaping.
-TIMED_TEST = "binary_id(cargo-bdd::cli) & test(=list_steps_runs)"
-
-#: The remedy the refusal must name, so a reader is told what to run.
-REMEDY = "make prepare-nested-fixtures"
-
-#: The run half of the same policy, which owns the build environment.
-#:
-#: A bare ``cargo nextest run`` here would carry the caller's ``RUSTFLAGS``
-#: rather than the preparation's, and refuse the stamp step 2 just wrote.
-RUNNER_TARGET = "nextest-run"
-
-#: Bound each step so a hung nested build fails the gate instead of the job.
-STEP_TIMEOUT_SECONDS = 1800
+#: A comment line, chosen because it changes the file's hash — which is what the
+#: stamp records — while changing nothing the build compiles to. So it can only
+#: be detected through the input hash, which is exactly the mechanism under
+#: test.
+NEGATIVE_CONTROL_EDIT = b"\n// Negative control for the prepared-fixture workflow.\n"
 
 
-class StepFailureError(Exception):
-    """A workflow step produced the wrong outcome."""
+def expect_mutation_invalidates_the_stamp(target_dir: Path) -> None:
+    """Prove the stamp is load-bearing, not merely present.
 
+    [`expect_pass_without_rebuild`] reports success when a count is zero, and
+    the defect it was written to catch was that it could not distinguish zero
+    from silence. A positive run on an already-prepared tree cannot tell a
+    working check from one that always passes, so this mutates a fixture source
+    and requires the next timed run to *refuse*. That is the whole mechanism:
+    the stamp hashes the fixture inputs, so a source edit must invalidate it.
 
-def run_step(
-    argv: list[str],
-    *,
-    target_dir: Path,
-) -> subprocess.CompletedProcess[str]:
-    """Run one workflow command against *target_dir* and return its result.
+    An earlier version of this step demanded a *compile* instead. That could
+    never happen. Once the stamp is admitted the gate runs no preparation at
+    all, and once it is stale the gate refuses rather than preparing — the
+    build happens on the remedy path, never on the timed one. Asking the timed
+    run for a nonzero count asked for a state the design forbids.
 
-    Only ``CARGO_TARGET_DIR`` is set here. The build-relevant environment —
-    ``RUSTFLAGS`` above all — is the Makefile's to own: this script and the
-    targets it drives must not diverge on it, which is the failure that made
-    step 3 reproduce step 1.
+    The refusal also has to name the remedy, which proves the refusal is the
+    stamp's rather than any other failure wearing the same exit status.
+
+    The original bytes are restored in a ``finally``, so a failed assertion
+    here does not leave a dirty working tree behind; the restore is the reason
+    this is not a plain ``assert`` after the rewrite.
 
     Parameters
     ----------
-    argv : list[str]
-        The command and its arguments.
     target_dir : Path
-        The private target directory every step shares.
+        The private target directory the mutated run is driven against.
 
-    Returns
-    -------
-    subprocess.CompletedProcess[str]
-        The captured result, never raised on a non-zero status: each step
-        decides for itself what an acceptable outcome is.
+    Notes
+    -----
+    The judgement of the outcome is delegated, so the failure a caller sees is
+    raised by [`expect_stale_stamp_refusal`]: either the mutated run passed,
+    meaning the stamp survived an input change, or it failed without naming the
+    remedy, meaning the failure was something else.
     """
-    env = os.environ.copy()
-    env["CARGO_TARGET_DIR"] = str(target_dir)
-    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv, no shell.
-        argv,
-        cwd=REPO_ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=STEP_TIMEOUT_SECONDS,
-        check=False,
-    )
-
-
-def timed_test_argv() -> list[str]:
-    """Return the argv that runs the timed test through the Makefile."""
-    return ["make", RUNNER_TARGET, f"EXPR={TIMED_TEST}"]
-
-
-def preparation_argv() -> list[str]:
-    """Return the argv that runs the documented remedy."""
-    return ["make", "prepare-nested-fixtures"]
-
-
-def expect_refusal(result: subprocess.CompletedProcess[str]) -> None:
-    """Require *result* to be the unprepared-tree refusal.
-
-    Parameters
-    ----------
-    result : subprocess.CompletedProcess[str]
-        The first run of the timed test.
-
-    Raises
-    ------
-    StepFailureError
-        If the run passed, or failed without naming the remedy.
-    """
-    combined = f"{result.stdout}\n{result.stderr}"
-    if "no tests to run" in combined:
-        # A drifted filter is not a refusal. Treating its non-zero status as
-        # one is the exact way this gate could pass while testing nothing.
-        msg = (
-            "the filter selected no tests (`no tests to run`), so a drifted "
-            f"filter would masquerade as a refusal. Filter: {TIMED_TEST}"
-        )
-        raise StepFailureError(msg)
-    if result.returncode == 0:
-        msg = (
-            "the timed test passed against an empty target directory; the "
-            "preparation gate is not refusing an unprepared tree, so steps 2 "
-            "and 3 would prove nothing"
-        )
-        raise StepFailureError(msg)
-    if REMEDY not in combined:
-        msg = (
-            f"the timed test refused, but did not name `{REMEDY}`; a reader "
-            f"would be left without the remedy. Output:\n{combined}"
-        )
-        raise StepFailureError(msg)
-
-
-def expect_pass_without_rebuild(result: subprocess.CompletedProcess[str]) -> None:
-    """Require *result* to pass and to report no compilation.
-
-    The second half matters as much as the first. A pass alone is also what a
-    warm shared cache produces; requiring zero ``Compiling`` lines is what
-    shows step 2 prepared *this* target directory rather than step 3 finding
-    the graph warm by accident.
-
-    Parameters
-    ----------
-    result : subprocess.CompletedProcess[str]
-        The second run of the timed test.
-
-    Raises
-    ------
-    StepFailureError
-        If the run failed, or compiled anything on the way.
-    """
-    combined = f"{result.stdout}\n{result.stderr}"
-    if result.returncode != 0:
-        msg = (
-            "the timed test failed after `make prepare-nested-fixtures`, so "
-            "the remedy does not admit the test it exists for. Output:\n"
-            f"{combined}"
-        )
-        raise StepFailureError(msg)
-    compiling = [line for line in combined.splitlines() if "Compiling" in line]
-    if compiling:
-        msg = (
-            "the timed test compiled after preparation, so the prepared tree "
-            f"was not reused: {compiling[:5]}"
-        )
-        raise StepFailureError(msg)
-
-
-def expect_preparation(result: subprocess.CompletedProcess[str]) -> None:
-    """Require the remedy run to have succeeded.
-
-    Parameters
-    ----------
-    result : subprocess.CompletedProcess[str]
-        The run of ``make prepare-nested-fixtures``.
-
-    Raises
-    ------
-    StepFailureError
-        If the preparation exited non-zero.
-    """
-    if result.returncode != 0:
-        msg = (
-            "`make prepare-nested-fixtures` failed against the private "
-            f"target directory. Output:\n{result.stdout}\n{result.stderr}"
-        )
-        raise StepFailureError(msg)
+    fixture = REPO_ROOT / FIXTURE_SOURCE
+    original = fixture.read_bytes()
+    try:
+        fixture.write_bytes(original + NEGATIVE_CONTROL_EDIT)
+        expect_stale_stamp_refusal(run_step(timed_test_argv(), target_dir=target_dir))
+    finally:
+        fixture.write_bytes(original)
 
 
 def run_workflow(target_dir: Path) -> None:
-    """Drive the three steps against *target_dir*.
+    """Drive the workflow's steps against *target_dir*.
 
     Parameters
     ----------
@@ -255,14 +179,22 @@ def run_workflow(target_dir: Path) -> None:
     Anything a step raises propagates to the caller, which is what turns it
     into this script's exit status and its diagnostic line.
     """
-    report(sys.stderr, "step 1/3: the timed test must refuse an unprepared tree")
+    report(sys.stderr, "step 1/4: the timed test must refuse an unprepared tree")
     expect_refusal(run_step(timed_test_argv(), target_dir=target_dir))
 
-    report(sys.stderr, "step 2/3: run the documented remedy")
+    report(sys.stderr, "step 2/4: run the documented remedy")
     expect_preparation(run_step(preparation_argv(), target_dir=target_dir))
 
-    report(sys.stderr, "step 3/3: the same timed test must now pass")
-    expect_pass_without_rebuild(run_step(timed_test_argv(), target_dir=target_dir))
+    report(sys.stderr, "step 3/4: the same timed test must now pass")
+    previous_counts = len(read_build_reports(target_dir))
+    expect_pass_without_rebuild(
+        run_step(timed_test_argv(), target_dir=target_dir),
+        target_dir=target_dir,
+        previous_counts=previous_counts,
+    )
+
+    report(sys.stderr, "step 4/4: an edited fixture must invalidate the stamp")
+    expect_mutation_invalidates_the_stamp(target_dir)
 
 
 def report(stream: typ.TextIO, message: str) -> None:
@@ -271,7 +203,7 @@ def report(stream: typ.TextIO, message: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Drive the three workflow steps and report the outcome.
+    """Drive the four workflow steps and report the outcome.
 
     Parameters
     ----------

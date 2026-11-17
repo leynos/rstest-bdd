@@ -13,10 +13,17 @@ use eyre::{Context, Result};
 use rstest_bdd_harness::nested_cargo;
 use serial_test::serial;
 
-use super::{cli_child_environment, fixture_dir, locate_or_build_cargo_bdd_command};
+use super::{cli_child_environment, fixture_dir};
 
 #[path = "witness.rs"]
 mod witness;
+
+// The nested build and the evidence it files. Split out because the reporting
+// contract — marker, variable name and line format — is a second concern beside
+// the family description and its gate, and belongs where a reader looking for
+// it will find it.
+#[path = "preparation/nested_build.rs"]
+mod nested_build;
 
 // The withdrawal regression lives in a submodule of its own so this file
 // keeps its share of the repository's line budget. Declared here rather than
@@ -154,46 +161,6 @@ fn cli_preparation_description() -> Result<(nested_cargo::Preparation, nested_ca
     Ok((preparation, child_env))
 }
 
-/// Run one diagnostic against the fixture, returning the captured output.
-///
-/// The child gets the filtered environment and an unfiltered inherited one for
-/// `cargo`'s own diagnostics, matching how the timed tests spawn it except
-/// that the output is bounded and captured.
-fn capture_cargo_bdd_steps(
-    child_env: &nested_cargo::NestedCargoEnv,
-) -> Result<nested_cargo::CapturedOutput> {
-    let fixture_dir = fixture_dir();
-    let program = locate_or_build_cargo_bdd_command()?;
-    let mut cmd = nested_cargo::filtered_command(
-        std::path::Path::new(program.get_program()),
-        child_env,
-        &fixture_dir,
-    );
-    cmd.arg("steps");
-    let output =
-        nested_cargo::run_bounded_with_timeout(&mut cmd, nested_cargo::PREPARATION_COMMAND_TIMEOUT)
-            .wrap_err("running `cargo bdd steps` for fixture preparation")?;
-    Ok(output.into())
-}
-
-/// Capture the preparation summary, failing on a non-zero child status.
-fn capture_preparation(
-    child_env: &nested_cargo::NestedCargoEnv,
-) -> std::io::Result<nested_cargo::PreparationSummary> {
-    let captured = capture_cargo_bdd_steps(child_env)
-        .map_err(|error| std::io::Error::other(format!("{error:#}")))?;
-    if !captured.status {
-        return Err(std::io::Error::other(format!(
-            "`cargo bdd steps` failed during fixture preparation:\n{}",
-            captured.combined()
-        )));
-    }
-    Ok(nested_cargo::PreparationSummary {
-        compiled_units: nested_cargo::count_compiling(captured.stderr.as_bytes())
-            + nested_cargo::count_compiling(captured.stdout.as_bytes()),
-    })
-}
-
 /// Gate a timed CLI test on the preparation test having run.
 ///
 /// The stamp is not the whole gate. It answers "a preparation ran for these
@@ -212,7 +179,9 @@ fn capture_preparation(
 /// test's witness cannot run there either; this check does.
 pub(super) fn ensure_cli_prepared() -> Result<()> {
     let (preparation, child_env) = cli_preparation_description()?;
-    ensure_gated(&preparation, || capture_preparation(&child_env))
+    ensure_gated(&preparation, || {
+        nested_build::capture_preparation(&child_env)
+    })
 }
 
 /// The gate itself, with the family and the preparation work supplied.
@@ -247,6 +216,9 @@ where
 {
     nested_cargo::ensure_prepared_with(preparation, under_nextest, prepare)
         .wrap_err("nested CLI fixture should be prepared")?;
+    // A gate that admitted a stamp ran no preparation, so its count is zero by
+    // construction — and it must still say so. See `record_reuse`.
+    nested_build::record_reuse();
     witness_or_withdraw(preparation)
 }
 
@@ -335,7 +307,9 @@ fn require_fixture_binaries(preparation: &nested_cargo::Preparation) -> Result<(
 #[serial]
 fn nested_fixture_preparation() -> Result<()> {
     let (preparation, child_env) = cli_preparation_description()?;
-    nested_cargo::prepare_now(&preparation, || capture_preparation(&child_env))?;
+    nested_cargo::prepare_now(&preparation, || {
+        nested_build::capture_preparation(&child_env)
+    })?;
     // Through the same function the timed gate uses, so a preparation that
     // leaves no binaries is refused *and* has its stamp withdrawn here too.
     // This test runs before the timed assertions under nextest, so a stamp it

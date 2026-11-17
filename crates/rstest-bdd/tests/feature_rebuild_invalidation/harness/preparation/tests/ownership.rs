@@ -26,19 +26,29 @@ use crate::harness::process;
 /// compiles from this checkout; a registry crate is immutable and already
 /// pinned by the fixture's lockfile, so its units are neither declared nor at
 /// risk of a local edit.
+///
+/// # Errors
+///
+/// Returns the resolution error when the manifest cannot be read, and names
+/// the manifest or the package when the graph lacks what the walk needs — an
+/// unwritten `resolve` section, or the fixture absent from its own manifest.
+/// Each of those is a different broken assumption, and a caller told "the
+/// graph did not resolve" would look in the wrong place for the first two.
 fn local_dependency_closure(
     manifest: &std::path::Path,
     package: &str,
-) -> std::collections::BTreeSet<String> {
+) -> Result<std::collections::BTreeSet<String>, Box<dyn std::error::Error>> {
     let metadata = cargo_metadata::MetadataCommand::new()
         .manifest_path(manifest)
         // The fixture commits its lockfile, so resolution needs no registry:
         // asserting that keeps a test of the declaration from reaching the
         // network, where a registry hiccup would read as a broken graph.
         .other_options(vec!["--locked".to_owned(), "--offline".to_owned()])
-        .exec()
-        .expect("the fixture manifest must resolve");
-    let resolve = metadata.resolve.as_ref().expect("a resolved graph");
+        .exec()?;
+    let resolve = metadata
+        .resolve
+        .as_ref()
+        .ok_or("the fixture manifest resolved to no dependency graph")?;
     let packages: std::collections::BTreeMap<_, _> = metadata
         .packages
         .iter()
@@ -52,7 +62,7 @@ fn local_dependency_closure(
         .packages
         .iter()
         .find(|candidate| candidate.name.as_str() == package)
-        .expect("the fixture is in its own manifest");
+        .ok_or_else(|| format!("{package} is not in the manifest at {}", manifest.display()))?;
     let nodes: std::collections::BTreeMap<_, _> =
         resolve.nodes.iter().map(|node| (&node.id, node)).collect();
     let mut reached = std::collections::BTreeSet::new();
@@ -66,12 +76,12 @@ fn local_dependency_closure(
         }
     }
 
-    reached
+    Ok(reached
         .into_iter()
         .filter_map(|id| packages.get(id))
         .filter(|candidate| candidate.source.is_none() && candidate.name.as_str() != package)
         .map(|candidate| candidate.name.to_string())
-        .collect()
+        .collect())
 }
 
 /// The declaration agrees with what each fixture's real graph resolves to.
@@ -104,7 +114,8 @@ fn the_declaration_matches_the_fixtures_resolved_graph() {
             workspace.join("crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml"),
         ),
     ] {
-        let local = local_dependency_closure(&manifest, family.package);
+        let local = local_dependency_closure(&manifest, family.package)
+            .expect("the fixture's dependency graph must resolve");
         let declared: std::collections::BTreeSet<String> = WORKSPACE_DEPENDENCIES
             .iter()
             .map(|name| (*name).to_owned())

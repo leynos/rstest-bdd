@@ -722,6 +722,30 @@ jobs:
           set -euo pipefail
           test -s coverage.xml
 
+      # The filtered preparation workflow, run end to end across process
+      # boundaries. `scripts/check_prepared_fixture_workflow.py` refuses to
+      # trust the shared, warm `target/` — it starts from a private empty
+      # directory, requires the timed test to refuse it, runs the documented
+      # remedy, requires the test to pass with the nested build reporting no
+      # compilation, and then mutates a fixture source to prove the stamp
+      # actually covers its inputs: the next run must refuse and name the
+      # remedy, so the reported zero is a reused prepared tree rather than an
+      # unconditional constant. That last step is why it is a job step rather
+      # than only a Make target: nothing in the suite exercises the target's
+      # filtered path, so reachability alone left the workflow unverified.
+      #
+      # Linux only, and after the suite: the private directory means a cold
+      # build of the CLI fixture family, measured at 89 s on a warm cache and
+      # 239 s in CI, and the Windows lanes run `cargo test` rather than
+      # nextest (see the `use-nextest` note in the matrix). Placed here rather
+      # than before the suite so it does not compete for the compiler slot the
+      # instrumented coverage build needs, and before the discard below so a
+      # failure still reports against a disk that has the trees.
+      - name: Check prepared-fixture workflow
+        if: ${{ runner.os == 'Linux' && matrix.tools }}
+        shell: bash
+        run: make check-prepared-fixture-workflow
+
       # `make publish-check` compiles the workspace a second time, into
       # `target/package`. By this point the lint tree, the two GPUI fixture
       # trees and the instrumented coverage tree have no consumer left, and
