@@ -2045,6 +2045,75 @@ rather than by reading this branch's comments.
       -- -D warnings` exit 0, and 566/566 `rstest-bdd-macros` lib tests pass.
       The workspace sweep is the important new evidence: it enumerates *every*
       remaining site in one pass instead of discovering one crate per CI cycle.
+- [x] Address review `5941784450` (`CHANGES_REQUESTED` on `f4245f37`), 25
+      inline findings plus the two failed pre-merge rows. The pre-merge rows
+      were cleared by evidence rather than by argument: the PR body now
+      carries a `## Stack base` section recording `baseRefName: main`,
+      `baseRefOid 0bf12ee7` (the current `main` head), merge base `d70f37c1`
+      and the single commit the branch is behind, and a `##
+      crates/rstest-bdd/tests/underscore_fixture.rs, and why it changed`
+      section naming the failing gate (`build-test (linux, default features)`
+      → `Lint`), the `unfulfilled_lint_expectations` error, and why the
+      `0.7.0` bump was forced by `Publish dry run` rather than chosen.
+- [x] Close the `fingerprint_with` boundary finding (`4602070911`). The
+      previous test composed twice through `compose`, which is what the case
+      before it already does, so a `fingerprint_with` that resolved the
+      identity and then composed from a constant would have satisfied both.
+      `the_probe_identity_reaches_the_fingerprint` now supplies two distinct
+      identities *through* `fingerprint_with` and asserts both that the
+      fingerprints differ and that each carries the identity its probe
+      returned, so neither half alone can pass.
+- [x] Close the effective-compiler finding (`4602070930`). Probing only
+      `cargo -vV` cannot see a compiler replaced in place at a fixed `RUSTC`
+      path: Cargo picks and fingerprints its compiler independently of its own
+      identity, so a stamp written before the swap would still match and the
+      timed assertion would recompile inside its deadline.
+      `toolchain_identity` now runs `-vV` twice — once for Cargo, once for the
+      compiler — and joins the two on separate labelled lines so a Cargo
+      identity cannot be spelled to look like a compiler one. The compiler is
+      resolved by path (the child's `RUSTC`, else the `rustc` shipped beside
+      the `cargo` being run, else the bare name) rather than through the
+      child's filtered `PATH`, because every synthetic fixture in
+      `preparation/tests` sets `PATH=/usr/bin` and this host's compiler is not
+      there. The probe overlays the nested environment on the inherited one
+      rather than clearing it, so the child's `RUSTC` and `RUSTUP_TOOLCHAIN`
+      still decide which compiler is identified while a `rustup` shim keeps
+      `HOME`. `STAMP_VERSION` went to `4` so no version-3 stamp — which records
+      Cargo alone — can be read as the text version 4 expects.
+- [x] Answer the remaining 23 inline findings on the disposition that fits each
+      rather than editing for its own sake. Eleven were already implemented on
+      `f4245f37` and needed only the reply: the `cargo-nextest` install step
+      (`4602070559`), the fixture's full `cargo tree` dependency closure
+      (`4602070583`), both check-mode probes in the GPUI and Tokio harnesses
+      (`4602070655`, `4602070674`), ANSI stripping in `count_compiling`
+      (`4602070718`), the `drain` scheduling race (`4602070740`, already split
+      into a generous content collection and a separate bounded one),
+      `verify_declared` refusing an empty owned section before the stamp is
+      written (`4602070831`), the replacement case table (`4602070847`),
+      `only_eviction`'s `io::Result` (`4602070862`), `preparation_over`'s
+      `io::Result` (`4602070870`), `write_units`' `io::Result`
+      (`4602070881`), `write_tree`/`hash_of` (`4602070893`), the dep-info case
+      table (`4602071012`), and both documentation rows (`4602071034`,
+      `4602071051`) — the guide already states the discovered-directory rule
+      and already describes captured output as a possibly truncated prefix on
+      both paths, as does the plan's own "Drain on a deadline" entry. Four were
+      fixed in this round: `scratch_family` now propagates its two
+      `env_from_vars`/`Preparation::new` failures (`4602070604`), and the
+      feature-rebuild fixtures reach the filesystem through a `Dir` capability
+      — a new `evict` helper for the three eviction cases and a
+      capability-built scratch tree (`4602070946`), with `tagged_root` in
+      `staging/target_root/tests.rs` rebuilt the same way (`4602070996`). The
+      remaining rows are conventions this PR did not introduce and that sweep
+      six modules rather than one; they are deferred to `#946` with the
+      reasoning recorded per thread.
+- [x] Note that `-p rstest-bdd --tests` clippy reports one denial in
+      `crates/rstest-bdd/tests/mutable_world_macro.rs` (`uninlined_format_args`),
+      which no commit on this branch touches (`d209ec52` is its last change and
+      it is absent from the whole-PR diff). Recorded rather than fixed: the
+      file is not this PR's, and `make lint` runs `--workspace --all-targets
+      --all-features` against the pinned stable toolchain, where the finding is
+      not raised — the local reproduction used `cargo clippy -p ... --tests`
+      outside the gate's flag set.
 
 ## Surprises & Discoveries
 
@@ -2870,13 +2939,17 @@ rather than by reading this branch's comments.
   Merging them would make a source refresh imply an artefact rebuild, or an
   artefact eviction imply a source recopy, and neither implication holds.
 - **Cargo configuration is an input, not ambient host state.** Cargo discovers
-  `.cargo/config.toml` by walking up from the working directory, so the
-  committed file's development profile options and Linux linker flags change
-  dependency artefacts. `cargo_config_inputs` hashes the workspace-root file;
-  configuration above the workspace is excluded because it varies by host and
-  including it would make stamps non-portable between a developer machine and
-  CI. Configuration *below* the workspace root needs no listing: those files
-  already sit inside the hashed `crates/` and fixture trees.
+  `.cargo/config.toml` by walking up from the working directory and also reads
+  `$CARGO_HOME/config.toml`, so any of those files' development profile options
+  and Linux linker flags change dependency artefacts. `cargo_config_inputs`
+  hashes every `.cargo` directory on that walk — the workspace root and each
+  ancestor — plus `$CARGO_HOME` when it is set. Host configuration was excluded
+  at first, on the argument that stamps should be reproducible from the
+  checkout alone; that was unsound, because a `CARGO_HOME` build-flag override
+  changes the nested build's output and a stamp that never saw the file would
+  survive the change. Configuration *below* the workspace root still needs no
+  listing: those files already sit inside the hashed `crates/` and fixture
+  trees.
 - **Fail fast under nextest, prepare lazily under `cargo test`.** Under
   nextest each test is its own process, so a timed test that prepared would pay
   the cost it exists to avoid; failing with the preparation command named is
@@ -2894,10 +2967,13 @@ rather than by reading this branch's comments.
   owning the process loop are separate concerns.
 - **Drain on a deadline, not on EOF.** The reader thread sends chunks over a
   channel and the waiting side stops at EOF or at a fixed post-kill grace
-  period, whichever comes first. EOF remains the normal path — output is
-  complete the moment the child exits — so the grace period is pure overhead
-  only in the case that used to hang, and it is bounded overhead rather than
-  none.
+  period, whichever comes first. EOF remains the normal path, so the grace
+  period is pure overhead only in the case that used to hang, and it is bounded
+  overhead rather than none. Captured output is a *possibly truncated prefix*,
+  not a complete transcript: a descendant can outlive the direct child while
+  still holding the write end of the pipe, so "the child exited" does not mean
+  "everything has arrived". Only EOF promises complete output, and callers must
+  not read a partial capture as the whole of what was written.
 - **The preparation override goes first in the file.** Nextest's first-match
   precedence means position, not priority, is what keeps the preparation from
   inheriting a timed assertion's budget.

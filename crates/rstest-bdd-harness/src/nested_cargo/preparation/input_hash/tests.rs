@@ -1,4 +1,14 @@
 //! Unit tests for the sorted walk, which the property tests cannot see.
+//!
+//! Exercises [`hash_sorted`] from the parent [`input_hash`](super) module
+//! against an entry sequence supplied by hand, and [`input_hash`] over small
+//! trees on disk. The sort is the reason this module exists: on ext4
+//! `read_dir` returns entries in a hash of their names, so no sequence of file
+//! creations can force the unsorted order a property test would need, and
+//! `preparation::prop_tests` records that limitation in its own header.
+//! Everything else about the walk — the kind markers, the directory boundary,
+//! the symlink handling — is specified by the property tests, which generate
+//! trees this module could only enumerate by hand.
 
 use std::{collections::hash_map::DefaultHasher, fs, hash::Hasher};
 

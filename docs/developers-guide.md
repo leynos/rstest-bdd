@@ -928,15 +928,27 @@ selection to the generated crate, so a different set of features is a different
 dependency graph. Both feed the stamp's fingerprint, which also covers the
 build-relevant environment, the toolchain identity and the workspace inputs.
 
-The toolchain identity is resolved by running `cargo -vV` and keeping its
-`release:`, `commit-hash:` and `host:` lines. The probe runs on each
-fingerprint computation rather than being cached: it is cheap beside the stamp
-read it accompanies, and a cached value would survive a toolchain change within
-the same process. A toolchain that cannot be identified is a preparation error
-rather than an `"unknown"` fingerprint field: that placeholder is identical on
-every host where identification fails, so a stamp written under it would
-survive a toolchain change, which is exactly the invalidation the field exists
-to force.
+The toolchain identity is resolved by running `-vV` twice and keeping each
+result's `release:`, `commit-hash:` and `host:` lines. The first probe is
+`cargo -vV`; the second is the compiler Cargo will invoke — `RUSTC` from the
+nested environment when it is set, and otherwise the `rustc` shipped beside the
+`cargo` being run. Cargo selects and fingerprints its compiler independently,
+so a compiler replaced at a fixed `RUSTC` path leaves `cargo -vV` reporting the
+same text; without the second probe the stamp would admit a timed assertion
+whose first nested build then recompiled the dependency graph inside its own
+deadline. The two identities occupy separate lines, so a Cargo identity cannot
+be spelled to look like a compiler one.
+
+The probes run on each fingerprint computation rather than being cached: they
+are cheap beside the stamp read they accompany, and a cached value would
+survive a toolchain change within the same process. Each probe overlays the
+nested environment onto the inherited one rather than clearing it, so the child's
+`RUSTC` and `RUSTUP_TOOLCHAIN` decide which compiler is identified while a
+`rustup` shim still finds its toolchains. A toolchain that cannot be identified
+is a preparation error rather than an `"unknown"` fingerprint field: that
+placeholder is identical on every host where identification fails, so a stamp
+written under it would survive a toolchain change, which is exactly the
+invalidation the field exists to force.
 
 The inputs hashed are the workspace manifest and lockfile, the `crates/` tree,
 `vendor/`, and the workspace's Cargo configuration. Hashing `crates/` walks
@@ -1091,14 +1103,18 @@ to the first rather than drawing both independently: two independent values are
 almost never related as a value and one of its prefixes, so drawing them
 separately leaves the case unreachable however many cases run.
 
-Two rules, and only two, decide whether a recorded name is still there. Each
-directory in `Preparation::artefacts` must have a non-empty `deps` and a
-non-empty `.fingerprint`; and every name recorded from a dep-info stem must
-still be present in `deps`. The second rule pairs a `.d` record with the
-outputs rustc named for its stem, but that pairing only *discovers* which names
-belong together — it never decides that a tree is usable. `.fingerprint` is
-checked for being non-empty and nothing more: its per-unit records are Cargo's
-business, and re-deriving them here would duplicate Cargo's own format.
+Two rules, and only two, decide whether a recorded name is still there. Both
+run over the directories the discovery walk found, never over a literal `deps`
+path: a profile may lay a unit out under `deps` or under
+`build/<crate>/<hash>/out`, and both are supported. The first rule is that some
+discovered unit directory and some discovered fingerprint store must still be
+populated. The second is that every name recorded from a dep-info stem must
+still be present in the directory it was recorded from. That second rule pairs
+a `.d` record with the outputs rustc named for its stem, but the pairing only
+*discovers* which names belong together — it never decides that a tree is
+usable. `.fingerprint` is checked for being populated and nothing more: its
+per-unit records are Cargo's business, and re-deriving them here would duplicate
+Cargo's own format.
 
 Consequently `cargo clean -p <package>` **does** make the gate refuse, and that
 is correct rather than something to work around. It removes that package's `.d`
@@ -1139,17 +1155,21 @@ the committed `.cargo/config.toml`. That file sets development-profile options
 and the Linux linker flags, and changing either rebuilds dependency artefacts
 without changing a fixture source. Every family therefore includes it through
 `nested_cargo::cargo_config_inputs`, which reports `.cargo/config.toml` and the
-legacy `.cargo/config` at the workspace root when they exist. A missing file is
-skipped, but a path that exists and cannot be inspected — a permission denial
-or a symlink loop — is an error rather than an absence: reporting it absent
-would drop the configuration from the input hash and let a stamp survive a
-change the build notices.
+legacy `.cargo/config` from every `.cargo` directory Cargo's walk would read —
+the workspace root and each of its ancestors — plus `$CARGO_HOME/config.toml`
+when `CARGO_HOME` is set. A missing file is skipped, but a path that exists and
+cannot be inspected — a permission denial or a symlink loop — is an error rather
+than an absence: reporting it absent would drop the configuration from the
+input hash and let a stamp survive a change the build notices.
 
 Configuration deeper in the tree needs no separate entry — every caller already
 hashes `crates/` and its own fixture directory, and `input_hash` walks both.
-Configuration *above* the workspace (a user's `~/.cargo/config.toml`, or
-`CARGO_HOME`) is host state rather than part of the checkout and is
-deliberately excluded, so a stamp stays reproducible from the repository alone.
+Host configuration is included because ignoring it was unsound: a `CARGO_HOME`
+setting such as a target-directory or build-flag override changes what the
+nested build produces, and a stamp that never saw the file would survive the
+change. Its cost is that the stamp is no longer reproducible from the checkout
+alone; it is reproducible from the checkout *plus* the configuration Cargo
+would actually read, which is the property the stamp has to have.
 
 ### A bound must bound its own bookkeeping
 
@@ -1165,11 +1185,15 @@ killed the whole test at its own limit with no timeout error in the log — so
 the diagnostic that motivated the bound was never produced.
 
 `nested_cargo::drain::Drain` therefore collects through a channel and stops at
-EOF **or** at a fixed post-kill grace period. Output is complete the moment the
-child exits, so the grace period costs nothing on the normal path and caps the
-path that used to hang. Any future bounded spawner over a process that forks
-needs the same treatment; the shared helper is the only implementation so the
-rule is applied once rather than rediscovered per suite.
+EOF **or** at a fixed post-kill grace period. Captured output is a *possibly
+truncated prefix*, on both the success and the timeout path — including when the
+direct child exits, because a descendant may still hold the pipe. Only EOF
+promises complete output. That is why the grace period costs nothing on the
+normal path while still capping the path that used to hang, and why a caller
+must not read the captured text as the whole of what the child wrote. Any future
+bounded spawner over a process that forks needs the same treatment; the shared
+helper is the only implementation so the rule is applied once rather than
+rediscovered per suite.
 
 ## Rust documentation policy and gates
 

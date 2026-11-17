@@ -16,47 +16,68 @@ use std::{
 
 use super::stamp::{PREPARED_FILE_SUFFIX, STAMP_VERSION};
 
-/// Paths of the Cargo configuration files committed at `workspace_root`.
+/// Paths of the Cargo configuration files that apply at `workspace_root`.
 ///
 /// Cargo discovers configuration by walking from a command's working directory
-/// up to the filesystem root, so a nested fixture build beneath the workspace
-/// applies the workspace `.cargo/config.toml`. That file sets development
-/// profile options and the Linux linker flags, and changing either changes
+/// up to the filesystem root, and additionally reads `$CARGO_HOME/config.toml`.
+/// A nested fixture build beneath the workspace therefore applies the workspace
+/// `.cargo/config.toml` *and* any configuration above it. Those files set
+/// development profile options, the Linux linker flags and, in `CARGO_HOME`,
+/// the directories Cargo binds mounts from; changing any of them changes
 /// dependency artefacts without changing a single fixture source. A stamp that
-/// ignored it would survive a configuration-only edit, and the timed assertion
-/// would then compile the graph the preparation was meant to have built.
+/// ignored them would survive a configuration-only edit, and the timed
+/// assertion would then compile the graph the preparation was meant to have
+/// built. The regression for the `CARGO_HOME` case is
+/// `tests::a_cargo_home_setting_change_invalidates_the_prepared_tree`.
 ///
-/// Only the two files at the workspace root are reported. Configuration deeper
-/// in the tree is already covered, because every caller also hashes the
-/// `crates/` tree and its own fixture directory, and [`input_hash`] walks both.
-/// Configuration above the workspace — `CARGO_HOME` and a user's home
-/// directory — is host state rather than part of the checkout, so it is
-/// deliberately excluded: a stamp has to be reproducible from the repository
-/// alone.
-///
-/// Cargo accepts `config.toml` or the legacy `config` name, and a checkout may
-/// commit neither, so a missing file is skipped rather than named.
+/// Every ancestor of the workspace root is walked, so a checkout nested inside
+/// a larger tree picks up the configuration Cargo would read there, plus
+/// `$CARGO_HOME/config.toml` when `CARGO_HOME` is set. Cargo accepts
+/// `config.toml` or the legacy `config` name and a checkout may commit
+/// neither, so a missing file is skipped rather than named.
 ///
 /// # Errors
 ///
-/// Returns the error when either path cannot be inspected. The probe is
-/// fallible for the same reason [`input_hash`] is: a path that exists but
-/// cannot be examined — a permission denial or a symlink loop — must not be
-/// reported as absent. That answer would leave the configuration out of the
-/// fingerprint, so a stamp would survive a configuration change the build
-/// would notice, which is the gap this function exists to close. A missing
-/// file is the only error treated as "no configuration".
+/// Returns the error when any path cannot be inspected. The probe is fallible
+/// for the same reason [`input_hash`] is: a path that exists but cannot be
+/// examined — a permission denial or a symlink loop — must not be reported as
+/// absent. That answer would leave the configuration out of the fingerprint, so
+/// a stamp would survive a configuration change the build would notice, which is
+/// the gap this function exists to close. A missing file is the only error
+/// treated as "no configuration".
 pub fn cargo_config_inputs(workspace_root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut present = Vec::new();
-    for entry in [".cargo/config.toml", ".cargo/config"] {
-        let path = workspace_root.join(entry);
-        match fs::metadata(&path) {
-            Ok(_) => present.push(path),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
+    for directory in config_search_dirs(workspace_root) {
+        for entry in ["config.toml", "config"] {
+            let path = directory.join(entry);
+            match fs::metadata(&path) {
+                Ok(_) => present.push(path),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
         }
     }
     Ok(present)
+}
+
+/// The `.cargo` directories Cargo searches, nearest first.
+///
+/// `workspace_root` and each of its ancestors contribute their `.cargo`
+/// subdirectory, matching Cargo's walk from the working directory upwards.
+/// `$CARGO_HOME` is appended when it is set to a non-empty path, because Cargo
+/// reads it in addition to the walk rather than as part of it.
+fn config_search_dirs(workspace_root: &Path) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = workspace_root
+        .ancestors()
+        .map(|ancestor| ancestor.join(".cargo"))
+        .collect();
+    if let Some(cargo_home) = std::env::var_os("CARGO_HOME") {
+        let cargo_home = PathBuf::from(cargo_home);
+        if !cargo_home.as_os_str().is_empty() {
+            dirs.push(cargo_home);
+        }
+    }
+    dirs
 }
 
 /// Directory names that hold build output rather than fixture inputs.

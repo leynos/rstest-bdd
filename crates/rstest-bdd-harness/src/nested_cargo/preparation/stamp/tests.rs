@@ -1,4 +1,14 @@
 //! Unit tests for the stamp's two-section encoding.
+//!
+//! Exercises [`render`], [`parse`] and [`matching_stamp`] from the parent
+//! [`stamp`](super) module directly, without a prepared tree. That module
+//! specifies how a fingerprint and the recorded artefact names are written to
+//! one file and read back as a match or a stale stamp; the cases here pin the
+//! encoding — a round trip that preserves every section, including an empty
+//! one, and the comparison of a fingerprint against a stamp's text for the
+//! break-terminated and bare forms. The parent module's gate and eviction
+//! behaviour is covered by the sibling `artefacts` and `lifecycle` cases, which
+//! reach this encoding only through a written stamp.
 
 use std::path::PathBuf;
 

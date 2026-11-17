@@ -369,6 +369,64 @@ pub(super) fn verify_recorded(
     refuse_evictions(preparation, &evicted(preparation, Some(&stamp))?)
 }
 
+/// Refuse a preparation whose declared packages contributed no recorded name.
+///
+/// [`Preparation::owned_packages`] is a claim: "these packages are what my
+/// preparation built, so my stamp speaks for their units". The ownership
+/// filter turns that claim into a *restriction* — names outside it are dropped
+/// from the record — but a restriction alone cannot detect a claim that is
+/// wrong in the safe-looking direction. A package named there that the build
+/// never actually produced contributes nothing to the record, so its units are
+/// silently absent from the stamp; evicting them later then compares an empty
+/// list with an empty list and passes the gate, which is precisely the failure
+/// the ownership rule exists to prevent. The same happens for a name that is
+/// misspelled or stale after a package rename.
+///
+/// Checking each declared package for at least one recorded name closes that
+/// hole. It is deliberately run after [`record`] and before the stamp is
+/// written: the record is what the command actually left, so a disagreement
+/// between declaration and reality is visible there and nowhere else.
+///
+/// Skipped when `owned_packages` is empty, because an empty list means the
+/// family claims its whole target directory and has declared nothing to check.
+///
+/// # Errors
+///
+/// Returns [`io::ErrorKind::InvalidInput`] naming every declared package that
+/// contributed no recorded name.
+pub(super) fn verify_declared(
+    preparation: &Preparation,
+    recorded: &[Vec<String>],
+) -> io::Result<()> {
+    if preparation.owned_packages.is_empty() {
+        return Ok(());
+    }
+    let names: Vec<&String> = recorded.iter().flatten().collect();
+    let unbuilt: Vec<&str> = preparation
+        .owned_packages
+        .iter()
+        .filter(|package| {
+            !names
+                .iter()
+                .any(|name| ownership::name_is_owned(name, std::slice::from_ref(*package)))
+        })
+        .map(String::as_str)
+        .collect();
+    if unbuilt.is_empty() {
+        return Ok(());
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!(
+            "preparation of family `{}` declares owned packages that contributed no recorded \
+             artefact: {}. A stamp that named them would vouch for units this preparation never \
+             built, so their eviction would pass the gate unnoticed",
+            preparation.family,
+            unbuilt.join(", ")
+        ),
+    ))
+}
+
 /// Turn a non-empty eviction list into the preparation failure.
 fn refuse_evictions(preparation: &Preparation, evicted: &[Eviction]) -> io::Result<()> {
     if evicted.is_empty() {

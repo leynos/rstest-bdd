@@ -28,7 +28,7 @@
 use std::{env, io, path::PathBuf, process::Command};
 
 use camino::{Utf8Path, Utf8PathBuf};
-use rstest_bdd_harness::nested_cargo;
+use rstest_bdd_harness::{macrotest_support::reject_trybuild_filter, nested_cargo};
 
 use super::{macros_fixture, staging, wip};
 
@@ -216,10 +216,18 @@ pub(crate) fn ui_clippy_command(bin: &str) -> io::Result<Command> {
 
 /// Prepare both families unconditionally, for the named preparation test.
 ///
+/// "Unconditionally" is about the stamp: [`nested_cargo::prepare_now`] rebuilds
+/// even when a current stamp is present, which is what
+/// `make prepare-nested-fixtures` needs. It still returns at a stamp the gate
+/// accepts, so both the trybuild-filter refusal and the rebuild are reached
+/// only when the family is actually prepared.
+///
 /// # Errors
 ///
-/// Returns the nested build's error when either family fails to prepare, and
-/// the stamp I/O error when one cannot be written.
+/// Returns a [`io::ErrorKind::InvalidInput`] error when a family has to prepare
+/// and the run carries a `trybuild=` fixture filter, the nested build's error
+/// when either family fails to prepare, and the stamp I/O error when one cannot
+/// be written.
 pub(crate) fn prepare_all(target_directory: &Utf8Path) -> io::Result<()> {
     let trybuild = trybuild_preparation(target_directory)?;
     nested_cargo::prepare_now(&trybuild, prepare_trybuild)?;
@@ -280,7 +288,18 @@ fn nested_fixture_preparation() -> io::Result<()> {
 /// a real one now: the compile-fail probe leaves its diagnostics in `wip/`,
 /// and removing them is a filesystem step that can fail, so this propagates
 /// that error rather than panicking on it.
+///
+/// It is also where the `trybuild=` fixture filter is refused. `trybuild`
+/// retains only the queued fixtures whose path contains the filter, so a
+/// filtered run would queue both probes, drop the ones that do not match, and
+/// still leave this closure writing the complete stamp for the family. The
+/// timed case would then be admitted into a tree missing whatever mode the
+/// dropped probe was meant to warm — the cold-build failure the preparation
+/// exists to prevent. Refusing here rather than at the entry points keeps a
+/// filtered assertion working over an already-prepared tree, which never
+/// reaches this closure because the stamp is accepted first.
 fn prepare_trybuild() -> io::Result<nested_cargo::PreparationSummary> {
+    reject_trybuild_filter()?;
     // Build mode first, then check mode. `trybuild` decides between `cargo
     // build` and `cargo check` for the whole generated crate from whether any
     // queued fixture is a compile-pass case, so these cannot be combined: each
@@ -356,6 +375,15 @@ fn count_checked_units(stderr: &[u8]) -> usize {
 #[cfg(test)]
 mod tests {
     //! Regression coverage for the inputs that invalidate a prepared tree.
+    //!
+    //! Exercises [`input_roots`] from the parent [`preparation`](super) module
+    //! and the hash the gate derives from it. The parent declares the two
+    //! families this binary prepares — the `trybuild` tree and the Clippy UI
+    //! target — and both stamps are only as good as the roots they hashed, so
+    //! what is checked here is that a root which changes a nested build is
+    //! actually in the list. The cases below take one such root at a time and
+    //! show it reaching `nested_cargo::input_hash`, because a root that never
+    //! reaches the hash is the same as one omitted from the list.
 
     use rstest_bdd_harness::nested_cargo;
 

@@ -169,18 +169,36 @@ mod tests {
 
     use std::{fs, io, path::Path};
 
+    use rstest::{fixture, rstest};
+
     use super::{FIXTURE_TEST_BINARIES, fixture_binaries_present};
+
+    /// An empty `debug/deps` directory beneath a retained temporary directory.
+    ///
+    /// Returned with the `TempDir` because it borrows from it: the directory
+    /// must outlive every case that writes into it.
+    ///
+    /// Fallible so a case reports why its fixture could not be built rather
+    /// than panicking inside shared setup.
+    #[fixture]
+    fn deps_directory() -> io::Result<(tempfile::TempDir, std::path::PathBuf)> {
+        let scratch = tempfile::tempdir()?;
+        let deps = scratch.path().join("debug").join("deps");
+        fs::create_dir_all(&deps)?;
+        Ok((scratch, deps))
+    }
 
     /// Write the file names Cargo would leave for one unit.
     ///
     /// Both halves are written, because a real tree carries the dep-info record
     /// and the output it describes. The hash suffix is what Cargo adds, so the
     /// names here are the shape the witness has to read.
-    fn write_unit(deps: &Path, stem: &str, hash: &str, output: Option<&str>) {
-        fs::write(deps.join(format!("{stem}-{hash}.d")), b"dep-info").expect("dep-info");
+    fn write_unit(deps: &Path, stem: &str, hash: &str, output: Option<&str>) -> io::Result<()> {
+        fs::write(deps.join(format!("{stem}-{hash}.d")), b"dep-info")?;
         if let Some(output) = output {
-            fs::write(deps.join(output), b"unit").expect("unit output");
+            fs::write(deps.join(output), b"unit")?;
         }
+        Ok(())
     }
 
     #[test]
@@ -208,14 +226,16 @@ mod tests {
             "libunrelated",
             "0123456789abcdef",
             Some("libunrelated-0123456789abcdef.rlib"),
-        );
+        )
+        .expect("the unrelated unit should be written");
         // Not even one of the fixture's, let alone both.
         write_unit(
             &deps,
             FIXTURE_TEST_BINARIES[0],
             "0123456789abcdef",
             Some("diagnostics_fixture-0123456789abcdef"),
-        );
+        )
+        .expect("the lone fixture unit should be written");
 
         let present = fixture_binaries_present(&deps).expect("the fixture deps should list");
         assert!(
@@ -236,7 +256,8 @@ mod tests {
         fs::create_dir_all(&deps).expect("deps dir");
         for stem in FIXTURE_TEST_BINARIES {
             let binary = format!("{stem}-0123456789abcdef");
-            write_unit(&deps, stem, "0123456789abcdef", Some(&binary));
+            write_unit(&deps, stem, "0123456789abcdef", Some(&binary))
+                .expect("the fixture unit should be written");
         }
 
         let present = fixture_binaries_present(&deps).expect("the fixture deps should list");
@@ -257,7 +278,8 @@ mod tests {
         let deps = scratch.path().join("debug").join("deps");
         fs::create_dir_all(&deps).expect("deps dir");
         for stem in FIXTURE_TEST_BINARIES {
-            write_unit(&deps, stem, "0123456789abcdef", None);
+            write_unit(&deps, stem, "0123456789abcdef", None)
+                .expect("the dep-info record should be written");
         }
 
         let present = fixture_binaries_present(&deps).expect("the fixture deps should list");
@@ -287,51 +309,66 @@ mod tests {
         assert!(!present, "a directory named like a test binary is not one");
     }
 
-    #[test]
-    fn a_sidecar_beside_a_binary_is_not_itself_a_witness() {
-        // MSVC writes `<stem>-<hash>.pdb` beside the executable, and a
-        // split-dwarf Linux build writes `.dwp`. Both carry the binary's full
-        // stem, so an extension-blind check reads them as the binary and
-        // accepts a tree from which the executable has been deleted — the
-        // exact state that sends a timed assertion into a rebuild.
-        let scratch = tempfile::tempdir().expect("temp dir");
-        let deps = scratch.path().join("debug").join("deps");
-        fs::create_dir_all(&deps).expect("deps dir");
+    /// What a unit's output is named, and whether that name is an executable.
+    ///
+    /// The extension policy in one table, because that is what it is: a rule
+    /// about suffixes, not five unrelated scenarios. `suffix` is appended to
+    /// `<stem>-<hash>` and `None` names the extensionless Linux form. Each row
+    /// states the reason it belongs, so a future case has an obvious home
+    /// rather than becoming a sixth near-copy of the setup.
+    #[rstest]
+    #[case::no_extension(None, true, "an extensionless Linux executable is the binary itself")]
+    #[case::uppercase_exe(
+        Some(".EXE"),
+        true,
+        "Windows names every test binary `.exe`; the filesystem that produced it is \
+         case-insensitive, so `.EXE` must witness too"
+    )]
+    #[case::pdb(
+        Some(".pdb"),
+        false,
+        "MSVC writes a `.pdb` beside the executable; it carries the full stem, so an \
+         extension-blind check accepts a tree whose executable was deleted"
+    )]
+    #[case::dwp(
+        Some(".dwp"),
+        false,
+        "a split-dwarf Linux build writes `.dwp` beside the executable, with the same stem"
+    )]
+    #[case::dep_info(
+        Some(".d"),
+        false,
+        "the dep-info record is the no-op's own tell: reading it as the witness is the state the \
+         preparation exists to exclude"
+    )]
+    #[case::rmeta(
+        Some(".rmeta"),
+        false,
+        "`cargo check` leaves a `.rmeta` where `cargo build` would leave the linked output, which \
+         is a warm check graph and a cold build one"
+    )]
+    fn only_an_executable_witnesses_a_test_binary(
+        deps_directory: io::Result<(tempfile::TempDir, std::path::PathBuf)>,
+        #[case] suffix: Option<&str>,
+        #[case] witnesses: bool,
+        #[case] reason: &str,
+    ) {
+        // The positive rows are what keep the negative ones from passing for a
+        // witness that always answers "no", and the negative rows are what keep
+        // the positive ones from passing for a check that matches any name with
+        // the right stem.
+        let (_scratch, deps) = deps_directory.expect("the deps fixture should be built");
+        let suffix = suffix.unwrap_or_default();
         for stem in FIXTURE_TEST_BINARIES {
-            for extension in ["pdb", "dwp", "d", "rmeta"] {
-                fs::write(
-                    deps.join(format!("{stem}-0123456789abcdef.{extension}")),
-                    b"sidecar",
-                )
-                .expect("sidecar");
-            }
+            fs::write(
+                deps.join(format!("{stem}-0123456789abcdef{suffix}")),
+                b"contents",
+            )
+            .expect("the output should be written");
         }
 
         let present = fixture_binaries_present(&deps).expect("the fixture deps should list");
-        assert!(
-            !present,
-            "only an executable witnesses a test binary, not a sidecar beside it"
-        );
-    }
-
-    #[test]
-    fn the_windows_executable_extension_witnesses_a_binary() {
-        // The positive control for the extension rule, and the reason it is an
-        // allowlist rather than a denylist: on Windows every test binary is
-        // `<stem>-<hash>.exe`, so a check that demanded no extension would
-        // report every prepared Windows tree as unprepared. `.EXE` is used
-        // deliberately — the filesystem that produced it is case-insensitive,
-        // and the comparison has to be too.
-        let scratch = tempfile::tempdir().expect("temp dir");
-        let deps = scratch.path().join("debug").join("deps");
-        fs::create_dir_all(&deps).expect("deps dir");
-        for stem in FIXTURE_TEST_BINARIES {
-            fs::write(deps.join(format!("{stem}-0123456789abcdef.EXE")), b"binary")
-                .expect("binary");
-        }
-
-        let present = fixture_binaries_present(&deps).expect("the fixture deps should list");
-        assert!(present, "a Windows test binary must witness itself");
+        assert_eq!(present, witnesses, "{reason}");
     }
 
     #[test]
@@ -366,7 +403,8 @@ mod tests {
                 stem,
                 "0123456789abcdef",
                 Some(&format!("{stem}-0123456789abcdef")),
-            );
+            )
+            .expect("the unit-directory fixture should be written");
         }
         assert!(
             !scratch.path().join("debug").join("deps").exists(),

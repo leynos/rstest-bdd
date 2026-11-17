@@ -2870,8 +2870,8 @@ fn timed_test(preparation: &Preparation) -> io::Result<()> {
 ```
 
 A preparation writes a stamp inside `Preparation::directory`, recording a
-fingerprint of the build-relevant environment, the toolchain identity, the
-variant label and the caller's input hash. `input_hash` and
+fingerprint of the build-relevant environment, the toolchain identity (Cargo's
+`-vV` and the compiler's own), the variant label and the caller's input hash. `input_hash` and
 `cargo_config_inputs` derive that hash from fixture sources and the workspace
 Cargo configuration; the latter returns an error, rather than skipping an
 entry, when a configuration path exists but cannot be inspected. A later run

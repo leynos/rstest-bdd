@@ -31,9 +31,13 @@ fn cargo_configuration_is_an_input() {
     let (workspace, config) = workspace_with_cargo_dir().expect("the workspace fixture");
     std::fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
 
-    assert_eq!(
-        cargo_config_inputs(workspace.path()).expect("config inputs"),
-        vec![config.clone()]
+    // The workspace file is asserted by presence rather than by whole-vector
+    // equality: the probe also reports configuration above the workspace and in
+    // `CARGO_HOME`, which is host state a portable test cannot enumerate.
+    let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
+    assert!(
+        roots.contains(&config),
+        "the workspace Cargo configuration must be an input: {roots:?}"
     );
 
     let before = input_hash(&cargo_config_inputs(workspace.path()).expect("config inputs"))
@@ -48,14 +52,56 @@ fn cargo_configuration_is_an_input() {
 }
 
 #[test]
+fn a_cargo_home_setting_change_invalidates_the_prepared_tree() {
+    // Cargo reads `$CARGO_HOME/config.toml` in addition to its upward walk, so
+    // a setting there — a rustflags override, a target-directory override —
+    // changes what the nested build produces. While that file was outside the
+    // input list, editing it left the stamp matching and the timed assertion
+    // compiled the graph the preparation was meant to have built.
+    //
+    // `CARGO_HOME` is process-wide and the suite runs in parallel, so the
+    // variable is set only around the probes and the hash that compares them.
+    let (workspace, _workspace_config) = workspace_with_cargo_dir().expect("the workspace fixture");
+    let cargo_home = tempfile::tempdir().expect("cargo home");
+    let home_config = cargo_home.path().join("config.toml");
+    std::fs::write(&home_config, "[build]\nrustflags = [\"-Copt-level=1\"]\n")
+        .expect("home config");
+
+    let path = cargo_home.path().to_path_buf();
+    temp_env::with_var("CARGO_HOME", Some(path.as_os_str()), || {
+        let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
+        assert!(
+            roots.contains(&home_config),
+            "the CARGO_HOME configuration must be a preparation input: {roots:?}"
+        );
+        let before = input_hash(&roots).expect("hash before");
+        std::fs::write(&home_config, "[build]\nrustflags = [\"-Copt-level=3\"]\n")
+            .expect("home config edit");
+        let after = input_hash(&cargo_config_inputs(workspace.path()).expect("config inputs"))
+            .expect("hash after");
+        assert_ne!(
+            before, after,
+            "a CARGO_HOME-only change must invalidate the prepared artefacts"
+        );
+    });
+}
+
+#[test]
 fn missing_cargo_configuration_is_not_an_input() {
     // A checkout may commit neither accepted file name; naming a missing root
     // would make every preparation fail on a read error instead of treating the
     // configuration as absent.
+    //
+    // The probe now also reports any configuration above the workspace and in
+    // `CARGO_HOME`, so the assertion is about the workspace's own entries
+    // rather than about an empty vector: on a host with a `~/.cargo/config.toml`
+    // there is legitimately something to report, and a whole-vector equality
+    // would fail for that reason rather than for the behaviour under test.
     let workspace = tempfile::tempdir().expect("workspace dir");
-    assert_eq!(
-        cargo_config_inputs(workspace.path()).expect("config inputs"),
-        [] as [PathBuf; 0]
+    let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
+    assert!(
+        !roots.iter().any(|path| path.starts_with(workspace.path())),
+        "a workspace with no committed configuration contributes nothing: {roots:?}"
     );
 }
 
@@ -75,7 +121,10 @@ fn a_symlinked_cargo_configuration_contributes_its_target() {
     std::os::unix::fs::symlink(&target, &link).expect("config symlink");
 
     let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
-    assert_eq!(roots, vec![link], "the link must still be reported");
+    assert!(
+        roots.contains(&link),
+        "the link must still be reported: {roots:?}"
+    );
 
     let before = input_hash(&roots).expect("hash through the link");
     std::fs::write(&target, "[profile.dev]\nincremental = true\n").expect("config edit");
@@ -100,10 +149,10 @@ fn a_dangling_cargo_configuration_link_reads_as_absent() {
     let (workspace, link) = workspace_with_cargo_dir().expect("the workspace fixture");
     std::os::unix::fs::symlink(workspace.path().join("gone.toml"), &link).expect("symlink");
 
-    assert_eq!(
-        cargo_config_inputs(workspace.path()).expect("a dangling link is not an error"),
-        [] as [PathBuf; 0],
-        "a link whose target is gone contributes no configuration"
+    let roots = cargo_config_inputs(workspace.path()).expect("a dangling link is not an error");
+    assert!(
+        !roots.contains(&link),
+        "a link whose target is gone contributes no configuration: {roots:?}"
     );
 }
 

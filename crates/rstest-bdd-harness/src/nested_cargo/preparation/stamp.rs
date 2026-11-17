@@ -36,7 +36,13 @@ pub(super) use super::stamp_file::{render, write_stamp};
 /// Version 3 escapes each recorded value onto a single line. Version 2 wrote
 /// values verbatim, so a value containing a line break could forge the field
 /// that followed it.
-pub(super) const STAMP_VERSION: &str = "3";
+///
+/// Version 4 records the compiler as well as Cargo. A version-3 stamp carries
+/// only Cargo's identity, so without the bump a stamp written before the
+/// compiler probe existed would still compose the text this version expects for
+/// a stamp that had never recorded a compiler — and the compiler-change
+/// invalidation it exists for would not happen on the upgrade itself.
+pub(super) const STAMP_VERSION: &str = "4";
 
 /// Suffix of the hidden stamp file written inside a prepared artefact
 /// directory.
@@ -280,10 +286,11 @@ where
 
 /// Compose the fingerprint text from an already-resolved toolchain identity.
 ///
-/// Separated from [`fingerprint`] so the text can be exercised against a chosen
-/// identity: [`toolchain_identity`] runs `cargo -vV`, which a unit test cannot
-/// vary, yet the identity decides whether a stamp survives a compiler change.
-/// Composition is therefore free of process execution, and infallible.
+/// Separated from [`fingerprint_with`] so the text can be exercised against a
+/// chosen identity: `toolchain_identity` spawns `cargo -vV` and `rustc -vV`, which a
+/// unit test cannot vary, yet the identity decides whether a stamp survives a
+/// compiler change. Composition is therefore free of process execution, and
+/// infallible.
 pub(super) fn compose(preparation: &Preparation, toolchain: &str) -> Fingerprint {
     let mut text = String::new();
     let _ = writeln!(text, "version: {STAMP_VERSION}");

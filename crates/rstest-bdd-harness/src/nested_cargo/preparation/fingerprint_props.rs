@@ -115,20 +115,32 @@ fn preparation_over(
     variables: Vec<(std::ffi::OsString, std::ffi::OsString)>,
     variant: &str,
     inputs: &str,
-) -> Preparation {
+) -> std::io::Result<Preparation> {
     let target = std::env::temp_dir().join("target");
     let environment = crate::nested_cargo::env_from_vars(
         variables,
         Some(&target),
         crate::nested_cargo::ProfileDestination::Caller,
-    )
-    .expect("the fixture environment should resolve");
+    )?;
     Preparation::new(
         super::Sources::new("unit", variant, inputs),
         target,
         environment,
     )
-    .expect("the fixture preparation should describe its artefacts")
+}
+
+/// Report a fixture setup failure as one, not as a failed fingerprint relation.
+///
+/// Proptest has a single failure channel for a case, so the distinction has to
+/// be carried by the message: a preparation that could not be described must
+/// not read as two fields that wrongly composed the same fingerprint, nor as a
+/// value that wrongly added a line.
+fn setup<T>(result: std::io::Result<T>) -> Result<T, TestCaseError> {
+    result.map_err(|error| {
+        TestCaseError::fail(format!(
+            "the fixture preparation could not be described: {error}"
+        ))
+    })
 }
 
 proptest! {
@@ -144,8 +156,8 @@ proptest! {
         right in fingerprint_value(),
     ) {
         prop_assume!(left != right);
-        let first = preparation_over(vec![variable(&name, &left)], "v", "hash");
-        let second = preparation_over(vec![variable(&name, &right)], "v", "hash");
+        let first = setup(preparation_over(vec![variable(&name, &left)], "v", "hash"))?;
+        let second = setup(preparation_over(vec![variable(&name, &right)], "v", "hash"))?;
         prop_assert_ne!(
             compose(&first, "release: 1.88.0 host: x"),
             compose(&second, "release: 1.88.0 host: x"),
@@ -174,7 +186,7 @@ proptest! {
         variant in fingerprint_value(),
         inputs in fingerprint_value(),
     ) {
-        let preparation = preparation_over(vec![variable(&name, &value)], &variant, &inputs);
+        let preparation = setup(preparation_over(vec![variable(&name, &value)], &variant, &inputs))?;
         let recorded = preparation
             .environment
             .iter()
@@ -208,7 +220,7 @@ proptest! {
         variant in fingerprint_value(),
         inputs in fingerprint_value(),
     ) {
-        let preparation = preparation_over(vec![variable(&name, &value)], &variant, &inputs);
+        let preparation = setup(preparation_over(vec![variable(&name, &value)], &variant, &inputs))?;
         let fingerprint = compose(&preparation, &toolchain);
         let written = render(&fingerprint, &[]);
         prop_assert!(
@@ -257,8 +269,8 @@ proptest! {
         // consuming `inputs`, only the longer text still has the delimiter's
         // spelling inside the fingerprint, so an optional newline lets the
         // longer value's own text supply what the parser is looking for next.
-        let first = preparation_over(vec![variable(&name, &value)], "v", &longer);
-        let second = preparation_over(vec![variable(&name, &value)], "v", &inputs);
+        let first = setup(preparation_over(vec![variable(&name, &value)], "v", &longer))?;
+        let second = setup(preparation_over(vec![variable(&name, &value)], "v", &inputs))?;
         let fingerprint = compose(&first, &toolchain);
         let other = compose(&second, &toolchain);
         prop_assume!(fingerprint != other);
@@ -300,9 +312,9 @@ proptest! {
         prop_assume!(other_inputs != inputs);
         prop_assume!(other_toolchain != toolchain);
 
-        let base = preparation_over(Vec::new(), &variant, &inputs);
-        let changed_variant = preparation_over(Vec::new(), &other_variant, &inputs);
-        let changed_inputs = preparation_over(Vec::new(), &variant, &other_inputs);
+        let base = setup(preparation_over(Vec::new(), &variant, &inputs))?;
+        let changed_variant = setup(preparation_over(Vec::new(), &other_variant, &inputs))?;
+        let changed_inputs = setup(preparation_over(Vec::new(), &variant, &other_inputs))?;
         prop_assert_ne!(compose(&base, &toolchain), compose(&changed_variant, &toolchain));
         prop_assert_ne!(compose(&base, &toolchain), compose(&changed_inputs, &toolchain));
         prop_assert_ne!(compose(&base, &toolchain), compose(&base, &other_toolchain));

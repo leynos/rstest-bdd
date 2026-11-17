@@ -116,42 +116,89 @@ const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
 /// of both the recorded and the present name lists, where an evicted record
 /// then compares equal to itself and passes the gate.
 ///
-/// The list is the fixture's *whole* workspace dependency closure, not only the
-/// two crates its manifest names. `rstest-bdd` depends on `rstest-bdd-patterns`
-/// and `rstest-bdd-policy`, and `rstest-bdd-macros` on those two and
-/// `rstest-bdd-harness`, so one build also compiles four crates the manifest
-/// never mentions. Naming only the direct edges left a transitive dependency's
-/// eviction passing exactly as the fixture's own did before, which is the same
-/// defect one level down.
+/// The list is the fixture's *whole* dependency closure — not only the two
+/// crates its manifest names, and not only its path dependencies. `rstest-bdd`
+/// depends on `rstest-bdd-patterns` and `rstest-bdd-policy`, and
+/// `rstest-bdd-macros` on those two and `rstest-bdd-harness`, so one build also
+/// compiles four workspace crates the manifest never mentions. Beyond those, the
+/// build compiles its registry dependencies — `inventory`, `serial_test` and
+/// their trees — into the same profile, and a registry crate's units are exactly
+/// as evictable as a path crate's even though its sources cannot change. Naming
+/// only the path edges left those units filtered out of both lists, so removing
+/// one of their fingerprint records compared equal to itself and passed.
 ///
-/// Measured from the fixture's own graph rather than assumed. The unrestricted
-/// closure, `cargo tree --prefix none` in `tests/fixtures/minimal`, names every
-/// one of them: `rstest-bdd`, `rstest-bdd-macros`, `rstest-bdd-harness`,
-/// `rstest-bdd-patterns` and `rstest-bdd-policy`. The narrower
-/// `--edges normal,build` view is *not* the answer here — it omits the two
-/// proc-macro host units, and a first version of this list was written from it
-/// and was wrong for exactly that reason.
+/// Measured from the fixture's own graph rather than restated here. A
+/// hand-written list cannot stay honest at this size: the fixture resolves to
+/// well over a hundred registry packages, and the set differs by target triple,
+/// so a constant would be both unmaintainable and wrong on at least one lane.
+/// `cargo tree` reads the fixture's manifest and lockfile and applies the host's
+/// own target filtering, which is the same selection the nested build makes.
 ///
-/// A crate the graph gains later is not covered by this list, and nothing in
-/// the tree can tell a new dependency from a sibling's unit at check time; that
-/// is why `Preparation::owned_packages` documents that the caller declares it.
-const FIXTURE_PATH_DEPENDENCIES: &[&str] = &[
-    "rstest-bdd",
-    "rstest-bdd-macros",
-    "rstest-bdd-harness",
-    "rstest-bdd-patterns",
-    "rstest-bdd-policy",
-];
+/// # Errors
+///
+/// Returns the resolution error when the fixture graph cannot be read, and names
+/// the output when the fixture resolves to no package at all. An empty list is
+/// not returned: an empty `owned_packages` means "this family claims the whole
+/// profile", which is exactly what this family must not do.
+fn fixture_dependency_closure() -> Result<Vec<String>> {
+    let fixture = fixture_dir();
+    let output = std::process::Command::new("cargo")
+        .args(["tree", "--prefix", "none", "--locked", "--offline"])
+        .current_dir(&fixture)
+        // `cargo tree` writes the graph to stdout and progress or warnings to
+        // stderr; the parse below needs only the former, but a failure has to
+        // report both or the cause is invisible.
+        .output()
+        .wrap_err_with(|| format!("resolving the fixture graph in {}", fixture.display()))?;
+    let combined = || {
+        format!(
+            "stdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    };
+    if !output.status.success() {
+        return Err(eyre::eyre!(
+            "`cargo tree` failed for the CLI fixture:\n{}",
+            combined()
+        ));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut names: Vec<String> = text
+        .lines()
+        // `cargo tree --prefix none` prints one package per line as
+        // `<name> v<version>` followed by a path or `(proc-macro)` marker. A
+        // continued or repeated entry (`(*)`) still leads with the name, so the
+        // first token is the name in every form. Blank lines are separators.
+        .filter_map(|line| line.split_whitespace().next())
+        .map(str::to_owned)
+        .collect();
+    names.sort();
+    names.dedup();
+    if names.is_empty() {
+        return Err(eyre::eyre!(
+            "the CLI fixture resolved to no package; its output was:\n{}",
+            combined()
+        ));
+    }
+    Ok(names)
+}
 
 /// Describe the CLI preparation family.
 ///
-/// The family names its fixture package because it builds into the workspace
-/// `target/debug`, which the integration-test binaries and the rebuild
-/// scratch families also write to. A stamp that recorded the whole profile
-/// would vouch for units this family never built — and the rebuild suite's
-/// deliberate `cargo clean -p` would then leave this stamp refused for ever.
-/// It names the fixture's path dependencies for the opposite reason: those
+/// The family names its fixture package's whole dependency closure because it
+/// builds into the workspace `target/debug`, which the integration-test
+/// binaries and the rebuild scratch families also write to. A stamp that
+/// recorded the whole profile would vouch for units this family never built —
+/// and the rebuild suite's deliberate `cargo clean -p` would then leave this
+/// stamp refused for ever. Naming the closure is the opposite correction: those
 /// units *were* built here, and leaving them out would let their eviction pass.
+///
+/// # Errors
+///
+/// Returns the environment, target-directory or input-hash error from
+/// [`cli_preparation`], and the resolution error when the fixture's dependency
+/// closure cannot be read.
 fn cli_preparation_description() -> Result<(nested_cargo::Preparation, nested_cargo::NestedCargoEnv)>
 {
     let (child_env, target_root, inputs) = cli_preparation()?;
@@ -160,14 +207,7 @@ fn cli_preparation_description() -> Result<(nested_cargo::Preparation, nested_ca
         target_root,
         child_env.clone(),
     )?;
-    // The fixture first, then the crates its build pulls in. Built by chaining
-    // rather than by a conditional append so the list is never empty on this
-    // path: an empty `owned_packages` means "claims the whole profile", which
-    // is exactly what this family must not do.
-    preparation.owned_packages = std::iter::once(FIXTURE_PACKAGE)
-        .chain(FIXTURE_PATH_DEPENDENCIES.iter().copied())
-        .map(str::to_owned)
-        .collect();
+    preparation.owned_packages = fixture_dependency_closure()?;
     Ok((preparation, child_env))
 }
 
@@ -339,7 +379,13 @@ mod tests {
     //! runs against a warm tree cannot distinguish a real preparation from a
     //! no-op.
 
-    use super::{cli_preparation, fixture_dir, nested_cargo};
+    use super::{
+        FIXTURE_PACKAGE,
+        cli_preparation,
+        fixture_dependency_closure,
+        fixture_dir,
+        nested_cargo,
+    };
     use crate::workspace_root;
 
     /// The CLI family's inputs without the workspace Cargo configuration.
@@ -371,5 +417,44 @@ mod tests {
             inputs, without,
             "the workspace Cargo configuration must change the CLI input hash"
         );
+    }
+
+    #[test]
+    fn the_owned_packages_cover_the_whole_dependency_closure() {
+        // Both halves of the fixture's build have to be declared, and the case
+        // is written against the live graph rather than against a literal so it
+        // cannot drift from the fixture. The workspace crates are the transitive
+        // path dependencies the manifest never names; the registry crates are
+        // `inventory`, `serial_test` and their trees, whose units are compiled
+        // into the same profile and are evictable in exactly the same way even
+        // though their sources cannot change.
+        let closure = fixture_dependency_closure().expect("the fixture closure must resolve");
+        let declared: std::collections::BTreeSet<&str> = std::iter::once(FIXTURE_PACKAGE)
+            .chain(closure.iter().map(String::as_str))
+            .collect();
+        let (_environment, _target_root, _inputs) =
+            cli_preparation().expect("preparation description should resolve");
+
+        // The registry half specifically: a list built from the manifests alone
+        // holds the path crates and neither of these.
+        for package in ["inventory", "serial_test"] {
+            assert!(
+                declared.contains(package),
+                "the declaration must cover the fixture's registry dependencies; {package} is \
+                 compiled into the shared profile and its eviction would pass the gate"
+            );
+        }
+        // And the transitive workspace half, which the manifests also omit.
+        for package in [
+            "rstest-bdd-harness",
+            "rstest-bdd-patterns",
+            "rstest-bdd-policy",
+        ] {
+            assert!(
+                declared.contains(package),
+                "the declaration must cover the fixture's transitive workspace dependencies; \
+                 {package} is built here and its eviction would pass the gate"
+            );
+        }
     }
 }

@@ -15,7 +15,10 @@
 
 use std::io;
 
-use rstest_bdd_harness::{macrotest_support::TrybuildTree, nested_cargo::PreparationSummary};
+use rstest_bdd_harness::{
+    macrotest_support::{TrybuildTree, reject_trybuild_filter},
+    nested_cargo::PreparationSummary,
+};
 
 use super::stage_trybuild_support_files;
 
@@ -35,6 +38,13 @@ const TARGET_SUBDIR: &str = "rstest-bdd-harness-tokio";
 /// everything the timed run needs and leaves every fixture under test, every
 /// `.stderr` snapshot and every `.expanded.rs` snapshot untouched.
 const PROBE: &str = "tests/fixtures_macros/scenario_attributes_tokio.rs";
+
+/// A compile-fail fixture, probed only to warm check mode.
+///
+/// It is never asserted on here: the point is that `trybuild` checks it rather
+/// than builds it, which populates the metadata graph that a `check`-mode timed
+/// case needs and leaves it warm.
+const COMPILE_FAIL_PROBE: &str = "tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs";
 
 /// The trybuild tree this test binary prepares.
 pub(super) fn tree() -> TrybuildTree {
@@ -68,10 +78,26 @@ fn variant() -> String { "no-features".to_owned() }
 /// This is also the lazy path the timed test takes under plain `cargo test`,
 /// so preparation and assertion cannot drift apart.
 pub(super) fn prepare() -> io::Result<PreparationSummary> {
+    // A `trybuild=` argument would drop one or both probes, warm part of the
+    // graph, and still leave this closure writing the complete stamp. Refusing
+    // here rather than at the gate keeps a filtered assertion working over an
+    // already-prepared tree, which is accepted at the stamp before reaching
+    // this closure.
+    reject_trybuild_filter()?;
     stage_trybuild_support_files().map_err(|error| io::Error::other(error.to_string()))?;
-    let tests = trybuild::TestCases::new();
-    tests.pass(PROBE);
-    drop(tests);
+    // Two `TestCases`, not one. `trybuild` builds a `pass` fixture and checks a
+    // `compile_fail` fixture differently: build mode needs the linked
+    // dependency graph, check mode needs only metadata, so the two modes warm
+    // different halves of the target directory. A single `TestCases` holding
+    // both probes would select one mode and leave the other cold for the timed
+    // case. The pass probe keeps its own object; the compile-fail probe gets a
+    // separate one.
+    let pass_probe = trybuild::TestCases::new();
+    pass_probe.pass(PROBE);
+    drop(pass_probe);
+    let compile_fail_probe = trybuild::TestCases::new();
+    compile_fail_probe.compile_fail(COMPILE_FAIL_PROBE);
+    drop(compile_fail_probe);
     // `trybuild` streams its nested Cargo's output to this process's own
     // streams, so the unit count cannot be captured here. The preparation log
     // still records the elapsed time, which is the figure the timeout budget is

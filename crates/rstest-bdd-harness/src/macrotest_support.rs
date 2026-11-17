@@ -127,6 +127,68 @@ pub fn trybuild_crate_root(
     Ok(trybuild_target_root(manifest_path)?.join(target_subdir))
 }
 
+/// Refuse a preparation run that carries a `trybuild=` fixture filter.
+///
+/// Callers that prepare a trybuild tree through [`TrybuildTree`] get this for
+/// free; a caller that drives `nested_cargo::prepare_now` directly must call it
+/// itself, because a filter is visible only to the process's arguments and not
+/// to the preparation state.
+///
+/// `trybuild` reads filters from the test binary's own arguments — `cargo test
+/// -- name trybuild=<substring>` — and retains only the queued fixtures whose
+/// path contains the substring. A preparation that ran with one would queue two
+/// probes, have one or both dropped, and still write the complete stamp for the
+/// whole family: the stamp would then vouch for artefacts that the narrowed run
+/// never compiled. The gate would admit the timed case into a partially cold
+/// tree, which is exactly the failure the preparation exists to prevent.
+///
+/// Refusing is the safe half of the choice. The alternative — silently dropping
+/// the filter — would make a deliberately narrow invocation compile the full
+/// graph, which is the expense a developer using the filter was avoiding. A
+/// filtered *assertion* over an already-prepared tree is unaffected: it does not
+/// reach this function, because the gate accepts the stamp and returns before
+/// preparing.
+///
+/// The argument list is read with [`std::env::args_os`], the same source
+/// `trybuild` uses, so this guard cannot disagree with the library about what a
+/// filter is.
+///
+/// # Errors
+///
+/// Returns a [`io::ErrorKind::InvalidInput`] error naming the offending filter
+/// when any argument starts with `trybuild=` and has a non-empty suffix.
+pub fn reject_trybuild_filter() -> io::Result<()> {
+    trybuild_filter(std::env::args_os().filter_map(|argument| argument.into_string().ok()))
+}
+
+/// The decision [`reject_trybuild_filter`] applies, over any argument sequence.
+///
+/// Split out because the process's own arguments are whatever the test runner
+/// was given, and a regression test cannot set those. The caller above passes
+/// the real list; the tests pass the lists a filtered and an unfiltered run
+/// would produce.
+///
+/// # Errors
+///
+/// As [`reject_trybuild_filter`].
+fn trybuild_filter(arguments: impl IntoIterator<Item = String>) -> io::Result<()> {
+    const PREFIX: &str = "trybuild=";
+    let filter = arguments
+        .into_iter()
+        .find(|argument| argument.starts_with(PREFIX) && argument != PREFIX);
+    filter.map_or(Ok(()), |filter| {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "preparation must queue every probe, but this run filters trybuild fixtures with \
+                 `{filter}`. Re-run the preparation without a `trybuild=` argument: a filtered \
+                 run would write a complete stamp from a partial set of probes, and the timed \
+                 case would then compile the missing graph inside its own deadline."
+            ),
+        ))
+    })
+}
+
 /// One harness crate's trybuild build tree, prepared before its timed cases.
 ///
 /// The timed `macro_compile` cases in the Tokio and GPUI harness crates, and
@@ -182,6 +244,11 @@ impl TrybuildTree {
     /// point `make prepare-nested-fixtures` reaches, which runs under nextest
     /// where [`Self::ensure_prepared`] would otherwise fail fast.
     ///
+    /// The guard against a `trybuild=` fixture filter belongs in the closure,
+    /// not here: a filtered assertion over an already-prepared tree must keep
+    /// working, and that path returns at the stamp without calling the closure.
+    /// [`reject_trybuild_filter`] documents the requirement.
+    ///
     /// # Errors
     ///
     /// Returns the closure's error when the probe compile fails, the I/O error
@@ -195,6 +262,8 @@ impl TrybuildTree {
     }
 
     /// Ensure the tree is prepared, failing fast under nextest when it is not.
+    ///
+    /// As [`Self::prepare_now`], the filter guard belongs in the closure.
     ///
     /// # Errors
     ///
@@ -279,11 +348,12 @@ impl TrybuildTree {
 
 #[cfg(test)]
 mod tests {
-    //! Regression coverage for the inputs that invalidate a prepared tree.
+    //! Regression coverage for `TrybuildTree`: the inputs that invalidate a
+    //! prepared tree, and the `trybuild=` filter that must refuse preparation.
 
     use std::fs;
 
-    use super::TrybuildTree;
+    use super::{TrybuildTree, trybuild_filter};
 
     #[test]
     fn trybuild_inputs_include_the_workspace_cargo_configuration() {
@@ -306,5 +376,48 @@ mod tests {
             inputs.contains(&config),
             "the workspace Cargo configuration must be a preparation input: {inputs:?}"
         );
+    }
+
+    #[test]
+    fn preparation_refuses_a_trybuild_filter() {
+        // `trybuild` retains only the queued fixtures whose path contains the
+        // filter substring, so a filtered preparation would queue both probes
+        // and run a subset of them — then write the complete stamp anyway. That
+        // stamp would admit the timed case into a tree missing the mode it did
+        // not warm, which is the cold-build failure issue 910 records.
+        let error = trybuild_filter([
+            "nested_fixture_preparation".to_owned(),
+            "trybuild=scenario_attributes".to_owned(),
+        ])
+        .expect_err("a filtered preparation must be refused");
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+        let message = error.to_string();
+        assert!(
+            message.contains("trybuild=scenario_attributes"),
+            "the refusal must name the offending filter: {message}"
+        );
+    }
+
+    #[test]
+    fn preparation_accepts_an_unfiltered_run() {
+        // The common case: the runner's own arguments, and possibly a test-name
+        // filter that `trybuild` ignores. Neither may be read as a fixture
+        // filter, and a bare `trybuild=` prefix with no suffix is not one.
+        for arguments in [
+            vec!["nested_fixture_preparation".to_owned()],
+            vec![
+                "nested_fixture_preparation".to_owned(),
+                "trybuild=".to_owned(),
+            ],
+            vec![
+                "nested_fixture_preparation".to_owned(),
+                "--exact".to_owned(),
+            ],
+        ] {
+            assert!(
+                trybuild_filter(arguments.clone()).is_ok(),
+                "an unfiltered run must prepare: {arguments:?}"
+            );
+        }
     }
 }

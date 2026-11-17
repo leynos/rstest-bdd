@@ -67,12 +67,44 @@ pub use profile::ProfileDestination;
 /// Preparation summaries report this so the log line shows how much cold work
 /// a family paid for. `cargo check` prints `Checking` instead, which is why the
 /// count is deliberately of builds and not of units.
+///
+/// ANSI escape sequences are stripped before matching. CI sets
+/// `CARGO_TERM_COLOR=always`, so a nested `cargo` that is not given
+/// `--color=never` prefixes each status line with an escape sequence; without
+/// the strip, a cold preparation would report zero compilations and the
+/// prepared-fixture gate would read that as reuse.
 #[must_use]
 pub fn count_compiling(stderr: &[u8]) -> usize {
     String::from_utf8_lossy(stderr)
         .lines()
-        .filter(|line| line.trim_start().starts_with("Compiling "))
+        .filter(|line| strip_ansi(line).trim_start().starts_with("Compiling "))
         .count()
+}
+
+/// Remove ANSI escape sequences from one line of captured output.
+///
+/// Handles both the CSI form Cargo emits for colour (`ESC [ ... m`) and the
+/// bare `ESC`-introduced forms, so the result is the visible text.
+fn strip_ansi(line: &str) -> String {
+    let mut visible = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(character) = chars.next() {
+        if character != '\u{1b}' {
+            visible.push(character);
+            continue;
+        }
+        // Consume the introducer and parameters of a CSI sequence, ending at
+        // the first byte in the final-byte range. A lone `ESC` is dropped.
+        if chars.peek() == Some(&'[') {
+            chars.next();
+            for byte in chars.by_ref() {
+                if ('\u{40}'..='\u{7e}').contains(&byte) {
+                    break;
+                }
+            }
+        }
+    }
+    visible
 }
 
 /// Whether the current process was started by `cargo nextest`.

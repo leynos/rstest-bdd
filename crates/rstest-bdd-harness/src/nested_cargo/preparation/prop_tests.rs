@@ -186,21 +186,33 @@ fn parents_exist(tree: &Tree, path: &str) -> bool {
 /// on ext4 that measured nothing, because `read_dir` returned the same
 /// hash-derived order either way. See the module note on what these tests
 /// cannot show.
-fn write_tree(root: &Path, tree: &Tree) {
+fn write_tree(root: &Path, tree: &Tree) -> std::io::Result<()> {
     for (path, contents) in tree {
         let destination = root.join(path);
         if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).expect("parent directory");
+            fs::create_dir_all(parent)?;
         }
-        fs::write(&destination, contents).expect("input file");
+        fs::write(&destination, contents)?;
     }
+    Ok(())
 }
 
 /// Hash `tree` created under a fresh temporary root.
-fn hash_of(tree: &Tree) -> String {
-    let directory = tempfile::tempdir().expect("temp dir");
-    write_tree(directory.path(), tree);
-    input_hash(std::slice::from_ref(&directory.path().to_path_buf())).expect("input hash")
+fn hash_of(tree: &Tree) -> std::io::Result<String> {
+    let directory = tempfile::tempdir()?;
+    write_tree(directory.path(), tree)?;
+    input_hash(std::slice::from_ref(&directory.path().to_path_buf()))
+}
+
+/// Report a fixture setup failure as one, not as a failed hash relation.
+///
+/// Proptest has a single failure channel for a case, so the distinction has to
+/// be carried by the message: a tree that could not be written must not read as
+/// an input that wrongly reached, or wrongly missed, the hash.
+fn setup<T>(result: std::io::Result<T>) -> Result<T, TestCaseError> {
+    result.map_err(|error| {
+        TestCaseError::fail(format!("the fixture tree could not be prepared: {error}"))
+    })
 }
 
 proptest! {
@@ -226,9 +238,11 @@ proptest! {
             let destination = format!("moved/{path}");
             if !moved.keys().any(|kept| conflicts(kept, &destination)) {
                 moved.insert(destination, contents);
+                let before = setup(hash_of(&tree))?;
+                let after = setup(hash_of(&moved))?;
                 prop_assert_ne!(
-                    hash_of(&tree),
-                    hash_of(&moved),
+                    before,
+                    after,
                     "an input's path must reach the hash, not only its bytes"
                 );
             }
@@ -252,9 +266,11 @@ proptest! {
                 copy
             });
         if let Some(changed) = changed {
+            let before = setup(hash_of(&tree))?;
+            let after = setup(hash_of(&changed))?;
             prop_assert_ne!(
-                hash_of(&tree),
-                hash_of(&changed),
+                before,
+                after,
                 "an input's bytes must reach the hash"
             );
         }
@@ -277,9 +293,11 @@ proptest! {
         if !tree.keys().any(|kept| conflicts(kept, &extra)) && parents_exist(&tree, &extra) {
             let mut with_extra = tree.clone();
             with_extra.insert(extra, b"build output".to_vec());
+            let without = setup(hash_of(&tree))?;
+            let with = setup(hash_of(&with_extra))?;
             prop_assert_eq!(
-                hash_of(&tree),
-                hash_of(&with_extra),
+                without,
+                with,
                 "build output must be excluded wherever it appears"
             );
         }

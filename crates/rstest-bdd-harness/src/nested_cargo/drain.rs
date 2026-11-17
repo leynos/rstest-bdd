@@ -71,6 +71,15 @@ impl Drain {
 #[cfg(test)]
 mod tests {
     //! Draining behaviour that does not need a real child process.
+    //!
+    //! Exercises [`Drain::spawn`] and [`Drain::collect_until`] from the parent
+    //! [`drain`](super) module against an `std::io` pipe the case writes to
+    //! itself, which is how the two halves of the contract are tested without a
+    //! child: a reader that reaches EOF returns everything buffered, and one
+    //! whose write end is still open returns at its stop time with whatever
+    //! prefix arrived. The parent's other entry point, `spawn_and_collect`,
+    //! pairs these with a real child and is covered by the suites that run
+    //! bounded nested commands.
 
     use std::{
         io::Write,
@@ -94,13 +103,28 @@ mod tests {
         // The writer stays alive, which is exactly the state of a pipe whose
         // write end an orphaned grandchild still holds. The bound must still
         // be honoured.
+        //
+        // The two assertions are split into separate collections on purpose. A
+        // single short window would make the test depend on the reader thread
+        // being scheduled inside it: on a loaded machine the bytes may not
+        // have arrived, and the failure would read as a draining bug rather
+        // than as a scheduling race. So the first collection gets a generous
+        // cap and asserts the content, and only then — with the writer still
+        // open — does a second, bounded collection assert that nothing further
+        // arrives and that the bound is prompt.
         let (reader, mut writer) = std::io::pipe().expect("pipe");
         let mut drain = Drain::spawn(reader);
         writer.write_all(b"partial").expect("write");
 
-        let started = Instant::now();
-        let collected = drain.collect_until(started + Duration::from_millis(50));
+        let collected = drain.collect_until(Instant::now() + Duration::from_secs(30));
         assert_eq!(collected, b"partial");
+
+        let started = Instant::now();
+        let trailing = drain.collect_until(started + Duration::from_millis(50));
+        assert!(
+            trailing.is_empty(),
+            "no further data should arrive while the writer is open: {trailing:?}"
+        );
         assert!(
             started.elapsed() < Duration::from_secs(5),
             "the stop time must bound the wait: {:?}",

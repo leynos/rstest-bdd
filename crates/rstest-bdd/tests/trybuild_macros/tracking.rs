@@ -175,11 +175,24 @@ fn was_written_since(path: &StdPath, threshold: SystemTime) -> bool {
 #[cfg(test)]
 mod tests {
     //! Unit tests for dep-info path normalization and freshness.
+    //!
+    //! Exercises [`normalize_dep_info_content`],
+    //! [`normalize_staged_feature_path`], [`freshness_threshold`] and
+    //! [`collect_dep_info_matches`] from the parent [`tracking`](super) module,
+    //! which proves that a trybuild run reached the macro-emitted tracking
+    //! binding by finding it in a dep-info this run wrote. The parent module's
+    //! one public entry point
+    //! (`assert_trybuild_tracking_registered_in_dep_info`) walks the real
+    //! target tree and asserts; these cases take the same pieces apart so a
+    //! rule about separators, escaping or timestamps can fail on its own
+    //! instead of as an assertion about a trybuild run.
 
     use std::{
         fs,
         time::{Duration, SystemTime},
     };
+
+    use rstest::rstest;
 
     use super::{
         DEP_INFO_CLOCK_SLACK,
@@ -188,6 +201,20 @@ mod tests {
         normalize_dep_info_content,
         normalize_staged_feature_path,
     };
+
+    /// A temporary directory and the instant a simulated run started.
+    ///
+    /// Returned together because every freshness case needs both and neither
+    /// may be created before the other's meaning is fixed: a directory made
+    /// later than `run_started` would still work, but one made earlier would
+    /// let a case confuse "when the fixture was built" with "when the run
+    /// began".
+    #[rstest::fixture]
+    fn prepared_directory() -> (tempfile::TempDir, SystemTime) {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let run_started = SystemTime::now();
+        (directory, run_started)
+    }
 
     #[test]
     fn unescapes_spaces_before_normalizing_separators() {
@@ -233,68 +260,90 @@ mod tests {
         path
     }
 
-    /// A dep-info written after the threshold is this run's, and is counted.
-    #[test]
-    fn a_dep_info_written_during_the_run_is_counted() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let run_started = SystemTime::now();
-        write_dep_info(directory.path(), "current.d", run_started);
-        let mut listed = 0;
-
-        collect_dep_info_matches(
-            directory.path(),
-            NEEDLE,
-            freshness_threshold(run_started),
-            &mut listed,
-        );
-
-        assert_eq!(
-            listed, 1,
-            "a dep-info written during this run must satisfy the assertion"
-        );
-    }
-
-    /// A dep-info left by an earlier run is not, even when its content matches.
-    #[test]
-    fn a_dep_info_written_before_the_run_is_rejected() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let run_started = SystemTime::now();
-        // An hour is far outside any filesystem's timestamp granularity, so
-        // this file cannot be mistaken for one of this run's.
-        let stale = run_started
-            .checked_sub(Duration::from_secs(60 * 60))
-            .expect("an hour before the run");
-        write_dep_info(directory.path(), "previous.d", stale);
-        let mut listed = 0;
-
-        collect_dep_info_matches(
-            directory.path(),
-            NEEDLE,
-            freshness_threshold(run_started),
-            &mut listed,
-        );
-
-        assert_eq!(
-            listed, 0,
-            "an earlier run's dep-info must not satisfy the assertion merely because its content \
-             matches: that is the stale-artefact case the freshness rule exists for"
-        );
-    }
-
-    /// A dep-info inside the slack before the run is still accepted.
+    /// How far before the run a dep-info's timestamp is placed.
     ///
-    /// This is the half the slack exists for: a filesystem with coarse
-    /// timestamps can stamp a file written moments after the run started with a
-    /// time slightly before it, so rejecting everything before `run_started`
-    /// would fail a correct run on such a host.
-    #[test]
-    fn a_dep_info_inside_the_clock_slack_is_accepted() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let run_started = SystemTime::now();
-        let just_before = run_started
-            .checked_sub(DEP_INFO_CLOCK_SLACK / 2)
-            .expect("half the slack before the run");
-        write_dep_info(directory.path(), "slightly-early.d", just_before);
+    /// Named so the case table can state the classification each placement
+    /// expects; a bare `Duration` in the table would not say why the row
+    /// belongs. `stale` is the pre-run case in every case below: no row needs
+    /// an hour, so this is the single placement the three timestamps share.
+    #[derive(Clone, Copy)]
+    enum Written {
+        /// At the instant the run started.
+        During,
+        /// Inside the clock slack before the run.
+        InsideSlack,
+        /// Well before the run: an earlier run's artefact.
+        Before,
+    }
+
+    impl Written {
+        /// The modification time this placement names, given the run start.
+        fn modified(self, run_started: SystemTime) -> SystemTime {
+            match self {
+                Self::During => run_started,
+                Self::InsideSlack => run_started
+                    .checked_sub(DEP_INFO_CLOCK_SLACK / 2)
+                    .expect("half the slack before the run"),
+                Self::Before => run_started
+                    .checked_sub(Duration::from_secs(60 * 60))
+                    .expect("an hour before the run"),
+            }
+        }
+
+        /// The file name this placement writes.
+        fn file_name(self) -> &'static str {
+            match self {
+                Self::During => "current.d",
+                Self::InsideSlack => "slightly-early.d",
+                Self::Before => "previous.d",
+            }
+        }
+    }
+
+    /// The freshness rule in one table: which timestamps count as this run's.
+    ///
+    /// Three rows, and each is a distinct part of the rule rather than a
+    /// repetition of one. A file written during the run is the ordinary
+    /// positive. A file written an hour earlier is the stale-artefact case the
+    /// freshness rule exists for: its content matches, so only the timestamp
+    /// tells the two apart. A file inside the slack is the case the slack
+    /// exists for in the other direction — a coarse-timestamp host stamps a
+    /// file it wrote promptly with a time slightly before the run, and
+    /// rejecting that would fail a correct run.
+    ///
+    /// Kept as one table because the three differ only in the placement and
+    /// the expectation; the setup, scan and count are identical, and separate
+    /// bodies let them diverge. The exact-threshold case below stays separate:
+    /// it asserts the rule's *definition* rather than classifying a file.
+    #[rstest]
+    #[case::written_during_the_run(
+        Written::During,
+        1,
+        "a dep-info written during this run must satisfy the assertion"
+    )]
+    #[case::written_before_the_run(
+        Written::Before,
+        0,
+        "an earlier run's dep-info must not satisfy the assertion merely because its content \
+         matches: that is the stale-artefact case the freshness rule exists for"
+    )]
+    #[case::inside_the_clock_slack(
+        Written::InsideSlack,
+        1,
+        "a coarse-timestamp host must not fail the assertion for a file it wrote promptly"
+    )]
+    fn the_freshness_rule_classifies_a_dep_info_by_when_it_was_written(
+        prepared_directory: (tempfile::TempDir, SystemTime),
+        #[case] written: Written,
+        #[case] expected: usize,
+        #[case] reason: &str,
+    ) {
+        let (directory, run_started) = prepared_directory;
+        write_dep_info(
+            directory.path(),
+            written.file_name(),
+            written.modified(run_started),
+        );
         let mut listed = 0;
 
         collect_dep_info_matches(
@@ -304,10 +353,7 @@ mod tests {
             &mut listed,
         );
 
-        assert_eq!(
-            listed, 1,
-            "a coarse-timestamp host must not fail the assertion for a file it wrote promptly"
-        );
+        assert_eq!(listed, expected, "{reason}");
     }
 
     /// The threshold is the run start minus the slack, not the run start.

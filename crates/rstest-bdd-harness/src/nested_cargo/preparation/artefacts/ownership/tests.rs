@@ -1,4 +1,13 @@
 //! Unit tests for the ownership predicate.
+//!
+//! Exercises [`name_is_owned`], [`strip_unit_suffix`] and [`is_metadata_hash`]
+//! from the parent [`ownership`](super) module, which decides whether a name
+//! found in a profile belongs to a package a family declared. It is a rule
+//! about Cargo's naming — a package hyphenated in its record directory and
+//! underscored in its output, a target named differently from its package —
+//! so the cases state it at the name level. The eviction cases that rely on
+//! it, and the declaration check that holds `owned_packages` to what was
+//! actually built, are in the sibling `tests` module beside this one.
 
 use super::{is_metadata_hash, name_is_owned, strip_unit_suffix};
 

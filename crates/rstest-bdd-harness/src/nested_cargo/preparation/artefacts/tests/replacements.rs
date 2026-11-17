@@ -73,13 +73,16 @@ fn assert_recorded(recorded: &[Vec<String>], name: &str) {
 }
 
 /// The single eviction a profile with one removed output reports.
-fn only_eviction(preparation: &Preparation, recorded: Vec<Vec<String>>) -> Vec<String> {
+fn only_eviction(
+    preparation: &Preparation,
+    recorded: Vec<Vec<String>>,
+) -> std::io::Result<Vec<String>> {
     let stamp = Stamp { recorded };
-    let evictions = evicted(preparation, Some(&stamp)).expect("check");
+    let evictions = evicted(preparation, Some(&stamp))?;
     let [Eviction { missing, .. }] = evictions.as_slice() else {
         panic!("exactly one profile must be evicted, got {evictions:?}");
     };
-    missing.clone()
+    Ok(missing.clone())
 }
 
 /// A profile holding two recorded builds of one crate, both still present.
@@ -115,7 +118,7 @@ fn a_recorded_sibling_does_not_answer_for_a_removed_hashed_build() -> std::io::R
     );
 
     assert_eq!(
-        only_eviction(&preparation, recorded),
+        only_eviction(&preparation, recorded)?,
         vec![removed],
         "a hashed build recorded alongside the missing one must not stand in for it"
     );

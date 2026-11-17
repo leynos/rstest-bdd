@@ -1,23 +1,35 @@
 //! The ownership list this family declares, exercised against the real list.
 //!
-//! [`super::FIXTURE_PATH_DEPENDENCIES`] is a *declaration*, and the harness's
-//! ownership tests can only prove the mechanism works for whichever list a
-//! case supplies. Neither half on its own catches a list that has drifted from
-//! the fixture's actual dependency graph: the mechanism stays correct while
-//! the declaration quietly omits a crate the build compiles. This case drives
-//! the list the family actually uses, so a missing entry fails here rather
-//! than as a rebuild inside a timed assertion.
+//! [`super::fixture_dependency_closure`] is the family's *declaration*: the
+//! packages its preparation builds, so the units its stamp may speak for. The
+//! harness's own ownership tests can only prove the mechanism works for
+//! whichever list a case supplies. Neither half on its own catches a list that
+//! has drifted from the fixture's actual dependency graph: the mechanism stays
+//! correct while the declaration quietly omits a crate the build compiles. The
+//! cases here drive the list the family actually uses, so a missing entry fails
+//! here rather than as a rebuild inside a timed assertion.
 //!
-//! Most of the crates named are *transitive* dependencies. Only `rstest-bdd`
-//! and `rstest-bdd-macros` appear in the fixture's manifest; `rstest-bdd`
-//! pulls in `rstest-bdd-patterns` and `rstest-bdd-policy`, and
-//! `rstest-bdd-macros` pulls in those two plus `rstest-bdd-harness`. A list
-//! built from the manifest alone covers the direct edges and leaves the rest
-//! unprotected, which is the defect this case exists to catch one level down.
+//! Most of the workspace crates named are *transitive*. Only `rstest-bdd` and
+//! `rstest-bdd-macros` appear in the fixture's manifest; `rstest-bdd` pulls in
+//! `rstest-bdd-patterns` and `rstest-bdd-policy`, and `rstest-bdd-macros` pulls
+//! in those two plus `rstest-bdd-harness`. A list built from the manifest alone
+//! covers the direct edges and leaves the rest unprotected, which is the defect
+//! these cases exist to catch one level down.
 
 use std::fs;
 
-use super::{FIXTURE_PACKAGE, FIXTURE_PATH_DEPENDENCIES, nested_cargo};
+use super::{FIXTURE_PACKAGE, fixture_dependency_closure, nested_cargo};
+
+/// The family's declared packages, with the resolution error as an `io::Error`.
+///
+/// [`fixture_dependency_closure`] reports through `eyre`, which the shared
+/// preparation fixtures in this module cannot return. The resolution failure
+/// is the only error either can produce, so it is carried across as an
+/// [`std::io::ErrorKind::Other`] error rather than the callers growing an
+/// error type that names nothing further.
+fn declared_packages() -> std::io::Result<Vec<String>> {
+    fixture_dependency_closure().map_err(|error| std::io::Error::other(error.to_string()))
+}
 
 /// A scratch preparation carrying the real family's ownership list.
 ///
@@ -25,6 +37,12 @@ use super::{FIXTURE_PACKAGE, FIXTURE_PATH_DEPENDENCIES, nested_cargo};
 /// here: one profile below a target root holding compiled units and a
 /// fingerprint store, and a stamp root of its own. The ownership list is the
 /// family's, not a copy of it — that is the whole point of the case.
+///
+/// A unit and a record set are written for every declared package, because the
+/// preparation now holds the declaration to the record: a package named in
+/// `owned_packages` that contributed no artefact is refused. Writing them all
+/// keeps the fixture truthful about what it built, so a case's refusal can only
+/// come from the eviction it performs.
 fn family_preparation(
     scratch: &std::path::Path,
 ) -> std::io::Result<(nested_cargo::Preparation, std::path::PathBuf)> {
@@ -34,21 +52,6 @@ fn family_preparation(
     fs::create_dir_all(&deps)?;
     let store = profile.join(".fingerprint");
     fs::create_dir_all(&store)?;
-
-    // One unit and one record set per crate the family claims, named the way
-    // Cargo names them: a hyphenated record directory, and an underscored
-    // library output. Both carry the same 16-hex-digit metadata hash, which is
-    // what pairs an output with the record that keeps it current.
-    for package in std::iter::once(FIXTURE_PACKAGE).chain(FIXTURE_PATH_DEPENDENCIES.iter().copied())
-    {
-        let stem = package.replace('-', "_");
-        let unit = format!("{stem}-0123456789abcdef");
-        fs::write(deps.join(format!("{unit}.d")), b"dep-info")?;
-        fs::write(deps.join(format!("lib{unit}.rlib")), b"unit")?;
-        let records = store.join(format!("{package}-0123456789abcdef"));
-        fs::create_dir_all(&records)?;
-        fs::write(records.join(format!("lib-{package}")), b"record")?;
-    }
 
     let environment = nested_cargo::env_from_vars(
         Vec::new(),
@@ -60,30 +63,36 @@ fn family_preparation(
         scratch.join("stamp-root"),
         environment,
     )?;
-    preparation.owned_packages = std::iter::once(FIXTURE_PACKAGE)
-        .chain(FIXTURE_PATH_DEPENDENCIES.iter().copied())
-        .map(str::to_owned)
-        .collect();
+    preparation.owned_packages = declared_packages()?;
+
+    // One unit and one record set per package the family claims, named the way
+    // Cargo names them: a hyphenated record directory, and an underscored
+    // library output. Both carry the same 16-hex-digit metadata hash, which is
+    // what pairs an output with the record that keeps it current.
+    for package in &preparation.owned_packages {
+        let stem = package.replace('-', "_");
+        let unit = format!("{stem}-0123456789abcdef");
+        fs::write(deps.join(format!("{unit}.d")), b"dep-info")?;
+        fs::write(deps.join(format!("lib{unit}.rlib")), b"unit")?;
+        let records = store.join(format!("{package}-0123456789abcdef"));
+        fs::create_dir_all(&records)?;
+        fs::write(records.join("lib-record"), b"record")?;
+    }
     Ok((preparation, profile))
 }
 
-/// The crates this family's preparation must vouch for, named independently.
+/// The workspace crates this family's preparation must vouch for, named
+/// independently.
 ///
-/// Deliberately *not* [`FIXTURE_PATH_DEPENDENCIES`]. A case that iterated the
+/// Deliberately *not* read from the declaration. A case that iterated the
 /// declaration would inherit every omission it is meant to catch: drop a crate
 /// from the list and the loop simply stops checking it, so the case passes
-/// whether or not the defect is present. That was the first version of this
-/// file, and reverting the declaration to the two directly-named crates left
-/// it green.
-///
-/// So the expectation is written out again, from the fixture's dependency
-/// graph rather than from the constant. The duplication is the point: the two
-/// can disagree, and when they do this case fails.
+/// whether or not the defect is present.
 ///
 /// Every entry but the first two is transitive. The fixture's manifest names
 /// only `rstest-bdd` and `rstest-bdd-macros`; `rstest-bdd` pulls in
-/// `rstest-bdd-patterns` and `rstest-bdd-policy`, and `rstest-bdd-macros`
-/// pulls in those two plus `rstest-bdd-harness`. All five are compiled by the
+/// `rstest-bdd-patterns` and `rstest-bdd-policy`, and `rstest-bdd-macros` pulls
+/// in those two plus `rstest-bdd-harness`. All five are compiled by the
 /// preparation, so all five have to be declared.
 const REQUIRED_DEPENDENCIES: &[&str] = &[
     "rstest-bdd",
@@ -93,21 +102,21 @@ const REQUIRED_DEPENDENCIES: &[&str] = &[
     "rstest-bdd-policy",
 ];
 
-/// The declaration agrees with the fixture's real dependency graph.
-///
-/// `REQUIRED_DEPENDENCIES` above is a second handwritten copy of the same
-/// names, so the two go stale together: a crate the fixture gains is missing
-/// from both, and every test here stays green while the timed suite pays for
-/// the rebuild. This case reads the graph instead of restating it, so the
-/// declaration fails only when the tree and the constant actually disagree.
+/// The declaration covers every workspace crate the fixture's manifest reaches.
 ///
 /// `cargo metadata` is what decides, not a compile: it resolves the fixture's
 /// own manifest and lockfile and reports every package without building one.
-/// Path packages are the ones the preparation compiles from this checkout —
-/// registry dependencies are immutable and the workspace lockfile pins them,
-/// so they are the wrong set to compare against.
+///
+/// A *containment* rather than an equality, unlike the harness's version of this
+/// case. The declaration is the fixture's whole closure — registry packages
+/// included, because their units are compiled into the same profile and a
+/// removed fingerprint record rebuilds them all the same — while this case's
+/// restated expectation names only the workspace crates. Checking that those
+/// five are all present is the claim that would otherwise go stale silently: the
+/// mechanism stays correct while a crate the manifest gains disappears from the
+/// declaration.
 #[test]
-fn the_declaration_matches_the_fixtures_resolved_graph() {
+fn the_declaration_covers_the_fixtures_workspace_dependencies() {
     let manifest =
         super::super::workspace_root().join("crates/cargo-bdd/tests/fixtures/minimal/Cargo.toml");
     let metadata = cargo_metadata::MetadataCommand::new()
@@ -146,24 +155,35 @@ fn the_declaration_matches_the_fixtures_resolved_graph() {
         }
     }
 
-    // Only this checkout's packages are the preparation's own work: a registry
-    // crate is immutable and already pinned by the fixture's lockfile, so its
-    // units are neither declared nor at risk of a local edit.
+    // Only this checkout's packages: a registry crate is immutable, so the
+    // restated expectation names the workspace crates the fixture reaches.
     let local: std::collections::BTreeSet<String> = reached
         .into_iter()
         .filter_map(|id| packages.get(id))
         .filter(|package| package.source.is_none() && package.name.as_str() != FIXTURE_PACKAGE)
         .map(|package| package.name.to_string())
         .collect();
-    let declared: std::collections::BTreeSet<String> = FIXTURE_PATH_DEPENDENCIES
-        .iter()
-        .map(|name| (*name).to_owned())
-        .collect();
-
     assert_eq!(
-        local, declared,
-        "FIXTURE_PATH_DEPENDENCIES must be exactly the fixture's local dependency closure; the \
-         timed suite rebuilds any crate it omits"
+        local,
+        REQUIRED_DEPENDENCIES
+            .iter()
+            .map(|name| (*name).to_owned())
+            .collect::<std::collections::BTreeSet<String>>(),
+        "the restated expectation drifted from the fixture's own graph; update it only together \
+         with the declaration"
+    );
+
+    let declared: std::collections::BTreeSet<String> = declared_packages()
+        .expect("the fixture's closure must resolve")
+        .into_iter()
+        .collect();
+    let missing: Vec<&String> = local.difference(&declared).collect();
+    assert!(
+        missing.is_empty(),
+        "the declaration must cover every workspace crate the fixture compiles; missing \
+         {missing:?}. A crate left out of `owned_packages` is filtered out of both the recorded \
+         and the present name lists, so an eviction of it passes the gate and the timed suite \
+         rebuilds it"
     );
 }
 
@@ -176,17 +196,17 @@ fn the_declaration_matches_the_fixtures_resolved_graph() {
 /// and stamped, and the gate must refuse every one.
 #[test]
 fn evicting_each_required_crate_fails_the_gate() -> std::io::Result<()> {
+    let declared: std::collections::BTreeSet<String> = declared_packages()?.into_iter().collect();
     for package in REQUIRED_DEPENDENCIES {
         assert!(
-            FIXTURE_PATH_DEPENDENCIES.contains(package),
+            declared.contains(*package),
             "the family must declare {package}: preparing the fixture compiles it, and Cargo \
-             rebuilds a crate whose fingerprint records went. Declared: \
-             {FIXTURE_PATH_DEPENDENCIES:?}"
+             rebuilds a crate whose fingerprint records went"
         );
     }
 
     for package in REQUIRED_DEPENDENCIES {
-        let scratch = tempfile::tempdir().expect("temp dir");
+        let scratch = tempfile::tempdir()?;
         let (preparation, profile) = family_preparation(scratch.path())?;
         nested_cargo::prepare_now(&preparation, || {
             Ok(nested_cargo::PreparationSummary::default())

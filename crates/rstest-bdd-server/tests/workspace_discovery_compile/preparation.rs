@@ -20,7 +20,10 @@
 
 use std::{io, path::PathBuf};
 
-use rstest_bdd_harness::{macrotest_support::TrybuildTree, nested_cargo::PreparationSummary};
+use rstest_bdd_harness::{
+    macrotest_support::{TrybuildTree, reject_trybuild_filter},
+    nested_cargo::PreparationSummary,
+};
 
 /// Stable family name for this crate's prepared tree.
 const FAMILY: &str = "trybuild-server-workspace-discovery";
@@ -69,14 +72,12 @@ fn variant() -> String {
 ///
 /// Unlike the Tokio and GPUI harness trees, this crate's fixtures reference no
 /// feature file, so there are no support files to stage and `trybuild` panics
-/// rather than returning an error. The `io::Result` is therefore never `Err`;
-/// it is the shape `TrybuildTree::prepare_now` and `ensure_prepared` take so
-/// that a preparation needing a fallible first step can share the same gate.
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "the shared preparation contract takes a fallible closure"
-)]
+/// rather than returning an error. The `io::Result` is the shape
+/// `TrybuildTree::prepare_now` and `ensure_prepared` take, and it is real: a
+/// run carrying a `trybuild=` fixture filter is refused here, because such a
+/// run would drop the probe, warm nothing, and still write the complete stamp.
 pub(crate) fn prepare() -> io::Result<PreparationSummary> {
+    reject_trybuild_filter()?;
     let tests = trybuild::TestCases::new();
     tests.pass(PROBE);
     drop(tests);

@@ -1,10 +1,13 @@
 //! Regression coverage for how the trybuild target root is discovered.
 //!
-//! The root is what both staged inputs and inspected artefacts hang off, so
-//! resolving it wrongly points trybuild at a tree that holds neither. It used
-//! to be read as "two levels above the executable, which must sit in `deps`",
-//! and Cargo 1.100.0 retired that premise by moving every compiled unit to
-//! `<profile>/build/<pkg>/<hash>/out`.
+//! Exercises [`target_directory_from_test_executable`] and
+//! [`trybuild_target_directory`] from the parent [`target_root`](super)
+//! module, which resolve the Cargo target directory the staging code both
+//! stages into and inspects. The root is what both staged inputs and inspected
+//! artefacts hang off, so resolving it wrongly points trybuild at a tree that
+//! holds neither. It used to be read as "two levels above the executable, which
+//! must sit in `deps`", and Cargo 1.100.0 retired that premise by moving every
+//! compiled unit to `<profile>/build/<pkg>/<hash>/out`.
 
 use rstest::rstest;
 
@@ -32,6 +35,42 @@ fn parent_of(executable: &Utf8Path) -> std::io::Result<&Utf8Path> {
         .ok_or_else(|| std::io::Error::other(format!("{executable} has no parent")))
 }
 
+/// A temporary directory opened as a capability.
+///
+/// The negative fixtures below create their trees through a handle on the
+/// directory they own rather than through ambient `std::fs`, with every path
+/// relative to it. A `Dir` refuses an absolute path or one that climbs out with
+/// `..`, so a mistake in a fixture path cannot create anything outside the
+/// temporary directory — which matters here because the fixtures' whole purpose
+/// is to build shapes the lookup must refuse.
+///
+/// The `TempDir` is returned alongside the handle: `Dir` names the directory
+/// but does not own it, so dropping the guard would delete the tree the test is
+/// about to inspect.
+fn temp_capability(
+    directory: &tempfile::TempDir,
+) -> std::io::Result<(cap_std::fs_utf8::Dir, Utf8PathBuf)> {
+    let root = temp_root(directory)?;
+    let capability = cap_std::fs_utf8::Dir::open_ambient_dir(&root, cap_std::ambient_authority())?;
+    Ok((capability, root))
+}
+
+/// Write an executable at `structure` beneath `capability`, joining its parts.
+///
+/// `cap_std::fs_utf8::Dir` takes a relative path, so the parts are joined with
+/// `/` rather than through an ambient path type.
+fn write_executable(
+    capability: &cap_std::fs_utf8::Dir,
+    structure: &[&str],
+) -> std::io::Result<Utf8PathBuf> {
+    let relative = structure.join("/");
+    let executable = Utf8PathBuf::from(relative.as_str());
+    let parent = parent_of(&executable)?;
+    capability.create_dir_all(parent)?;
+    capability.write(relative.as_str(), b"binary")?;
+    Ok(executable)
+}
+
 /// Whether `directory` sits beneath something Cargo tagged.
 ///
 /// The lookup walks every ancestor rather than only the temporary directory
@@ -51,20 +90,20 @@ fn under_tagged_ancestor(directory: &tempfile::TempDir) -> bool {
 ///
 /// The marker is what makes the root discoverable, so a fixture without one
 /// would test the absence path rather than the layout under test.
+///
+/// The tree is built through a handle on the temporary directory this fixture
+/// owns, with every path relative to it, so a mistake in the structure cannot
+/// create anything outside it — the same confinement the negative fixtures
+/// below rely on.
 fn tagged_root(structure: &[&str]) -> std::io::Result<(tempfile::TempDir, Utf8PathBuf)> {
     let directory = tempfile::tempdir()?;
-    let root = temp_root(&directory)?;
-    std::fs::write(
-        root.join("CACHEDIR.TAG"),
+    let (capability, root) = temp_capability(&directory)?;
+    capability.write(
+        "CACHEDIR.TAG",
         b"Signature: 8a477f597d28d172789f06886806bc55",
     )?;
-    let mut executable = root.clone();
-    for part in structure {
-        executable.push(part);
-    }
-    std::fs::create_dir_all(parent_of(&executable)?)?;
-    std::fs::write(executable.as_std_path(), b"binary")?;
-    Ok((directory, executable))
+    let relative = write_executable(&capability, structure)?;
+    Ok((directory, root.join(relative)))
 }
 
 /// Both layouts resolve to the tagged root, whatever directory holds the
@@ -127,18 +166,15 @@ fn an_untagged_layout_yields_no_root(#[case] structure: &[&str]) {
     if under_tagged_ancestor(&directory) {
         return;
     }
-    let mut executable = directory.path().to_path_buf();
-    for part in structure {
-        executable.push(part);
-    }
-    std::fs::create_dir_all(executable.parent().expect("executable parent"))
-        .expect("executable dir");
-    std::fs::write(&executable, b"binary").expect("executable");
+    // The tree is built through a handle on this test's own temporary
+    // directory, and the absolute path the lookup receives is then derived
+    // from that same root, so the fixture cannot write outside it.
+    let (capability, root) = temp_capability(&directory).expect("the temporary directory");
+    let relative = write_executable(&capability, structure).expect("the fixture executable");
+    let executable = root.join(relative);
 
     assert_eq!(
-        target_directory_from_test_executable(Utf8Path::new(
-            executable.to_str().expect("utf-8 path")
-        )),
+        target_directory_from_test_executable(executable.as_path()),
         None,
         "without a tag above it, {executable:?} must yield no root"
     );
@@ -168,13 +204,15 @@ fn an_untagged_tree_yields_no_target_root() {
     if under_tagged_ancestor(&directory) {
         return;
     }
-    let executable = directory.path().join("debug/deps/trybuild_macros-a1b2c3");
-    std::fs::create_dir_all(executable.parent().expect("parent")).expect("executable dir");
+    // As above: created through a capability on this test's own directory, so
+    // no path in the fixture can escape it.
+    let (capability, root) = temp_capability(&directory).expect("the temporary directory");
+    let relative = write_executable(&capability, &["debug", "deps", "trybuild_macros-a1b2c3"])
+        .expect("the fixture executable");
+    let executable = root.join(relative);
 
     assert_eq!(
-        target_directory_from_test_executable(Utf8Path::new(
-            executable.to_str().expect("utf-8 path")
-        )),
+        target_directory_from_test_executable(executable.as_path()),
         None
     );
 }

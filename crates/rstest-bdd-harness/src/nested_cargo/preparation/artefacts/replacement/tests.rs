@@ -1,5 +1,14 @@
 //! The cases that decide when a recorded name has been replaced, not lost.
 //!
+//! Exercises [`is_vouched_for`] from the parent [`replacement`](super) module,
+//! the predicate that reads a hash-carrying name as the same unit under a new
+//! hash rather than as a missing one. That module sits between the recorded
+//! names and the gate that compares them, so the rule is about Cargo's naming
+//! and is stated here at the name level. The sibling eviction cases in the
+//! parent `artefacts` module cover the store this protects, where a
+//! recompilation by a sibling family must not read as an eviction by the one
+//! that recorded it.
+//!
 //! These exercise the predicate directly rather than through a prepared tree.
 //! The distinction it draws is a rule about Cargo's naming, so a name-level
 //! case is what specifies it; the store it protects is covered by the parent
@@ -50,79 +59,71 @@ fn a_recompiled_unit_answers_for_the_name_it_replaced() {
     );
 }
 
-/// A replacement carrying another output form does not answer for the one that
-/// went.
+/// Every replacement that must not answer for a recorded name.
 ///
-/// Without this the previous case would excuse a unit whose `.rlib` was removed
-/// while only its `.rmeta` survived — reopening precisely the hole the exact
-/// layer exists to close, since Cargo recompiles a unit in that state.
-#[test]
-fn a_replacement_in_another_form_does_not_answer_for_a_lost_output() {
-    let recorded = format!("deps/libunit-{OLD_HASH}.rlib");
-    let surviving = format!("deps/libunit-{NEW_HASH}.rmeta");
-    let replacements = present(&[surviving.as_str()]);
-    assert!(
-        !is_vouched_for(&recorded, &index(&replacements), &replacements),
-        "a surviving `.rmeta` must not witness a removed `.rlib`"
-    );
-}
-
-/// A replacement in another directory is another unit.
+/// One case per way a candidate can differ from the recorded name, each
+/// supplying the recorded name and the candidate the profile would hold for it
+/// instead. They share the rejection shape, so stating it once keeps the cases
+/// a table of names rather than five copies of the same three lines; the case
+/// names are what keep each separately identifiable in a report.
 ///
-/// Two units can share a stem — the same crate compiled for a build script and
-/// for the library — so the directory is part of what identifies them. Without
-/// it, a build-script unit could witness a missing library unit.
-#[test]
-fn a_replacement_in_another_directory_does_not_answer_for_the_name() {
-    let recorded = format!("deps/libunit-{OLD_HASH}.rlib");
-    let elsewhere = format!("build/unit/{NEW_HASH}/out/libunit-{NEW_HASH}.rlib");
-    let replacements = present(&[elsewhere.as_str()]);
-    assert!(
-        !is_vouched_for(&recorded, &index(&replacements), &replacements),
-        "the same stem in another directory is a different unit"
-    );
-}
-
-/// A name that carries no metadata hash is never answered for by a lookalike.
+/// The names are written out rather than derived from the production rule: a
+/// table built from the rule would inherit whatever the rule had started
+/// accepting, so a name this table drops could never fail.
 ///
-/// An unhashed name is not a unit Cargo recompiles under a new hash, so there
-/// is no replacement to recognize. Reading one as replaced would excuse a
-/// genuinely missing artefact on the strength of some other entry that happens
-/// to share its prefix.
-#[test]
-fn an_unhashed_name_is_never_answered_for_by_another() {
-    let replacements = present(&["deps/libunit.rlib.rmeta"]);
-    assert!(
-        !is_vouched_for("deps/libunit.rlib", &index(&replacements), &replacements),
-        "an unhashed name has no hash to differ in, so no lookalike may replace it"
-    );
-}
-
-/// The hash has to be Cargo's hexadecimal form, not merely short text.
+/// The first case is the one the exact layer exists for. Without it the
+/// recompile case would excuse a unit whose `.rlib` was removed while only its
+/// `.rmeta` survived, since Cargo recompiles a unit in that state.
 ///
-/// A stem that itself ends in something hex-like must not be split at the wrong
-/// `-`, or `liba-b-0123456789abcdef.rlib` would be credited to stem `liba-b`
-/// and excuse a missing `liba-b-*` unit of a different form.
-#[test]
-fn a_non_hexadecimal_hash_is_not_a_cargo_unit() {
-    let recorded = format!("deps/libunit-{OLD_HASH}.rlib");
-    let lookalike = "deps/libunit-zzzzzzzzzzzzzzzz.rlib";
-    let replacements = present(&[lookalike]);
+/// The cases are:
+///
+/// * `another_output_form` — a surviving `.rmeta` must not witness a removed `.rlib`, which is the
+///   hole the exact layer exists to close.
+/// * `another_directory` — two units can share a stem, the same crate compiled for a build script
+///   and for the library, so the directory is part of what identifies them; without it a
+///   build-script unit could witness a missing library unit.
+/// * `an_unhashed_name` — an unhashed name is not a unit Cargo recompiles under a new hash, so
+///   there is no replacement to recognize; reading one as replaced would excuse a missing artefact
+///   on the strength of another entry that merely shares its prefix.
+/// * `a_non_hexadecimal_hash` — a stem that itself ends in something hex-like must not be split at
+///   the wrong `-`, or `liba-b-0123456789abcdef.rlib` would be credited to stem `liba-b` and excuse
+///   a missing `liba-b-*` unit of a different form.
+/// * `a_suffix_prefix` — a suffix that merely begins the same way is a different output.
+#[rstest::rstest]
+#[case::another_output_form(
+    "deps/libunit-0123456789abcdef.rlib",
+    "deps/libunit-fedcba9876543210.rmeta",
+    "a surviving `.rmeta` must not witness a removed `.rlib`"
+)]
+#[case::another_directory(
+    "deps/libunit-0123456789abcdef.rlib",
+    "build/unit/fedcba9876543210/out/libunit-fedcba9876543210.rlib",
+    "the same stem in another directory is a different unit"
+)]
+#[case::an_unhashed_name(
+    "deps/libunit.rlib",
+    "deps/libunit.rlib.rmeta",
+    "an unhashed name has no hash to differ in, so no lookalike may replace it"
+)]
+#[case::a_non_hexadecimal_hash(
+    "deps/libunit-0123456789abcdef.rlib",
+    "deps/libunit-zzzzzzzzzzzzzzzz.rlib",
+    "a 16-character non-hexadecimal tail is not a Cargo metadata hash"
+)]
+#[case::a_suffix_prefix(
+    "deps/libunit-0123456789abcdef.rlib",
+    "deps/libunit-fedcba9876543210.rlib.bak",
+    "`.rlib.bak` is not the `.rlib` the preparation recorded"
+)]
+fn a_replacement_in_another_form_does_not_answer_for_a_lost_output(
+    #[case] recorded: &str,
+    #[case] candidate: &str,
+    #[case] why: &str,
+) {
+    let replacements = present(&[candidate]);
     assert!(
-        !is_vouched_for(&recorded, &index(&replacements), &replacements),
-        "a 16-character non-hexadecimal tail is not a Cargo metadata hash"
-    );
-}
-
-/// A suffix that merely begins the same way is a different output.
-#[test]
-fn a_suffix_prefix_is_not_the_same_output_form() {
-    let recorded = format!("deps/libunit-{OLD_HASH}.rlib");
-    let lookalike = format!("deps/libunit-{NEW_HASH}.rlib.bak");
-    let replacements = present(&[lookalike.as_str()]);
-    assert!(
-        !is_vouched_for(&recorded, &index(&replacements), &replacements),
-        "`.rlib.bak` is not the `.rlib` the preparation recorded"
+        !is_vouched_for(recorded, &index(&replacements), &replacements),
+        "{why}"
     );
 }
 

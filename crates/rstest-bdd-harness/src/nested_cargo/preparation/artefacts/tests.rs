@@ -1,4 +1,12 @@
 //! Unit tests for the recorded-name check and its structural layer.
+//!
+//! Exercises [`record`], [`all_present`] and the verification entry points of
+//! the parent [`artefacts`](super) module: what a preparation records for the
+//! units a build left behind, how the gate compares that record against the
+//! tree it finds, and which removals it refuses. The parent module is the
+//! layer between a stamp and the filesystem, so these cases supply a profile
+//! directly rather than going through `lifecycle`; the end-to-end eviction
+//! cases, which need a written stamp, live in that module's own tests.
 
 use std::fs;
 

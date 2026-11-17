@@ -223,10 +223,10 @@ stamp inside the artefact directory; the timed tests gate on `ensure_prepared`.
 Three properties make this a fix rather than a deferral:
 
 - **The stamp records what a cached build would have to match.** It carries a
-  hash of the build-relevant environment, the toolchain identity, a variant
-  label and the fixture inputs, so a changed compiler, feature set or fixture
-  source forces preparation again rather than reusing artefacts that no longer
-  correspond. It lives inside the directory it describes, so evicting that
+  hash of the build-relevant environment, the toolchain identity (both Cargo's
+  and the compiler's own `-vV`), a variant label and the fixture inputs, so a
+  changed compiler, feature set or fixture source forces preparation again
+  rather than reusing artefacts that no longer correspond. It lives inside the directory it describes, so evicting that
   directory evicts the claim of preparedness with it.
 - **The preparation has a budget of its own, and the assertion keeps the one it
   had.** Under nextest the preparation test's `slow-timeout` is set in

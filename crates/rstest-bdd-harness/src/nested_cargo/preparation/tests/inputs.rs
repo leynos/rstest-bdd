@@ -298,9 +298,11 @@ fn distinct_toolchain_identities_produce_distinct_fingerprints() {
     // The toolchain field exists to force a rebuild when the compiler moves. If
     // two identities composed to the same text, a stamp written under one
     // toolchain would be accepted under another and a timed assertion would
-    // compile the difference inside its own deadline. Composition is
-    // exercised directly because resolving the identity runs `cargo -vV`,
-    // which a unit test cannot vary.
+    // compile the difference inside its own deadline.
+    //
+    // This isolates the composition rule from the boundary the next case
+    // crosses: both go through `compose`, but only one goes through the probe.
+    // A regression in either fails one case and names which.
     let target = std::env::temp_dir().join("target");
     let base = environment_in(&target).expect("the fixture environment should resolve");
     let preparation = preparation(&target, &base, "v", "hash")
@@ -355,24 +357,37 @@ fn a_value_containing_a_line_break_cannot_forge_a_field() {
 }
 
 #[test]
-fn the_recorded_toolchain_reaches_the_fingerprint() {
-    // The probe and the composition are tested separately above; this ties
-    // them together. If `fingerprint` stopped forwarding the resolved identity,
-    // the two branches would still pass while every stamp became
-    // toolchain-blind.
+fn the_probe_identity_reaches_the_fingerprint() {
+    // The probe's resolution and the composition are tested separately above;
+    // this crosses the boundary between them, which neither of those does. A
+    // `fingerprint` that resolved the identity and then composed from a
+    // constant would satisfy both of them while making every stamp
+    // toolchain-blind, so the two identities here have to arrive through
+    // `fingerprint_with` and be visible in what it returns.
     let target = std::env::temp_dir().join("target");
     let base = environment_in(&target).expect("the fixture environment should resolve");
     let prepared = preparation(&target, &base, "v", "hash")
         .expect("the fixture preparation should describe its artefacts");
 
-    let first = compose(&prepared, "release: 1.88.0 commit-hash: a host: x");
-    let second = compose(&prepared, "release: 1.92.0 commit-hash: b host: x");
-    assert_ne!(first, second);
-    assert!(
-        first
-            .as_str()
-            .contains("release: 1.88.0 commit-hash: a host: x")
+    let first_identity = "release: 1.88.0 commit-hash: a host: x";
+    let second_identity = "release: 1.92.0 commit-hash: b host: x";
+    let first = fingerprint_with(&prepared, || Ok(String::from(first_identity)))
+        .expect("the probe's identity must reach the fingerprint");
+    let second = fingerprint_with(&prepared, || Ok(String::from(second_identity)))
+        .expect("the probe's identity must reach the fingerprint");
+
+    assert_ne!(
+        first, second,
+        "two different probe identities must not compose the same fingerprint"
     );
+    for (fingerprint, identity) in [(&first, first_identity), (&second, second_identity)] {
+        assert!(
+            fingerprint.as_str().contains(identity),
+            "the fingerprint must carry the identity the probe returned, expected {identity:?} \
+             in:\n{}",
+            fingerprint.as_str()
+        );
+    }
 }
 
 #[test]
@@ -380,4 +395,19 @@ fn compiling_lines_are_counted_from_stderr() {
     let stderr = b"   Compiling foo v0.1.0\nwarning: unused\n    Finished `dev` profile\n   \
                    Compiling bar v0.2.0\n";
     assert_eq!(count_compiling(stderr), 2);
+}
+
+#[test]
+fn ansi_coloured_compiling_lines_are_counted() {
+    // CI sets `CARGO_TERM_COLOR=always`, so a nested `cargo` that is not given
+    // `--color=never` emits each status line behind a colour escape. Counting
+    // that output as zero would make a cold preparation look like a reuse and
+    // let the prepared-fixture gate pass on the wrong evidence.
+    let green = "\u{1b}[1m\u{1b}[32m";
+    let reset = "\u{1b}[0m\u{1b}[39m";
+    let stderr = format!(
+        "   {green}Compiling{reset} foo v0.1.0\nwarning: unused\n   {green}Compiling{reset} bar \
+         v0.2.0\n"
+    );
+    assert_eq!(count_compiling(stderr.as_bytes()), 2);
 }

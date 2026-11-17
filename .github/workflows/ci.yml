@@ -741,6 +741,18 @@ jobs:
       # than before the suite so it does not compete for the compiler slot the
       # instrumented coverage build needs, and before the discard below so a
       # failure still reports against a disk that has the trees.
+      # The check's steps 1 and 3 go through `make nextest-run`, which runs
+      # `cargo nextest`. The shared suite action only installs nextest for pull
+      # requests, via its `use-cargo-nextest` input, so a push run would reach
+      # the check with no `cargo-nextest` on `PATH` and fail on the runner
+      # rather than on the workflow. Install it here, gated on the same
+      # condition as the check itself.
+      - name: Install cargo-nextest
+        if: ${{ runner.os == 'Linux' && matrix.tools }}
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519  # v2.90.5
+        with:
+          tool: cargo-nextest
+
       - name: Check prepared-fixture workflow
         if: ${{ runner.os == 'Linux' && matrix.tools }}
         shell: bash

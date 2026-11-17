@@ -6,7 +6,9 @@
 //! [`ensure_prepared_with_probe`] take it — and the toolchain probe — as
 //! parameters so the protocol can be exercised without mutating the
 //! environment or spawning `cargo -vV`. [`prepare_now`] is the unconditional
-//! form the named preparation test uses.
+//! form the named preparation test uses. The two entry points that supply the
+//! real probe bind it to the preparation's own environment, so the compiler
+//! identified is the one the nested build will run.
 //!
 //! The policy lives here rather than in the stamp module because the two
 //! runners want opposite things from the same fact. An unreadable stamp is
@@ -72,7 +74,13 @@ pub fn ensure_prepared_with<F>(
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    ensure_prepared_with_probe(preparation, under_nextest, toolchain_identity, prepare)
+    let environment = &preparation.environment;
+    ensure_prepared_with_probe(
+        preparation,
+        under_nextest,
+        || toolchain_identity(environment),
+        prepare,
+    )
 }
 
 /// [`ensure_prepared_with`] with the toolchain probe supplied.
@@ -146,7 +154,8 @@ pub fn prepare_now<F>(preparation: &Preparation, prepare: F) -> io::Result<()>
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    prepare_now_with_probe(preparation, toolchain_identity, prepare)
+    let environment = &preparation.environment;
+    prepare_now_with_probe(preparation, || toolchain_identity(environment), prepare)
 }
 
 /// Remove the stamp that advertises `preparation` as prepared.
@@ -258,6 +267,11 @@ where
     // instead.
     let recorded = artefacts::record(preparation)?;
     artefacts::verify_recorded(preparation, &recorded)?;
+    // And hold the caller's declaration to the same record. `owned_packages`
+    // restricts what the stamp may speak for, so a package named there that the
+    // build never produced contributes nothing and its later eviction would
+    // pass. See `artefacts::verify_declared`.
+    artefacts::verify_declared(preparation, &recorded)?;
     write_stamp(stamp, &render(fingerprint, &recorded))?;
     note(&format!(
         "family={} prepared in {:.1}s ({} Compiling lines); stamp {}",

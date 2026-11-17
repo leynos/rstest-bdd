@@ -15,15 +15,15 @@ use super::{ensure_gated_with, nested_cargo};
 /// them exactly where the gate does.
 fn scratch_family(
     scratch: &std::path::Path,
-) -> (
+) -> std::io::Result<(
     nested_cargo::Preparation,
     std::path::PathBuf,
     std::path::PathBuf,
-) {
+)> {
     let target = scratch.join("target");
     let profile = target.join(nested_cargo::DEFAULT_PROFILE);
-    std::fs::create_dir_all(profile.join(".fingerprint")).expect("fingerprint dir");
-    std::fs::write(profile.join(".fingerprint/unit"), b"record").expect("fingerprint");
+    std::fs::create_dir_all(profile.join(".fingerprint"))?;
+    std::fs::write(profile.join(".fingerprint/unit"), b"record")?;
     // A full, plausible unit directory — just not this fixture's. This is
     // the state a preparation that compiled the dependency graph but never
     // reached the fixture's own test targets leaves behind.
@@ -33,39 +33,37 @@ fn scratch_family(
     // record beside a hashed output would be refused by the pairing rule
     // before the witness ran, and the case would pass for the wrong reason.
     let deps = profile.join("deps");
-    std::fs::create_dir_all(&deps).expect("deps dir");
+    std::fs::create_dir_all(&deps)?;
     for stem in ["libdep_a", "libdep_b"] {
         let unit = format!("{stem}-0123456789abcdef");
-        std::fs::write(deps.join(format!("{unit}.d")), b"dep-info").expect("record");
-        std::fs::write(deps.join(format!("{unit}.rlib")), b"unit").expect("unit");
+        std::fs::write(deps.join(format!("{unit}.d")), b"dep-info")?;
+        std::fs::write(deps.join(format!("{unit}.rlib")), b"unit")?;
     }
 
     let environment = nested_cargo::env_from_vars(
         Vec::new(),
         Some(&target),
         nested_cargo::ProfileDestination::Caller,
-    )
-    .expect("the fixture environment should resolve");
+    )?;
     let preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", "test", "hash"),
         scratch.join("stamp-root"),
         environment,
-    )
-    .expect("the fixture preparation should describe its artefacts");
+    )?;
     let stamp = preparation
         .directory
         .join(".cargo-bdd-cli.rstest-bdd-prepared");
-    (preparation, profile, stamp)
+    Ok((preparation, profile, stamp))
 }
 
 /// Write the fixture's own test binaries where the witness looks for them.
-fn write_fixture_binaries(profile: &std::path::Path) {
+fn write_fixture_binaries(profile: &std::path::Path) -> std::io::Result<()> {
     let deps = profile.join("deps");
-    std::fs::create_dir_all(&deps).expect("deps dir");
+    std::fs::create_dir_all(&deps)?;
     for stem in super::witness::FIXTURE_TEST_BINARIES {
-        std::fs::write(deps.join(format!("{stem}-0123456789abcdef")), b"binary")
-            .expect("fixture binary");
+        std::fs::write(deps.join(format!("{stem}-0123456789abcdef")), b"binary")?;
     }
+    Ok(())
 }
 
 #[test]
@@ -87,7 +85,8 @@ fn a_refuted_stamp_is_withdrawn_so_the_next_run_can_prepare() {
     // stamps it — so the tree it leaves behind is exactly the state under
     // test: a *valid* stamp over units that are not the fixture's.
     let scratch = tempfile::tempdir().expect("temp dir");
-    let (preparation, profile, stamp) = scratch_family(scratch.path());
+    let (preparation, profile, stamp) =
+        scratch_family(scratch.path()).expect("the scratch family's tree should be written");
 
     // A preparation that succeeds while doing no work at all: the point is
     // that the stamp it then writes vouches for a tree holding none of the
@@ -116,7 +115,8 @@ fn a_refuted_stamp_is_withdrawn_so_the_next_run_can_prepare() {
     // difference rather than only tidying the tree: the stamp is gone, so
     // the preparation runs and the witness accepts what it left.
     ensure_gated_with(&preparation, false, || {
-        write_fixture_binaries(&profile);
+        write_fixture_binaries(&profile)
+            .expect("the recovery preparation should leave the fixture binaries");
         Ok(nested_cargo::PreparationSummary::default())
     })
     .expect("a preparation that leaves the fixture binaries must recover the family");

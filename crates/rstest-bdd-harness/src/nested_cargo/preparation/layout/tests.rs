@@ -1,5 +1,11 @@
 //! Unit tests for the discovery walk.
 //!
+//! Exercises [`discover`], [`entries_of`], [`outputs_in`] and [`is_output_of`]
+//! from the parent [`layout`](super) module, which finds the unit directory and
+//! fingerprint store inside a profile and names the entries they hold. The
+//! parent module is what the recorded-name check reads through, so its
+//! classification decides which removals the gate can see at all.
+//!
 //! The two layouts are the whole point of this module: one release moved every
 //! compiled unit from `<profile>/deps` to `<profile>/build/<pkg>/<hash>/out` and
 //! left `deps` absent, which is what a check that named the directory could not
@@ -12,12 +18,13 @@ use super::{discover, entries_of, is_output_of, outputs_in};
 
 /// Write `units` into `directory` as rustc leaves them: a `.d` record and its
 /// output side by side.
-fn write_units(directory: &std::path::Path, units: &[(&str, &str)]) {
-    fs::create_dir_all(directory).expect("unit dir");
+fn write_units(directory: &std::path::Path, units: &[(&str, &str)]) -> std::io::Result<()> {
+    fs::create_dir_all(directory)?;
     for (stem, extension) in units {
-        fs::write(directory.join(format!("{stem}.d")), b"dep-info").expect("record");
-        fs::write(directory.join(format!("lib{stem}.{extension}")), b"unit").expect("output");
+        fs::write(directory.join(format!("{stem}.d")), b"dep-info")?;
+        fs::write(directory.join(format!("lib{stem}.{extension}")), b"unit")?;
     }
+    Ok(())
 }
 
 /// The classic shape: `<profile>/deps` for units, `<profile>/.fingerprint` for
@@ -26,7 +33,8 @@ fn write_units(directory: &std::path::Path, units: &[(&str, &str)]) {
 fn the_classic_deps_layout_is_discovered() {
     let directory = tempfile::tempdir().expect("temp dir");
     let profile = directory.path().join("debug");
-    write_units(&profile.join("deps"), &[("unit", "rlib")]);
+    write_units(&profile.join("deps"), &[("unit", "rlib")])
+        .expect("the fixture units should be written");
     fs::create_dir_all(profile.join(".fingerprint")).expect("store");
     fs::write(profile.join(".fingerprint/lib-unit"), b"record").expect("record");
 
@@ -54,7 +62,8 @@ fn the_build_dir_out_layout_is_discovered() {
     let directory = tempfile::tempdir().expect("temp dir");
     let profile = directory.path().join("debug");
     let hash = profile.join("build/unit/0123456789abcdef");
-    write_units(&hash.join("out"), &[("unit", "rlib")]);
+    write_units(&hash.join("out"), &[("unit", "rlib")])
+        .expect("the fixture units should be written");
     fs::create_dir_all(hash.join("fingerprint")).expect("store");
     fs::write(hash.join("fingerprint/lib-unit"), b"record").expect("record");
 
@@ -81,7 +90,8 @@ fn the_build_dir_out_layout_is_discovered() {
 fn units_without_a_store_are_not_usable() {
     let directory = tempfile::tempdir().expect("temp dir");
     let profile = directory.path().join("debug");
-    write_units(&profile.join("deps"), &[("unit", "rlib")]);
+    write_units(&profile.join("deps"), &[("unit", "rlib")])
+        .expect("the fixture units should be written");
 
     let layout = discover(&profile).expect("discover");
     assert!(!layout.units.is_empty(), "the units are there");
@@ -117,7 +127,8 @@ fn a_store_without_units_is_not_usable() {
 fn an_empty_store_is_not_a_store() {
     let directory = tempfile::tempdir().expect("temp dir");
     let profile = directory.path().join("debug");
-    write_units(&profile.join("deps"), &[("unit", "rlib")]);
+    write_units(&profile.join("deps"), &[("unit", "rlib")])
+        .expect("the fixture units should be written");
     fs::create_dir_all(profile.join(".fingerprint")).expect("store");
 
     let layout = discover(&profile).expect("discover");
@@ -143,13 +154,15 @@ fn an_absent_profile_is_not_an_error() {
 fn the_incremental_cache_is_not_searched() {
     let directory = tempfile::tempdir().expect("temp dir");
     let profile = directory.path().join("debug");
-    write_units(&profile.join("deps"), &[("unit", "rlib")]);
+    write_units(&profile.join("deps"), &[("unit", "rlib")])
+        .expect("the fixture units should be written");
     fs::create_dir_all(profile.join(".fingerprint")).expect("store");
     fs::write(profile.join(".fingerprint/lib-unit"), b"record").expect("record");
     // A record inside the incremental cache would make the cache look like a
     // unit directory if it were searched. It holds scratch state Cargo
     // regenerates, so it must not be.
-    write_units(&profile.join("incremental/unit"), &[("scratch", "rlib")]);
+    write_units(&profile.join("incremental/unit"), &[("scratch", "rlib")])
+        .expect("the scratch units should be written");
 
     let layout = discover(&profile).expect("discover");
     assert_eq!(
@@ -187,7 +200,8 @@ fn pairing_is_by_stem_with_a_separator() {
 fn outputs_pair_with_their_records() {
     let directory = tempfile::tempdir().expect("temp dir");
     let units = directory.path();
-    write_units(units, &[("linked", "rlib"), ("checked", "rmeta")]);
+    write_units(units, &[("linked", "rlib"), ("checked", "rmeta")])
+        .expect("the fixture units should be written");
     // A unit that emitted both forms, and an unrelated artefact that must not
     // be attributed to either.
     fs::write(units.join("liblinked.rmeta"), b"unit").expect("metadata");
