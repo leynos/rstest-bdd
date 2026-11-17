@@ -93,7 +93,7 @@ produced.
   scenario-local state helper), or any 12.x redesign work. Cross-references to
   those items are allowed where they help a reader plan ahead; substantive
   content is not.
-- Treat the design document and ADR-007 as authoritative. The entry must
+- Treat the design document and ADR-0007 as authoritative. The entry must
   describe the v0.6 behaviour and the v0.6-compatible workarounds. It must not
   propose a thread-local-free pattern, a typed harness-context extractor, or
   any alternative the design document defers to v0.6.1 or v0.7.0. The v0.6/v0.7
@@ -257,7 +257,7 @@ produced.
   is buggy or about to be removed before the v0.7.0 redesign, breaking
   downstream confidence in the v0.6 contract. Severity: low. Likelihood: low.
   Mitigation: state plainly that the v0.6 contract is the supported shape, name
-  the constraint as a design limitation rather than a bug, and cite ADR-007
+  the constraint as a design limitation rather than a bug, and cite ADR-0007
   plus §2.7.6.1 for the rationale.
 - Risk: markdownlint trips on the nested fenced blocks, the long error
   strings, or the rustc-error-code links. Severity: low. Likelihood: medium.
@@ -657,9 +657,9 @@ A reader picking this plan up cold should know the following:
   fixtures and `E0502` for one mutable plus one immutable.
 - The design document captures the constraint at
   `docs/rstest-bdd-design.md` §2.7.6.1, the interim workaround at §2.7.6.2, and
-  the v0.7.0 redesign target at §2.7.6.5. ADR-007
-  (`docs/adr-007-harness-context-injection.md`) records the harness context
-  contract that produced the constraint.
+  the v0.7.0 redesign target at §2.7.6.5. ADR-0007
+  (`docs/adrs/adr-0007-harness-context-injection.md`) records the harness
+  context contract that produced the constraint.
 - 10.2.1 (delivered 2026-06-04) added the stateful GPUI playbook to
   `docs/users-guide.md` ("Stateful GPUI scenarios with durable handles") and to
   `docs/v0-6-0-migration-guide.md` ("Migrate a stateful GPUI test"). The
@@ -709,7 +709,7 @@ The agreed entry structure for `docs/v0-6-0-migration-guide.md` is:
    c. A "Why this happens" paragraph that ties the two errors to the
       sequential `ctx.borrow_mut(...)` calls in the generated wrapper
       and the `&mut self` receiver on `StepContext::borrow_mut`. It
-      cites design §2.7.6.1 for rationale, names ADR-007 for the
+      cites design §2.7.6.1 for rationale, names ADR-0007 for the
       contract, and includes the one-sentence Rustonomicon
       cross-reference about disjoint container indices. Inline link the
       rustc pages for both error codes once.
@@ -753,7 +753,7 @@ The agreed entry structure for `docs/v0-6-0-migration-guide.md` is:
       design subsections (§2.7.6.1 for rationale, §2.7.6.2 for the
       interim pattern, §2.7.6.5 for the redesign), the user-guide
       playbook, the existing migration-guide "Migrate a stateful
-      GPUI test" subsection, and ADR-007.
+      GPUI test" subsection, and ADR-0007.
 3. A new bullet pair at the **head** of the existing
    `## Common errors and fixes` bullet list (above the four current pairs),
    pointing skim-readers at the new subsection that follows:
@@ -781,7 +781,7 @@ In `docs/v0-6-0-migration-guide.md`, insert the
 bullet pairs. The replacement content must:
 
 - Cite the design subsection paths (`docs/rstest-bdd-design.md`
-  §2.7.6.1, §2.7.6.2, §2.7.6.5), ADR-007, and the rustc canonical error pages
+  §2.7.6.1, §2.7.6.2, §2.7.6.5), ADR-0007, and the rustc canonical error pages
   exactly once each.
 - Use the identifiers `cx: &mut gpui::TestAppContext` and
   `world: &mut UiWorld` from the §2.7.6.1 schematic in the failing snippet.
@@ -985,7 +985,7 @@ the supporting evidence locally:
 - `docs/rstest-bdd-design.md` §§2.7.6.1, §2.7.6.2, §2.7.6.5.
 - `docs/v0-6-0-migration-guide.md` "Migrate a stateful GPUI test".
 - `docs/users-guide.md` "Stateful GPUI scenarios with durable handles".
-- `docs/adr-007-harness-context-injection.md`.
+- `docs/adrs/adr-0007-harness-context-injection.md`.
 
 ## Revision note
 

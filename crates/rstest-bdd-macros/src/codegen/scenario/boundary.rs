@@ -1,6 +1,6 @@
 //! Executable boundary for generated scenario tests.
 //!
-//! Resolves the ADR-008 attribute policy for a scenario and, where the
+//! Resolves the ADR-0008 attribute policy for a scenario and, where the
 //! selected test attribute cannot consume a `Result`, rewrites the scenario
 //! body so the failure still surfaces.
 

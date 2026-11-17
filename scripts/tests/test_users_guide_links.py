@@ -154,9 +154,9 @@ class TestGenerateGuide:
 
     def test_rewrites_the_url_of_a_stale_definition(self, repo: Path) -> None:
         """A definition written against an older branch is repaired."""
-        markdown = f"[adr-001]: {STALE_BRANCH_URL}\n"
+        markdown = f"[adr-0001]: {STALE_BRANCH_URL}\n"
         generated = generate_guide(repo, markdown)
-        assert generated == f"[adr-001]: {BASE_URL}target.md\n", (
+        assert generated == f"[adr-0001]: {BASE_URL}target.md\n", (
             f"stale definition should be rewritten, got {generated!r}"
         )
 

@@ -28,20 +28,19 @@ enum AttemptAction {
     ResumeUnwind(Box<dyn Any + Send>),
 }
 
-impl AttemptAction {
-    /// Reports whether this action completes the seed successfully.
-    const fn is_success(&self) -> bool { matches!(self, Self::Success) }
-
-    /// Reports whether the controller should repeat the current seed.
-    const fn is_retry(&self) -> bool { matches!(self, Self::Retry) }
-
-    /// Extracts the panic payload retained exclusively by a terminal failure.
-    fn into_panic(self) -> Box<dyn Any + Send> {
-        match self {
-            Self::ResumeUnwind(error) => error,
-            Self::Success | Self::Retry => unreachable!("only failure actions carry panic data"),
-        }
-    }
+/// Per-seed inputs for this vendored GPUI retry controller.
+///
+/// Keep this value local to the shim; it is not a general test-run API.
+#[derive(Clone, Copy)]
+struct SeedRun {
+    /// Seed passed to the test closure.
+    seed: u64,
+    /// Whether the invocation contains multiple seeds.
+    is_multiple_runs: bool,
+    /// Maximum number of retries allowed after the first attempt.
+    max_retries: usize,
+    /// Current zero-based attempt, where zero is the first run.
+    attempt: usize,
 }
 
 /// Minimal dispatcher value passed through `run_test`.
@@ -170,14 +169,6 @@ where
 ///
 /// The retry diagnostics deliberately go directly to the test process because
 /// this minimal shim does not install a global tracing subscriber.
-#[expect(
-    clippy::print_stdout,
-    reason = "retry progress must remain visible without a global tracing subscriber"
-)]
-#[expect(
-    clippy::print_stderr,
-    reason = "seed diagnostics must remain visible when a test eventually panics"
-)]
 pub fn run_test(
     num_iterations: usize,
     explicit_seeds: &[u64],
@@ -188,30 +179,84 @@ pub fn run_test(
     let (seeds, is_multiple_runs) = calculate_seeds(num_iterations as u64, explicit_seeds);
 
     for seed in seeds {
-        let mut attempt = 0;
-        loop {
-            if is_multiple_runs {
-                eprintln!("seed = {seed}");
-            }
+        run_seed(
+            SeedRun {
+                seed,
+                is_multiple_runs,
+                max_retries,
+                attempt: 0,
+            },
+            test_fn,
+            on_fail_fn,
+        );
+    }
+}
 
-            let action = classify_attempt(seed, attempt, max_retries, test_fn);
-            if action.is_success() {
-                break;
+/// Runs one seed until it succeeds or exhausts the configured retries.
+fn run_seed(
+    seed_run: SeedRun,
+    test_fn: &mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
+    on_fail_fn: Option<fn()>,
+) {
+    for attempt in 0..=seed_run.max_retries {
+        let seed_run = SeedRun {
+            attempt,
+            ..seed_run
+        };
+        report_seed(seed_run);
+        match classify_attempt(seed_run, test_fn) {
+            AttemptAction::Success => return,
+            AttemptAction::Retry => report_retry(seed_run),
+            AttemptAction::ResumeUnwind(payload) => {
+                resume_failed_seed(seed_run, on_fail_fn, payload);
             }
-            if action.is_retry() {
-                println!("attempt {attempt} failed, retrying");
-                attempt += 1;
-                continue;
-            }
-
-            if is_multiple_runs {
-                eprintln!("failing seed: {seed}");
-            }
-            if let Some(on_fail_fn) = on_fail_fn {
-                on_fail_fn();
-            }
-            panic::resume_unwind(action.into_panic());
         }
+    }
+
+    unreachable!("the final retry attempt must succeed or resume its panic");
+}
+
+/// Prints a seed label when the test runs with multiple seeds.
+#[expect(
+    clippy::print_stderr,
+    reason = "seed diagnostics must remain visible without a global tracing subscriber"
+)]
+fn report_seed(seed_run: SeedRun) {
+    if seed_run.is_multiple_runs {
+        eprintln!("seed = {}", seed_run.seed);
+    }
+}
+
+/// Prints progress after a failed attempt that will be retried.
+#[expect(
+    clippy::print_stdout,
+    reason = "retry progress must remain visible without a global tracing subscriber"
+)]
+fn report_retry(seed_run: SeedRun) {
+    println!("attempt {} failed, retrying", seed_run.attempt);
+}
+
+/// Reports a terminal seed failure and resumes its original panic payload.
+fn resume_failed_seed(
+    seed_run: SeedRun,
+    on_fail_fn: Option<fn()>,
+    payload: Box<dyn Any + Send>,
+) -> ! {
+    report_failing_seed(seed_run);
+    if let Some(on_fail_fn) = on_fail_fn {
+        on_fail_fn();
+    }
+    panic::resume_unwind(payload)
+}
+
+/// Prints a seed label when a multi-seed run reaches a terminal failure.
+#[expect(
+    clippy::print_stderr,
+    reason = "the failing seed must remain visible without a global tracing subscriber"
+)]
+fn report_failing_seed(seed_run: SeedRun) {
+    if seed_run.is_multiple_runs {
+        eprintln!("failing seed: {}", seed_run.seed);
     }
 }
 
@@ -220,19 +265,17 @@ pub fn run_test(
 /// Only the final failure retains its payload, so callers can run their
 /// callback before resuming the original panic without changing its value.
 fn classify_attempt(
-    seed: u64,
-    attempt: usize,
-    max_retries: usize,
+    seed_run: SeedRun,
     test_fn: &(dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
 ) -> AttemptAction {
     let result = panic::catch_unwind(|| {
-        let dispatcher = TestDispatcher::new(seed);
-        test_fn(dispatcher, seed);
+        let dispatcher = TestDispatcher::new(seed_run.seed);
+        test_fn(dispatcher, seed_run.seed);
     });
 
     match result {
         Ok(()) => AttemptAction::Success,
-        Err(_) if attempt < max_retries => AttemptAction::Retry,
+        Err(_) if seed_run.attempt < seed_run.max_retries => AttemptAction::Retry,
         Err(error) => AttemptAction::ResumeUnwind(error),
     }
 }
@@ -340,18 +383,4 @@ fn build_seed_range(start: u64, iterations: u64) -> Vec<u64> {
 }
 
 #[cfg(test)]
-mod tests {
-    //! Tests the environment-override boundary without mutating process state.
-
-    use std::{env::VarError, ffi::OsString};
-
-    use super::parse_env_u64_value;
-
-    /// Treats an injected non-Unicode lookup failure as an invalid override.
-    #[test]
-    fn discards_non_unicode_environment_override() {
-        let value = VarError::NotUnicode(OsString::from("invalid-byte-sequence"));
-
-        assert_eq!(parse_env_u64_value("SEED", Err(value)), None);
-    }
-}
+mod retry_tests;

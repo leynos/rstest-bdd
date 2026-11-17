@@ -1,35 +1,6 @@
-//! Integration contract for the workspace's nextest override and timeout budget
-//! policy.
-//!
-//! The suite reads `.config/nextest.toml` as data rather than running
-//! cargo-nextest: `nextest_configuration` parses the file with `toml`, and the
-//! tests assert the budget policy a reviewer can see written down there. The
-//! run-level ceiling and the test group's thread limit come from the same
-//! parsed value, read through `default_profile_key` and
-//! `test_group_max_threads` respectively.
-//!
-//! Three contracts are pinned:
-//!
-//! * `trybuild_nextest_override_preserves_timeout_contract` requires exactly one override to name
-//!   any of the four compile-test binaries, and that override's filter to name all four and no
-//!   others. It then requires the override to keep a 20 m `slow-timeout` period, `terminate-after =
-//!   1`, a 5 s grace period and membership of the `cargo-spawning` group, and the default profile's
-//!   `global-timeout` to exceed the period in seconds.
-//! * `feature_rebuild_nextest_override_preserves_timeout_contract` requires exactly one override to
-//!   carry the exact filter `binary_id(rstest-bdd::feature_rebuild_invalidation)`, with the same
-//!   termination settings and group, at a 600 s period.
-//! * `nested_cargo_run_retains_cold_build_reserve` recomputes the R-6 sizing scenario (a reference
-//!   lane of `180 + 600 * 4 + 600 * 3` seconds, ten cold nested invocations at 19 s each and a 600
-//!   s reserve) and requires the default profile's `global-timeout` to cover it, and the
-//!   `cargo-spawning` group's `max-threads` to stay at 1 so nested builds keep serializing.
-//!
-//! The overrides, the group and the run-level ceiling are policy that a future
-//! edit could break silently, so these assertions fail loudly instead. They
-//! cover the two nextest tiers of the four-tier timeout budget: a per-test
-//! `slow-timeout` compared against the whole-run `global-timeout`. The
-//! coverage watchdog and the job `timeout-minutes` are the outer two tiers,
-//! covered by the workflow contracts under `tests/workflow_contracts`;
-//! `.config/nextest.toml` asks that suite and this file to be kept in step.
+//! Integration contracts for `.config/nextest.toml` and nested Cargo timeouts.
+//! They protect per-test limits, 120-minute compile budgets, and serialized
+//! builds; workflow contracts protect outer watchdog and job limits.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -48,6 +19,13 @@ const EXPECTED_TRYBUILD_BINARIES: [&str; 4] = [
     "rstest-bdd-server::workspace_discovery_compile",
 ];
 const FEATURE_REBUILD_BINARY: &str = "rstest-bdd::feature_rebuild_invalidation";
+const BINARY_TEST_SUPPORT_BINARY: &str = "rstest-bdd-harness::binary_test_support_cargo";
+const CARGO_BDD_CLI_BINARY: &str = "cargo-bdd::cli";
+
+struct ExpectedCargoSpawningOverride {
+    binary_id: &'static str,
+    period: &'static str,
+}
 
 #[test]
 fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
@@ -82,9 +60,9 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         .and_then(Value::as_str)
         .ok_or_else(|| io::Error::other("trybuild nextest override must name a period"))?;
     assert_eq!(
-        period, "20m",
-        "trybuild nextest override must allow a 20-minute slow timeout, which is what a cold \
-         compiler cache costs this fixture tree",
+        period, "120m",
+        "trybuild nextest override must allow a 120-minute slow timeout for the complete fixture \
+         sequence on a cold cache under shared compiler admission",
     );
 
     let global_timeout = default_global_timeout(&configuration)?;
@@ -93,6 +71,12 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         "the default profile's global timeout ({global_timeout}) must exceed the trybuild slow \
          timeout ({period}); otherwise nextest kills the run before the test the budget exists \
          for can finish, and raising the budget alone rescues nothing",
+    );
+    let long_global_timeout = profile_global_timeout(&configuration, "long")?;
+    assert!(
+        duration_seconds(long_global_timeout)? > duration_seconds(period)?,
+        "the long profile's global timeout ({long_global_timeout}) must exceed the trybuild slow \
+         timeout ({period}); otherwise nextest kills the run before the test budget can finish",
     );
     assert_eq!(
         slow_timeout
@@ -117,9 +101,34 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
 
 #[test]
 fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
+    assert_cargo_spawning_override(&ExpectedCargoSpawningOverride {
+        binary_id: FEATURE_REBUILD_BINARY,
+        period: "30m",
+    })
+}
+
+#[test]
+fn binary_test_support_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
+    assert_cargo_spawning_override(&ExpectedCargoSpawningOverride {
+        binary_id: BINARY_TEST_SUPPORT_BINARY,
+        period: "20m",
+    })
+}
+
+#[test]
+fn cargo_bdd_cli_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
+    assert_cargo_spawning_override(&ExpectedCargoSpawningOverride {
+        binary_id: CARGO_BDD_CLI_BINARY,
+        period: "20m",
+    })
+}
+
+fn assert_cargo_spawning_override(
+    expected: &ExpectedCargoSpawningOverride,
+) -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;
     let overrides = default_overrides(&configuration)?;
-    let filter = format!("binary_id({FEATURE_REBUILD_BINARY})");
+    let filter = format!("binary_id({})", expected.binary_id);
     let matching = overrides
         .iter()
         .filter(|override_value| {
@@ -129,18 +138,19 @@ fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), B
     assert_eq!(
         matching.len(),
         1,
-        "the feature-rebuild test must have exactly one exact nextest override",
+        "{} must have exactly one exact nextest override",
+        expected.binary_id,
     );
     let override_value = matching
         .first()
-        .expect("the asserted single feature-rebuild override must be present");
+        .ok_or_else(|| io::Error::other("expected one cargo-spawning override"))?;
     let slow_timeout = override_value
         .get("slow-timeout")
         .and_then(Value::as_table)
-        .expect("feature-rebuild override must contain a slow-timeout table");
+        .ok_or_else(|| io::Error::other("cargo-spawning override must set slow-timeout"))?;
     assert_eq!(
         slow_timeout.get("period").and_then(Value::as_str),
-        Some("600s")
+        Some(expected.period)
     );
     assert_eq!(
         slow_timeout
@@ -155,6 +165,13 @@ fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), B
     assert_eq!(
         override_value.get("test-group").and_then(Value::as_str),
         Some("cargo-spawning")
+    );
+    let global_timeout = default_global_timeout(&configuration)?;
+    assert!(
+        duration_seconds(global_timeout)? > duration_seconds(expected.period)?,
+        "the default profile's global timeout ({global_timeout}) must exceed the cargo-spawning \
+         timeout ({})",
+        expected.period,
     );
     Ok(())
 }
@@ -209,38 +226,67 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-fn default_profile_key<'a>(configuration: &'a Value, key: &str) -> Option<&'a Value> {
-    configuration
-        .get("profile")
-        .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get("default"))
-        .and_then(Value::as_table)
-        .and_then(|default_profile| default_profile.get(key))
+fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
+    profile_global_timeout(configuration, "default")
 }
 
-fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
-    default_profile_key(configuration, "global-timeout")
-        .and_then(Value::as_str)
+fn profile_global_timeout<'a>(
+    configuration: &'a Value,
+    profile_name: &str,
+) -> Result<&'a str, io::Error> {
+    nextest_value_at_path(
+        configuration,
+        &["profile", profile_name, "global-timeout"],
+        Value::as_str,
+    )
+}
+
+fn nextest_value_at_path<'a, T>(
+    configuration: &'a Value,
+    path: &[&str],
+    decode: impl FnOnce(&'a Value) -> Option<T>,
+) -> Result<T, io::Error> {
+    path.iter()
+        .try_fold(configuration, |value, key| value.get(*key))
+        .and_then(decode)
         .ok_or_else(|| {
-            io::Error::other("nextest configuration must set profile.default.global-timeout")
+            io::Error::other(format!("nextest configuration must set {}", path.join(".")))
         })
+}
+
+#[test]
+fn nextest_value_at_path_reports_missing_and_wrongly_typed_leaves() {
+    let missing: Value = toml::from_str("[profile.default]\n").expect("valid TOML");
+    let missing_error = nextest_value_at_path(
+        &missing,
+        &["profile", "default", "global-timeout"],
+        Value::as_str,
+    )
+    .expect_err("a missing leaf must be reported");
+    assert_eq!(
+        missing_error.to_string(),
+        "nextest configuration must set profile.default.global-timeout"
+    );
+
+    let wrong_type: Value =
+        toml::from_str("[profile.default]\nglobal-timeout = 10").expect("valid TOML");
+    let type_error = nextest_value_at_path(
+        &wrong_type,
+        &["profile", "default", "global-timeout"],
+        Value::as_str,
+    )
+    .expect_err("a leaf with the wrong type must be reported");
+    assert_eq!(type_error.to_string(), missing_error.to_string());
 }
 
 /// `test-groups` is a top-level nextest table, not a profile key, so it needs
-/// its own lookup rather than `default_profile_key`.
+/// its own lookup rather than `profile_global_timeout`.
 fn test_group_max_threads(configuration: &Value, group_name: &str) -> Result<i64, io::Error> {
-    configuration
-        .get("test-groups")
-        .and_then(Value::as_table)
-        .and_then(|groups| groups.get(group_name))
-        .and_then(Value::as_table)
-        .and_then(|group| group.get("max-threads"))
-        .and_then(Value::as_integer)
-        .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must set test-groups.{group_name}.max-threads"
-            ))
-        })
+    nextest_value_at_path(
+        configuration,
+        &["test-groups", group_name, "max-threads"],
+        Value::as_integer,
+    )
 }
 
 fn duration_seconds(duration: &str) -> Result<u64, io::Error> {

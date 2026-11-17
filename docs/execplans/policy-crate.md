@@ -59,7 +59,7 @@ all tests/lints pass.
 - [x] (2026-01-17 01:16Z) Draft ExecPlan and obtain approval.
 - [x] (2026-01-17 01:20Z) Run baseline test suite before edits.
 - [x] (2026-01-17 01:26Z) Add minimal ADR for the policy crate and update
-      ADR-001 if needed.
+      ADR-0001 if needed.
 - [x] (2026-01-17 01:26Z) Add `crates/rstest-bdd-policy` with shared enums and
       docs.
 - [x] (2026-01-17 01:26Z) Update runtime and macro crates to use shared policy
@@ -88,9 +88,9 @@ all tests/lints pass.
 
 The policy enums live in `rstest-bdd-policy`, eliminating macro/runtime
 duplication while preserving the public `rstest_bdd::execution` API via
-re-exports. Documentation now includes ADR-004, and ADR-001 references the new
-policy crate. Running the full quality gate suite confirms the changes across
-all outcomes: formatting, lint, and tests.
+re-exports. Documentation now includes ADR-0004, and ADR-0001 references the
+new policy crate. Running the full quality gate suite confirms the changes
+across all outcomes: formatting, lint, and tests.
 
 ## Context and orientation
 
@@ -101,20 +101,20 @@ was necessary because proc-macro crates cannot depend on runtime crates. The
 new policy crate will house those shared types, so both crates can depend on it
 without duplication.
 
-Documentation lives in `docs/`. ADRs include `docs/adr-004-policy-crate.md`,
-which records moving `RuntimeMode` and `TestAttributeHint` from
-`crates/rstest-bdd/src/execution.rs` and the mirrored definitions in
-`crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs` into
-`crates/rstest-bdd-policy`. Workspace layout documentation appears in the root
-`README.md`, the crate READMEs, and `docs/rstest-bdd-design.md`, and should
-list the policy crate alongside the runtime and macro crates.
+Documentation lives in `docs/`. ADRs include
+`docs/adrs/adr-0004-policy-crate.md`, which records moving `RuntimeMode` and
+`TestAttributeHint` from `crates/rstest-bdd/src/execution.rs` and the mirrored
+definitions in `crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs`
+into `crates/rstest-bdd-policy`. Workspace layout documentation appears in the
+root `README.md`, the crate READMEs, and `docs/rstest-bdd-design.md`, and
+should list the policy crate alongside the runtime and macro crates.
 
 ## Plan of work
 
 Stage A: Baseline and doc alignment. Run the full test suite before any code
 changes to establish a baseline. Draft a minimal ADR describing the policy
-crate decision and update `docs/adr-001-async-fixtures-and-test.md` if its
-runtime policy references to the new shared crate need to be updated.
+crate decision and update `docs/adrs/adr-0001-async-fixtures-and-test.md` if
+its runtime policy references to the new shared crate need to be updated.
 
 Stage B: Policy crate implementation. Create a new crate at
 `crates/rstest-bdd-policy` with a `Cargo.toml` and `src/lib.rs` that defines
@@ -140,8 +140,9 @@ quality gates pass.
 
 2) Documentation updates:
 
-   - Add `docs/adr-004-policy-crate.md` with a minimal ADR.
-   - Update `docs/adr-001-async-fixtures-and-test.md` if it mentions the policy
+   - Add `docs/adrs/adr-0004-policy-crate.md` with a minimal ADR.
+   - Update `docs/adrs/adr-0001-async-fixtures-and-test.md` if it mentions the
+     policy
      duplication or trait abstraction in a way that now changes.
 
 3) Policy crate scaffolding:

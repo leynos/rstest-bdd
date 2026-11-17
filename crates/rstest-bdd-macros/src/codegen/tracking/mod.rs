@@ -1,4 +1,4 @@
-//! Cargo rebuild-dependency tracking for bound `.feature` files (ADR-010,
+//! Cargo rebuild-dependency tracking for bound `.feature` files (ADR-0010,
 //! roadmap item 10.3.3).
 //!
 //! Cargo decides whether to recompile a crate from its dep-info file, and
@@ -217,7 +217,7 @@ fn prefix_kinds_match(path: Prefix<'_>, manifest: Prefix<'_>) -> bool {
 /// text, so continuation indentation would leak into `TokenStream::to_string`
 /// and make the emitted form depend on the file's formatting.
 const TRACKING_BINDING_DOC: &str = concat!(
-    "Registers the bound `.feature` file as a Cargo rebuild dependency (ADR-010). ",
+    "Registers the bound `.feature` file as a Cargo rebuild dependency (ADR-0010). ",
     "Deleting this makes `.feature`-only edits silently skip recompilation; see ",
     "rstest-bdd::feature_rebuild_invalidation.",
 );

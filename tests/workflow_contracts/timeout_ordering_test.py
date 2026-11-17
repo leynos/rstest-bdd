@@ -13,7 +13,7 @@ third of its budget, and the failure read as an infrastructure fault
 rather than as a slow build. Nothing in ``.config/nextest.toml`` mentions
 the watchdog, and nothing in the workflow mentioned nextest, so the two
 could drift apart without either side noticing. The run budget has since
-been raised to 90 m; the arithmetic below reads it from the configuration
+been raised to 145 m; the arithmetic below reads it from the configuration
 rather than restating it.
 
 Two of the four timers do not start together, which the ordering has to
@@ -31,6 +31,10 @@ Windows, termination is immediate, and the grace period is ignored for
 timeouts. That allowance is seconds, not minutes, and it is read from the
 configuration so a profile that raises it raises the requirement too.
 
+The contract reads both the merge gate (``ci.yml``) and the trunk publisher
+(``coverage-main.yml``): both invoke the coverage action and both set every
+tier, so a budget change on either side must satisfy the same ordering.
+
 See "Test timeouts: four tiers, outermost last" in
 ``docs/developers-guide.md``.
 """
@@ -40,14 +44,17 @@ import typing as typ
 import nextest_config as reading
 import pytest
 import timeout_budgets as budgets
-import yaml
-from workflow_support import ROOT
+from coverage_support import PR_WORKFLOW, PUBLISHER
+from workflow_support import ROOT, workflow
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
 
 NEXTEST_CONFIG: typ.Final[Path] = ROOT / ".config" / "nextest.toml"
-CI_WORKFLOW: typ.Final[Path] = ROOT / ".github" / "workflows" / "ci.yml"
+
+#: Both workflows that invoke the coverage action: the merge gate and the
+#: trunk publisher. A budget change on either side reaches the same contract.
+WORKFLOWS: typ.Final[tuple[str, ...]] = (PR_WORKFLOW, PUBLISHER)
 
 #: The environment variable the shared coverage action reads.
 WATCHDOG_VARIABLE: typ.Final[str] = "RUN_RUST_CARGO_WAIT_TIMEOUT"
@@ -83,16 +90,25 @@ def nextest_config() -> str:
     return NEXTEST_CONFIG.read_text(encoding="utf-8")
 
 
-@pytest.fixture(scope="module")
-def ci_workflow() -> dict[str, typ.Any]:
-    """Return the parsed CI workflow.
+@pytest.fixture(scope="module", params=WORKFLOWS, ids=WORKFLOWS)
+def coverage_workflow(request: pytest.FixtureRequest) -> dict[str, typ.Any]:
+    """Return one workflow that invokes the coverage action.
+
+    The merge gate and the trunk publisher each set every tier, so a
+    contract that read only ``ci.yml`` would let the publisher's watchdog
+    or job ceiling drift out of order unnoticed.
+
+    Parameters
+    ----------
+    request : pytest.FixtureRequest
+        The parametrized workflow file name.
 
     Returns
     -------
     dict[str, typ.Any]
         The parsed workflow document.
     """
-    return yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    return workflow(request.param)
 
 
 class NextestBudgets(typ.NamedTuple):
@@ -196,7 +212,7 @@ def _optional_seconds(value: object) -> float | None:
 
 
 @pytest.fixture(scope="module")
-def lanes(ci_workflow: dict[str, typ.Any]) -> tuple[CoverageLane, ...]:
+def lanes(coverage_workflow: dict[str, typ.Any]) -> tuple[CoverageLane, ...]:
     """Return every coverage lane, each with its own job's ceiling.
 
     Every coverage step is included, not only those that set the
@@ -211,8 +227,8 @@ def lanes(ci_workflow: dict[str, typ.Any]) -> tuple[CoverageLane, ...]:
 
     Parameters
     ----------
-    ci_workflow : dict[str, typ.Any]
-        The parsed CI workflow.
+    coverage_workflow : dict[str, typ.Any]
+        The parsed coverage workflow.
 
     Returns
     -------
@@ -220,7 +236,7 @@ def lanes(ci_workflow: dict[str, typ.Any]) -> tuple[CoverageLane, ...]:
         One entry per coverage step.
     """
     lanes: list[CoverageLane] = []
-    for job_name, job in ci_workflow["jobs"].items():
+    for job_name, job in coverage_workflow["jobs"].items():
         for step in job.get("steps", []):
             if COVERAGE_ACTION not in str(step.get("uses", "")):
                 continue
@@ -247,8 +263,8 @@ def test_every_coverage_step_declares_a_watchdog_budget(
     one step losing its override is enough to bring the fault back.
     """
     assert lanes, (
-        f"ci.yml must invoke {COVERAGE_ACTION}; this contract has nothing to "
-        f"assert against otherwise"
+        f"each coverage workflow must invoke {COVERAGE_ACTION}; this contract "
+        f"has nothing to assert against otherwise"
     )
     missing = [str(lane) for lane in lanes if lane.watchdog is None]
     assert not missing, (

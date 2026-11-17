@@ -2,13 +2,13 @@
 //!
 //! `run_scenario` has a documented contract: every step outcome reaches the
 //! caller through the returned `ScenarioOutcome`, and the function does not
-//! panic (Constraint 3, ADR-018-TR2). For a step registered through `#[given]`
+//! panic (Constraint 3, ADR-0018-TR2). For a step registered through `#[given]`
 //! and its siblings that contract is satisfied one level down, by the
 //! macro-generated wrapper's own `catch_unwind`
 //! (`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly/mod.rs`). It is
 //! *not* satisfied for a step registered through the raw `step!` form, which
 //! stores the handler as a bare function pointer and generates no wrapper — and
-//! that form is ADR-018's own extension story, so a runner that relied on the
+//! that form is ADR-0018's own extension story, so a runner that relied on the
 //! wrapper would be relying on something a legitimate registration path does
 //! not have.
 //!

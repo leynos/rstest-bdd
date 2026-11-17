@@ -1,4 +1,4 @@
-//! Property-based tests for guard-based `StepContext` borrowing (ADR-012).
+//! Property-based tests for guard-based `StepContext` borrowing (ADR-0012).
 //!
 //! Drives arbitrary sequences of acquire/release operations over a small
 //! pool of owned fixtures and checks the outcomes against a reference model

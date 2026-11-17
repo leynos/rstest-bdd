@@ -10,7 +10,7 @@ helpers can produce: every ``grace-period`` in it is five seconds, so the
 termination allowance always lands on the same sixty-five seconds. A
 contract that only ever sees one number cannot tell the corrected rule from
 the one it replaced, and dropping the term outright would leave the
-watchdog at 6,600 s with every assertion still passing.
+watchdog at 9,900 s with every assertion still passing.
 
 Scope and re-use: these helpers own the reading of nextest duration strings
 and the watchdog rule they feed. They serve the workflow contracts under
@@ -385,7 +385,7 @@ def watchdog_shortfall(watchdog_seconds: float, required_seconds: float) -> floa
     --------
     >>> watchdog_shortfall(5400.0, 5460.0)
     60.0
-    >>> watchdog_shortfall(6600.0, 5460.0)
+    >>> watchdog_shortfall(9900.0, 9665.0)
     0.0
     """
     return max(required_seconds - watchdog_seconds, 0.0)

@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 013: adopt Whitaker `no_unwrap_or_else_panic`
+# Architectural decision record (ADR) 0013: adopt Whitaker `no_unwrap_or_else_panic`
 
 ## Status
 
@@ -200,7 +200,7 @@ environment:
   `whitaker --all` through this same wrapper.
 
 Contributor-facing setup and maintenance steps are documented in
-`docs/developers-guide.md` under "Whitaker Dylint suite lint gate (ADR-013)".
+`docs/developers-guide.md` under "Whitaker Dylint suite lint gate (ADR-0013)".
 
 ## Addendum (2026-09-03): Ubicloud CI runner migration
 

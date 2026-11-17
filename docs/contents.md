@@ -74,87 +74,91 @@
 
 ## Decision records
 
-- [ADR 001: async fixtures and test](adr-001-async-fixtures-and-test.md)
+- [ADR 0001: async fixtures and test](adrs/adr-0001-async-fixtures-and-test.md)
   records the async fixture and test decision.
-- [ADR 002: stable step return classification][adr-002]
+- [ADR 0002: stable step return classification][adr-0002]
   records the return-value classification decision for step functions, as
-  amended by ADR-019.
-- [ADR 003: scenarios macro fixtures](adr-003-scenarios-macro-fixtures.md)
+  amended by ADR-0019.
+- [ADR 0003: scenarios macro fixtures](adrs/adr-0003-scenarios-macro-fixtures.md)
   records how scenario macros interact with fixtures.
-- [ADR 004: policy crate](adr-004-policy-crate.md) records the decision to
-  split policy concerns into a dedicated crate.
-- [ADR 005: async step functions](adr-005-async-step-functions.md) records the
-  async step-function design decision.
-- [ADR 005a: harness adapter crates][adr-005a-harness]
-  records the harness-adapter crate decision.
-- [ADR 006: fallible scenario functions](adr-006-fallible-scenario-functions.md)
+- [ADR 0004: policy crate](adrs/adr-0004-policy-crate.md) records the decision
+  to split policy concerns into a dedicated crate.
+- [ADR 0005: async step functions](adrs/adr-0005-async-step-functions.md)
+  records the async step-function design decision.
+- [ADR 0006: fallible scenario functions](adrs/adr-0006-fallible-scenario-functions.md)
   records the scenario-function fallibility decision.
-- [ADR 007: harness context injection](adr-007-harness-context-injection.md)
+- [ADR 0007: harness context injection](adrs/adr-0007-harness-context-injection.md)
   records the harness-context injection decision.
-- [ADR 008: harness-led attribute policy defaults][adr-008]
+- [ADR 0008: harness-led attribute policy defaults][adr-0008]
   records the harness-led attribute-policy default decision.
-- [ADR 009: consistent implicit fixture name normalization][adr-009]
+- [ADR 0009: consistent implicit fixture name normalization][adr-0009]
   records the decision for consistent implicit fixture-name normalization.
-- [ADR 010: feature-file change detection][adr-010] records the decision for
+- [ADR 0010: feature-file change detection][adr-0010] records the decision for
   making `.feature` files rebuild inputs.
-- [ADR 011: first-party scenario-state helpers][adr-011] records the planned
+- [ADR 0011: first-party scenario-state helpers][adr-0011] records the planned
   state-store and cleanup-helper direction for stateful harnesses.
-- [ADR 012: guard-based `StepContext` borrowing][adr-012] records the
+- [ADR 0012: guard-based `StepContext` borrowing][adr-0012] records the
   committed v0.7.0 borrowing redesign direction.
-- [ADR 013: adopt Whitaker `no_unwrap_or_else_panic`][adr-013] records the
+- [ADR 0013: adopt Whitaker `no_unwrap_or_else_panic`][adr-0013] records the
   single-lint Whitaker gate decision.
-- [ADR 014: retain the users-guide link validator][adr-014] records the
+- [ADR 0014: retain the users-guide link validator][adr-0014] records the
   decision to keep `check_users_guide_links.py`, scoped to repository
   references in the vendored users' guide.
-- [ADR 015: name the step-return override outcome][adr-015] records the
+- [ADR 0015: name the step-return override outcome][adr-0015] records the
   decision to return `InsertOutcome` from `StepContext::insert_value` instead of
   `Option<Box<dyn Any>>`.
-- [ADR 016: pin the nightly rustfmt toolchain][adr-016] records the formatting
+- [ADR 0016: pin the nightly rustfmt toolchain][adr-0016] records the formatting
   toolchain and workspace lint-inheritance decision.
-- [ADR 017: toolchain-aware adapter fallback diagnostics][adr-017] records the
+- [ADR 0017: toolchain-aware adapter fallback diagnostics][adr-0017] records the
   toolchain-specific warning and pure-resolution decision for first-party
   adapter fallbacks.
-- [ADR 018: parser-neutral scenario execution][adr-018] records the accepted
+- [ADR 0018: parser-neutral scenario execution][adr-0018] records the accepted
   structured scenario plan and runtime runner for non-Gherkin frontends.
-- [ADR 019: type-directed step-return classification][adr-019] records the
+- [ADR 0019: type-directed step-return classification][adr-0019] records the
   inherent-method dispatch that makes local `Result` aliases fallible.
-- [ADR 020: consolidate on the `tracing` logging facade][adr-020] records the
+- [ADR 0020: consolidate on the `tracing` logging facade][adr-0020] records the
   decision to emit every workspace diagnostic through `tracing`, keeping `log`
   only to detect an installed `log` listener.
-- [ADR 021: record the users-guide base URL once][adr-021] records the decision
-  to generate the vendored guide's reference block from one recorded base URL.
-- [ADR 022: a separate compiler-cache family for the Windows publish dry
-  run][adr-022] records the decision to give the dry run's objects their own
+- [ADR 0021: record the users-guide base URL once][adr-0021] records the
+  decision to generate the vendored guide's reference block from one recorded
+  base URL.
+- [ADR 0022: a separate compiler-cache family for the Windows publish dry
+  run][adr-0022] records the decision to give the dry run's objects their own
   archive family, sharing the sccache directory with the instrumented one.
-- [ADR 023: adopt the shared CV-005 contract library][adr-023] records the move
-  from a local copy of the CV-005 contract to the pinned shared check.
+- [ADR 0023: adopt the shared CV-005 contract library][adr-0023] records the
+  move from a local copy of the CV-005 contract to the pinned shared check.
+- [ADR 0024: structural usage tracking in registry lookups][adr-0024]
+  records the structural usage-marking decision and the scoped-query boundary.
+- [ADR 0025: harness adapter crates][adr-0025-harness]
+  records the harness-adapter crate decision.
 
 ## Execution plans
 
 - [Execution plans](execplans/) contains implementation plans for roadmap
   tasks, issue work, and accepted follow-up changes.
 
-[adr-002]: adr-002-stable-step-return-classification.md
-[adr-005a-harness]: adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md
-[adr-008]: adr-008-harness-led-attribute-policy-defaults.md
-[adr-009]: adr-009-consistent-implicit-fixture-name-normalization.md
-[adr-010]: adr-010-feature-file-change-detection.md
-[adr-011]: adr-011-first-party-scenario-state-and-cleanup.md
-[adr-012]: adr-012-guard-based-stepcontext-borrowing.md
-[adr-013]: adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
-[adr-014]: adr-014-retain-users-guide-link-validator.md
-[adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
-[adr-016]: adr-016-pinned-nightly-rustfmt.md
-[adr-017]: adr-017-toolchain-aware-adapter-fallback-diagnostics.md
-[adr-018]: adr-018-parser-neutral-scenario-execution.md
-[adr-019]: adr-019-type-directed-step-return-classification.md
-[adr-020]: adr-020-consolidate-on-the-tracing-logging-facade.md
-[adr-021]: adr-021-single-source-base-url-for-users-guide-links.md
-[adr-022]: adr-022-separate-compiler-cache-family-for-the-publish-dry-run.md
-[adr-023]: adr-023-adopt-the-shared-cv005-contract-library.md
+[adr-0002]: adrs/adr-0002-stable-step-return-classification.md
+[adr-0008]: adrs/adr-0008-harness-led-attribute-policy-defaults.md
+[adr-0009]: adrs/adr-0009-consistent-implicit-fixture-name-normalization.md
+[adr-0010]: adrs/adr-0010-feature-file-change-detection.md
+[adr-0011]: adrs/adr-0011-first-party-scenario-state-and-cleanup.md
+[adr-0012]: adrs/adr-0012-guard-based-stepcontext-borrowing.md
+[adr-0013]: adrs/adr-0013-adopt-whitaker-no-unwrap-or-else-panic.md
+[adr-0014]: adrs/adr-0014-retain-users-guide-link-validator.md
+[adr-0015]: adrs/adr-0015-insert-outcome-for-step-return-overrides.md
+[adr-0016]: adrs/adr-0016-pinned-nightly-rustfmt.md
+[adr-0017]: adrs/adr-0017-toolchain-aware-adapter-fallback-diagnostics.md
+[adr-0018]: adrs/adr-0018-parser-neutral-scenario-execution.md
+[adr-0019]: adrs/adr-0019-type-directed-step-return-classification.md
+[adr-0020]: adrs/adr-0020-consolidate-on-the-tracing-logging-facade.md
+[adr-0021]: adrs/adr-0021-single-source-base-url-for-users-guide-links.md
+[adr-0022]: adrs/adr-0022-separate-compiler-cache-family-for-the-publish-dry-run.md
+[adr-0023]: adrs/adr-0023-adopt-the-shared-cv005-contract-library.md
+[adr-0024]: adrs/adr-0024-structural-usage-tracking-in-registry-lookups.md
+[adr-0025-harness]: adrs/adr-0025-harness-adapter-crates-for-framework-specific-test-integration.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
 [fluent-guide]: localizable-rust-libraries-with-fluent.md
-[rfc-0001]: rfcs/0001-explicit-step-library-scopes.md
-[rfc-0002]: rfcs/0002-named-step-argument-binding.md
+[rfc-0001]: rfcs/rfc-0001-explicit-step-library-scopes.md
+[rfc-0002]: rfcs/rfc-0002-named-step-argument-binding.md

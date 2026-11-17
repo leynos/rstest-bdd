@@ -29,7 +29,7 @@
   migration guide's breaking-change section.
 - `#[scenario]` and `scenarios!` now register every bound `.feature` file as a
   Cargo rebuild dependency, so editing only a `.feature` file recompiles the
-  scenario binary and the tests reflect the new text immediately (ADR-010). A
+  scenario binary and the tests reflect the new text immediately (ADR-0010). A
   feature-file path sharing no filesystem root with the manifest directory (for
   example a different Windows drive) is a compile error naming the file; use a
   manifest-relative path or a path on the same root. Adds a tested `build.rs`
@@ -41,7 +41,7 @@
   the type (`NoMatch`) or because multiple fixtures match (`AmbiguousIgnored`).
   The previous `None` conflated all three cases. Use `into_previous()` where
   the old `Option` behaviour is needed.
-- Redesigned `StepContext` borrowing to be guard-based (ADR-012): borrow
+- Redesigned `StepContext` borrowing to be guard-based (ADR-0012): borrow
   methods take `&self`, so one step can hold mutable guards for distinct
   fixtures concurrently — including mutable harness context plus mutable world
   state — without `E0499`/`E0502`. New `try_borrow` and `try_borrow_mut`
