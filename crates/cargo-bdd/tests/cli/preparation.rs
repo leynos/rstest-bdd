@@ -128,7 +128,7 @@ const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
 /// one of their fingerprint records compared equal to itself and passed.
 ///
 /// Measured from the fixture's own graph rather than restated here. A
-/// hand-written list cannot stay honest at this size: the fixture resolves to
+/// handwritten list cannot stay honest at this size: the fixture resolves to
 /// well over a hundred registry packages, and the set differs by target triple,
 /// so a constant would be both unmaintainable and wrong on at least one lane.
 /// `cargo tree` reads the fixture's manifest and lockfile and applies the host's
