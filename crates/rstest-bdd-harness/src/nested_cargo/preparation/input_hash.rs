@@ -36,6 +36,15 @@ use super::stamp::{PREPARED_FILE_SUFFIX, STAMP_VERSION};
 /// `config.toml` or the legacy `config` name and a checkout may commit
 /// neither, so a missing file is skipped rather than named.
 ///
+/// A relative `CARGO_HOME` is resolved against `workspace_root` rather than
+/// against this process's directory. Cargo resolves it against the working
+/// directory of the command that reads it, and the nested fixture builds run
+/// beneath the workspace, not in this process's directory. Left unresolved, a
+/// `CARGO_HOME=.cargo` would have the probe read this process's tree while the
+/// build read the fixture's, so editing the fixture's own Cargo home could
+/// leave a warm stamp matching and move compilation back into the timed test.
+/// An absolute value is used unchanged, which is also what Cargo does.
+///
 /// # Errors
 ///
 /// Returns the error when any path cannot be inspected. The probe is fallible
@@ -96,7 +105,7 @@ fn config_search_dirs(workspace_root: &Path) -> Vec<PathBuf> {
         .ancestors()
         .map(|ancestor| ancestor.join(".cargo"))
         .collect();
-    if let Some(cargo_home) = cargo_home() {
+    if let Some(cargo_home) = cargo_home(workspace_root) {
         dirs.push(cargo_home);
     }
     dirs
@@ -104,17 +113,31 @@ fn config_search_dirs(workspace_root: &Path) -> Vec<PathBuf> {
 
 /// The Cargo home directory, honouring `CARGO_HOME` and Cargo's default.
 ///
-/// An explicitly set `CARGO_HOME` wins, including a relative one, because that
-/// is what Cargo itself does and the search must name the same directory the
-/// build reads. Otherwise the default is the `home` directory's `.cargo`, from
-/// `HOME` on Unix and `USERPROFILE` on Windows — the same pair Cargo's own
-/// default resolves through. A host with neither variable set has no default to
-/// name, and is left out rather than guessed at.
-fn cargo_home() -> Option<PathBuf> {
+/// An explicitly set `CARGO_HOME` wins, because that is what Cargo itself does
+/// and the search must name the same directory the build reads. A relative
+/// value is resolved against `working_directory`, matching Cargo's own rule
+/// that it is interpreted relative to the command's working directory; the
+/// nested builds run beneath the workspace, not in this process's directory, so
+/// passing the value through unchanged would name two different trees.
+/// Otherwise the default is the `home` directory's `.cargo`, from `HOME` on
+/// Unix and `USERPROFILE` on Windows — the same pair Cargo's own default
+/// resolves through. A host with neither variable set has no default to name,
+/// and is left out rather than guessed at.
+fn cargo_home(working_directory: &Path) -> Option<PathBuf> {
     if let Some(explicit) = std::env::var_os("CARGO_HOME") {
         let explicit = PathBuf::from(explicit);
         if !explicit.as_os_str().is_empty() {
-            return Some(explicit);
+            // Cargo interprets a relative `CARGO_HOME` against the working
+            // directory of the command that reads it. The nested build's
+            // working directory is the workspace (or a fixture beneath it),
+            // not this process's, so the value has to be joined here or the
+            // probe would read one tree while the build read another. An
+            // absolute value is used unchanged, as Cargo does.
+            return Some(if explicit.is_absolute() {
+                explicit
+            } else {
+                working_directory.join(explicit)
+            });
         }
     }
     let home = std::env::var_os("HOME")

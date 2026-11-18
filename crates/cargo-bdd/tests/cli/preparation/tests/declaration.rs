@@ -12,27 +12,12 @@
 
 use super::{
     FIXTURE_PACKAGE,
-    cli_preparation,
     cli_preparation_description,
     closure::fixture_dependency_closure,
-    fixture_dir,
+    family_roots,
     nested_cargo,
 };
 use crate::workspace_root;
-
-/// The CLI family's inputs without the workspace Cargo configuration.
-///
-/// Kept beside the assertion so a future change to the family's roots makes
-/// this list visibly stale rather than silently passing.
-fn inputs_without_cargo_configuration() -> Vec<std::path::PathBuf> {
-    let workspace = workspace_root();
-    vec![
-        fixture_dir(),
-        workspace.join("Cargo.toml"),
-        workspace.join("Cargo.lock"),
-        workspace.join("crates"),
-    ]
-}
 
 #[test]
 fn the_workspace_cargo_configuration_is_an_input() {
@@ -41,13 +26,81 @@ fn the_workspace_cargo_configuration_is_an_input() {
     // Linux linker flags rebuild dependency artefacts without changing a
     // fixture source. A stamp that ignored it would survive such an edit and
     // the timed CLI test would compile the graph inside its own 180 s limit.
-    let (_environment, _target_root, inputs) =
-        cli_preparation().expect("preparation description should resolve");
-    let without = nested_cargo::input_hash(&inputs_without_cargo_configuration())
-        .expect("hash without the workspace configuration");
+    //
+    // Both sides are the family's *own* root list, so a root the family
+    // stopped naming disappears from both and the case fails rather than
+    // passing on a restated copy. A restated control would keep its own copy
+    // of every root, and the hashes would then differ for a reason unrelated
+    // to the configuration.
+    let workspace = workspace_root();
+    let roots = family_roots().expect("the family's roots should resolve");
+    // Only the checkout's own `.cargo` entries are removed. A control that
+    // dropped every configuration input — including `$CARGO_HOME/config.toml`
+    // — would keep passing if the family stopped hashing the workspace file
+    // while the Cargo home one kept both hashes apart, which is exactly the
+    // regression this case exists to catch.
+    let committed = workspace.join(".cargo");
+    let workspace_configuration: Vec<std::path::PathBuf> = roots
+        .iter()
+        .filter(|root| root.starts_with(&committed))
+        .cloned()
+        .collect();
+    assert!(
+        workspace_configuration
+            .iter()
+            .any(|path| path.ends_with("config.toml")),
+        "this checkout commits `.cargo/config.toml`, so the family must name it; the roots were \
+         {roots:?}"
+    );
+    let without: Vec<std::path::PathBuf> = roots
+        .iter()
+        .filter(|root| !root.starts_with(&committed))
+        .cloned()
+        .collect();
+    let with_hash =
+        nested_cargo::input_hash(&roots).expect("hash with the workspace configuration");
+    let without_hash =
+        nested_cargo::input_hash(&without).expect("hash without the workspace configuration");
     assert_ne!(
-        inputs, without,
-        "the workspace Cargo configuration must change the CLI input hash"
+        with_hash, without_hash,
+        "the workspace Cargo configuration must change the CLI input hash; removing \
+         {workspace_configuration:?} left it unchanged"
+    );
+}
+
+#[test]
+fn the_timed_graph_query_keeps_its_own_smaller_budget() {
+    // The graph query runs before the gate has read the stamp, so a timed
+    // assertion pays for it even when the fixture is prepared. The preparation
+    // budget is nine minutes, and this binary's period is 180 s: under the
+    // preparation bound a contended query could not return before nextest
+    // killed the test, discarding the captured child output that names the
+    // wait. The two bounds must therefore stay distinct, and this is the
+    // comparison that keeps a later edit from re-merging them.
+    //
+    // The `.config/nextest.toml` period is not parsed here — this crate has no
+    // TOML reader among its dev-dependencies — so the 180 s figure below is
+    // the CLI override's period, restated. Keeping the two bounds apart is
+    // what the assertion pins; a change to either figure belongs beside the
+    // configuration entry that sets it, and must be mirrored here.
+    //
+    // Only the query's own bound is checked against the period, not the
+    // query's bound plus the gate's. The two are not additive: a query that
+    // spends its whole budget returns an error and the gate returns before
+    // the identity probe runs, so the worst case a test can reach is one of
+    // them, not both.
+    let query = super::closure::TIMED_GRAPH_QUERY_TIMEOUT.as_secs();
+    let preparation = nested_cargo::PREPARATION_COMMAND_TIMEOUT.as_secs();
+    let cli_period = 180;
+    assert!(
+        query < preparation,
+        "the timed graph query must keep a budget below the preparation test's {preparation}s, or \
+         nextest kills the test before the query can report its own timeout"
+    );
+    assert!(
+        query < cli_period,
+        "a {query}s query under the CLI override's {cli_period}s period would be killed by \
+         nextest before it could report its own timeout"
     );
 }
 
@@ -60,7 +113,8 @@ fn the_owned_packages_cover_the_whole_dependency_closure_and_reach_the_gate() {
     // `inventory`, `serial_test` and their trees, whose units are compiled
     // into the same profile and are evictable in exactly the same way even
     // though their sources cannot change.
-    let closure = fixture_dependency_closure().expect("the fixture closure must resolve");
+    let closure = fixture_dependency_closure(super::closure::TIMED_GRAPH_QUERY_TIMEOUT)
+        .expect("the fixture closure must resolve");
     let declared: std::collections::BTreeSet<&str> = std::iter::once(FIXTURE_PACKAGE)
         .chain(closure.iter().map(String::as_str))
         .collect();
@@ -72,7 +126,8 @@ fn the_owned_packages_cover_the_whole_dependency_closure_and_reach_the_gate() {
     // `owned_packages`: the experiment's own `cargo clean -p` removes it
     // before every baseline, so claiming it would defeat the preparation.
     let (preparation, _environment) =
-        cli_preparation_description().expect("preparation description should resolve");
+        cli_preparation_description(super::closure::TIMED_GRAPH_QUERY_TIMEOUT)
+            .expect("preparation description should resolve");
     let owned: std::collections::BTreeSet<&str> = preparation
         .owned_packages
         .iter()

@@ -7,7 +7,7 @@
 //! on [`ensure_cli_prepared`], which under nextest fails fast with the
 //! preparation command rather than paying for the cold build itself.
 
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, time::Duration};
 
 use eyre::{Context, Result};
 use rstest_bdd_harness::nested_cargo;
@@ -78,7 +78,20 @@ fn cli_preparation() -> Result<(nested_cargo::NestedCargoEnv, PathBuf, String)> 
 /// # Errors
 ///
 /// Returns the hashing error when a root cannot be read.
-fn family_inputs() -> Result<String> {
+fn family_inputs() -> Result<String> { Ok(nested_cargo::input_hash(&family_roots()?)?) }
+
+/// The roots [`family_inputs`] hashes.
+///
+/// Split out so the declaration regression can remove exactly the committed
+/// workspace Cargo configuration from the family's *own* list and hash both
+/// sides. A case that restated the list instead would compare the family
+/// against a copy of itself and pass for a family that had stopped naming a
+/// real input.
+///
+/// # Errors
+///
+/// Returns the error when the Cargo configuration cannot be inspected.
+pub(super) fn family_roots() -> Result<Vec<PathBuf>> {
     // The whole fixture tree is an input: its manifest and lockfile fix the
     // dependency resolution, and its sources and feature files decide what the
     // nested workspace builds. `input_hash` skips any `target` directory.
@@ -101,7 +114,7 @@ fn family_inputs() -> Result<String> {
     // linker flags in it change dependency artefacts without touching a
     // fixture source.
     roots.extend(nested_cargo::cargo_config_inputs(&workspace)?);
-    Ok(nested_cargo::input_hash(&roots)?)
+    Ok(roots)
 }
 
 // The fixture's resolved dependency closure, measured from the fixture.
@@ -123,20 +136,25 @@ const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
 /// stamp refused for ever. Naming the closure is the opposite correction: those
 /// units *were* built here, and leaving them out would let their eviction pass.
 ///
+/// `graph_query_timeout` bounds the closure query, and is the caller's because
+/// its two callers are not in the same position: see
+/// [`closure::TIMED_GRAPH_QUERY_TIMEOUT`].
+///
 /// # Errors
 ///
 /// Returns the environment, target-directory or input-hash error from
 /// [`cli_preparation`], and the resolution error when the fixture's dependency
 /// closure cannot be read.
-fn cli_preparation_description() -> Result<(nested_cargo::Preparation, nested_cargo::NestedCargoEnv)>
-{
+fn cli_preparation_description(
+    graph_query_timeout: Duration,
+) -> Result<(nested_cargo::Preparation, nested_cargo::NestedCargoEnv)> {
     let (child_env, target_root, inputs) = cli_preparation()?;
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", env!("CARGO_PKG_VERSION"), inputs),
         target_root,
         child_env.clone(),
     )?;
-    preparation.owned_packages = closure::fixture_dependency_closure()?;
+    preparation.owned_packages = closure::fixture_dependency_closure(graph_query_timeout)?;
     Ok((preparation, child_env))
 }
 
@@ -157,7 +175,7 @@ fn cli_preparation_description() -> Result<(nested_cargo::Preparation, nested_ca
 /// matching stamp without running the preparation at all, so the preparation
 /// test's witness cannot run there either; this check does.
 pub(super) fn ensure_cli_prepared() -> Result<()> {
-    let (preparation, child_env) = cli_preparation_description()?;
+    let (preparation, child_env) = cli_preparation_description(closure::TIMED_GRAPH_QUERY_TIMEOUT)?;
     ensure_gated(&preparation, || {
         nested_build::capture_preparation(&child_env)
     })
@@ -285,7 +303,8 @@ fn require_fixture_binaries(preparation: &nested_cargo::Preparation) -> Result<(
 #[test]
 #[serial]
 fn nested_fixture_preparation() -> Result<()> {
-    let (preparation, child_env) = cli_preparation_description()?;
+    let (preparation, child_env) =
+        cli_preparation_description(nested_cargo::PREPARATION_COMMAND_TIMEOUT)?;
     nested_cargo::prepare_now(&preparation, || {
         nested_build::capture_preparation(&child_env)
     })?;

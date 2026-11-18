@@ -227,6 +227,19 @@ pub struct Preparation {
     /// [`Preparation::for_fixture`]: such a family sets `CARGO_TARGET_DIR` to
     /// the directory it stamps, so no other family writes there.
     pub owned_packages: Vec<String>,
+    /// Directory the nested build commands run in.
+    ///
+    /// Cargo resolves a relative `CARGO_HOME` and a relative `RUSTC` against
+    /// the working directory of the command that reads them. The identity
+    /// probe and the configuration walk run in *this* process's directory
+    /// unless they are told otherwise, so without this the fingerprint could
+    /// describe one Cargo home or compiler while the nested build used
+    /// another — the difference being visible only as a timed rebuild.
+    ///
+    /// Defaults to [`Preparation::directory`], which is where every family's
+    /// nested build runs, and is a field rather than a derivation so a family
+    /// that builds elsewhere can say so.
+    pub working_directory: PathBuf,
 }
 
 impl Preparation {
@@ -254,6 +267,7 @@ impl Preparation {
             .unwrap_or_default();
         Ok(Self {
             family: sources.family,
+            working_directory: directory.clone(),
             directory,
             environment,
             variant: sources.variant,

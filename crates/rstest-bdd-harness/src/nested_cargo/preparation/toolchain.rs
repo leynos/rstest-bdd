@@ -17,7 +17,7 @@
 
 use std::{
     env,
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     io,
     path::{Path, PathBuf},
     process::Command,
@@ -62,9 +62,16 @@ const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 ///
 /// Returns an error when either probe cannot be run, exits non-zero, or prints
 /// none of the three identity fields.
-pub(super) fn toolchain_identity(environment: &NestedCargoEnv) -> io::Result<String> {
+pub(super) fn toolchain_identity(
+    environment: &NestedCargoEnv,
+    working_directory: &Path,
+) -> io::Result<String> {
     let cargo = probe(CARGO, Path::new(env!("CARGO")), environment)?;
-    let compiler = probe(RUSTC, &compiler_program(environment), environment)?;
+    let compiler = probe(
+        RUSTC,
+        &compiler_program(environment, working_directory),
+        environment,
+    )?;
     Ok(compose_identity(&cargo, &compiler))
 }
 
@@ -94,9 +101,18 @@ fn compose_identity(cargo: &str, compiler: &str) -> String {
 /// conventional packaging for a separately installed compiler. That name is
 /// searched in the environment the command inherits, so it is the last resort
 /// rather than the rule.
-fn compiler_program(environment: &NestedCargoEnv) -> PathBuf {
+///
+/// A relative `RUSTC` override is resolved against `working_directory`, the
+/// directory the nested build runs in, because that is how Cargo resolves it.
+/// The probe itself runs in this process's directory, so passing the value
+/// through unchanged would have the probe identify one compiler while the
+/// build ran another — or fail to find the compiler at all when it exists only
+/// beneath the fixture. An absolute override and a bare name are used
+/// unchanged: the first needs no resolution, and the second is looked up
+/// through the child's `PATH` by the probe itself.
+fn compiler_program(environment: &NestedCargoEnv, working_directory: &Path) -> PathBuf {
     if let Some(configured) = environment.get(RUSTC_KEY) {
-        return PathBuf::from(configured);
+        return resolve_compiler_path(configured, working_directory);
     }
     let name = compiler_name();
     let beside_cargo = Path::new(env!("CARGO")).with_file_name(&name);
@@ -105,6 +121,33 @@ fn compiler_program(environment: &NestedCargoEnv) -> PathBuf {
     } else {
         PathBuf::from(name)
     }
+}
+
+/// Resolve a `RUSTC` override the way Cargo does.
+///
+/// An absolute path is returned unchanged. A relative one that names an
+/// existing file beneath `working_directory` is joined to it, matching the
+/// directory Cargo runs the nested build in. A bare program name — one with no
+/// path separator, which Cargo also searches through `PATH` — is left alone so
+/// that lookup still happens in the environment the probe inherits rather than
+/// being turned into a path that does not exist.
+fn resolve_compiler_path(configured: &OsStr, working_directory: &Path) -> PathBuf {
+    let path = Path::new(configured);
+    if path.is_absolute() || !names_a_location(path) {
+        return path.to_path_buf();
+    }
+    working_directory.join(path)
+}
+
+/// Whether `path` names a location rather than a bare program name.
+///
+/// Cargo treats a `RUSTC` value with no path separator as a name to search for
+/// on `PATH`. `Path::parent` is empty for such a name and non-empty for
+/// `./tools/rustc` or `tools/rustc`, so it is the check that distinguishes the
+/// two without looking at the platform's separator.
+fn names_a_location(path: &Path) -> bool {
+    path.parent()
+        .is_some_and(|parent| !parent.as_os_str().is_empty())
 }
 
 /// The compiler's file name, carrying Cargo's own extension.

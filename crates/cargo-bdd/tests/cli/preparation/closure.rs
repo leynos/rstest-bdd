@@ -4,10 +4,38 @@
 //! those units. A hand-maintained list cannot stay honest at this size, so the
 //! closure is read from the fixture's own resolved graph with `cargo tree`.
 
+use std::time::Duration;
+
 use eyre::{Context, Result};
 use rstest_bdd_harness::nested_cargo;
 
 use super::fixture_dir;
+
+/// Bound on the graph query when a timed CLI test pays for it.
+///
+/// `cargo tree` takes the package-cache lock, so it waits rather than fails
+/// while another Cargo process holds it. `.config/nextest.toml` gives this
+/// binary 180 s, and the query runs before the gate has read the stamp even
+/// when the fixture is already prepared, so the preparation budget of nine
+/// minutes would always lose: nextest would kill the test first, and the
+/// captured child output that names the wait is discarded with it.
+///
+/// Two minutes rather than the resolution time itself. Measured on the
+/// development host against a warm fixture tree, the query took 50 s and then
+/// 68 s — both times with no compile to do — because it sat behind the shared
+/// package-cache lock; a 60 s bound there was too tight and killed a healthy
+/// query. The time is spent waiting for another process, not resolving, so the
+/// bound has to cover a queue position as well as the work.
+///
+/// What remains is enough for the rest of the gate: the identity probe is
+/// bounded at a minute by the harness, and the stamp read and the witness are
+/// local filesystem work. A query that spends the whole two minutes therefore
+/// reports its own timeout, with the reason, before the runner's 180 s period
+/// expires.
+///
+/// The named preparation test does not use this bound; it has its own period
+/// and passes [`nested_cargo::PREPARATION_COMMAND_TIMEOUT`] instead.
+pub(super) const TIMED_GRAPH_QUERY_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The workspace crates preparing this fixture compiles.
 ///
@@ -42,7 +70,12 @@ use super::fixture_dir;
 /// the output when the fixture resolves to no package at all. An empty list is
 /// not returned: an empty `owned_packages` means "this family claims the whole
 /// profile", which is exactly what this family must not do.
-pub(super) fn fixture_dependency_closure() -> Result<Vec<String>> {
+///
+/// `timeout` is the caller's, because the two callers are not in the same
+/// position: the named preparation test owns its own period, while a timed
+/// assertion has 180 s and already spends part of it on the gate. See
+/// [`TIMED_GRAPH_QUERY_TIMEOUT`].
+pub(super) fn fixture_dependency_closure(timeout: Duration) -> Result<Vec<String>> {
     let fixture = fixture_dir();
     let mut command = std::process::Command::new(env!("CARGO"));
     command
@@ -57,11 +90,8 @@ pub(super) fn fixture_dependency_closure() -> Result<Vec<String>> {
     // itself instead of hanging the test. `--offline` stays: the fixture
     // commits its lockfile, so resolution needs no registry, and a probe that
     // reached one would turn a registry hiccup into a broken-graph report.
-    let output = nested_cargo::run_bounded_with_timeout(
-        &mut command,
-        nested_cargo::PREPARATION_COMMAND_TIMEOUT,
-    )
-    .wrap_err_with(|| format!("resolving the fixture graph in {}", fixture.display()))?;
+    let output = nested_cargo::run_bounded_with_timeout(&mut command, timeout)
+        .wrap_err_with(|| format!("resolving the fixture graph in {}", fixture.display()))?;
     let combined = || {
         format!(
             "stdout:\n{}\nstderr:\n{}",

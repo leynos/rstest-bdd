@@ -78,7 +78,7 @@ where
     ensure_prepared_with_probe(
         preparation,
         under_nextest,
-        || toolchain_identity(environment),
+        || toolchain_identity(environment, &preparation.working_directory),
         prepare,
     )
 }
@@ -155,7 +155,11 @@ where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
     let environment = &preparation.environment;
-    prepare_now_with_probe(preparation, || toolchain_identity(environment), prepare)
+    prepare_now_with_probe(
+        preparation,
+        || toolchain_identity(environment, &preparation.working_directory),
+        prepare,
+    )
 }
 
 /// Remove the stamp that advertises `preparation` as prepared.

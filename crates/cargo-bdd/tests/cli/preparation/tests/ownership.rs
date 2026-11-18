@@ -29,7 +29,11 @@ use crate::preparation::closure::fixture_dependency_closure;
 /// [`std::io::ErrorKind::Other`] error rather than the callers growing an
 /// error type that names nothing further.
 fn declared_packages() -> std::io::Result<Vec<String>> {
-    fixture_dependency_closure().map_err(|error| std::io::Error::other(error.to_string()))
+    // The timed path's bound, not the preparation's: every case here runs in
+    // the `cargo-bdd::cli` binary under its 180 s period, and the query takes
+    // the package-cache lock without the gate having read a stamp first.
+    fixture_dependency_closure(crate::preparation::closure::TIMED_GRAPH_QUERY_TIMEOUT)
+        .map_err(|error| std::io::Error::other(error.to_string()))
 }
 
 /// A scratch preparation carrying the real family's ownership list.

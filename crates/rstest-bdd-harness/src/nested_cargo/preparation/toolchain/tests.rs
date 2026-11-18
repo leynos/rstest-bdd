@@ -9,7 +9,9 @@
 //! a synthetic non-zero exit, which no portable `process::ExitStatus` can
 //! construct.
 
-use super::{compose_identity, identity_from};
+use std::path::{Path, PathBuf};
+
+use super::{compose_identity, identity_from, resolve_compiler_path};
 
 /// A `-vV` invocation's exit outcome and standard output.
 ///
@@ -112,6 +114,70 @@ fn a_failing_compiler_probe_names_the_compiler() {
     assert!(
         error.to_string().contains("rustc -vV"),
         "the compiler's failure must name the compiler, got: {error}"
+    );
+}
+
+/// A nested build's working directory for the resolution cases.
+///
+/// Absolute, so the expected results are the same on every host: a relative
+/// fixture would have the expectations reading the process's own directory.
+fn nested_directory() -> PathBuf { Path::new("/srv/fixture").to_path_buf() }
+
+#[test]
+fn a_relative_compiler_override_resolves_beneath_the_nested_directory() {
+    // Cargo resolves a relative `RUSTC` against the working directory of the
+    // command that reads it, and the nested build runs in the fixture, not in
+    // the test process. Probing `./tools/rustc` from the test process would
+    // identify a different compiler when both paths exist, and fail outright
+    // when the compiler exists only beneath the fixture — either way refusing
+    // the timed assertion or admitting it against the wrong compiler.
+    let resolved = resolve_compiler_path("./tools/rustc".as_ref(), &nested_directory());
+    assert_eq!(
+        resolved,
+        nested_directory().join("tools").join("rustc"),
+        "a relative override must be read from the directory the nested build runs in"
+    );
+}
+
+#[test]
+fn an_absolute_compiler_override_is_used_unchanged() {
+    // An absolute `RUSTC` already names one place for both the probe and the
+    // build, so joining it to the nested directory would be wrong rather than
+    // redundant: a joined absolute path is the absolute path, but a joining
+    // implementation that treated it as relative would silently move the
+    // probe to `<fixture>/srv/toolchain/rustc`.
+    let absolute = Path::new("/srv/toolchain/rustc");
+    assert_eq!(
+        resolve_compiler_path(absolute.as_os_str(), &nested_directory()),
+        absolute,
+        "an absolute override must not be re-rooted"
+    );
+}
+
+#[test]
+fn a_bare_compiler_name_stays_a_name_for_path_lookup() {
+    // Cargo also searches `PATH` for a `RUSTC` value that names no location.
+    // Turning `rustc` into `<fixture>/rustc` would make the probe look for a
+    // file that need not exist while a perfectly good compiler sits on `PATH`.
+    let resolved = resolve_compiler_path("rustc".as_ref(), &nested_directory());
+    assert_eq!(
+        resolved,
+        PathBuf::from("rustc"),
+        "a bare name must stay a name for the probe to search `PATH`"
+    );
+}
+
+#[test]
+fn a_dot_prefixed_compiler_override_is_resolved_rather_than_taken_as_a_name() {
+    // The distinction is a path separator, not the leading dot: `.cargo/rustc`
+    // names a location and must be joined, while `rustc` does not. A rule that
+    // keyed on the dot would get both of these wrong the moment a fixture put
+    // its toolchain beside its manifest.
+    let resolved = resolve_compiler_path(".cargo/rustc".as_ref(), &nested_directory());
+    assert_eq!(
+        resolved,
+        nested_directory().join(".cargo").join("rustc"),
+        "a value naming a location must be resolved, dot or not"
     );
 }
 

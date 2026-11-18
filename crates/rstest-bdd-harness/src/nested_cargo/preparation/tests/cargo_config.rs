@@ -87,6 +87,59 @@ fn a_cargo_home_setting_change_invalidates_the_prepared_tree() {
 }
 
 #[test]
+fn a_relative_cargo_home_is_resolved_against_the_nested_directory() {
+    // Cargo interprets a relative `CARGO_HOME` against the working directory
+    // of the command that reads it. The nested build runs beneath the
+    // workspace, so `CARGO_HOME=.cargo-cache` names `<workspace>/.cargo-cache`,
+    // while this process would read its own directory. The two agree only if
+    // the probe resolves the value the same way, and until it did, editing the
+    // fixture's own Cargo home left a warm stamp matching and moved the
+    // compilation back into the timed test.
+    //
+    // `CARGO_HOME` is process-wide and the suite runs in parallel, so it is set
+    // only around the probe.
+    let workspace = tempfile::tempdir().expect("workspace dir");
+    let nested_home = workspace.path().join(".cargo-cache");
+    let nested_config = nested_home.join("config.toml");
+    std::fs::create_dir_all(&nested_home).expect("nested cargo home");
+    std::fs::write(&nested_config, "[build]\nrustflags = [\"-Copt-level=1\"]\n")
+        .expect("nested config");
+
+    temp_env::with_var(
+        "CARGO_HOME",
+        Some(std::ffi::OsStr::new(".cargo-cache")),
+        || {
+            let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
+            assert!(
+                roots.contains(&nested_config),
+                "a relative CARGO_HOME must be read from the nested build's directory; the probe \
+                 reported {roots:?} instead of {}",
+                nested_config.display()
+            );
+        },
+    );
+}
+
+#[test]
+fn an_absolute_cargo_home_is_used_unchanged() {
+    // The complement of the relative case: an absolute `CARGO_HOME` already
+    // names one directory for both the probe and the build, so resolving it
+    // must not re-root it beneath the workspace.
+    let workspace = tempfile::tempdir().expect("workspace dir");
+    let cargo_home = tempfile::tempdir().expect("cargo home");
+    let config = cargo_home.path().join("config.toml");
+    std::fs::write(&config, "[build]\nrustflags = [\"-Copt-level=1\"]\n").expect("config");
+
+    temp_env::with_var("CARGO_HOME", Some(cargo_home.path().as_os_str()), || {
+        let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
+        assert!(
+            roots.contains(&config),
+            "an absolute CARGO_HOME must be read as given: {roots:?}"
+        );
+    });
+}
+
+#[test]
 fn missing_cargo_configuration_is_not_an_input() {
     // A checkout may commit neither accepted file name; naming a missing root
     // would make every preparation fail on a read error instead of treating the
