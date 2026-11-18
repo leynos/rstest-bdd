@@ -48,9 +48,10 @@ fn the_workspace_cargo_configuration_is_an_input() {
         .or_else(|| {
             std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".cargo"))
         });
-    let shared = |root: &std::path::PathBuf| match &cargo_home {
-        Some(home) => !root.starts_with(home),
-        None => true,
+    let shared = |root: &std::path::PathBuf| {
+        cargo_home
+            .as_ref()
+            .is_none_or(|home| !root.starts_with(home))
     };
     let workspace_configuration: Vec<std::path::PathBuf> = roots
         .iter()
