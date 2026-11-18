@@ -3181,27 +3181,27 @@ budgets, and the timed assertions then ran against those trees:
 in 224.433 s against 600 s, and the CLI and trybuild helper cases in seconds.
 No assertion deadline was widened.
 
-### The same preparation on a contended host
+**The same preparation on a contended host.**
 
 The figures above are single-host measurements taken when the shared compile
 pool was quiet. They do not describe what the preparation costs when other
 agents are building on the same machine, and a red `make test` on this host has
 to be read against that difference rather than against the isolated figures.
 
-Measured on 18 November 2026, with `build-limits-status` reporting `capacity 4,
-held 4, healthy` and 100–348 compiler groups queued ahead: the trybuild
-`cargo test` binary's `nested_fixture_preparation` prepared its first family in
-1578.2 s, then had the UI-lint family killed by the 9-minute
-`PREPARATION_COMMAND_TIMEOUT`. The killed child was not wedged. Its captured
-standard error holds hundreds of real `Compiling` lines — a genuine cold
-`cargo clippy` of the `ui_lints` fixture — interleaved with admission waits, so
-the bound was spent on queue position, not on anything this change introduced.
-The same bound is calibrated for a CI lane, where the repository's own records
-put the whole two-graph trybuild preparation at 645 s cold, and where no
-admission pool exists.
+Measured on the development host while the pool was saturated, with
+`build-limits-status` reporting every slot held, a healthy supervisor and a
+queue in the hundreds: the trybuild `cargo test` binary's
+`nested_fixture_preparation` prepared its first family in 1578.2 s, then had
+the UI-lint family killed by the 9-minute `PREPARATION_COMMAND_TIMEOUT`. The
+killed child was not wedged. Its captured standard error holds hundreds of real
+`Compiling` lines — a genuine cold `cargo clippy` of the `ui_lints` fixture —
+interleaved with admission waits, so the bound was spent on queue position, not
+on anything this change introduced. The same bound is calibrated for a CI lane,
+where the repository's own records put the whole two-graph trybuild preparation
+at 645 s cold, and where no admission pool exists.
 
-Two consequences follow, and both are host facts rather than candidate facts.
-A red `make test` whose only failure is `nested_fixture_preparation` on a
+Two consequences follow, and both are host facts rather than candidate facts. A
+red `make test` whose only failure is `nested_fixture_preparation` on a
 saturated host is a queue artefact: every assertion in the suite passed, and
 2261 of 2393 tests ran. And a stamp written by a bare `cargo test` does not
 compose with `make test`, because the fingerprint covers `RUSTFLAGS` and the
