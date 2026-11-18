@@ -74,13 +74,16 @@ pub fn ensure_prepared_with<F>(
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    let environment = &preparation.environment;
-    ensure_prepared_with_probe(
-        preparation,
-        under_nextest,
-        || toolchain_identity(environment, &preparation.working_directory),
-        prepare,
-    )
+    ensure_prepared_with_probe(preparation, under_nextest, probe_of(preparation), prepare)
+}
+
+/// Bind the real toolchain probe to the preparation's own environment.
+///
+/// Every entry point that supplies the real probe needs exactly this binding,
+/// and it must be the preparation's environment rather than the process's: the
+/// compiler identified has to be the one the nested build will run.
+fn probe_of(preparation: &Preparation) -> impl FnOnce() -> io::Result<String> + '_ {
+    move || toolchain_identity(&preparation.environment, &preparation.working_directory)
 }
 
 /// [`ensure_prepared_with`] with the toolchain probe supplied.
@@ -154,12 +157,7 @@ pub fn prepare_now<F>(preparation: &Preparation, prepare: F) -> io::Result<()>
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    let environment = &preparation.environment;
-    prepare_now_with_probe(
-        preparation,
-        || toolchain_identity(environment, &preparation.working_directory),
-        prepare,
-    )
+    prepare_now_with_probe(preparation, probe_of(preparation), prepare)
 }
 
 /// Remove the stamp that advertises `preparation` as prepared.
