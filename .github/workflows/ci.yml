@@ -741,20 +741,24 @@ jobs:
       # than before the suite so it does not compete for the compiler slot the
       # instrumented coverage build needs, and before the discard below so a
       # failure still reports against a disk that has the trees.
-      # The check's steps 1 and 3 go through `make nextest-run`, which runs
-      # `cargo nextest`. The shared suite action only installs nextest for pull
-      # requests, via its `use-cargo-nextest` input, so a push run would reach
-      # the check with no `cargo-nextest` on `PATH` and fail on the runner
-      # rather than on the workflow. Install it here, gated on the same
-      # condition as the check itself.
-      - name: Install cargo-nextest
-        if: ${{ runner.os == 'Linux' && matrix.tools }}
-        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519  # v2.90.5
-        with:
-          tool: cargo-nextest
-
+      #
+      # Pull requests only, for a reason of its own. The check's steps 1 and 3
+      # go through `make nextest-run`, which runs `cargo nextest`, and
+      # `cargo-nextest` reaches the runner only through the suite step above —
+      # the one this step already sits behind. On a push that step does not
+      # run, so neither does the binary, and the check would fail on its
+      # absence rather than on the workflow. Installing nextest here instead is
+      # not open to this repository: `test-workflow-contracts` refuses the
+      # taiki-e install action outright, because it may fall back to a source
+      # build, and nextest publishes no signed artefact for
+      # `cargo binstall --only-signed` to accept. Trunk coverage is not lost
+      # to the narrower condition: `coverage-main.yml` runs the suite against
+      # the same commit with nextest, and this step verifies the workflow
+      # definition, which the merge lands unchanged.
       - name: Check prepared-fixture workflow
-        if: ${{ runner.os == 'Linux' && matrix.tools }}
+        if: >-
+          ${{ runner.os == 'Linux' && matrix.tools
+          && github.event_name == 'pull_request' }}
         shell: bash
         run: make check-prepared-fixture-workflow
 
