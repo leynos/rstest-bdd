@@ -1663,7 +1663,64 @@ Hard invariants. Violation requires escalation, not a workaround.
       findings recorded earlier in this file are no longer reported by the
       suite this tree installs.
 
+- [x] (2026-11-18) The restacked candidate was validated at `79428791`, with
+      `REV_START` and `REV_END` both recorded as that revision. `make
+      check-fmt`, `make markdownlint`, `make nixie`, `make typecheck`, `make
+      lint` (all nine steps, `lint-whitaker` among them),
+      `cargo +1.88.0 check --workspace --exclude cargo-bdd --locked`,
+      `cargo +1.89.0 check -p cargo-bdd --locked` and
+      `make check-fixture-lockfiles` exited zero, as did the recipes behind
+      the `make test` step at this head: `cargo test --doc --workspace
+      --all-features` (16 doc-test suites) and `uv run pytest scripts/tests`
+      (320 passed).
+
+  `make test` itself stopped inside its first leg. The workspace nextest run
+  reached 2,284 of 2,445 tests, 2,283 of them passing, before
+  `rstest-bdd::trybuild_macros preparation::nested_fixture_preparation`
+  exhausted its 1,800 s nextest timeout, and nextest then cancelled the 161
+  tests that had not started, so the recipe's later legs were never reached.
+  That test pays for a cold nested-Cargo build outside the timed tests that
+  consume its stamp, and its nested child has a 540 s wall-clock bound; its log
+  carries 86 `[build-limits]` `waiting for a compile slot` lines with up to 42
+  requests ahead, because other agents' worktrees were compiling through the
+  same four-slot admission pool.
+
+  Measuring the same revision in smaller pieces separated the environment from
+  the tree. `cargo-bdd::invocation`, cancelled with the rest, passed 21 of
+  21. `make prepare-nested-fixtures` passed five of its six families — the
+  trybuild family among them, in 344 s — and timed out only on
+  `rstest-bdd-server::workspace_discovery_compile`, whose cold build is the
+  largest. A full `--no-fail-fast` nextest run then reported 2,438 passed, one
+  timeout (`runner::step_macros_compile`, at its own 1,200 s budget) and one
+  SIGTERM (`gpui_macro_fixtures_compile`, killed by the profile's 5,400 s
+  run-level budget, which nextest counts in its "failed" column), and the
+  `--no-default-features` leg repeated the same 1,200 s timeout for the same
+  test. No local run reported an assertion failure.
+
+  The same revision's hosted `CI` run, `44294589129`, completed all three
+  `build-test` jobs green. Its Linux leg ran 2,445 tests across 137 binaries,
+  with 2,445 passed and 7 skipped in 1,705 s, the doc tests passed, and the
+  coverage ratchet reported 91.56 % Rust and 84.60 % Python. On a dedicated
+  runner that run is the suite's authoritative verdict for this head; the local
+  timeouts are capacity, not correctness.
+
 ## Surprises & discoveries
+
+- Observation: this repository's nested-Cargo tests carry three wall-clock
+  budgets — 540 s for a preparation's nested child, 1,200 s and 1,800 s for the
+  timed tests that consume its stamp, and 5,400 s for a whole nextest run — and
+  each is a capacity of the host rather than a property of the change.
+  Evidence: at `79428791` the workspace-wide `make test` reached 2,283 passing
+  tests before the 1,800 s timeout expired on `nested_fixture_preparation`,
+  which then passed in 344 s later in the same session under
+  `make prepare-nested-fixtures`; the full `--no-fail-fast` run exhausted the
+  5,400 s run-level budget with `runner::step_macros_compile` still compiling;
+  and the hosted `CI` run for the same commit passed all 2,445 tests in 1,705
+  s. Impact: a timeout here is not evidence about the tree, and re-running the
+  same selection once the queue drains is the experiment that discriminates the
+  two. Report which budget expired and which test it killed, because nextest
+  lists a test killed by the run-level budget under "failed", which reads as an
+  assertion failure but is not one.
 
 - Observation: a green `make test` was lost to build state, not to the change
   under test. At `8bff662d` the recipe exited 2 because
