@@ -1611,6 +1611,58 @@ Hard invariants. Violation requires escalation, not a workaround.
       to it rather than restating it. `make check-fmt` and `make markdownlint`
       passed on the guide edit.
 
+- [x] (2026-11-18) The #910 branch advanced once more, to `ed31d87d`, so the
+      candidate was replayed again before publication: `7b617013` became
+      `455f2177`, with `f9718e69` as the exclusive boundary and 91 commits
+      replayed. `git range-diff` reports 88 of the 90 replayed commits
+      identical. The two differences are the conflict resolutions, not lost
+      work. In `scenario_bindings.rs` the target had extracted
+      `parse_named_argument`, and the replay kept that refactor and applied
+      this branch's error-text style to it. In
+      `trybuild_macros/tracking.rs` the target's file was kept whole, including
+      its new `a_dep_info_written_during_the_run_is_counted` test, and this
+      branch's three backslash continuations were removed.
+
+  One commit, `bfe3d2da` (the Whitaker 0.2.12 repin), became empty because the
+  target already carries the same pin and action SHA. `git cherry` marked it
+  patch-equivalent, so it was skipped rather than kept as an empty commit. The
+  recovery refs `rec/912-pre-restack-20261118`, `rec/912-target-20261118` and
+  `rec/912-merge-base-20261118` preserve the pre-restack head, the target and
+  the merge base.
+
+- [x] (2026-11-18) The restack took the target's `Cargo.lock`, which resolves
+      `cargo-platform` to v0.3.3 again, so the hazard recorded above recurred
+      exactly as predicted: the pin had to be re-applied and re-verified rather
+      than assumed. `cargo +1.88.0 check --workspace --exclude cargo-bdd
+      --locked` and `cargo +1.89.0 check -p cargo-bdd --locked` both exited
+      zero at `455f2177`, `make check-fixture-lockfiles` reported five
+      lockfiles up to date, and the lockfile still selects 0.3.2 in all five
+      places.
+
+- [x] (2026-11-18) Three CodeRabbit findings were outstanding at the restacked
+      head. Two were real and each got its own commit. The `cargo-bdd` baseline
+      fixture gained the missing bare `help` row, captured from the built
+      binary (exit 0, 446 bytes, empty stderr, byte-identical to the `--help`
+      row). Three documentation sites described the Windows configuration
+      directory as coming from `%APPDATA%`; they now say the Known Folder API
+      resolves it, which is what OrthoConfig v0.10.0 does. The third finding,
+      that `cargo-platform` was pinned to 0.3.2, was already satisfied at this
+      tree in both the lockfile and the prose, so it is answered with evidence
+      rather than a change.
+
+- [x] (2026-11-18) The updated Whitaker suite reported one
+      `bumpy_road_function` finding in this branch's own
+      `crates/cargo-bdd/tests/invocation/workspace.rs`, in
+      `IsolatedWorkspace::new`: two clustered conditional bumps, one from the
+      temporary directory's UTF-8 conversion and one from splitting the
+      binary's path. Extraction fixed it: `temporary_root` now holds the
+      conversion and is reused by `command`, which removes a duplicate of the
+      same error, and `copy_binary_under_test` and `binary_location` split the
+      binary staging. No lint is suppressed. The workspace-wide
+      `make lint-whitaker` then exited zero at `4b808910`, so the ten inherited
+      findings recorded earlier in this file are no longer reported by the
+      suite this tree installs.
+
 ## Surprises & discoveries
 
 - Observation: a green `make test` was lost to build state, not to the change
