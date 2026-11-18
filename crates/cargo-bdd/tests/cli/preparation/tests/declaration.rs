@@ -34,12 +34,24 @@ fn the_workspace_cargo_configuration_is_an_input() {
     // to the configuration.
     let workspace = workspace_root();
     let roots = family_roots().expect("the family's roots should resolve");
-    // Only the checkout's own `.cargo` entries are removed. A control that
-    // dropped every configuration input — including `$CARGO_HOME/config.toml`
-    // — would keep passing if the family stopped hashing the workspace file
-    // while the Cargo home one kept both hashes apart, which is exactly the
-    // regression this case exists to catch.
+    // Both sides are cut down by the same predicate, and the only root they
+    // differ in is the committed `.cargo` one. Dropping every non-workspace
+    // root instead — the obvious control — also removes `$CARGO_HOME/config.toml`
+    // on a host that has one, and a family that stopped hashing the workspace
+    // file would still report two different hashes: the case would pass over
+    // the regression it exists to catch. Removing the Cargo home entry from
+    // both sides keeps that one root as the single difference, without copying
+    // a file outside the checkout.
     let committed = workspace.join(".cargo");
+    let cargo_home = std::env::var_os("CARGO_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".cargo"))
+        });
+    let shared = |root: &std::path::PathBuf| match &cargo_home {
+        Some(home) => !root.starts_with(home),
+        None => true,
+    };
     let workspace_configuration: Vec<std::path::PathBuf> = roots
         .iter()
         .filter(|root| root.starts_with(&committed))
@@ -52,13 +64,15 @@ fn the_workspace_cargo_configuration_is_an_input() {
         "this checkout commits `.cargo/config.toml`, so the family must name it; the roots were \
          {roots:?}"
     );
-    let without: Vec<std::path::PathBuf> = roots
+    let control: Vec<std::path::PathBuf> =
+        roots.iter().filter(|root| shared(root)).cloned().collect();
+    let without: Vec<std::path::PathBuf> = control
         .iter()
         .filter(|root| !root.starts_with(&committed))
         .cloned()
         .collect();
     let with_hash =
-        nested_cargo::input_hash(&roots).expect("hash with the workspace configuration");
+        nested_cargo::input_hash(&control).expect("hash with the workspace configuration");
     let without_hash =
         nested_cargo::input_hash(&without).expect("hash without the workspace configuration");
     assert_ne!(
