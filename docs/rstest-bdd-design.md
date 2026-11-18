@@ -2939,7 +2939,7 @@ On other platforms, discovery checks `.cargo_bdd.toml` under `HOME` or
 `USERPROFILE` (falling back to the platform home directory), then `config.toml`
 under the native `cargo_bdd` configuration directory, then `./.cargo_bdd.toml`
 under the working directory. On Windows the native configuration directory is
-`%APPDATA%`.
+resolved through the Known Folder API, not from `%APPDATA%`.
 
 The home dotfile, the selected XDG or native configuration file, and the
 working-directory dotfile are merged in that order. Missing optional files

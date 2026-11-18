@@ -3534,10 +3534,11 @@ earlier file omits the setting you are looking for.
 
 On other platforms, it checks the home `.cargo_bdd.toml`, the native
 `cargo_bdd/config.toml` directory, then the working-directory
-`.cargo_bdd.toml`. On Windows the native directory is under `%APPDATA%`.
-Missing optional files are ignored. A discovered file that is unreadable or
-malformed stops the command with an error. Unknown keys are ignored, so check
-table and field names carefully when a setting has no effect.
+`.cargo_bdd.toml`. On Windows the native directory is resolved through the
+Known Folder API rather than from `%APPDATA%`. Missing optional files are
+ignored. A discovered file that is unreadable or malformed stops the command
+with an error. Unknown keys are ignored, so check table and field names
+carefully when a setting has no effect.
 
 The environment prefix is `CARGO_BDD_`:
 
