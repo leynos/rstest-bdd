@@ -3206,7 +3206,7 @@ saturated host is a queue artefact: every assertion in the suite passed, and
 2261 of 2393 tests ran. And a stamp written by a bare `cargo test` does not
 compose with `make test`, because the fingerprint covers `RUSTFLAGS` and the
 gate sets it — so the remedy is `make prepare-nested-fixtures` followed by
-`make nextest-run`, as recorded under Concrete steps, not a hand-written
+`make nextest-run`, as recorded under Concrete steps, not a handwritten
 invocation.
 
 Two things surfaced while wiring the remaining suites. `trybuild` derives its
