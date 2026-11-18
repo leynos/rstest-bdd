@@ -342,7 +342,10 @@ whose higher floor applies to that consumer. See
   - **Fix:** enable `skipped` in the layer that enables `json`, or add
     `--skipped` on the command line. Only the merged settings decide it, so
     whichever layer enables `json` must be joined by a layer that enables
-    `skipped` — the same file, or `CARGO_BDD_CMDS_STEPS_SKIPPED=true`.
+    `skipped` — the same file, or `CARGO_BDD_CMDS_STEPS_SKIPPED=true`. The
+    environment outranks the file, so a `CARGO_BDD_CMDS_STEPS_SKIPPED=false`
+    in the environment also beats `cmds.steps.skipped = true` in a file:
+    remove or change that variable, or pass `--skipped` to override both.
 - **Error:** `steps --json` reports
   `the following required arguments were not provided: --skipped`.
   - **Fix:** no layer enables skipped-step reporting, so pass `--skipped` or set
