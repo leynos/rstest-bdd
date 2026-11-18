@@ -25,7 +25,12 @@
 //! cases build. A preparation that took a shortcut would warm a different
 //! graph than the one the assertions need.
 
-use std::{env, io, path::PathBuf, process::Command};
+use std::{
+    env,
+    io,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest_bdd_harness::{macrotest_support::reject_trybuild_filter, nested_cargo};
@@ -128,6 +133,19 @@ fn input_roots() -> io::Result<Vec<PathBuf>> {
         .map(|entry| workspace.join(entry).into_std_path_buf())
         .collect();
     roots.extend(nested_cargo::cargo_config_inputs(workspace.as_std_path())?);
+    // `input_roots` serves both nested builds, and they do not run from the
+    // same directory: `ui_clippy_command` sets `current_dir` to
+    // `CARGO_MANIFEST_DIR`, which is `crates/rstest-bdd`, so Cargo's upward walk
+    // reads a different set of `.cargo` directories than the trybuild build
+    // does. Collecting only from the workspace root left anything found between
+    // that root and the manifest directory out of the hash, and a relative
+    // `CARGO_HOME` is resolved against the command's directory as well, so the
+    // same value names a different tree for the two builds.
+    roots.extend(nested_cargo::cargo_config_inputs(Path::new(env!(
+        "CARGO_MANIFEST_DIR"
+    )))?);
+    roots.sort();
+    roots.dedup();
     Ok(roots)
 }
 
