@@ -136,10 +136,10 @@ pub(super) fn record_names(profile: &Path, stores: &[PathBuf]) -> io::Result<Vec
 /// per [`Preparation::artefacts`] entry, in that order.
 ///
 /// A profile that does not exist records nothing rather than failing: the
-/// caller runs [`verify_structural`] first, which has already refused that
+/// caller runs [`super::verify_structural`] first, which has already refused that
 /// state with the diagnosis worth reporting. Reaching here with one absent
 /// would mean an eviction between the two calls, and an empty record there is
-/// still refused by [`verify_recorded`]'s structural half.
+/// still refused by [`super::verify_recorded`]'s structural half.
 ///
 /// A name that is not valid Unicode is recorded lossily: every real unit name is
 /// ASCII, and refusing on one would fail a preparation for a reason it cannot

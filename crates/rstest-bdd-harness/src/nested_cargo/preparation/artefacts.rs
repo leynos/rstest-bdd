@@ -119,47 +119,20 @@ fn eviction_of(
     recorded: Option<&[String]>,
     owned: &[String],
 ) -> io::Result<Option<Eviction>> {
-    if !vouched {
-        return Ok(Some(Eviction::whole(
-            directory,
-            "the stamp records no artefacts for this profile",
-        )));
-    }
-    match fs::metadata(directory) {
-        Ok(metadata) if metadata.is_dir() => {}
-        // Absent, or present as something that is not a directory: both are the
-        // ordinary eviction named above.
-        Ok(_) => return Ok(Some(Eviction::whole(directory, "not a directory"))),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Ok(Some(Eviction::whole(directory, "absent")));
-        }
-        // A permission or I/O fault must name itself. Folding it into an
-        // eviction would report a tree that cannot be inspected as one that is
-        // known to be empty, which is a diagnosis the reader cannot act on.
-        Err(error) => return Err(error),
+    if let Some(eviction) = no_profile_to_inspect(directory, vouched)? {
+        return Ok(Some(eviction));
     }
     let layout = layout::discover(directory)?;
-    // Naming the directory is the whole diagnosis when a half is missing;
-    // nothing inside it can be reported as individually gone. The two halves
-    // are ordered so the message names the one the preparation most likely
-    // lost first, and `is_usable` remains the single definition of "both".
-    if layout.units.is_empty() {
-        return Ok(Some(Eviction::whole(directory, "holds no compiled units")));
+    if let Some(eviction) = half_missing(directory, &layout) {
+        return Ok(Some(eviction));
     }
-    if layout.fingerprints.is_empty() {
-        return Ok(Some(Eviction::whole(
-            directory,
-            "holds no fingerprint records",
-        )));
-    }
-    debug_assert!(layout.is_usable(), "both halves were just checked");
     let Some(recorded) = recorded else {
         return Ok(None);
     };
-    let present = recording::recorded_names(directory, &layout, owned)?;
     // Which recorded names survived, and whether a rebuild answers for one that
     // did not, is the membership rule's whole content; it lives in the module
     // that documents the rule so this function only decides what to report.
+    let present = recording::recorded_names(directory, &layout, owned)?;
     let missing = replacement::missing_names(recorded, &present);
     if missing.is_empty() {
         return Ok(None);
@@ -169,6 +142,56 @@ fn eviction_of(
         reason: None,
         missing,
     }))
+}
+
+/// Refusals that stand before anything inside `directory` is read.
+///
+/// This is the first of the two questions [`eviction_of`] asks: is there a
+/// profile here at all that this family may claim? The second — are the
+/// artefacts the stamp recorded still inside it — needs the layout this
+/// function deliberately does not read, so the caller discovers that once and
+/// keeps it.
+///
+/// `vouched` is checked before any `stat`, so an unvouched directory is refused
+/// for that reason alone: its contents belong to some other preparation,
+/// whatever they happen to be.
+fn no_profile_to_inspect(directory: &Path, vouched: bool) -> io::Result<Option<Eviction>> {
+    if !vouched {
+        return Ok(Some(Eviction::whole(
+            directory,
+            "the stamp records no artefacts for this profile",
+        )));
+    }
+    match fs::metadata(directory) {
+        Ok(metadata) if metadata.is_dir() => Ok(None),
+        // Absent, or present as something that is not a directory: both are the
+        // ordinary eviction named above.
+        Ok(_) => Ok(Some(Eviction::whole(directory, "not a directory"))),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Ok(Some(Eviction::whole(directory, "absent")))
+        }
+        // A permission or I/O fault must name itself. Folding it into an
+        // eviction would report a tree that cannot be inspected as one that is
+        // known to be empty, which is a diagnosis the reader cannot act on.
+        Err(error) => Err(error),
+    }
+}
+
+/// Refuse a profile that is missing either half of Cargo's layout.
+///
+/// Naming the directory is the whole diagnosis when a half is missing; nothing
+/// inside it can be reported as individually gone. The two halves are ordered
+/// so the message names the one the preparation most likely lost first, and
+/// `is_usable` remains the single definition of "both".
+fn half_missing(directory: &Path, layout: &layout::Layout) -> Option<Eviction> {
+    if layout.units.is_empty() {
+        return Some(Eviction::whole(directory, "holds no compiled units"));
+    }
+    if layout.fingerprints.is_empty() {
+        return Some(Eviction::whole(directory, "holds no fingerprint records"));
+    }
+    debug_assert!(layout.is_usable(), "both halves were just checked");
+    None
 }
 
 /// The artefact directories the stamp vouches for that are no longer usable.

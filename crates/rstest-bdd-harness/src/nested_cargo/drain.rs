@@ -77,9 +77,9 @@ mod tests {
     //! itself, which is how the two halves of the contract are tested without a
     //! child: a reader that reaches EOF returns everything buffered, and one
     //! whose write end is still open returns at its stop time with whatever
-    //! prefix arrived. The parent's other entry point, `spawn_and_collect`,
-    //! pairs these with a real child and is covered by the suites that run
-    //! bounded nested commands.
+    //! prefix arrived. The function that pairs these with a real child is
+    //! [`run_bounded_with_timeout`](super::super::run_bounded_with_timeout),
+    //! and it is covered by the suites that run bounded nested commands.
 
     use std::{
         io::Write,
