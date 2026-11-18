@@ -71,21 +71,39 @@ fn write_testcase<W: Write>(writer: &mut W, record: &ScenarioRecord) -> fmt::Res
 }
 
 /// Write the body of a `<testcase>` whose scenario was skipped.
+///
+/// The two optional parts are each written by their own function so this one
+/// stays a straight sequence of writes: the message attribute and the
+/// fail-on-skipped `<failure>` element are independent decisions, and keeping
+/// both branches here would give the function two separate clusters of
+/// conditional logic.
 fn write_skipped_testcase<W: Write>(writer: &mut W, details: &SkippedScenario) -> fmt::Result {
     writer.write_str(">\n")?;
     writer.write_str("    <skipped")?;
-    if let Some(message) = details.message() {
-        writer.write_str(" message=\"")?;
-        write_escaped(writer, message)?;
-        writer.write_char('"')?;
-    }
+    write_skip_message(writer, details.message())?;
     writer.write_str(" />\n")?;
-    if details.forced_failure() {
-        writer.write_str("    <failure type=\"fail_on_skipped\">")?;
-        writer.write_str(FAIL_ON_SKIPPED_MESSAGE)?;
-        writer.write_str("</failure>\n")?;
-    }
+    write_forced_failure(writer, details.forced_failure())?;
     writer.write_str("  </testcase>\n")
+}
+
+/// Write the `message` attribute of a `<skipped>` element, when there is one.
+fn write_skip_message<W: Write>(writer: &mut W, message: Option<&str>) -> fmt::Result {
+    let Some(message) = message else {
+        return Ok(());
+    };
+    writer.write_str(" message=\"")?;
+    write_escaped(writer, message)?;
+    writer.write_char('"')
+}
+
+/// Write the `<failure>` element for a skip the policy turned into a failure.
+fn write_forced_failure<W: Write>(writer: &mut W, forced: bool) -> fmt::Result {
+    if !forced {
+        return Ok(());
+    }
+    writer.write_str("    <failure type=\"fail_on_skipped\">")?;
+    writer.write_str(FAIL_ON_SKIPPED_MESSAGE)?;
+    writer.write_str("</failure>\n")
 }
 
 /// Render the collector snapshot as a `JUnit` XML document.

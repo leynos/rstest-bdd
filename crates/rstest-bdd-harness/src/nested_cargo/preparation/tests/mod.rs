@@ -12,6 +12,7 @@
 //! fixtures they share live here.
 
 mod cargo_config;
+mod compile_counting;
 mod eviction;
 mod fingerprint_records;
 mod inputs;

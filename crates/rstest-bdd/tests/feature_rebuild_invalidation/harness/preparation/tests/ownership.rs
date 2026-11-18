@@ -95,12 +95,20 @@ fn local_dependency_closure(
 /// the constant actually disagree.
 ///
 /// It also drives the preparation the family really uses rather than a copy of
-/// it. Asserting the constant alone would leave the wiring untested: assigning
-/// only `family.package` to `owned_packages` leaves the constant intact and
-/// every other case in the preparation tests green, because they all stamp a
-/// profile with the closure they record filtered down to. Both halves must be
-/// checked, and the declaration is checked against the graph rather than
+/// it. Asserting the constant alone would leave the wiring untested: a
+/// `fixture_preparation` that assigned an empty list would leave the constant
+/// intact and every other case in the preparation tests green, because they all
+/// stamp a profile with the closure they record filtered down to. Both halves
+/// must be checked, and the declaration is checked against the graph rather than
 /// against itself.
+///
+/// The fixture package is deliberately *not* in the declaration, and so is not
+/// in the expected set below. Each experiment runs `cargo clean -p <fixture>`
+/// before its baseline by design, which removes that package's `.d` records and
+/// its build-script `out/` directories. A stamp that recorded them would be
+/// refused by the very next assertion, because the experiment destroys them on
+/// purpose: rebuilding those units is the contract under test, so they are
+/// never "prepared". Claiming them would make the preparation defeat itself.
 #[test]
 fn the_declaration_matches_the_fixtures_resolved_graph() {
     let workspace = super::super::workspace_root();
@@ -139,14 +147,14 @@ fn the_declaration_matches_the_fixtures_resolved_graph() {
             .iter()
             .map(String::as_str)
             .collect();
-        let expected: std::collections::BTreeSet<&str> = std::iter::once(family.package)
-            .chain(WORKSPACE_DEPENDENCIES.iter().copied())
-            .collect();
+        let expected: std::collections::BTreeSet<&str> =
+            WORKSPACE_DEPENDENCIES.iter().copied().collect();
         assert_eq!(
             owned, expected,
-            "{} must declare its own package and every crate it compiles; a dependency left out \
-             of `owned_packages` is filtered out of both the recorded and the present lists and \
-             an eviction of it passes the gate",
+            "{} must declare every dependency crate it compiles, and only those: a dependency \
+             left out of `owned_packages` is filtered out of both the recorded and the present \
+             lists and an eviction of it passes the gate, while the fixture itself is removed by \
+             the experiment's own `cargo clean -p` before every baseline",
             family.name
         );
     }

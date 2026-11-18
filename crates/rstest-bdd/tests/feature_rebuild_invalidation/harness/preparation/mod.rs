@@ -31,16 +31,15 @@ const ADDITION_FAMILY: &str = "feature-addition";
 
 /// Cargo package name of the rebuild-invalidation fixture.
 ///
-/// Named so the family's stamp vouches for its own units and not for the
-/// addition fixture's — or the CLI fixture's, or the integration-test binaries'
-/// — which share the same profile. `clean_fixture_units` removes exactly these
-/// units before every baseline, so a stamp that claimed a sibling's would be
-/// refused for ever after the first run.
+/// Declared so the preparation can name the package its experiment cleans, and
+/// is deliberately **not** part of [`Family::package`]'s ownership claim. See
+/// [`owned_packages`] for why a family cannot vouch for the very units its
+/// experiment removes.
 const REBUILD_PACKAGE: &str = "rstest-bdd-rebuild-invalidation-fixture";
 
 /// Cargo package name of the feature-addition fixture.
 ///
-/// See [`REBUILD_PACKAGE`] for why each family names its own.
+/// See [`REBUILD_PACKAGE`].
 const ADDITION_PACKAGE: &str = "rstest-bdd-feature-addition-fixture";
 
 /// The workspace crates both fixtures build through their path dependencies.
@@ -162,12 +161,9 @@ fn artefact_directory(target_directory: &std::path::Path, subdir: &str) -> std::
 /// environment view and the variant label are identical for both, so
 /// [`fixture_preparation`] supplies them rather than each caller.
 ///
-/// `package` is declared because both families build into the workspace
-/// `target/debug`, which the integration-test binaries and the CLI family also
-/// write to. Without it a family would record the other's units as its own,
-/// and `clean_fixture_units`'s `cargo clean -p` — which each experiment runs
-/// before its baseline by design — would leave the sibling's stamp permanently
-/// refused.
+/// `package` names the fixture the family builds, and is what
+/// [`clean_fixture_units`](super::clean_fixture_units) later removes. It is
+/// *not* part of the ownership claim — see [`owned_packages`].
 #[derive(Clone, Copy)]
 struct Family {
     /// Name the family's stamp is filed under.
@@ -176,7 +172,7 @@ struct Family {
     artefact_subdir: &'static str,
     /// The fixture source tree this family hashes and builds.
     source: fn() -> std::path::PathBuf,
-    /// Cargo package whose units the family records.
+    /// Cargo package the fixture's build produces and its experiment cleans.
     package: &'static str,
 }
 
@@ -196,6 +192,32 @@ const ADDITION: Family = Family {
     package: ADDITION_PACKAGE,
 };
 
+/// The packages a family's stamp vouches for.
+///
+/// The fixture itself is deliberately excluded. Both experiments run
+/// [`clean_fixture_units`](super::clean_fixture_units) — a `cargo clean -p
+/// <fixture>` — before their baseline by design, which removes that package's
+/// `.d` records and its build-script `out/` directories. A stamp that recorded
+/// them would be refused on the very next assertion, because the experiment
+/// destroys them on purpose: the rebuild of those units is the contract under
+/// test, so they can never be "prepared". The preparation's job is the
+/// *dependency* graph, which the clean leaves alone.
+///
+/// The workspace crates are declared because they are what the preparation
+/// actually warms. Both fixtures declare path dependencies on `rstest-bdd` and
+/// `rstest-bdd-macros`, and each pulls the three harness-side crates in turn,
+/// so `PREPARE_ARGS` compiles all five into the shared profile. Leaving them
+/// out would filter their records from both the recorded and the present
+/// lists, and an evicted dependency would then compare equal to itself and
+/// pass the gate.
+fn owned_packages(_family: Family) -> Vec<String> {
+    WORKSPACE_DEPENDENCIES
+        .iter()
+        .copied()
+        .map(str::to_owned)
+        .collect()
+}
+
 /// Describe `family`'s preparation.
 ///
 /// # Errors
@@ -214,10 +236,7 @@ fn fixture_preparation(
         artefact_directory(process::child_target_directory(env), family.artefact_subdir),
         process::preparation_view(env)?,
     )?;
-    preparation.owned_packages = std::iter::once(family.package)
-        .chain(WORKSPACE_DEPENDENCIES.iter().copied())
-        .map(str::to_owned)
-        .collect();
+    preparation.owned_packages = owned_packages(family);
     Ok(preparation)
 }
 

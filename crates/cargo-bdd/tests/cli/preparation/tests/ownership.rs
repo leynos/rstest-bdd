@@ -18,7 +18,8 @@
 
 use std::fs;
 
-use super::{FIXTURE_PACKAGE, fixture_dependency_closure, nested_cargo};
+use super::{FIXTURE_PACKAGE, nested_cargo};
+use crate::preparation::closure::fixture_dependency_closure;
 
 /// The family's declared packages, with the resolution error as an `io::Error`.
 ///
@@ -43,8 +44,15 @@ fn declared_packages() -> std::io::Result<Vec<String>> {
 /// `owned_packages` that contributed no artefact is refused. Writing them all
 /// keeps the fixture truthful about what it built, so a case's refusal can only
 /// come from the eviction it performs.
+/// The declaration is resolved by the caller and threaded through rather than
+/// read here: the closure costs one `cargo tree` subprocess, which takes the
+/// package-cache lock. Resolving it per iteration would repeat that wait once
+/// for every crate the caller evicts, against a budget the case shares with the
+/// rest of the suite. The declaration cannot change between iterations — it is
+/// the same fixture, resolved offline and locked — so it is resolved once.
 fn family_preparation(
     scratch: &std::path::Path,
+    packages: Vec<String>,
 ) -> std::io::Result<(nested_cargo::Preparation, std::path::PathBuf)> {
     let target = scratch.join("target");
     let profile = target.join(nested_cargo::DEFAULT_PROFILE);
@@ -63,7 +71,7 @@ fn family_preparation(
         scratch.join("stamp-root"),
         environment,
     )?;
-    preparation.owned_packages = declared_packages()?;
+    preparation.owned_packages = packages;
 
     // One unit and one record set per package the family claims, named the way
     // Cargo names them: a hyphenated record directory, and an underscored
@@ -196,10 +204,13 @@ fn the_declaration_covers_the_fixtures_workspace_dependencies() {
 /// and stamped, and the gate must refuse every one.
 #[test]
 fn evicting_each_required_crate_fails_the_gate() -> std::io::Result<()> {
-    let declared: std::collections::BTreeSet<String> = declared_packages()?.into_iter().collect();
+    // Resolved once: `cargo tree` takes the package-cache lock, and the
+    // declaration is the same for every iteration.
+    let packages = declared_packages()?;
+    let declared: std::collections::BTreeSet<&str> = packages.iter().map(String::as_str).collect();
     for package in REQUIRED_DEPENDENCIES {
         assert!(
-            declared.contains(*package),
+            declared.contains(package),
             "the family must declare {package}: preparing the fixture compiles it, and Cargo \
              rebuilds a crate whose fingerprint records went"
         );
@@ -207,7 +218,7 @@ fn evicting_each_required_crate_fails_the_gate() -> std::io::Result<()> {
 
     for package in REQUIRED_DEPENDENCIES {
         let scratch = tempfile::tempdir()?;
-        let (preparation, profile) = family_preparation(scratch.path())?;
+        let (preparation, profile) = family_preparation(scratch.path(), packages.clone())?;
         nested_cargo::prepare_now(&preparation, || {
             Ok(nested_cargo::PreparationSummary::default())
         })
