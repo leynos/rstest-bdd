@@ -89,22 +89,42 @@ fn strip_ansi(line: &str) -> String {
     let mut visible = String::with_capacity(line.len());
     let mut chars = line.chars().peekable();
     while let Some(character) = chars.next() {
-        if character != '\u{1b}' {
-            visible.push(character);
+        if character == ESC {
+            skip_escape_sequence(&mut chars);
             continue;
         }
-        // Consume the introducer and parameters of a CSI sequence, ending at
-        // the first byte in the final-byte range. A lone `ESC` is dropped.
-        if chars.peek() == Some(&'[') {
-            chars.next();
-            for byte in chars.by_ref() {
-                if ('\u{40}'..='\u{7e}').contains(&byte) {
-                    break;
-                }
-            }
-        }
+        visible.push(character);
     }
     visible
+}
+
+/// The escape character that introduces every sequence [`strip_ansi`] removes.
+const ESC: char = '\u{1b}';
+
+/// The last character of a CSI sequence's parameters.
+///
+/// A CSI sequence is `ESC [`, then parameter bytes, then one character in this
+/// range — a letter such as `m`, or one of the punctuation marks Cargo uses.
+/// [`skip_escape_sequence`] consumes up to and including the first one it sees.
+const CSI_FINAL_BYTE: std::ops::RangeInclusive<char> = '\u{40}'..='\u{7e}';
+
+/// Consume the rest of an escape sequence whose `ESC` was just read.
+///
+/// The introducer is optional: a lone `ESC` is dropped with nothing to skip,
+/// which is why the caller routes every escape through here regardless of what
+/// follows it. Parameters are consumed without inspection — colour and cursor
+/// sequences differ in them, and both end at the same first final byte — so one
+/// loop serves every CSI form Cargo emits.
+fn skip_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) {
+    if chars.peek() != Some(&'[') {
+        return;
+    }
+    chars.next();
+    for byte in chars.by_ref() {
+        if CSI_FINAL_BYTE.contains(&byte) {
+            return;
+        }
+    }
 }
 
 /// Whether the current process was started by `cargo nextest`.

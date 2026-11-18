@@ -48,16 +48,35 @@ use super::stamp::{PREPARED_FILE_SUFFIX, STAMP_VERSION};
 pub fn cargo_config_inputs(workspace_root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut present = Vec::new();
     for directory in config_search_dirs(workspace_root) {
-        for entry in ["config.toml", "config"] {
+        for entry in CONFIG_ENTRIES {
             let path = directory.join(entry);
-            match fs::metadata(&path) {
-                Ok(_) => present.push(path),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error),
+            if config_entry_is_present(&path)? {
+                present.push(path);
             }
         }
     }
     Ok(present)
+}
+
+/// The two names Cargo accepts for a configuration file in a `.cargo` directory.
+const CONFIG_ENTRIES: [&str; 2] = ["config.toml", "config"];
+
+/// Whether a configuration file exists, with absence kept distinct from failure.
+///
+/// The distinction is the whole point of this function: a missing file means
+/// "no configuration here" and must be skipped, while a file that exists but
+/// cannot be examined means the fingerprint cannot be trusted and must refuse
+/// the preparation. Only [`io::ErrorKind::NotFound`] is the former.
+///
+/// # Errors
+///
+/// Returns every error other than [`io::ErrorKind::NotFound`], unchanged.
+fn config_entry_is_present(path: &Path) -> io::Result<bool> {
+    match fs::metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 /// The `.cargo` directories Cargo searches, nearest first.

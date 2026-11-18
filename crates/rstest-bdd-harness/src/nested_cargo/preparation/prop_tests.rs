@@ -29,7 +29,47 @@ use proptest::prelude::*;
 use super::{Preparation, input_hash};
 
 /// One file to create, as a path relative to the tree root.
-type Tree = BTreeMap<String, Vec<u8>>;
+type Tree = BTreeMap<RelPath, Vec<u8>>;
+
+/// A `/`-separated path inside a generated tree.
+///
+/// Every relation these properties assert — that one path is a prefix of
+/// another, that two cannot coexist, that a path is build output — is a fact
+/// about the *segments* of a tree path, not about a free string. Keeping them
+/// on one type is what stops a caller pairing an arbitrary string with one
+/// that names a tree entry: there is no way to spell a relation here without
+/// first constructing the path it is about.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct RelPath(String);
+
+impl RelPath {
+    /// Take ownership of an already-joined `/`-separated path.
+    fn new(path: String) -> Self { Self(path) }
+
+    /// The path as the `/`-joined string the filesystem call wants.
+    fn as_str(&self) -> &str { &self.0 }
+
+    /// Whether `self` names a directory containing `other`.
+    fn is_prefix_of(&self, other: &Self) -> bool {
+        other
+            .as_str()
+            .strip_prefix(self.as_str())
+            .is_some_and(|rest| rest.starts_with('/'))
+    }
+
+    /// Whether two paths cannot both exist as files.
+    fn conflicts_with(&self, other: &Self) -> bool {
+        self == other || self.is_prefix_of(other) || other.is_prefix_of(self)
+    }
+
+    /// Whether any segment names build output.
+    ///
+    /// `hash_sorted` skips by entry name at every level it walks, so a nested
+    /// `a/target` is excluded exactly as a root-level `target` is. Judging
+    /// only the first segment would make every property here agree with a
+    /// rule the implementation does not have.
+    fn is_excluded(&self) -> bool { self.0.split('/').any(|segment| EXCLUDED.contains(&segment)) }
+}
 
 /// Segment names that [`super::input_hash`] must treat as build output.
 ///
@@ -87,12 +127,12 @@ fn is_windows_reserved(segment: &str) -> bool {
 ///
 /// Segments come from [`ordinary_segment`], so the alphabet cannot spell a
 /// Windows device name either. See [`is_windows_reserved`].
-fn input_path() -> impl Strategy<Value = String> {
+fn input_path() -> impl Strategy<Value = RelPath> {
     proptest::collection::vec(ordinary_segment(), 1..=3)
-        .prop_map(|segments| segments.join("/"))
+        .prop_map(|segments| RelPath::new(segments.join("/")))
         .prop_filter(
             "an input path must not carry a build-output segment",
-            |path| !is_excluded(path),
+            |path| !path.is_excluded(),
         )
 }
 
@@ -107,19 +147,21 @@ fn input_path() -> impl Strategy<Value = String> {
 /// Those prefixes are written to disk as directories, so they carry the same
 /// reserved-name exclusion as [`input_path`]: a `nul/target` entry fails to
 /// create on Windows before the hash is ever compared.
-fn excluded_path() -> impl Strategy<Value = String> {
+fn excluded_path() -> impl Strategy<Value = RelPath> {
     let (prefix, root, tail) = (
         proptest::collection::vec(ordinary_segment(), 0..=2),
         proptest::sample::select(EXCLUDED.as_slice()),
         proptest::collection::vec(ordinary_segment(), 0..=2),
     );
     (prefix, root, tail).prop_map(|(prefix, root, tail)| {
-        prefix
-            .into_iter()
-            .chain(std::iter::once(root.to_owned()))
-            .chain(tail)
-            .collect::<Vec<String>>()
-            .join("/")
+        RelPath::new(
+            prefix
+                .into_iter()
+                .chain(std::iter::once(root.to_owned()))
+                .chain(tail)
+                .collect::<Vec<String>>()
+                .join("/"),
+        )
     })
 }
 
@@ -139,23 +181,12 @@ fn tree() -> impl Strategy<Value = Tree> {
     (inputs, excluded).prop_map(|(inputs, excluded)| {
         let mut tree = Tree::new();
         for (path, contents) in inputs.into_iter().chain(excluded) {
-            if !tree.keys().any(|kept| conflicts(kept, &path)) {
+            if !tree.keys().any(|kept| kept.conflicts_with(&path)) {
                 tree.insert(path, contents);
             }
         }
         tree
     })
-}
-
-/// Whether two relative paths cannot both exist as files.
-fn conflicts(left: &str, right: &str) -> bool {
-    left == right || is_prefix(left, right) || is_prefix(right, left)
-}
-
-/// Whether `prefix` names a directory containing `path`.
-fn is_prefix(prefix: &str, path: &str) -> bool {
-    path.strip_prefix(prefix)
-        .is_some_and(|rest| rest.starts_with('/'))
 }
 
 /// Whether every parent directory `path` needs is already implied by `tree`.
@@ -164,8 +195,8 @@ fn is_prefix(prefix: &str, path: &str) -> bool {
 /// ordinary entry name the hash records. A tree that lacked one would gain it
 /// when `path` was written, so the two hashes would differ for a reason
 /// unrelated to whether `path` itself was excluded.
-fn parents_exist(tree: &Tree, path: &str) -> bool {
-    let segments: Vec<&str> = path.split('/').collect();
+fn parents_exist(tree: &Tree, path: &RelPath) -> bool {
+    let segments: Vec<&str> = path.as_str().split('/').collect();
     let Some((_, ancestors)) = segments.split_last() else {
         return true;
     };
@@ -175,7 +206,8 @@ fn parents_exist(tree: &Tree, path: &str) -> bool {
             parent.push('/');
         }
         parent.push_str(segment);
-        tree.keys().any(|kept| is_prefix(&parent, kept))
+        let parent = RelPath::new(parent.clone());
+        tree.keys().any(|kept| parent.is_prefix_of(kept))
     })
 }
 
@@ -188,7 +220,7 @@ fn parents_exist(tree: &Tree, path: &str) -> bool {
 /// cannot show.
 fn write_tree(root: &Path, tree: &Tree) -> std::io::Result<()> {
     for (path, contents) in tree {
-        let destination = root.join(path);
+        let destination = root.join(path.as_str());
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -228,15 +260,15 @@ proptest! {
     fn moving_an_input_changes_the_hash(tree in tree()) {
         let leaf = tree
             .iter()
-            .find(|(path, _)| !is_excluded(path))
+            .find(|(path, _)| !path.is_excluded())
             .map(|(path, contents)| (path.clone(), contents.clone()));
         if let Some((path, contents)) = leaf {
             let mut moved = tree.clone();
             moved.remove(&path);
             // A sibling directory keeps the leaf's bytes and only changes
             // where they live.
-            let destination = format!("moved/{path}");
-            if !moved.keys().any(|kept| conflicts(kept, &destination)) {
+            let destination = RelPath::new(format!("moved/{}", path.as_str()));
+            if !moved.keys().any(|kept| kept.conflicts_with(&destination)) {
                 moved.insert(destination, contents);
                 let before = setup(hash_of(&tree))?;
                 let after = setup(hash_of(&moved))?;
@@ -257,7 +289,7 @@ proptest! {
     fn changing_an_input_changes_the_hash(tree in tree(), delta in any::<u8>()) {
         let changed = tree
             .iter()
-            .find(|(path, _)| !is_excluded(path))
+            .find(|(path, _)| !path.is_excluded())
             .map(|(path, contents)| {
                 let mut copy = tree.clone();
                 let mut new = contents.clone();
@@ -290,7 +322,7 @@ proptest! {
     /// for a reason that has nothing to do with the exclusion.
     #[test]
     fn excluded_entries_do_not_reach_the_hash(tree in tree(), extra in excluded_path()) {
-        if !tree.keys().any(|kept| conflicts(kept, &extra)) && parents_exist(&tree, &extra) {
+        if !tree.keys().any(|kept| kept.conflicts_with(&extra)) && parents_exist(&tree, &extra) {
             let mut with_extra = tree.clone();
             with_extra.insert(extra, b"build output".to_vec());
             let without = setup(hash_of(&tree))?;
@@ -303,14 +335,6 @@ proptest! {
         }
     }
 }
-
-/// Whether any segment of `path` names build output.
-///
-/// `hash_sorted` skips by entry name at every level it walks, so a nested
-/// `a/target` is excluded exactly as a root-level `target` is. Judging only
-/// the first segment would make every property here agree with a rule the
-/// implementation does not have.
-fn is_excluded(path: &str) -> bool { path.split('/').any(|segment| EXCLUDED.contains(&segment)) }
 
 /// The generator refuses exactly the Windows device names, and no others.
 ///
