@@ -50,35 +50,15 @@ impl IsolatedWorkspace {
     /// Build the directory tree and copy the binary under test into it.
     pub(super) fn new() -> io::Result<Self> {
         let temporary_directory = tempfile::tempdir()?;
-        let temporary_root = Utf8Path::from_path(temporary_directory.path()).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "test directory path is not UTF-8",
-            )
-        })?;
+        let temporary_root = temporary_root(&temporary_directory)?;
         let root = Dir::open_ambient_dir(temporary_root.as_std_path(), ambient_authority())?;
         for directory in ["home", "work", "bin"] {
             root.create_dir(directory)?;
         }
+        copy_binary_under_test(&root)?;
         let home = temporary_root.join("home");
         let working_directory = temporary_root.join("work");
         let binary_directory = temporary_root.join("bin");
-        let binary_path = Utf8Path::new(env!("CARGO_BIN_EXE_cargo-bdd"));
-        let binary_parent = binary_path.parent().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Cargo binary has no parent directory",
-            )
-        })?;
-        let source_directory = Dir::open_ambient_dir(binary_parent, ambient_authority())?;
-        let destination_directory = root.open_dir("bin")?;
-        let binary_name = binary_path.file_name().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Cargo binary path has no file name",
-            )
-        })?;
-        source_directory.copy(binary_name, &destination_directory, binary_name)?;
 
         Ok(Self {
             temporary_directory,
@@ -94,13 +74,7 @@ impl IsolatedWorkspace {
     /// The inherited `PATH` is preserved after the copied binary's directory,
     /// because the child shells out to `cargo` for registry discovery.
     pub(super) fn command(&self, program: impl AsRef<OsStr>) -> io::Result<Command> {
-        let temporary_root =
-            Utf8Path::from_path(self.temporary_directory.path()).ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "test directory path is not UTF-8",
-                )
-            })?;
+        let temporary_root = temporary_root(&self.temporary_directory)?;
         let config_home = temporary_root.join("xdg-config-home");
         let config_dirs = temporary_root.join("xdg-config-dirs");
         self.root.create_dir_all("xdg-config-home")?;
@@ -227,6 +201,51 @@ impl IsolatedWorkspace {
         let source_directory = working_directory.open_dir("src")?;
         source_directory.write("main.rs", "fn main() {}\n")
     }
+}
+
+/// The workspace's temporary directory as UTF-8 text.
+///
+/// Every root the workspace publishes is a [`Utf8PathBuf`], so a temporary
+/// directory under a non-UTF-8 `TMPDIR` cannot be described. Encoding the path
+/// lossily would name a different directory, so it is an error instead.
+fn temporary_root(temporary_directory: &TempDir) -> io::Result<&Utf8Path> {
+    Utf8Path::from_path(temporary_directory.path()).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "test directory path is not UTF-8",
+        )
+    })
+}
+
+/// Copy the binary under test into the workspace's `bin` directory.
+///
+/// Cargo builds the binary in its own target tree. A child inside the
+/// temporary tree keeps the permission cases able to reach it, and keeps the
+/// program path the tests observe out of the build directory.
+fn copy_binary_under_test(root: &Dir) -> io::Result<()> {
+    let binary_path = Utf8Path::new(env!("CARGO_BIN_EXE_cargo-bdd"));
+    let (binary_parent, binary_name) = binary_location(binary_path)?;
+    let source_directory = Dir::open_ambient_dir(binary_parent, ambient_authority())?;
+    let destination_directory = root.open_dir("bin")?;
+    source_directory.copy(binary_name, &destination_directory, binary_name)?;
+    Ok(())
+}
+
+/// The directory and file name of the binary under test.
+///
+/// Cargo sets `CARGO_BIN_EXE_cargo-bdd` to a path that always has both parts.
+/// Either being absent means the variable was overridden, and the copy cannot
+/// proceed without both, so one error covers both.
+fn binary_location(binary_path: &Utf8Path) -> io::Result<(&Utf8Path, &str)> {
+    binary_path
+        .parent()
+        .zip(binary_path.file_name())
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Cargo binary path has no parent directory or file name",
+            )
+        })
 }
 
 /// One toolchain home the cleared environment has to carry across.
