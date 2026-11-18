@@ -922,6 +922,9 @@ nextest when the stamp is missing or stale and prepares lazily behind a
 process-wide lock under plain `cargo test`. `generated_crate_root` returns the
 per-crate scratch directory the caller stages support files into.
 
+The repository's targets for running this policy by hand are described under
+[the preparation Make targets and their roles](#the-preparation-make-targets-and-their-roles).
+
 The `family` argument must be distinct per crate, and `variant` must record the
 feature selection the test binary was built with: `trybuild` propagates that
 selection to the generated crate, so a different set of features is a different
@@ -1170,6 +1173,39 @@ nested build produces, and a stamp that never saw the file would survive the
 change. Its cost is that the stamp is no longer reproducible from the checkout
 alone; it is reproducible from the checkout *plus* the configuration Cargo
 would actually read, which is the property the stamp has to have.
+
+### The preparation Make targets and their roles
+
+Three targets wrap the prepared-fixture workflow. They are not interchangeable,
+and the difference is what environment each one establishes.
+
+`make prepare-nested-fixtures` runs `cargo nextest` with the
+`nested_fixture_preparation` filter. It uses the same `RUSTFLAGS` and build
+settings as the timed tests, because the same Makefile variables own both, so
+the stamp it writes describes the tree the timed tests will read.
+
+`make nextest-run EXPR=...` runs a filtered selection in that same environment
+— the one the stamp records. **Filtered runs must use this target.** A
+hand-typed `cargo nextest run` inherits the ambient `RUSTFLAGS`, which is
+normally unset, while the stamp that preparation wrote records the gate's
+`-D warnings` and linker flags. The fingerprint covers `RUSTFLAGS`, so a stamp
+written under one and read under the other does not match, and the run is
+refused as unprepared — correctly, but unhelpfully if the invocation was only
+meant to select a few tests.
+
+`make check-prepared-fixture-workflow` runs
+`scripts/check_prepared_fixture_workflow.py`. It verifies the *workflow
+definition* rather than the tree: that a timed test refuses an unprepared
+directory, that the remedy prepares it, that the same timed test then passes
+without recompiling, and that an edited fixture source invalidates the stamp.
+Two consequences follow. `make test` does **not** run it, so a green test suite
+says nothing about it. And it starts from an empty private target directory, so
+it pays a cold build every time — it is a release-and-PR gate, not a routine
+edit-time check. The Linux pull-request step in `.github/workflows/ci.yml` runs
+it when `matrix.tools` is set; see
+[Trybuild tree preparation](#trybuild-tree-preparation) for the policy it
+exercises and [nextest configuration](#nextest-configuration-confignextesttoml)
+for the budgets its steps spend.
 
 ### A bound must bound its own bookkeeping
 
@@ -1427,6 +1463,10 @@ The file sets the timeout policy for the test suite:
   they were a second copy of crates the workspace had already built. The
   numbers are from one host and one cache state, so treat the ratio, not the
   absolute seconds, as the part that generalizes.
+
+  The targets that run a filtered selection under these budgets are described
+  under
+  [the preparation Make targets and their roles](#the-preparation-make-targets-and-their-roles).
 
   The overrides apply per test. The CLI binary contains nine smoke tests and
   two target-environment regressions. The four compile-test binaries also
