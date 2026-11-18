@@ -18,6 +18,15 @@
     "stderr": ""
   },
   {
+    "name": "cargo-bdd help",
+    "args": [
+      "help"
+    ],
+    "exit_code": 0,
+    "stdout": "Diagnostic tooling for rstest-bdd\n\nUsage: <CARGO_BDD_ROOT_BINARY> <COMMAND>\n\nCommands:\n  steps       List all registered steps\n  unused      List registered steps that were never executed\n  duplicates  List step definitions that share the same keyword and pattern\n  skipped     List skipped scenarios and their reasons\n  help        Print this message or the help of the given subcommand(s)\n\nOptions:\n  -h, --help     Print help\n  -V, --version  Print version\n",
+    "stderr": ""
+  },
+  {
     "name": "cargo-bdd help steps",
     "args": [
       "help",

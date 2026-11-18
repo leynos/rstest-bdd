@@ -2286,8 +2286,8 @@ it would require the post-change binary to keep rejecting the invocation that
 the row records that the shipped binary rejected Cargo's own dispatch form
 before this work. Every other row is a `V1` no-configuration case, and the
 checked-in baseline fixture
-(`crates/cargo-bdd/tests/fixtures/baseline-cli.json`) holds exactly those seven
-and omits `bdd steps`.
+(`crates/cargo-bdd/tests/fixtures/baseline-cli.json`) holds all eight of those
+rows and omits `bdd steps`.
 
 The exact captured text is in `/tmp/baseline-cli-errors-issue-901.out`. This
 scratch record is not durable; §5 must add checked-in assertions for the stable
