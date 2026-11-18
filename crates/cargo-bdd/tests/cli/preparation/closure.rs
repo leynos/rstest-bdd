@@ -5,6 +5,7 @@
 //! closure is read from the fixture's own resolved graph with `cargo tree`.
 
 use eyre::{Context, Result};
+use rstest_bdd_harness::nested_cargo;
 
 use super::fixture_dir;
 
@@ -43,14 +44,24 @@ use super::fixture_dir;
 /// profile", which is exactly what this family must not do.
 pub(super) fn fixture_dependency_closure() -> Result<Vec<String>> {
     let fixture = fixture_dir();
-    let output = std::process::Command::new("cargo")
+    let mut command = std::process::Command::new(env!("CARGO"));
+    command
         .args(["tree", "--prefix", "none", "--locked", "--offline"])
-        .current_dir(&fixture)
-        // `cargo tree` writes the graph to stdout and progress or warnings to
-        // stderr; the parse below needs only the former, but a failure has to
-        // report both or the cause is invisible.
-        .output()
-        .wrap_err_with(|| format!("resolving the fixture graph in {}", fixture.display()))?;
+        .current_dir(&fixture);
+    // The Cargo that resolves the graph has to be the one the fixture build
+    // runs, and that is `env!("CARGO")` rather than a `PATH` lookup: a host
+    // with several toolchains would otherwise measure one Cargo's resolution
+    // and hand the result to another's build. Bounded for the same reason the
+    // nested builds are — `cargo tree` takes the package-cache lock, so it can
+    // wait behind another process rather than fail, and a stall should name
+    // itself instead of hanging the test. `--offline` stays: the fixture
+    // commits its lockfile, so resolution needs no registry, and a probe that
+    // reached one would turn a registry hiccup into a broken-graph report.
+    let output = nested_cargo::run_bounded_with_timeout(
+        &mut command,
+        nested_cargo::PREPARATION_COMMAND_TIMEOUT,
+    )
+    .wrap_err_with(|| format!("resolving the fixture graph in {}", fixture.display()))?;
     let combined = || {
         format!(
             "stdout:\n{}\nstderr:\n{}",

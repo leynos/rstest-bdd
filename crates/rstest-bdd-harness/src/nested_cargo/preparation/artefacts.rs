@@ -100,15 +100,31 @@ impl Eviction {
 
 /// Why `directory` is not a usable prepared profile, if it is not.
 ///
+/// `vouched` says whether a stamp was found and describes this directory.
+/// `recorded` carries that section's names. A caller with no stamp passes
+/// `true` with `recorded = None`, which is the structural-only answer; a stamp
+/// that was found but says nothing about this directory passes `false`, and is
+/// refused. Those two must not be answered alike: the structural checks below
+/// only prove the profile holds *some* units and records, not the unit a timed
+/// test needs, and `stamp.rs` already states that a section-count disagreement
+/// is refused by the caller.
+///
 /// # Errors
 ///
 /// Returns the read error when a directory cannot be inspected, so an
 /// unreadable tree refuses the preparation instead of passing it.
 fn eviction_of(
     directory: &Path,
+    vouched: bool,
     recorded: Option<&[String]>,
     owned: &[String],
 ) -> io::Result<Option<Eviction>> {
+    if !vouched {
+        return Ok(Some(Eviction::whole(
+            directory,
+            "the stamp records no artefacts for this profile",
+        )));
+    }
     match fs::metadata(directory) {
         Ok(metadata) if metadata.is_dir() => {}
         // Absent, or present as something that is not a directory: both are the
@@ -162,7 +178,11 @@ fn eviction_of(
 ///
 /// `stamp` is the matching stamp, when one was found. Without it there is
 /// nothing below the directories to check, and the structural layer alone
-/// decides.
+/// decides. With it, every directory [`Preparation::artefacts`] names must
+/// have a section of its own: a stamp describing fewer directories than the
+/// preparation names cannot vouch for the extra ones, and a section-count
+/// mismatch is treated as the whole directory being unvouched for rather than
+/// silently skipping the named-artefact layer.
 ///
 /// # Errors
 ///
@@ -177,8 +197,15 @@ pub(super) fn evicted(
         .enumerate()
         .map(|(index, directory)| {
             let recorded = stamp.and_then(|stamp| stamp.recorded.get(index));
+            // With a stamp in hand, a directory it says nothing about is
+            // unvouched for: a stamp carrying fewer sections than the
+            // preparation names describes some other preparation, and the
+            // directories it omits must not be waved through by the
+            // structural layer alone.
+            let vouched = stamp.is_none() || recorded.is_some();
             eviction_of(
                 directory,
+                vouched,
                 recorded.map(Vec::as_slice),
                 &preparation.owned_packages,
             )

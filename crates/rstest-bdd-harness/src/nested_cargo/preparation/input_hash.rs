@@ -85,18 +85,42 @@ fn config_entry_is_present(path: &Path) -> io::Result<bool> {
 /// subdirectory, matching Cargo's walk from the working directory upwards.
 /// `$CARGO_HOME` is appended when it is set to a non-empty path, because Cargo
 /// reads it in addition to the walk rather than as part of it.
+///
+/// When `CARGO_HOME` is unset or empty, Cargo falls back to `$HOME/.cargo`;
+/// [`cargo_home`] names that default here. Leaving it out would make the
+/// fingerprint blind to a `~/.cargo/config.toml` that sets rustflags, a target
+/// directory or a linker — a change the nested build would notice and the stamp
+/// would not, which is the unsoundness this module exists to remove.
 fn config_search_dirs(workspace_root: &Path) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = workspace_root
         .ancestors()
         .map(|ancestor| ancestor.join(".cargo"))
         .collect();
-    if let Some(cargo_home) = std::env::var_os("CARGO_HOME") {
-        let cargo_home = PathBuf::from(cargo_home);
-        if !cargo_home.as_os_str().is_empty() {
-            dirs.push(cargo_home);
-        }
+    if let Some(cargo_home) = cargo_home() {
+        dirs.push(cargo_home);
     }
     dirs
+}
+
+/// The Cargo home directory, honouring `CARGO_HOME` and Cargo's default.
+///
+/// An explicitly set `CARGO_HOME` wins, including a relative one, because that
+/// is what Cargo itself does and the search must name the same directory the
+/// build reads. Otherwise the default is the `home` directory's `.cargo`, from
+/// `HOME` on Unix and `USERPROFILE` on Windows — the same pair Cargo's own
+/// default resolves through. A host with neither variable set has no default to
+/// name, and is left out rather than guessed at.
+fn cargo_home() -> Option<PathBuf> {
+    if let Some(explicit) = std::env::var_os("CARGO_HOME") {
+        let explicit = PathBuf::from(explicit);
+        if !explicit.as_os_str().is_empty() {
+            return Some(explicit);
+        }
+    }
+    let home = std::env::var_os("HOME")
+        .filter(|home| !home.is_empty())
+        .or_else(|| std::env::var_os("USERPROFILE").filter(|home| !home.is_empty()))?;
+    Some(PathBuf::from(home).join(".cargo"))
 }
 
 /// Directory names that hold build output rather than fixture inputs.

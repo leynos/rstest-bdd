@@ -27,8 +27,24 @@ use super::super::NestedCargoEnv;
 
 /// The Cargo probe's label.
 const CARGO: &str = "cargo";
-/// The compiler probe's label, and the variable that selects it.
+/// The compiler probe's label, and the compiler's file name.
 const RUSTC: &str = "rustc";
+/// The variable that selects the compiler the nested build invokes.
+///
+/// Kept apart from [`RUSTC`] because the two spell the name differently and
+/// [`NestedCargoEnv::get`] matches an environment key exactly: a lookup by the
+/// lowercase label never sees `RUSTC=/path/to/compiler`, so the override branch
+/// it guards would be unreachable. The label stays lowercase for the probe's
+/// messages and the sibling file name, which are case-sensitive on Unix.
+const RUSTC_KEY: &str = "RUSTC";
+
+/// Wall-clock bound on one `-vV` probe.
+///
+/// Sized for a probe rather than a build: an honest `-vV` is milliseconds, and
+/// the point is to turn a stalled shim into a named failure. The nested build
+/// bound is 300 s because a build has real work to do; a probe that needs even
+/// a sixtieth of that is not a probe that is going to finish.
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Identify the toolchain that produces the prepared artefacts.
 ///
@@ -79,7 +95,7 @@ fn compose_identity(cargo: &str, compiler: &str) -> String {
 /// searched in the environment the command inherits, so it is the last resort
 /// rather than the rule.
 fn compiler_program(environment: &NestedCargoEnv) -> PathBuf {
-    if let Some(configured) = environment.get(RUSTC) {
+    if let Some(configured) = environment.get(RUSTC_KEY) {
         return PathBuf::from(configured);
     }
     let name = compiler_name();
@@ -129,15 +145,23 @@ fn probe(
     for (key, value) in environment.iter() {
         command.env(key, value);
     }
-    let output = command.output().map_err(|error| {
-        io::Error::new(
-            error.kind(),
-            format!(
-                "cannot run `{program} -vV` at {}: {error}",
-                executable.display()
-            ),
-        )
-    })?;
+    // Bounded rather than `output()`, because these probes run inside every
+    // timed test body: `lifecycle` asks for the identity on each gate. A
+    // `rustup` shim that resolves its toolchain over the network, or a
+    // compiler on a stalled mount, would otherwise hang the test and let the
+    // runner report its own timeout instead of naming the probe. `-vV` is a
+    // few milliseconds' work on any healthy host, so the bound is generous
+    // against real work and still far below the runner's.
+    let output =
+        super::super::run_bounded_with_timeout(&mut command, PROBE_TIMEOUT).map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!(
+                    "cannot run `{program} -vV` at {}: {error}",
+                    executable.display()
+                ),
+            )
+        })?;
     identity_from(
         program,
         output.status.success(),

@@ -311,6 +311,7 @@ mod tests {
     use super::{
         FIXTURE_PACKAGE,
         cli_preparation,
+        cli_preparation_description,
         closure::fixture_dependency_closure,
         fixture_dir,
         nested_cargo,
@@ -349,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn the_owned_packages_cover_the_whole_dependency_closure() {
+    fn the_owned_packages_cover_the_whole_dependency_closure_and_reach_the_gate() {
         // Both halves of the fixture's build have to be declared, and the case
         // is written against the live graph rather than against a literal so it
         // cannot drift from the fixture. The workspace crates are the transitive
@@ -361,8 +362,27 @@ mod tests {
         let declared: std::collections::BTreeSet<&str> = std::iter::once(FIXTURE_PACKAGE)
             .chain(closure.iter().map(String::as_str))
             .collect();
-        let (_environment, _target_root, _inputs) =
-            cli_preparation().expect("preparation description should resolve");
+        // The list the gate actually receives, not only a set rebuilt here from
+        // the closure. A preparation that stopped wiring the closure would leave
+        // every assertion below green — they test the local set — while the gate
+        // filtered the dependency's records out of both sides and an eviction
+        // passed. The fixture package is deliberately absent from
+        // `owned_packages`: the experiment's own `cargo clean -p` removes it
+        // before every baseline, so claiming it would defeat the preparation.
+        let (preparation, _environment) =
+            cli_preparation_description().expect("preparation description should resolve");
+        let owned: std::collections::BTreeSet<&str> = preparation
+            .owned_packages
+            .iter()
+            .map(String::as_str)
+            .collect();
+        let expected: std::collections::BTreeSet<&str> =
+            closure.iter().map(String::as_str).collect();
+        assert_eq!(
+            owned, expected,
+            "the preparation must hand the gate exactly the fixture's dependency closure, and the \
+             fixture itself must not be among them"
+        );
 
         // The registry half specifically: a list built from the manifests alone
         // holds the path crates and neither of these.
