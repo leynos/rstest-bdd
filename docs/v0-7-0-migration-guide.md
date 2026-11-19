@@ -348,10 +348,13 @@ whose higher floor applies to that consumer. See
     remove or change that variable, or pass `--skipped` to override both.
 - **Error:** `steps --json` reports
   `the following required arguments were not provided: --skipped`.
-  - **Fix:** no layer enables skipped-step reporting, so pass `--skipped` or set
-    `cmds.steps.skipped = true`. A configuration file or
-    `CARGO_BDD_CMDS_STEPS_SKIPPED=true` now satisfies the requirement without
-    the flag.
+  - **Fix:** the merged `skipped` value is false, so no layer enables
+    skipped-step reporting. Pass `--skipped`, or set
+    `cmds.steps.skipped = true` in the settings file, or
+    `CARGO_BDD_CMDS_STEPS_SKIPPED=true` in the environment. The environment
+    outranks every file, so a `CARGO_BDD_CMDS_STEPS_SKIPPED=false` set there
+    overrides a file that enables it: remove or change that variable, or pass
+    `--skipped` to override both.
 - **Error:** under Nextest a timed test reports that a nested fixture family is
   not prepared and names `make prepare-nested-fixtures`.
   - **Fix:** run the preparation pass first. The stamp also covers `RUSTFLAGS`
