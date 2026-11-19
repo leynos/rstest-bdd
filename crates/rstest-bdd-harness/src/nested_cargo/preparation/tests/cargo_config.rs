@@ -23,32 +23,40 @@ use crate::nested_cargo::{
 
 /// A workspace root with a `.cargo` directory, and the configuration link in
 /// it.
-fn workspace_with_cargo_dir() -> std::io::Result<(tempfile::TempDir, PathBuf)> {
+fn workspace_with_cargo_dir() -> std::io::Result<(tempfile::TempDir, PathBuf, PathBuf)> {
     let workspace = tempfile::tempdir()?;
-    std::fs::create_dir(workspace.path().join(".cargo"))?;
-    let config = workspace.path().join(".cargo/config.toml");
-    Ok((workspace, config))
+    // The probe canonicalizes the root before walking it, so every path it
+    // reports is spelled through the resolved form. On Windows that carries a
+    // `\\?\` verbatim prefix and may shorten `RUNNER~1` to `runneradmin`, so a
+    // path built from the raw temporary directory never equals the reported
+    // one. Deriving the expected path from the resolved root is what makes the
+    // assertion portable; the check is that the file is *found*, not that it
+    // is spelled a particular way.
+    let root = std::fs::canonicalize(workspace.path())?;
+    std::fs::create_dir(root.join(".cargo"))?;
+    let config = root.join(".cargo/config.toml");
+    Ok((workspace, root, config))
 }
 
 #[test]
 fn cargo_configuration_is_an_input() {
-    let (workspace, config) = workspace_with_cargo_dir().expect("the workspace fixture");
+    let (_workspace, root, config) = workspace_with_cargo_dir().expect("the workspace fixture");
     std::fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
 
     // The workspace file is asserted by presence rather than by whole-vector
     // equality: the probe also reports configuration above the workspace and in
     // `CARGO_HOME`, which is host state a portable test cannot enumerate.
-    let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
+    let roots = cargo_config_inputs(&root).expect("config inputs");
     assert!(
         roots.contains(&config),
         "the workspace Cargo configuration must be an input: {roots:?}"
     );
 
-    let before = input_hash(&cargo_config_inputs(workspace.path()).expect("config inputs"))
-        .expect("hash before");
+    let before =
+        input_hash(&cargo_config_inputs(&root).expect("config inputs")).expect("hash before");
     std::fs::write(&config, "[profile.dev]\nincremental = true\n").expect("config edit");
-    let after = input_hash(&cargo_config_inputs(workspace.path()).expect("config inputs"))
-        .expect("hash after");
+    let after =
+        input_hash(&cargo_config_inputs(&root).expect("config inputs")).expect("hash after");
     assert_ne!(
         before, after,
         "a configuration-only change must invalidate the prepared artefacts"
@@ -69,14 +77,17 @@ fn a_cargo_home_setting_change_invalidates_the_prepared_tree() {
     // other thread in this binary read: `cargo_configuration_is_an_input`
     // hashed a directory another case had already deleted, and failed with
     // `NotFound` on a path it had just created.
-    let (workspace, _workspace_config) = workspace_with_cargo_dir().expect("the workspace fixture");
+    let (_workspace, root, _workspace_config) =
+        workspace_with_cargo_dir().expect("the workspace fixture");
+    // An *absolute* Cargo home is used unchanged, and the probe reports it
+    // through the spelling the caller supplied, so the lexical temporary path
+    // is the right one to expect here.
     let cargo_home = tempfile::tempdir().expect("cargo home");
     let home_config = cargo_home.path().join("config.toml");
     std::fs::write(&home_config, "[build]\nrustflags = [\"-Copt-level=1\"]\n")
         .expect("home config");
 
-    let roots =
-        cargo_config_inputs_with(workspace.path(), Some(cargo_home.path())).expect("config inputs");
+    let roots = cargo_config_inputs_with(&root, Some(cargo_home.path())).expect("config inputs");
     assert!(
         roots.contains(&home_config),
         "the CARGO_HOME configuration must be a preparation input: {roots:?}"
@@ -105,15 +116,19 @@ fn a_relative_cargo_home_is_resolved_against_the_nested_directory() {
     // resolution is reached here by passing it through the injectable form, so
     // the case cannot disturb a sibling that reads the environment.
     let workspace = tempfile::tempdir().expect("workspace dir");
-    let nested_home = workspace.path().join(".cargo-cache");
+    // The relative home is resolved against the *caller's* spelling of the
+    // workspace and then used unchanged, so both the fixture and the
+    // expectation are built from that same lexical root.
+    let workspace_root = std::fs::canonicalize(workspace.path()).expect("resolved workspace");
+    let nested_home = workspace_root.join(".cargo-cache");
     let nested_config = nested_home.join("config.toml");
     std::fs::create_dir_all(&nested_home).expect("nested cargo home");
     std::fs::write(&nested_config, "[build]\nrustflags = [\"-Copt-level=1\"]\n")
         .expect("nested config");
 
-    let relative = resolve_cargo_home(workspace.path(), Some(std::ffi::OsStr::new(".cargo-cache")))
+    let relative = resolve_cargo_home(&workspace_root, Some(std::ffi::OsStr::new(".cargo-cache")))
         .expect("a relative CARGO_HOME names a directory");
-    let roots = cargo_config_inputs_with(workspace.path(), Some(&relative)).expect("config inputs");
+    let roots = cargo_config_inputs_with(&workspace_root, Some(&relative)).expect("config inputs");
     assert!(
         roots.contains(&nested_config),
         "a relative CARGO_HOME must be read from the nested build's directory; the probe reported \
@@ -152,9 +167,12 @@ fn missing_cargo_configuration_is_not_an_input() {
     // there is legitimately something to report, and a whole-vector equality
     // would fail for that reason rather than for the behaviour under test.
     let workspace = tempfile::tempdir().expect("workspace dir");
-    let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
+    // Both sides are resolved: the probe reports through the canonical root,
+    // and a lexical `starts_with` against it would be false for every entry.
+    let root = std::fs::canonicalize(workspace.path()).expect("resolved workspace");
+    let roots = cargo_config_inputs(&root).expect("config inputs");
     assert!(
-        !roots.iter().any(|path| path.starts_with(workspace.path())),
+        !roots.iter().any(|path| path.starts_with(&root)),
         "a workspace with no committed configuration contributes nothing: {roots:?}"
     );
 }
@@ -169,12 +187,12 @@ fn a_symlinked_cargo_configuration_contributes_its_target() {
     // stamp matching, and the timed assertion would compile the graph the
     // preparation was meant to have built. The link is Unix-only because
     // creating one on Windows needs a privilege the test runner lacks.
-    let (workspace, link) = workspace_with_cargo_dir().expect("the workspace fixture");
-    let target: PathBuf = workspace.path().join("shared-config.toml");
+    let (_workspace, root, link) = workspace_with_cargo_dir().expect("the workspace fixture");
+    let target: PathBuf = root.join("shared-config.toml");
     std::fs::write(&target, "[profile.dev]\nincremental = false\n").expect("config target");
     std::os::unix::fs::symlink(&target, &link).expect("config symlink");
 
-    let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
+    let roots = cargo_config_inputs(&root).expect("config inputs");
     assert!(
         roots.contains(&link),
         "the link must still be reported: {roots:?}"
@@ -200,10 +218,10 @@ fn a_dangling_cargo_configuration_link_reads_as_absent() {
     // target present stops matching when the target goes away. Reporting it
     // as a read failure would instead make every preparation on such a tree
     // fail, which is why the absent answer is the one pinned here.
-    let (workspace, link) = workspace_with_cargo_dir().expect("the workspace fixture");
-    std::os::unix::fs::symlink(workspace.path().join("gone.toml"), &link).expect("symlink");
+    let (_workspace, root, link) = workspace_with_cargo_dir().expect("the workspace fixture");
+    std::os::unix::fs::symlink(root.join("gone.toml"), &link).expect("symlink");
 
-    let roots = cargo_config_inputs(workspace.path()).expect("a dangling link is not an error");
+    let roots = cargo_config_inputs(&root).expect("a dangling link is not an error");
     assert!(
         !roots.contains(&link),
         "a link whose target is gone contributes no configuration: {roots:?}"
@@ -278,10 +296,10 @@ fn an_unreadable_cargo_configuration_is_an_error() {
     // would not hold when the suite runs as root. It is a Unix-only fixture
     // because creating a symlink on Windows needs a privilege the test runner
     // does not have.
-    let (workspace, looped) = workspace_with_cargo_dir().expect("the workspace fixture");
+    let (_workspace, root, looped) = workspace_with_cargo_dir().expect("the workspace fixture");
     std::os::unix::fs::symlink(&looped, &looped).expect("symlink loop");
 
-    let error = cargo_config_inputs(workspace.path())
+    let error = cargo_config_inputs(&root)
         .expect_err("an uninspectable configuration must not pass as absent");
     assert_ne!(
         error.kind(),
@@ -304,12 +322,16 @@ fn a_scratch_directories_configuration_is_an_input() {
     // the fingerprint, or a stamp written before the edit survives it and the
     // dependency rebuild lands inside the timed test.
     let scratch = tempfile::tempdir().expect("scratch root");
-    let cargo_dir = scratch.path().join(".cargo");
+    // Resolved for the same reason as `workspace_with_cargo_dir`: the probe
+    // canonicalizes the root, so the path it reports is the resolved spelling
+    // and not the raw temporary one.
+    let root = std::fs::canonicalize(scratch.path()).expect("resolved scratch root");
+    let cargo_dir = root.join(".cargo");
     std::fs::create_dir(&cargo_dir).expect("cargo dir");
     let config = cargo_dir.join("config.toml");
     std::fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
 
-    let roots = cargo_config_inputs(scratch.path()).expect("config inputs");
+    let roots = cargo_config_inputs(&root).expect("config inputs");
     assert!(
         roots.contains(&config),
         "the scratch directory's own configuration must be an input: {roots:?}"
@@ -317,8 +339,8 @@ fn a_scratch_directories_configuration_is_an_input() {
 
     let before = input_hash(&roots).expect("hash before");
     std::fs::write(&config, "[profile.dev]\nincremental = true\n").expect("config edit");
-    let after = input_hash(&cargo_config_inputs(scratch.path()).expect("config inputs"))
-        .expect("hash after");
+    let after =
+        input_hash(&cargo_config_inputs(&root).expect("config inputs")).expect("hash after");
     assert_ne!(
         before, after,
         "a scratch-only configuration change must invalidate the prepared artefacts"

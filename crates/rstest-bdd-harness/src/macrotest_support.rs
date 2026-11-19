@@ -318,11 +318,18 @@ mod tests {
         // configuration-only edit, and the timed case would compile the changed
         // graph inside its own deadline.
         let workspace = tempfile::tempdir().expect("workspace dir");
-        let crate_root = workspace.path().join("crates/under-test");
+        // The input probe canonicalizes the directory it walks from, so every
+        // configuration path it reports is spelled through the resolved form.
+        // On Windows that carries a `\\?\` verbatim prefix and may shorten an
+        // 8.3 temporary name, so a path built from the raw temporary directory
+        // never equals the reported one. The fixture is therefore built from
+        // the resolved root, which is the same tree.
+        let root = fs::canonicalize(workspace.path()).expect("resolved workspace");
+        let crate_root = root.join("crates/under-test");
         fs::create_dir_all(&crate_root).expect("crate dir");
-        fs::write(workspace.path().join("Cargo.toml"), "[workspace]\n").expect("manifest");
-        fs::create_dir(workspace.path().join(".cargo")).expect("cargo dir");
-        let config = workspace.path().join(".cargo/config.toml");
+        fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("manifest");
+        fs::create_dir(root.join(".cargo")).expect("cargo dir");
+        let config = root.join(".cargo/config.toml");
         fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
 
         let tree = TrybuildTree::new(&crate_root, "under-test", "family", "variant");
