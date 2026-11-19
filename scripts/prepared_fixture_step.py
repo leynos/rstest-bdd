@@ -48,7 +48,15 @@ BUILD_REPORT_ENV = "RSTEST_BDD_NESTED_BUILD_REPORT"
 #: The two are written by different code at different points in a run, so a
 #: reader that saw only counts would have to assume which question it had an
 #: answer to. ``timed`` is the source the reuse judgement requires.
-REPORT_LINE = re.compile(rf"{re.escape(BUILD_MARKER)}\s+source=(\w+)\s+compiling=(\d+)")
+#: ``$`` rather than a bare ``\d+`` matters: without it ``compiling=0oops``
+#: matches on the ``0`` prefix and is accepted as a zero-compilation line, so a
+#: corrupted report would pass the reuse judgement exactly when the judgement
+#: is the only evidence the tree was reused. The writer
+#: (``record`` in ``nested_build.rs``) emits this as the whole line, so
+#: anchoring at end of line costs nothing a real report depends on.
+REPORT_LINE = re.compile(
+    rf"{re.escape(BUILD_MARKER)}\s+source=(\w+)\s+compiling=(\d+)$"
+)
 
 #: The report source the timed gate files when it admits a stamp.
 #:

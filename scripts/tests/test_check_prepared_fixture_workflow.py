@@ -302,6 +302,24 @@ def test_an_absent_file_reads_as_no_reports(tmp_path: Path) -> None:
     assert not reports, f"an absent report yielded reports: {reports}"
 
 
+def test_a_trailing_garbage_count_is_not_read_as_its_prefix(tmp_path: Path) -> None:
+    """A malformed count must not be accepted on its leading digits.
+
+    ``compiling=0oops`` starts with a valid count, so an unanchored pattern
+    reads it as ``0`` and hands the reuse judgement the one number that means
+    "nothing was rebuilt". That is the failure worth pinning: the corrupted
+    line would pass exactly when the judgement is the only evidence the tree
+    was reused, so the reader has to reject the line rather than salvage a
+    prefix from it.
+    """
+    build_report_path(tmp_path).write_text(
+        f"{BUILD_MARKER} source={TIMED_SOURCE} compiling=0oops\n",
+        encoding="utf-8",
+    )
+    reports = read_build_reports(tmp_path)
+    assert not reports, f"a malformed count was salvaged as a report: {reports}"
+
+
 def test_unrelated_lines_are_ignored(tmp_path: Path) -> None:
     """A partially written or hand-inspected file must not confuse the reader."""
     build_report_path(tmp_path).write_text(
