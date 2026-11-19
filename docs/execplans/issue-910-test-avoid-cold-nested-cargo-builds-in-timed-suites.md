@@ -2451,6 +2451,34 @@ rather than by reading this branch's comments.
   `MD007` wants. Verified with the gate's own binary:
   `/home/leynos/.bun/bin/markdownlint-cli2` reports `Summary: 0 error(s)`.
 
+- [x] **The fourth, fifth and sixth copies of the path-spelling defect.**
+  The first Windows run of `4210656c` failed
+  `build-test (windows, default features)` in *Test and Measure Coverage* with
+  three test failures, all in the cargo-configuration input path. The reported
+  roots were `\\?\C:\Users\runneradmin\...` while the fixtures expected
+  `C:\Users\RUNNER~1\...`, so the probe *was* finding the configuration and the
+  assertions could not see it.
+
+  This is the same defect as the three earlier copies but in the opposite
+  direction: the probe canonicalizes the root it walks from, which is
+  deliberate — a lexical walk of a relative root never reaches the checkout's
+  own `.cargo` — so every path it reports is the resolved spelling. A fixture
+  built from the raw `tempfile` directory names the same file with a different
+  spelling, and on Windows the two never compare equal.
+
+  Fixed in the tests, not the probe. `cargo_configuration_is_an_input`,
+  `a_scratch_directories_configuration_is_an_input` and
+  `trybuild_inputs_include_the_workspace_cargo_configuration` now derive their
+  expected paths from `fs::canonicalize`, the way the shipped
+  `input_hash::config` cases already did. The cases that pass an *absolute*
+  `CARGO_HOME` are untouched: that value is used as given and reported through
+  the spelling the caller supplied.
+
+  Local Linux cannot prove this fix — `canonicalize` is close to the identity
+  there, so both spellings agree and the old assertions passed. The Windows
+  lane is the only evidence, which is why the fix was pushed before the
+  superseded lanes had finished rather than after.
+
 ## Surprises & Discoveries
 
 - **A green lint run is a temporary observation, not a property of the tree.**
