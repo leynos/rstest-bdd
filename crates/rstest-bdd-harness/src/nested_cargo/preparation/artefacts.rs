@@ -109,6 +109,25 @@ impl Eviction {
     }
 }
 
+/// One named profile, with everything the gate needs to judge it.
+///
+/// The four fields travel together because they describe one directory: where
+/// it is, what was found there, what the stamp claims about it, and whether an
+/// empty tree may be excused at all. Passing them separately invited exactly
+/// the mix-up the gate exists to prevent — a state read from one directory
+/// judged against another's stamp section — and made the call site a list of
+/// positional arguments whose order meant nothing.
+struct ProfileUnderJudgement<'a> {
+    /// The directory itself.
+    directory: &'a Path,
+    /// What the inspection found there.
+    state: &'a State,
+    /// The stamp section describing this directory, when one names it.
+    recorded: Option<&'a [String]>,
+    /// Whether an empty tree may be excused because a sibling holds one.
+    waive_empty: bool,
+}
+
 /// Why `directory` is not a usable prepared profile, if it is not.
 ///
 /// `recorded` carries the stamp section that describes this directory, with
@@ -131,12 +150,15 @@ impl Eviction {
 /// Returns the read error when a directory cannot be inspected, so an
 /// unreadable tree refuses the preparation instead of passing it.
 fn eviction_of(
-    directory: &Path,
-    state: &State,
-    recorded: Option<&[String]>,
+    profile: &ProfileUnderJudgement<'_>,
     owned: &[String],
-    waive_empty: bool,
 ) -> io::Result<Option<Eviction>> {
+    let ProfileUnderJudgement {
+        directory,
+        state,
+        recorded,
+        waive_empty,
+    } = *profile;
     if let Some(reason) = state.absence_reason() {
         return Ok(Some(Eviction::whole(directory, reason)));
     }
@@ -236,13 +258,13 @@ pub(super) fn evicted(
         preparation.artefacts.iter().enumerate().zip(&states)
     {
         let recorded = stamp.and_then(|stamp| stamp.recorded.get(index));
-        if let Some(eviction) = eviction_of(
+        let profile = ProfileUnderJudgement {
             directory,
-            directory_state,
-            recorded.map(Vec::as_slice),
-            &preparation.owned_packages,
+            state: directory_state,
+            recorded: recorded.map(Vec::as_slice),
             waive_empty,
-        )? {
+        };
+        if let Some(eviction) = eviction_of(&profile, &preparation.owned_packages)? {
             evictions.push(eviction);
         }
     }
