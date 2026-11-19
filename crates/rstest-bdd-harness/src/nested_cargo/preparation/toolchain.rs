@@ -92,18 +92,15 @@ pub(super) fn toolchain_identity_within(
     working_directory: &Path,
     deadline: Option<Deadline>,
 ) -> io::Result<String> {
-    let cargo = probe(
-        CARGO,
-        Path::new(env!("CARGO")),
+    let scene = Scene {
         environment,
         working_directory,
-        deadline,
-    )?;
+    };
+    let cargo = probe(CARGO, Path::new(env!("CARGO")), &scene, deadline)?;
     let compiler = probe(
         RUSTC,
         &compiler_program(environment, working_directory),
-        environment,
-        working_directory,
+        &scene,
         deadline,
     )?;
     Ok(compose_identity(&cargo, &compiler))
@@ -200,7 +197,21 @@ fn compiler_name() -> OsString {
     name
 }
 
-/// Run one `-vV` probe under `environment`, from `working_directory`.
+/// The conditions a `-vV` probe runs under.
+///
+/// Bundled because they are never chosen separately: the probe must see the
+/// filtered environment the nested build receives *and* start in the directory
+/// that build runs in, or it answers about a different toolchain than the one
+/// its identity is recorded against. Passing them as one value keeps the two
+/// halves from drifting apart at a call site that supplied only one.
+struct Scene<'a> {
+    /// The filtered environment the nested build receives.
+    environment: &'a NestedCargoEnv,
+    /// The directory the nested build runs in.
+    working_directory: &'a Path,
+}
+
+/// Run one `-vV` probe under `scene`.
 ///
 /// The build-relevant variables are overlaid onto the inherited environment
 /// rather than replacing it. Overlaying is what makes the probe identify the
@@ -225,8 +236,7 @@ fn compiler_name() -> OsString {
 fn probe(
     program: &'static str,
     executable: &Path,
-    environment: &NestedCargoEnv,
-    working_directory: &Path,
+    scene: &Scene<'_>,
     deadline: Option<Deadline>,
 ) -> io::Result<String> {
     // Resolved before the command is built, so a spent budget reports the
@@ -239,10 +249,10 @@ fn probe(
     // the very first run the directory can be absent. Falling back to the
     // inherited directory keeps the probe runnable, and the nested build that
     // follows creates the tree and runs there.
-    if working_directory.is_dir() {
-        command.current_dir(working_directory);
+    if scene.working_directory.is_dir() {
+        command.current_dir(scene.working_directory);
     }
-    for (key, value) in environment.iter() {
+    for (key, value) in scene.environment.iter() {
         command.env(key, value);
     }
     // Bounded rather than `output()`, because these probes run inside every
