@@ -94,9 +94,47 @@ declined** rather than as an implemented change. A future change that finds a
 caller which genuinely needs the decision without acting on it should reopen
 this ADR rather than growing the query beside the gate.
 
-The separation of `stamp.rs`'s responsibilities — parsing, fingerprint
-composition, file reads, messages and stderr reporting — remains its own
-deferred change, and is not covered by this decision.
+The separation of `stamp.rs`'s responsibilities was deferred by this decision
+and has since been carried out. `preparation/stamp.rs` is now a module root
+that re-exports its parts, and each part lives in its own file:
+
+- `stamp/format.rs` reads and writes the file's grammar — the version and
+  section constants, `StampText`, `Stamp`, `parse` and `strip_line_break`.
+- `stamp/fingerprint.rs` composes the text a stamp is compared against —
+  `Fingerprint`, `compose`, `fingerprint_with`, `escape` and
+  `is_fingerprint_variable`. `fingerprint_with` remains the only function that
+  calls the injected probe.
+- `stamp/file.rs` names and reads the stamp and does nothing else —
+  `stamp_path` and `matching_stamp`.
+- `stamp/diagnostics.rs` builds the messages a refusal produces. Both builders
+  are pure: `missing_stamp_message` takes the descriptions the lifecycle caller
+  gathered from `artefacts::evicted`, rather than inspecting the directories
+  itself.
+
+Stderr reporting left the stamp module with them. `lifecycle::report_stderr`
+is the one binding production uses, reached through `lifecycle::reporter_of`,
+so the diagnostics belong to the gate that decides to emit them rather than to
+the protocol that was refused.
+
+Moving that reporter and the artefact inspection into `lifecycle.rs` took it
+past the repository's per-file line budget, so the gate is a module root too:
+
+- `lifecycle/instruments.rs` holds the injected boundaries —
+  `Instruments`, `reporter_of`, `report_stderr`, `probe_of` and
+  `instruments_of` — with the production probe and reporter paired in one
+  place, so the compiler the gate identifies and the stream it writes through
+  cannot drift apart.
+- `lifecycle.rs` keeps the decision and the build: the four entry points, the
+  `Target` view passed to `prepare_locked`, and the locking and stamping that
+  follow a build.
+
+The parent re-exports both, so `lifecycle::Instruments`,
+`lifecycle::reporter_of` and `lifecycle::instruments_of` resolve exactly as
+before for `deadline`, `invalidate` and the workspace tests.
+
+No call site outside `preparation/` moved: the module root re-exports the same
+names under the same visibility. The split is recorded here because it is the
+deferral this decision named, not because it changes the decision.
 
 ## Consequences
 
@@ -113,7 +151,9 @@ deferred change, and is not covered by this decision.
 ## Links
 
 - `crates/rstest-bdd-harness/src/nested_cargo/preparation/lifecycle.rs`
+- `crates/rstest-bdd-harness/src/nested_cargo/preparation/lifecycle/`
 - `crates/rstest-bdd-harness/src/nested_cargo/preparation/profiles.rs`
 - `crates/rstest-bdd-harness/src/nested_cargo/preparation/artefacts/`
+- `crates/rstest-bdd-harness/src/nested_cargo/preparation/stamp/`
 - ADR-010 (feature-file change detection) is the sibling decision about what a
   stamp must cover; this ADR is about how the stamp is queried.

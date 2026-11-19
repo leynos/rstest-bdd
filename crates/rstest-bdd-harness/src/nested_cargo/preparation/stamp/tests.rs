@@ -43,8 +43,8 @@ fn a_rendered_stamp_parses_back_to_what_was_written() {
 /// `Fingerprint` is break-terminated and this case does not arise through the
 /// caller path. It is reachable from the parser's own contract, though:
 /// [`render`] supplies the separating newline when the text lacks one, and
-/// [`super::strip_line_break`] falls back to the text unchanged when there is
-/// no break to remove. That fallback is what makes the pair total, and this is
+/// [`super::format::strip_line_break`] falls back to the text unchanged when
+/// there is no break to remove. That fallback is what makes the pair total, and this is
 /// the only module that can test it — `fingerprint_of` builds the text
 /// directly, whereas the sibling module's helpers go through `compose`.
 ///

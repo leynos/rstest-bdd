@@ -16,7 +16,8 @@
 //! and past what a reader can keep in view. The entry point that supplies the
 //! real pair binds the probe to the preparation's own environment, so the
 //! compiler identified is the one the nested build will run, and binds the
-//! reporter to `stamp::note`, so production diagnostics are unchanged.
+//! reporter to the stderr writer [`instruments`] owns, so production
+//! diagnostics are unchanged.
 //!
 //! The reporter is a parameter at the innermost boundary rather than a direct
 //! write to stderr, because the diagnostics are part of what this module
@@ -29,27 +30,41 @@
 //! runners want opposite things from the same fact. An unreadable stamp is
 //! fail-fast evidence under `nextest`, where the tree is present but cannot be
 //! vouched for, and merely a rebuild under `cargo test`. Keeping that choice
-//! out of the stamp query is what lets the query stay a plain read.
+//! out of the stamp query is what lets the query stay a read.
+//!
+//! The same boundary runs the directory inspection that a refusal's message
+//! names. [`missing_stamp_message`] takes the result rather than gathering it,
+//! which is what keeps that builder pure and testable without a filesystem.
+//!
+//! # Modules
+//!
+//! [`instruments`] holds the injected boundaries and their production bindings,
+//! which is what keeps this file to the decision and the build. Its items are
+//! re-exported below, so callers keep naming `lifecycle::` and no call site had
+//! to move.
 
 use std::{io, path::Path, time::Instant};
+
+mod instruments;
+
+pub use instruments::Instruments;
+pub(in crate::nested_cargo::preparation) use instruments::{instruments_of, reporter_of};
 
 use super::{
     Preparation,
     PreparationSummary,
-    artefacts,
+    artefacts::{self, Eviction},
     stamp::{
         Fingerprint,
         Stamp,
         fingerprint_with,
         matching_stamp,
         missing_stamp_message,
-        note as stamp_note,
         render,
         stamp_path,
         unreadable_stamp_error,
         write_stamp,
     },
-    toolchain::toolchain_identity,
 };
 
 /// Ensure the family's artefacts are prepared, running `prepare` if needed.
@@ -66,9 +81,10 @@ use super::{
 /// decisions about the same evidence.
 ///
 /// Under `cargo nextest` this returns the probe's error, the I/O error when the
-/// stamp cannot be read, and the [`io::ErrorKind::NotFound`] refusal for a
-/// missing or stale stamp — including the failure to render that refusal's
-/// message. It never runs `prepare`, so it never returns the closure's error.
+/// stamp cannot be read, the I/O error when an artefact directory cannot be
+/// inspected while the refusal is being explained, and the
+/// [`io::ErrorKind::NotFound`] refusal for a missing or stale stamp. It never
+/// runs `prepare`, so it never returns the closure's error.
 ///
 /// Under plain `cargo test` a read failure is deliberately *not* reported: it
 /// is logged and the family is prepared again, because a corrupt stamp would
@@ -107,66 +123,6 @@ where
         instruments_of(preparation),
         prepare,
     )
-}
-
-/// The two boundaries a caller may substitute for the real ones.
-///
-/// The probe resolves the compiler's identity and the reporter carries this
-/// module's diagnostics. They travel together because they are overridden for
-/// the same purpose and at the same time: a test that cannot make `cargo -vV`
-/// fail and cannot read stderr needs both injected, and a caller that supplies
-/// one of them wants the other's production binding. Grouping them also keeps
-/// the innermost gate inside the argument budget this repository enforces.
-///
-/// The asynchronous forms are the ones the gate takes: the probe is called
-/// exactly once, and its error stops the gate before any stamp is read.
-pub struct Instruments<P, R> {
-    /// Resolves the toolchain identity the fingerprint is built from.
-    pub probe: P,
-    /// Receives every diagnostic the gate emits, as a finished message.
-    pub report: R,
-}
-
-impl<P, R> Instruments<P, R> {
-    /// Pair a probe with a reporter.
-    ///
-    /// # Parameters
-    /// - `probe`: The toolchain probe; called once per gate.
-    /// - `report`: Where diagnostics go; called at most twice per gate, once before the lock is
-    ///   taken and once after.
-    ///
-    /// # Returns
-    /// The two grouped, in the field order the gate takes them.
-    #[must_use]
-    pub fn new(probe: P, report: R) -> Self { Self { probe, report } }
-}
-
-/// Report a preparation diagnostic the way production does.
-///
-/// Resolved as a function value rather than written inline at each call, so
-/// the boundary below, `invalidate`'s and the production entry points share one
-/// binding: a second spelling of `stamp::note` would let the two diverge
-/// without any test noticing. Shared with the sibling module rather than
-/// duplicated there for that reason.
-pub(super) fn reporter_of() -> impl FnMut(&str) { stamp_note }
-
-/// Bind the real toolchain probe to the preparation's own environment.
-///
-/// Every entry point that supplies the real probe needs exactly this binding,
-/// and it must be the preparation's environment rather than the process's: the
-/// compiler identified has to be the one the nested build will run.
-fn probe_of(preparation: &Preparation) -> impl FnOnce() -> io::Result<String> + '_ {
-    move || toolchain_identity(&preparation.environment, &preparation.working_directory)
-}
-
-/// The real boundaries, bound to `preparation`.
-///
-/// One binding, used by both production entry points, so the compiler the gate
-/// identifies and the reporter it writes through cannot drift apart.
-pub(super) fn instruments_of(
-    preparation: &Preparation,
-) -> Instruments<impl FnOnce() -> io::Result<String> + '_, impl FnMut(&str)> {
-    Instruments::new(probe_of(preparation), reporter_of())
 }
 
 /// [`ensure_prepared_with`] with the diagnostic reporter supplied.
@@ -225,9 +181,18 @@ where
     }
 
     if under_nextest {
+        // The inspection happens here, once the decision to refuse is already
+        // made, and its result is passed to a builder that performs no I/O of
+        // its own. An inspection that fails is reported as itself rather than
+        // folded into the refusal: a message assembled from a partial read
+        // would name directories it never established anything about.
+        let evicted: Vec<String> = artefacts::evicted(preparation, matching.as_ref())?
+            .iter()
+            .map(Eviction::describe)
+            .collect();
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            missing_stamp_message(preparation, &stamp, matching.as_ref())?,
+            missing_stamp_message(preparation, &stamp, &evicted),
         ));
     }
 
