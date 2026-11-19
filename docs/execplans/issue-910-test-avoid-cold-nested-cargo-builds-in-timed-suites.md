@@ -2479,6 +2479,45 @@ rather than by reading this branch's comments.
   lane is the only evidence, which is why the fix was pushed before the
   superseded lanes had finished rather than after.
 
+- [x] **The argument-count finding, fixed as a type rather than suppressed.**
+  CodeScene failed `300cdac6` on the advisory rule *Excess Number of Function
+  Arguments* for `eviction_of`, which took five positional parameters. Four of
+  them described one directory — where it is, what the inspection found, what
+  the stamp claims, and whether an empty tree may be excused — so the call site
+  was a list whose order meant nothing and nothing stopped a state read from
+  one directory being judged against another's stamp section.
+
+  `ProfileUnderJudgement` now groups those four, and `eviction_of` takes the
+  aggregate plus the owned package list. This is a structural fix, not a
+  waiver: section 4 forbids suppressing a rule to make the gate green, and the
+  typed aggregate is also the better code, because the mix-up it removes is
+  exactly the one the gate exists to catch. Committed as `184d77da`.
+
+- [x] **A mid-run mutation poisons a preparation stamp.** `make test` at
+  `184d77da` failed one test in 0.2 s:
+  `rstest-bdd::feature_rebuild_invalidation
+  bound_feature_file_is_tracked_dependency`,
+  refused as "missing or stale" with an **empty** evicted list. By the rule
+  recorded above, an empty list means the fingerprint disagreed rather than the
+  artefacts having gone missing, and the stamp written 7.6 s earlier in the
+  same run proved the preparation had passed.
+
+  Instrumenting the comparison showed the refusal precisely: toolchain,
+  `RUSTFLAGS`, `CARGO_TARGET_DIR`, `RUSTC_WRAPPER`, `RUSTDOC`,
+  `RUSTUP_TOOLCHAIN`, `RUSTC_HEARTBEAT_SECS` and the variant all matched
+  line-for-line, `all_present` returned `Ok(true)`, and only `inputs` differed —
+  `4a77c9a684dba3de` recorded against `9b6fc70b503e655e` wanted.
+
+  Neither number is what the current code computes. An out-of-worktree probe
+  over the family's real root list produces `82ac8b3d18fc6ffe`, and a fresh
+  `nested_fixture_preparation` run writes exactly that, after which the test
+  passes in 1.35 s. So the 16:49:39 stamp recorded a hash that no code path
+  produces now: the `crates/` tree changed *while the gate was running*,
+  between the preparation's hash and the test's. The gate is only meaningful
+  for a quiesced tree, which is the lesson already recorded for
+  `list_steps_runs` and now confirmed a second time. The full gate re-run on
+  the settled tree passes 2461/2461.
+
 ## Surprises & Discoveries
 
 - **A green lint run is a temporary observation, not a property of the tree.**
