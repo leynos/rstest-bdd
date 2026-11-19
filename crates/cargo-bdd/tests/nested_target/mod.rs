@@ -24,12 +24,7 @@ use rstest_bdd_harness::nested_cargo;
 use serde::Deserialize;
 use serial_test::serial;
 
-use super::{
-    cli_child_environment,
-    fixture_dir,
-    locate_or_build_cargo_bdd_command,
-    workspace_root,
-};
+use super::{cli_child_environment, fixture_dir, locate_or_build_cargo_bdd_command};
 
 /// Run `cargo-bdd steps` for the fixture with *snapshot* as the starting
 /// environment.
@@ -104,6 +99,24 @@ fn names_same_directory(left: &Path, right: &Path) -> bool {
         (Ok(left), Ok(right)) => left == right,
         _ => false,
     }
+}
+
+/// The workspace root this test process was compiled in.
+///
+/// Resolved once here rather than at each comparison, and kept in this module
+/// because path spelling is what it decides for the rest of the suite.
+/// `cargo_config_inputs` canonicalizes the root it is given and reports the
+/// workspace configuration through that resolved form, so a caller holding the
+/// lexical spelling (`crates/cargo-bdd/../..`) beside an input reported through
+/// the resolved one would be comparing two spellings of a single directory. On
+/// Windows the difference is visible: resolution returns the `\\?\` verbatim
+/// form, which no plain-spelled prefix can match. Resolving at the definition
+/// means every caller compares in one form and no caller has to remember to.
+pub(super) fn workspace_root() -> PathBuf {
+    let lexical = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    // A missing root is left lexical: the callers that use it to locate a
+    // manifest report that absence themselves, with the path they tried.
+    fs::canonicalize(&lexical).unwrap_or(lexical)
 }
 
 /// The directory the workspace fallback names.
