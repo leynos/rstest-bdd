@@ -111,10 +111,10 @@ that re-exports its parts, and each part lives in its own file:
   gathered from `artefacts::evicted`, rather than inspecting the directories
   itself.
 
-Stderr reporting left the stamp module with them. `lifecycle::report_stderr`
-is the one binding production uses, reached through `lifecycle::reporter_of`,
-so the diagnostics belong to the gate that decides to emit them rather than to
-the protocol that was refused.
+Stderr reporting left the stamp module with them. `lifecycle::report_stderr` is
+the one binding production uses, reached through `lifecycle::reporter_of`, so
+the diagnostics belong to the gate that decides to emit them rather than to the
+protocol that was refused.
 
 Moving that reporter and the artefact inspection into `lifecycle.rs` took it
 past the repository's per-file line budget, so the gate is a module root too:

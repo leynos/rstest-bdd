@@ -80,9 +80,22 @@ fn the_workspace_cargo_configuration_is_an_input() {
             .as_ref()
             .is_none_or(|home| !root.starts_with(home))
     };
+    // Membership is decided in one path *form*, not by comparing the spellings
+    // side by side. The probe resolves its root, and on Windows that comes back
+    // with a `\\?\` verbatim prefix, so `starts_with` against the plain
+    // `workspace.join(".cargo")` reported the committed configuration as absent
+    // while it was right there in the list. Canonicalising both sides before
+    // either test asks the question the caller means — is this the same file —
+    // rather than the one the spelling suggests.
+    let resolved_committed =
+        std::fs::canonicalize(&committed).unwrap_or_else(|_| committed.clone());
+    let within_workspace = |root: &std::path::PathBuf| {
+        let resolved = std::fs::canonicalize(root).unwrap_or_else(|_| root.clone());
+        resolved.starts_with(&resolved_committed)
+    };
     let workspace_configuration: Vec<std::path::PathBuf> = roots
         .iter()
-        .filter(|root| root.starts_with(&committed))
+        .filter(|root| within_workspace(root))
         .cloned()
         .collect();
     assert!(
@@ -96,9 +109,27 @@ fn the_workspace_cargo_configuration_is_an_input() {
         roots.iter().filter(|root| shared(root)).cloned().collect();
     let without: Vec<std::path::PathBuf> = control
         .iter()
-        .filter(|root| !root.starts_with(&committed))
+        .filter(|root| !within_workspace(root))
         .cloned()
         .collect();
+    // And the hash agrees with that reading: the same file named in the other
+    // form is the same input. Without this, the prefix comparison above could
+    // be satisfied by canonicalising alone while the hash still keyed on two
+    // spellings of one file, which is what the Windows lane caught.
+    let named_plain = control
+        .iter()
+        .map(|root| {
+            std::fs::canonicalize(root)
+                .ok()
+                .filter(|_| within_workspace(root))
+                .unwrap_or_else(|| root.clone())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        nested_cargo::input_hash(&control).expect("hash with the probe's spellings"),
+        nested_cargo::input_hash(&named_plain).expect("hash with resolved spellings"),
+        "one file named in two path forms must contribute one input: {control:?}"
+    );
     let with_hash =
         nested_cargo::input_hash(&control).expect("hash with the workspace configuration");
     let without_hash =
