@@ -245,7 +245,8 @@ fn a_configuration_only_change_invalidates_the_preparation() {
     // by containment states the question the case means — is this file among
     // the inputs — and holds whichever form the probe happens to use, which is
     // what the plain equality here missed on the Windows lane.
-    let is_configuration = |root: &std::path::PathBuf| root.starts_with(&workspace.join(".cargo"));
+    let cargo_dir = workspace.join(".cargo");
+    let is_configuration = |root: &std::path::PathBuf| root.starts_with(&cargo_dir);
     assert!(
         roots.iter().any(is_configuration),
         "the configuration must be among the family's own inputs: {roots:?}"
