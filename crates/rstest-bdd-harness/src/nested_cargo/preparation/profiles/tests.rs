@@ -97,6 +97,45 @@ fn a_specification_file_selection_names_its_stem() -> std::io::Result<()> {
 }
 
 #[test]
+fn a_dotted_builtin_target_keeps_its_whole_name() -> std::io::Result<()> {
+    // `thumbv8m.main-none-eabi` is a built-in triple, and it carries a dot.
+    // Taking its file stem — the obvious way to handle a specification file —
+    // cuts it at the dot and names `target/thumbv8m/debug`, a directory Cargo
+    // never writes. The gate would then refuse a prepared family on every host
+    // using this target, which is why only a `.json` selection may be reduced
+    // to a stem.
+    let dotted = "thumbv8m.main-none-eabi";
+    let (_directory, target, artefacts) = profiles_for(Some(dotted))?;
+    assert_eq!(
+        artefacts,
+        vec![
+            target.join(DEFAULT_PROFILE),
+            target.join(dotted).join(DEFAULT_PROFILE),
+        ],
+        "a dotted built-in target names its own directory in full"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_padded_selection_names_the_unpadded_profile() -> std::io::Result<()> {
+    // Cargo trims a padded `build.target` and selects the unpadded triple, so
+    // the profile directory it writes carries no spaces. Deriving the path from
+    // the raw value names a directory that does not exist, and the gate
+    // refuses a tree that is in fact prepared.
+    let (_directory, target, artefacts) = profiles_for(Some(&format!("  {TRIPLE}  ")))?;
+    assert_eq!(
+        artefacts,
+        vec![
+            target.join(DEFAULT_PROFILE),
+            target.join(TRIPLE).join(DEFAULT_PROFILE),
+        ],
+        "surrounding whitespace must not reach the profile path"
+    );
+    Ok(())
+}
+
+#[test]
 fn an_empty_selection_is_not_a_selection() -> std::io::Result<()> {
     // Cargo ignores an empty `CARGO_BUILD_TARGET` exactly as it ignores an
     // absent one, so naming a profile for it would refuse a tree that is

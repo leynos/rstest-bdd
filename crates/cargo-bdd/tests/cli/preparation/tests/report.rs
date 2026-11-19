@@ -104,7 +104,23 @@ fn a_real_cargo_build_is_counted_and_filed_as_a_rebuild() {
         .current_dir(&crate_dir)
         .env_remove("RUSTC_WRAPPER")
         .env_remove("RUSTDOC_WRAPPER");
-    let output = command.output().expect("cargo runs");
+    // Bounded, and through the same helper the timed path uses, so this case
+    // cannot hang the binary's period waiting on a build that never finishes.
+    // An unbounded `output()` reports that as the runner killing the test
+    // rather than as a named timeout on the command under test. Captured
+    // stderr is preserved, which is what the assertions below read.
+    //
+    // The bound is the graph-query figure, not the preparation's: this binary
+    // is given a 180 s period by `.config/nextest.toml`, and the preparation's
+    // nine minutes would let the runner kill the test before the bound
+    // reported. A scratch crate with no dependencies compiles in seconds on
+    // any host that can build this workspace, so the smaller figure is
+    // generous against the work and still inside the period that contains it.
+    let output = nested_cargo::run_bounded_with_timeout(
+        &mut command,
+        crate::preparation::closure::TIMED_GRAPH_QUERY_TIMEOUT,
+    )
+    .expect("cargo runs");
     assert!(
         output.status.success(),
         "the scratch build must succeed; stderr was:\n{}",

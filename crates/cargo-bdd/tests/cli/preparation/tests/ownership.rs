@@ -28,12 +28,23 @@ use crate::preparation::closure::{TIMED_GRAPH_QUERY_TIMEOUT, fixture_dependency_
 /// is the only error either can produce, so it is carried across as an
 /// [`std::io::ErrorKind::Other`] error rather than the callers growing an
 /// error type that names nothing further.
-fn declared_packages() -> std::io::Result<Vec<String>> {
+fn declared_packages(deadline: nested_cargo::Deadline) -> std::io::Result<Vec<String>> {
     // The timed path's bound, not the preparation's: every case here runs in
     // the `cargo-bdd::cli` binary under its 180 s period, and the query takes
     // the package-cache lock without the gate having read a stamp first.
-    fixture_dependency_closure(crate::preparation::closure::TIMED_GRAPH_QUERY_TIMEOUT)
-        .map_err(|error| std::io::Error::other(error.to_string()))
+    //
+    // Charged against the caller's deadline rather than given a fresh limit.
+    // One case here resolves the closure *and* runs `cargo metadata`, and both
+    // take the same package-cache lock; a per-call limit let the two run for
+    // their sum and reach the runner's kill, which is the failure the shared
+    // budget exists to prevent. `cap` also refuses outright when the earlier
+    // command spent the budget, so the second is declined rather than started
+    // with no time to finish.
+    let bound = deadline.cap(
+        crate::preparation::closure::TIMED_GRAPH_QUERY_TIMEOUT,
+        "the fixture dependency closure",
+    )?;
+    fixture_dependency_closure(bound).map_err(|error| std::io::Error::other(error.to_string()))
 }
 
 /// A scratch preparation carrying the real family's ownership list.
@@ -141,6 +152,7 @@ const REQUIRED_DEPENDENCIES: &[&str] = &[
 /// the fixture manifest does not resolve.
 fn fixture_metadata(
     manifest: &std::path::Path,
+    deadline: nested_cargo::Deadline,
 ) -> Result<cargo_metadata::Metadata, std::io::Error> {
     // Built through `cargo_metadata` rather than by spelling the invocation
     // out here: the crate owns the argument shape and the JSON decoding, and
@@ -155,17 +167,20 @@ fn fixture_metadata(
         // network, where a registry hiccup would read as a broken graph.
         .other_options(vec!["--locked".to_owned(), "--offline".to_owned()]);
     let mut cargo = command.cargo_command();
-    let output = nested_cargo::run_bounded_with_timeout(&mut cargo, TIMED_GRAPH_QUERY_TIMEOUT)
-        .map_err(|error| {
-            std::io::Error::new(
-                error.kind(),
-                format!(
-                    "`cargo metadata` for {} did not finish within {} s: {error}",
-                    manifest.display(),
-                    TIMED_GRAPH_QUERY_TIMEOUT.as_secs()
-                ),
-            )
-        })?;
+    let bound = deadline.cap(
+        TIMED_GRAPH_QUERY_TIMEOUT,
+        "`cargo metadata` for the fixture",
+    )?;
+    let output = nested_cargo::run_bounded_with_timeout(&mut cargo, bound).map_err(|error| {
+        std::io::Error::new(
+            error.kind(),
+            format!(
+                "`cargo metadata` for {} did not finish within {} s: {error}",
+                manifest.display(),
+                TIMED_GRAPH_QUERY_TIMEOUT.as_secs()
+            ),
+        )
+    })?;
     if !output.status.success() {
         return Err(std::io::Error::other(format!(
             "`cargo metadata` failed for {}:\n{}",
@@ -189,7 +204,14 @@ fn fixture_metadata(
 fn the_declaration_covers_the_fixtures_workspace_dependencies() {
     let manifest =
         super::super::workspace_root().join("crates/cargo-bdd/tests/fixtures/minimal/Cargo.toml");
-    let metadata = fixture_metadata(&manifest).expect("the fixture manifest must resolve");
+    // One budget for both commands, created before the first one runs. They
+    // share a package-cache lock and each charged its own full limit put their
+    // sum past the runner's period, which is the case the shared deadline
+    // exists for. The budget is the timed path's own, so a command still
+    // reports its timeout rather than the runner killing the test.
+    let deadline = nested_cargo::Deadline::starting_now(TIMED_GRAPH_QUERY_TIMEOUT);
+    let metadata =
+        fixture_metadata(&manifest, deadline).expect("the fixture manifest must resolve");
     let resolve = metadata.resolve.as_ref().expect("a resolved graph");
     let packages: std::collections::BTreeMap<_, _> = metadata
         .packages
@@ -236,7 +258,10 @@ fn the_declaration_covers_the_fixtures_workspace_dependencies() {
          with the declaration"
     );
 
-    let declared: std::collections::BTreeSet<String> = declared_packages()
+    // The same budget the metadata query was charged against, so the closure
+    // resolution is bounded by what is left rather than by a second full
+    // allowance, and is declined by name if the query spent it all.
+    let declared: std::collections::BTreeSet<String> = declared_packages(deadline)
         .expect("the fixture's closure must resolve")
         .into_iter()
         .collect();
@@ -260,8 +285,11 @@ fn the_declaration_covers_the_fixtures_workspace_dependencies() {
 #[test]
 fn evicting_each_required_crate_fails_the_gate() -> std::io::Result<()> {
     // Resolved once: `cargo tree` takes the package-cache lock, and the
-    // declaration is the same for every iteration.
-    let packages = declared_packages()?;
+    // declaration is the same for every iteration. This case runs no other
+    // command first, so its deadline covers the one query.
+    let packages = declared_packages(nested_cargo::Deadline::starting_now(
+        TIMED_GRAPH_QUERY_TIMEOUT,
+    ))?;
     let declared: std::collections::BTreeSet<&str> = packages.iter().map(String::as_str).collect();
     for package in REQUIRED_DEPENDENCIES {
         assert!(

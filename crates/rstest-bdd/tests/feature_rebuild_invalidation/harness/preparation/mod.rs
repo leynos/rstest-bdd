@@ -238,6 +238,22 @@ fn fixture_preparation(
 ) -> std::io::Result<nested_cargo::Preparation> {
     let mut roots = vec![(family.source)()];
     roots.extend(workspace_inputs()?);
+    // The scratch copy is where the nested builds actually run, and Cargo's
+    // configuration walk starts there rather than at the workspace. A
+    // configuration between the two — or one in the scratch copy itself — sets
+    // profile options or a linker the build reads and the workspace inputs
+    // never reach. Missing it let a stamp survive a configuration-only edit and
+    // left dependency recompilation inside the timed test, which is the same
+    // gap `workspace_inputs` closes for the workspace's own files.
+    //
+    // The copy may not exist yet on a cold run: this describes the preparation
+    // before the callback creates it. An absent tree cannot hold configuration,
+    // and the workspace inputs above already cover what Cargo reads from there,
+    // so the walk contributes nothing rather than refusing the preparation.
+    let scratch = (family.scratch)();
+    if scratch.is_dir() {
+        roots.extend(nested_cargo::cargo_config_inputs(&scratch)?);
+    }
     let inputs = nested_cargo::input_hash(&roots)?;
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new(family.name, "locked-offline-test-no-run", inputs),

@@ -18,7 +18,10 @@
 //! so a descriptor derived from it alone names a profile holding the wrong half
 //! of the tree.
 
-use std::path::{Path, PathBuf};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
 
 use super::{DEFAULT_PROFILE, NestedCargoEnv};
 
@@ -67,10 +70,50 @@ pub(super) fn profiles(target: &Path, environment: &NestedCargoEnv) -> Vec<PathB
     // carries no usable last component cannot name a profile, so the host
     // profile alone is named and the preparation fails on the missing
     // directory rather than on a guessed one.
-    match selection.file_stem() {
-        Some(stem) if !stem.is_empty() => vec![host, target.join(stem).join(DEFAULT_PROFILE)],
-        _ => vec![host],
+    match profile_name(&selection) {
+        Some(name) => vec![host, target.join(name).join(DEFAULT_PROFILE)],
+        None => vec![host],
     }
+}
+
+/// The directory name Cargo gives a selected target's profile.
+///
+/// A specification file is named by its stem, which is Cargo's rule for a
+/// path-valued `--target`. A built-in target is named by the whole triple, and
+/// the distinction cannot be made with [`Path::file_stem`]: a triple such as
+/// `thumbv8m.main-none-eabi` carries a dot, so a stem would cut it to
+/// `thumbv8m` and name a directory Cargo never writes. The gate would then
+/// refuse every prepared family on such a host — the failure mode this
+/// function's callers exist to avoid.
+///
+/// Only a value that ends in `.json` is treated as a specification file,
+/// because that is the extension Cargo requires for one. Every other value is
+/// kept in full, including a triple whose last component happens to look like
+/// an extension.
+///
+/// A selection with no usable final component — `.`, `..`, `/` — cannot name a
+/// directory, and yields `None` so the caller vouches for the host profile
+/// alone rather than for an unrelated tree.
+fn profile_name(selection: &Path) -> Option<&OsStr> {
+    let name = selection.file_name()?;
+    if name.is_empty() {
+        return None;
+    }
+    if selection
+        .extension()
+        .is_some_and(|extension| extension == "json")
+    {
+        return non_empty(selection.file_stem());
+    }
+    Some(name)
+}
+
+/// `candidate`, or `None` when it is empty.
+///
+/// A specification file named `.json` has an empty stem, which names no
+/// directory.
+fn non_empty(candidate: Option<&OsStr>) -> Option<&OsStr> {
+    candidate.filter(|value| !value.is_empty())
 }
 
 /// The target selection the nested build's environment names, if any.
@@ -78,12 +121,23 @@ pub(super) fn profiles(target: &Path, environment: &NestedCargoEnv) -> Vec<PathB
 /// `CARGO_BUILD_TARGET` is Cargo's environment spelling for the `build.target`
 /// setting, and `stamp` already treats the whole `CARGO_BUILD_` prefix
 /// as build-relevant, so this is the same value the fingerprint changes on.
+///
+/// The value is trimmed before it is used, matching Cargo, which accepts a
+/// padded `build.target` and selects the unpadded triple. Left untrimmed, a
+/// selection of `" x86_64-unknown-linux-gnu "` would name a profile
+/// `target/" x86_64-unknown-linux-gnu "/debug` that Cargo never writes, and the
+/// gate would refuse a tree that is prepared.
 fn target_selection(environment: &NestedCargoEnv) -> Option<PathBuf> {
     let value = environment.get("CARGO_BUILD_TARGET")?;
-    if value.is_empty() {
+    // Cargo parses `build.target` as a string, so a value that is not valid
+    // UTF-8 is one Cargo cannot use either; read it the same way rather than
+    // failing the descriptor for a value the build would reject first.
+    let trimmed = value.to_string_lossy();
+    let trimmed = trimmed.trim();
+    if trimmed.is_empty() {
         return None;
     }
-    Some(PathBuf::from(value))
+    Some(PathBuf::from(trimmed))
 }
 
 #[cfg(test)]
