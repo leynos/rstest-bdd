@@ -21,21 +21,24 @@
 //! * under `cargo nextest` a missing or stale stamp fails fast with the command that prepares it,
 //!   because nextest runs every test in its own process and a timed test cannot prepare without
 //!   paying the cost it is meant to avoid;
-//! * under plain `cargo test`, preparation runs lazily under a process-wide lock, so the same
-//!   suites stay usable without the extra Nextest pass. `#[serial]` serializes within a single
-//!   process only; under nextest, ordering across processes comes from the `cargo-spawning` test
-//!   group, so a family whose test binary shares a directory must stay in that group.
+//! * under plain `cargo test`, preparation runs lazily under a mutex shared by the threads of one
+//!   test process, so the same suites stay usable without the extra Nextest pass. That mutex does
+//!   not reach another process: under nextest each test has its own, and ordering across them comes
+//!   from the `cargo-spawning` test group, so a family whose test binary shares a directory must
+//!   stay in that group.
 //!
 //! Preparation commands are bounded by [`PREPARATION_COMMAND_TIMEOUT`], which
 //! is deliberately separate from every assertion deadline. The pieces live in
 //! private submodules: `stamp` holds the fingerprint and the stamp file,
 //! `artefacts` decides whether a stamped tree is still there, `layout` finds
 //! the directories Cargo put that tree in, `toolchain` resolves the compiler
-//! identity, `input_hash` hashes fixture sources, and `lifecycle` owns the gate
-//! that decides whether to build. What a caller needs is re-exported here.
+//! identity, `input_hash` hashes fixture sources, `lifecycle` owns the gate
+//! that decides whether to build, and `invalidate` withdraws a claim the gate
+//! would otherwise honour. What a caller needs is re-exported here.
 
 mod artefacts;
 mod input_hash;
+mod invalidate;
 mod layout;
 mod lifecycle;
 mod profiles;
@@ -44,12 +47,14 @@ mod stamp;
 mod stamp_file;
 mod toolchain;
 pub use input_hash::{cargo_config_inputs, input_hash};
+pub use invalidate::{invalidate, invalidate_reported};
 pub use lifecycle::{
     ensure_prepared,
+    ensure_prepared_reported,
     ensure_prepared_with,
     ensure_prepared_with_probe,
-    invalidate,
     prepare_now,
+    prepare_now_reported,
     prepare_now_with_probe,
 };
 pub use sources::{PreparationSummary, Sources};
@@ -108,7 +113,15 @@ pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(9 * 60);
 /// enforces rather than trusting this comment.
 pub const MAX_SEQUENTIAL_COMMANDS: u64 = 3;
 
-/// Process-wide lock serializing lazy preparation under plain `cargo test`.
+/// Mutex serializing lazy preparation between threads of one test process.
+///
+/// It is *process-wide*, not cross-process: `cargo test` runs every test of a
+/// binary on threads of one process, so a `Mutex` is what serializes them, and
+/// a second process would not see it at all. Under `cargo nextest` each test is
+/// its own process, so ordering across processes comes from the
+/// `cargo-spawning` test group in `.config/nextest.toml` instead. Do not
+/// describe this lock as serializing independent processes; it does not, and a
+/// family that relied on it to would run two nested builds at once.
 static PREPARE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Cargo's development profile directory, relative to a target directory.
@@ -231,21 +244,17 @@ impl Preparation {
     /// # Parameters
     ///
     /// - `sources`: the family name, variant label and input hash.
-    /// - `directory`: where the stamp is written, and the root the recorded artefacts are checked
+    /// - `directory`: the stamp's directory, and the root the recorded artefacts are checked
     ///   beneath.
-    /// - `environment`: the filtered environment the nested commands run with.
-    /// - `working_directory`: the directory those commands actually run in, which Cargo uses to
-    ///   resolve a relative `CARGO_HOME` and a relative `RUSTC`. It is a separate argument rather
-    ///   than a copy of `directory` because the two are not the same place: a `trybuild` family
-    ///   stamps `<target>/tests/<family>` while the generated crate it builds lives in a
-    ///   subdirectory of it, and the UI-lint family runs from `CARGO_MANIFEST_DIR`. Defaulting it
-    ///   to `directory` silently recorded the wrong compiler whenever a relative override was in
-    ///   play.
+    /// - `environment`: the filtered environment the nested commands run with, which also names the
+    ///   target directory the artefacts are derived from.
+    /// - `working_directory`: where those commands run, which is not the stamp's directory for most
+    ///   families; see [`Preparation::working_directory`].
     ///
     /// # Returns
     ///
-    /// A description whose artefact roots are the target directory's
-    /// `debug` profile, or empty when the environment names no target root.
+    /// A description whose artefact roots are the target directory's selected
+    /// profiles, or empty when the environment names no target root.
     ///
     /// # Errors
     ///
@@ -285,22 +294,21 @@ impl Preparation {
     /// Such a family owns its target directory, so it vouches for the whole of
     /// it rather than for one profile inside it. The profiles Cargo writes are
     /// not a fixed set: a build without `--target` writes `<root>/debug`, while
-    /// `trybuild` passes `--target <triple>` for the generated crate and that
-    /// build writes the host units to `<root>/debug` and everything else to
-    /// `<root>/<triple>/debug`. Naming one of them would leave the other
-    /// unvouched for, and evicting only that one would leave the stamp matching
-    /// — so the timed assertion would rebuild the graph inside its deadline,
-    /// which is the failure this whole module exists to prevent. The same
-    /// applies to the check-mode units `cargo check` writes beside the
-    /// build-mode ones. `layout::discover` walks whatever is there, so
-    /// the recorded names cover every profile the preparation actually left
-    /// without this function having to predict them.
+    /// `trybuild` passes `--target <triple>` and writes the host units to
+    /// `<root>/debug` and everything else to `<root>/<triple>/debug`. Naming
+    /// one would leave the other unvouched for, so evicting only that one would
+    /// leave the stamp matching and the timed assertion would rebuild the graph
+    /// inside its deadline — the failure this module exists to prevent. The
+    /// same applies to the check-mode units `cargo check` writes beside the
+    /// build-mode ones. `layout::discover` walks whatever is there, so the
+    /// recorded names cover every profile the preparation left without this
+    /// function predicting them.
     ///
     /// `inputs` is the caller-supplied hash of the fixture sources; callers
     /// derive it before preparation runs, because preparation writes inside
-    /// the very roots it hashes.
-    /// Coverage stays with the caller: the fixture's own run is what the
-    /// coverage gate measures, so an inherited `LLVM_PROFILE_FILE` is kept.
+    /// the very roots it hashes. Coverage stays with the caller: the fixture's
+    /// own run is what the coverage gate measures, so an inherited
+    /// `LLVM_PROFILE_FILE` is kept.
     ///
     /// # Parameters
     ///
@@ -343,13 +351,22 @@ impl Preparation {
 ///
 /// `CARGO_TARGET_DIR` is dropped from the inherited values because the
 /// directory being stamped is the authority: a stale inherited value would
-/// point the build somewhere the stamp does not describe.
-///
-/// Callers that only need an environment for a nested build should reach for
-/// [`super::build_child_env`] or [`env_from_vars`] instead: this helper exists to
-/// serve [`Preparation::for_fixture`], because dropping the inherited value is
-/// a decision about what a *stamp* describes rather than a general filtering
+/// point the build somewhere the stamp does not describe. Callers that only
+/// need an environment for a nested build should reach for
+/// [`super::build_child_env`] or [`env_from_vars`] instead: this helper serves
+/// [`Preparation::for_fixture`], because dropping the inherited value is a
+/// decision about what a *stamp* describes rather than a general filtering
 /// rule.
+///
+/// # Parameters
+/// - `directory`: The directory being stamped, which supplies the `CARGO_TARGET_DIR` that replaces
+///   the dropped value.
+/// - `profile_destination`: Where the child's profile output goes, passed to [`env_from_vars`]
+///   unchanged.
+///
+/// # Returns
+/// The inherited environment less `CARGO_TARGET_DIR`, plus the resolved target
+/// directory: what the nested build receives, not what this process holds.
 ///
 /// # Errors
 ///
@@ -369,11 +386,13 @@ pub fn env_for_directory(
     )
 }
 
-/// Take the process-wide preparation lock.
+/// Take the preparation lock.
 ///
 /// Shared with `lifecycle`, which is the only caller: the lock's purpose is to
-/// serialize the lazy path, and that path lives there. It stays in this module
-/// because the lock itself does, and a second `Mutex` would serialize nothing.
+/// serialize the lazy path between threads of this process, and that path lives
+/// there. It stays in this module because the lock itself does, and a second
+/// `Mutex` would serialize nothing. It is deliberately not a cross-process
+/// lock; see [`PREPARE_LOCK`] for what serializes the suites under nextest.
 pub(super) fn lock() -> MutexGuard<'static, ()> {
     PREPARE_LOCK.lock().unwrap_or_else(PoisonError::into_inner)
 }

@@ -262,17 +262,17 @@ fn redirect_profile_file(vars: &mut Vec<(OsString, OsString)>, destination: Prof
 /// base entirely when the argument has its own prefix, so the result would be
 /// the same relative `C:cache` this function promises never to return. On a
 /// host that has more than one drive such a value would then mean one
-/// directory to the test and another to the child. It is resolved here by
-/// reconstructing it from the drive's root, which is what Cargo's own working
-/// directory would have to be for the value to be meaningful at all.
+/// directory to the test and another to the child. It is rebuilt from the
+/// drive's own root as `C:\cache`, which is the only reading under which it
+/// names one directory rather than one per drive current directory. That
+/// resolution cannot fail: every path it accepts carries a prefix, and the
+/// root is added rather than looked up.
 ///
 /// # Errors
 ///
-/// Returns the error from reading the current directory, and the refusal for a
-/// prefix-relative path that names no drive root. Returning the relative path
-/// instead would hand the child a value that names the fixture directory rather
-/// than the caller's, which is the silent misresolution this helper exists to
-/// prevent.
+/// Returns the error from reading the current directory. That is the only
+/// fallible step: every other shape is either returned unchanged or resolved
+/// without a lookup.
 pub fn absolute_target_directory(value: &OsStr) -> io::Result<PathBuf> {
     absolute_target_directory_with(value, env::current_dir)
 }

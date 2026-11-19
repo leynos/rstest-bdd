@@ -18,6 +18,7 @@ mod eviction;
 mod fingerprint_records;
 mod inputs;
 mod ownership;
+mod reporter;
 mod stamp_file;
 mod stamping;
 mod target_profile;

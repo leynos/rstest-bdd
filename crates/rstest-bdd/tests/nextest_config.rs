@@ -18,7 +18,7 @@
 //!   keeps it authoritative if a future override ever matched the same tests.
 //! * `trybuild_nextest_override_preserves_timeout_contract` requires exactly one override to name
 //!   any of the four compile-test binaries, and that override's filter to name all four and no
-//!   others. It then requires the override to keep a 20 m `slow-timeout` period, `terminate-after =
+//!   others. It then requires the override to keep a 30 m `slow-timeout` period, `terminate-after =
 //!   1`, a 5 s grace period and membership of the `cargo-spawning` group, and the default profile's
 //!   `global-timeout` to exceed the period in seconds.
 //! * `feature_rebuild_nextest_override_preserves_timeout_contract` requires exactly one override to
@@ -33,6 +33,11 @@
 //! against the global timeout, because widening one is how a cold build gets
 //! hidden instead of moved: the preparation override is the only place in the
 //! file where a cold dependency build may spend a test's budget.
+//!
+//! The trybuild period moved 20 m to 30 m on measurement: `step_macros_compile`
+//! passed in 1119.268 s here with admission saturated, 93% of the old period,
+//! and crossed it twice the same day. It was compiling, not hung, so
+//! `terminate-after` stays a hang detector.
 //!
 //! Four binaries now carry a longer period: the preparation, the `cargo-bdd`
 //! CLI smoke tests, `rstest-bdd-harness::binary_test_support_cargo`, and the
@@ -252,11 +257,10 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         .and_then(Value::as_str)
         .ok_or_else(|| io::Error::other("trybuild nextest override must name a period"))?;
     assert_eq!(
-        period, "20m",
-        concat!(
-            "trybuild nextest override must allow a 20-minute slow timeout, which is what a cold ",
-            "compiler cache costs this fixture tree",
-        ),
+        period, "30m",
+        "trybuild nextest override must allow a 30-minute slow timeout: a cold compiler cache \
+         costs this fixture tree about 6 minutes, and a saturated shared compile-admission pool \
+         took the same test past 20 minutes on this host",
     );
 
     let global_timeout = default_global_timeout(&configuration)?;

@@ -53,6 +53,15 @@ use std::{
 /// leave a warm stamp matching and move compilation back into the timed test.
 /// An absolute value is used unchanged, which is also what Cargo does.
 ///
+/// # Parameters
+/// - `workspace_root`: The directory the nested fixture builds run beneath, from which the ancestor
+///   walk starts and against which a relative `CARGO_HOME` is resolved.
+///
+/// # Returns
+/// The paths of the configuration files that apply there, nearest first, in
+/// the order Cargo consults them. A directory that holds neither accepted name
+/// contributes nothing, so an empty result means no configuration applies.
+///
 /// # Errors
 ///
 /// Returns the error when any path cannot be inspected. The probe is fallible

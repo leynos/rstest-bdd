@@ -96,9 +96,18 @@ fn a_refuted_stamp_is_withdrawn_so_the_next_run_can_prepare() {
         Ok(nested_cargo::PreparationSummary::default())
     })
     .expect_err("a preparation that leaves no fixture binaries must not satisfy the gate");
+    // The gate's own context line comes first, and the witness's diagnosis and
+    // the withdrawal's outcome are chained beneath it in the report's source
+    // chain. Both are what the reader is meant to act on, so both are read from
+    // the whole chain rather than from the rendered top-level message alone.
+    let rendered = format!("{error:?}");
     assert!(
-        error.to_string().contains("test binaries"),
-        "the failure must name what is missing, got: {error}"
+        rendered.contains("test binaries"),
+        "the failure must name what is missing, got: {rendered}"
+    );
+    assert!(
+        rendered.contains("withdrawn"),
+        "the failure must say whether the stamp was withdrawn, got: {rendered}"
     );
 
     // The refusal alone leaves the stamp in place, and both entry points

@@ -31,6 +31,7 @@ from prepared_fixture_judgements import (
 )
 from prepared_fixture_step import (
     BUILD_MARKER,
+    GATE_SOURCE,
     REMEDY,
     TIMED_SOURCE,
     build_report_path,
@@ -97,9 +98,70 @@ def test_a_refusal_without_the_remedy_is_rejected() -> None:
 
 
 def test_a_pass_reporting_zero_compiles_is_accepted(tmp_path: Path) -> None:
-    """A pass whose report says nothing compiled is the expected reuse."""
-    write_reports(tmp_path, ("timed", 0))
+    """A pass with one zero from each producer is the expected reuse.
+
+    Both lines are written because both facts are required: the gate's zero
+    says no preparation ran, and the timed zero says the command the gate
+    protects compiled nothing either. A file holding one of them is judged by
+    the cases below.
+    """
+    write_reports(tmp_path, (GATE_SOURCE, 0), (TIMED_SOURCE, 0))
     expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
+
+
+def test_a_timed_zero_alone_is_rejected(tmp_path: Path) -> None:
+    """A run whose gate filed nothing has not shown the gate admitted a stamp.
+
+    This is the complement of the gate-only case below, and the gap the review
+    found: a report carrying only the timed command's zero was accepted, even
+    though a run that never reached the gate — or whose gate could not report —
+    leaves exactly that line. Both producers are required, so the check cannot
+    be satisfied by whichever one happened to write.
+    """
+    write_reports(tmp_path, (TIMED_SOURCE, 0))
+    with pytest.raises(StepFailureError, match="filed no `source=gate`"):
+        expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
+
+
+def test_two_gate_reports_are_rejected_as_ambiguous(tmp_path: Path) -> None:
+    """Two lines from one producer leave the run's evidence ambiguous.
+
+    Exactly one report per producer is required. A duplicate means the run did
+    the thing twice, or that a line from an earlier run has been attributed to
+    this one; either way the per-run answer is no longer a single fact.
+    """
+    write_reports(tmp_path, (GATE_SOURCE, 0), (GATE_SOURCE, 0), (TIMED_SOURCE, 0))
+    with pytest.raises(StepFailureError, match="filed 2 `source=gate`"):
+        expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
+
+
+def test_two_timed_reports_are_rejected_as_ambiguous(tmp_path: Path) -> None:
+    """The same rule applies to the timed producer."""
+    write_reports(tmp_path, (GATE_SOURCE, 0), (TIMED_SOURCE, 0), (TIMED_SOURCE, 0))
+    with pytest.raises(StepFailureError, match="filed 2 `source=timed`"):
+        expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
+
+
+def test_a_gate_zero_from_an_earlier_run_does_not_satisfy_this_one(
+    tmp_path: Path,
+) -> None:
+    """An earlier run's gate line is not this run's evidence.
+
+    The file accumulates, and the snapshot taken before the run is what
+    attributes a line to the run under judgement. The file below already holds
+    a complete gate-and-timed pair from an earlier step; this run appended one
+    timed zero and no gate line at all. Counting the whole file would let the
+    earlier pair answer for this run, so the snapshot boundary is what keeps
+    the judgement about the run under test.
+    """
+    write_reports(
+        tmp_path,
+        (GATE_SOURCE, 0),
+        (TIMED_SOURCE, 0),
+        (TIMED_SOURCE, 0),
+    )
+    with pytest.raises(StepFailureError, match="filed no `source=gate`"):
+        expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=2)
 
 
 def test_a_pass_reporting_a_compile_is_rejected(tmp_path: Path) -> None:
@@ -107,7 +169,7 @@ def test_a_pass_reporting_a_compile_is_rejected(tmp_path: Path) -> None:
 
     Without this case the predicate could satisfy itself by never failing.
     """
-    write_reports(tmp_path, ("preparation", 0), ("timed", 7))
+    write_reports(tmp_path, ("preparation", 0), (GATE_SOURCE, 0), (TIMED_SOURCE, 7))
     with pytest.raises(StepFailureError, match="not reused"):
         expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=1)
 
@@ -122,14 +184,14 @@ def test_a_timed_command_that_compiled_is_rejected_despite_the_gates_zero(
     reported reuse while the command was free to rebuild, so a zero from the
     gate followed by a compile from the timed command must still fail.
     """
-    write_reports(tmp_path, ("gate", 0), ("timed", 3))
+    write_reports(tmp_path, (GATE_SOURCE, 0), (TIMED_SOURCE, 3))
     with pytest.raises(StepFailureError, match="not reused"):
         expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
 
 
 def test_both_counts_being_zero_is_the_accepted_reuse_shape(tmp_path: Path) -> None:
     """The positive control for the pair: gate zero and timed zero together."""
-    write_reports(tmp_path, ("gate", 0), ("timed", 0))
+    write_reports(tmp_path, (GATE_SOURCE, 0), (TIMED_SOURCE, 0))
     expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
 
 
@@ -142,8 +204,8 @@ def test_a_gate_zero_with_no_timed_report_is_rejected(tmp_path: Path) -> None:
     else. Reading it as reuse makes the check about the gate rather than about
     the command it claims to judge.
     """
-    write_reports(tmp_path, ("gate", 0))
-    with pytest.raises(StepFailureError, match="no nested build from the timed"):
+    write_reports(tmp_path, (GATE_SOURCE, 0))
+    with pytest.raises(StepFailureError, match="filed no `source=timed`"):
         expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
 
 
@@ -160,7 +222,7 @@ def test_a_pass_with_no_report_is_rejected(tmp_path: Path) -> None:
 
 def test_a_failed_run_is_rejected_before_the_report_is_read(tmp_path: Path) -> None:
     """A non-zero status is reported as such, not as a build problem."""
-    write_reports(tmp_path, ("timed", 0))
+    write_reports(tmp_path, (GATE_SOURCE, 0), (TIMED_SOURCE, 0))
     with pytest.raises(StepFailureError, match="does not admit the test"):
         expect_pass_without_rebuild(
             a_result(returncode=100), target_dir=tmp_path, previous_counts=0
@@ -190,7 +252,7 @@ def test_an_earlier_steps_compile_does_not_fail_this_steps_reuse(
     Judging the whole file would fail step 3 for the preparation it depends on;
     only the lines added since the snapshot belong to the run under test.
     """
-    write_reports(tmp_path, ("preparation", 51), ("timed", 0))
+    write_reports(tmp_path, ("preparation", 51), (GATE_SOURCE, 0), (TIMED_SOURCE, 0))
     expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=1)
 
 
@@ -225,12 +287,12 @@ def test_a_failure_that_does_not_name_the_remedy_is_not_the_stamp() -> None:
 
 def test_counts_are_returned_in_the_order_they_were_written(tmp_path: Path) -> None:
     """Order carries which step paid for a build, so it must be preserved."""
-    write_reports(tmp_path, ("preparation", 12), ("gate", 0), ("timed", 3))
+    write_reports(tmp_path, ("preparation", 12), (GATE_SOURCE, 0), (TIMED_SOURCE, 3))
     reports = read_build_reports(tmp_path)
     assert [(r.source, r.compiling) for r in reports] == [
         ("preparation", 12),
-        ("gate", 0),
-        ("timed", 3),
+        (GATE_SOURCE, 0),
+        (TIMED_SOURCE, 3),
     ], f"reports were reordered or lost: {reports}"
 
 
@@ -250,3 +312,32 @@ def test_unrelated_lines_are_ignored(tmp_path: Path) -> None:
     assert [(r.source, r.compiling) for r in reports] == [(TIMED_SOURCE, 2)], (
         f"unrelated lines changed the reading: {reports}"
     )
+
+
+def test_a_real_writers_known_compilation_is_rejected_end_to_end(
+    tmp_path: Path,
+) -> None:
+    """The negative control, driven through the producer's own output.
+
+    Every other rejection case here writes a synthetic count. That leaves the
+    control open in one direction: the judgement could reject a number no real
+    producer would ever file, and the workflow would still look protected. This
+    case files the count a real nested ``cargo`` reported — transcribed here as
+    the two ``Compiling`` lines such a build emits — through the same line
+    format the timed command appends, and requires the judgement to reject it.
+
+    The transcription is pinned from the other side by ``cargo-bdd``'s
+    ``a_real_cargo_build_is_counted_and_filed_as_a_rebuild``, which spawns a
+    real build, counts its captured stderr with ``count_compiling`` and writes
+    the result with the production writer. Together the two cases cover the
+    path end to end: one proves the writer's line parses here, the other proves
+    what it files is rejected.
+    """
+    real_stderr = "   Compiling alpha v0.1.0\n   Compiling beta v0.2.0\n    Finished\n"
+    compiling = sum(
+        1 for line in real_stderr.splitlines() if line.strip().startswith("Compiling")
+    )
+    assert compiling == 2, "the recorded build must hold two status lines"
+    write_reports(tmp_path, (GATE_SOURCE, 0), (TIMED_SOURCE, compiling))
+    with pytest.raises(StepFailureError, match="not reused"):
+        expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)

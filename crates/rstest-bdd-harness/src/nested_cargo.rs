@@ -52,12 +52,15 @@ pub use preparation::{
     Sources,
     cargo_config_inputs,
     ensure_prepared,
+    ensure_prepared_reported,
     ensure_prepared_with,
     ensure_prepared_with_probe,
     env_for_directory,
     input_hash,
     invalidate,
+    invalidate_reported,
     prepare_now,
+    prepare_now_reported,
     prepare_now_with_probe,
 };
 pub use profile::ProfileDestination;

@@ -1198,11 +1198,19 @@ meant to select a few tests.
 definition* rather than the tree: that a timed test refuses an unprepared
 directory, that the remedy prepares it, that the same timed test then passes
 without recompiling, and that an edited fixture source invalidates the stamp.
-Two consequences follow. `make test` does **not** run it, so a green test suite
-says nothing about it. And it starts from an empty private target directory, so
-it pays a cold build every time — it is a release-and-PR gate, not a routine
-edit-time check. The Linux pull-request step in `.github/workflows/ci.yml` runs
-it when `matrix.tools` is set; see
+The third of those reads a per-run nested-build report and requires **one line
+from each of two producers**, the gate and the timed `cargo bdd steps` command,
+and requires every count to be zero. Both are needed because they witness
+different facts: the gate's line says the run reached the gate and no
+preparation ran, and the timed line is the only evidence about the command the
+gate exists to protect. Its output cannot carry that: the spawning helper
+discards the capture on success and nextest suppresses a passing test's output,
+so the report is a file whose path is named by
+`RSTEST_BDD_NESTED_BUILD_REPORT`. Two consequences follow. `make test` does
+**not** run it, so a green test suite says nothing about it. And it starts from
+an empty private target directory, so it pays a cold build every time — it is a
+release-and-PR gate, not a routine edit-time check. The Linux pull-request step
+in `.github/workflows/ci.yml` runs it when `matrix.tools` is set; see
 [Trybuild tree preparation](#trybuild-tree-preparation) for the policy it
 exercises and [nextest configuration](#nextest-configuration-confignextesttoml)
 for the budgets its steps spend.
@@ -1428,7 +1436,7 @@ The file sets the timeout policy for the test suite:
 - The second override raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
-- The third override raises the `slow-timeout` further, to 20 minutes, for the
+- The third override raises the `slow-timeout` further, to 30 minutes, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, `rstest-bdd::trybuild_macros`, and
@@ -1437,10 +1445,14 @@ The file sets the timeout policy for the test suite:
   compiler-cache warmth rather than anything about the tests. Measured on
   `ubicloud-standard-2`, `step_macros_compile` exceeded the former 10-minute
   allowance with nothing in `sccache`, took 386.8 s with a partial cache, and
-  about 190 s against a full one. The 20-minute allowance permits the full
-  fixture set to rebuild on a cold cache without treating slow, healthy
-  compiler work as a hung test. The strict 60 s default remains in force
-  elsewhere.
+  about 190 s against a full one. The allowance permits the full fixture set to
+  rebuild on a cold cache without treating slow, healthy compiler work as a
+  hung test. It is 30 minutes rather than the 20 that covered the cache,
+  because a cache is not the slowest thing this test meets: on the development
+  host with the shared compile-admission pool saturated (capacity 4, all held),
+  `step_macros_compile` passed in 1119.268 s and crossed 20 minutes on two
+  full-suite runs the same day, compiling throughout rather than hanging. The
+  strict 60 s default remains in force elsewhere.
 - A fourth override raises the `slow-timeout` to 600 s for
   `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition.
@@ -1499,7 +1511,7 @@ assertion budget. It is listed so that a reader who meets the 30 m period in
 
 | Tier                     | What it bounds                     | Where it is set                                                 | Current value                                          |
 | ------------------------ | ---------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------ |
-| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                          | 60 s default; 20 m, 600 s or 180 s under the overrides |
+| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                          | 60 s default; 30 m, 600 s or 180 s under the overrides |
 | Preparation budget       | one preparation test               | `.config/nextest.toml`                                          | 30 m                                                   |
 | nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 90 m                                                   |
 | Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                                        |
@@ -1732,7 +1744,7 @@ Mitigation:
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
   compile-test binaries (including both `macro_compile` binaries,
   `rstest-bdd::trybuild_macros`, and
-  `rstest-bdd-server::workspace_discovery_compile`) to 20 minutes as a
+  `rstest-bdd-server::workspace_discovery_compile`) to 30 minutes as a
   local-development safety net. This does not fix the deadlock; it only delays
   termination to allow the build to complete on fast machines.
 - `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild

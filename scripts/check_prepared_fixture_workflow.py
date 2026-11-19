@@ -22,8 +22,9 @@ this process so there is no ``nextest`` inside ``nextest``:
    the refusal, checking the message names ``make prepare-nested-fixtures``.
 2. Run ``make prepare-nested-fixtures`` against the same directory.
 3. Run the same timed test again and require it to pass, and require the
-   nested-build report to show it compiled nothing, so a rebuild cannot be
-   mistaken for a pass.
+   nested-build report to show it compiled nothing *and* to hold one line from
+   each producer — the gate's and the timed command's — so a rebuild cannot be
+   mistaken for a pass, and neither can a run that only reached one of them.
 4. Mutate the fixture source and require the next run to refuse, naming the
    remedy. Without this the third step's check could be a predicate that never
    fails, and a check that cannot fail cannot vouch for anything. The stamp

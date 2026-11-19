@@ -50,11 +50,29 @@ BUILD_REPORT_ENV = "RSTEST_BDD_NESTED_BUILD_REPORT"
 #: answer to. ``timed`` is the source the reuse judgement requires.
 REPORT_LINE = re.compile(rf"{re.escape(BUILD_MARKER)}\s+source=(\w+)\s+compiling=(\d+)")
 
+#: The report source the timed gate files when it admits a stamp.
+#:
+#: Matches ``ReportSource::Gate`` in
+#: ``crates/cargo-bdd/tests/cli/preparation/nested_build.rs``. The reuse
+#: judgement requires this source *and* [`TIMED_SOURCE`] in every run it
+#: accepts: the gate's line proves the run reached the gate, the timed line
+#: proves it reached the command the gate exists to protect.
+GATE_SOURCE = "gate"
+
 #: The report source the timed ``cargo bdd steps`` files.
 #:
 #: Matches ``ReportSource::Timed`` in
 #: ``crates/cargo-bdd/tests/cli/preparation/nested_build.rs``.
 TIMED_SOURCE = "timed"
+
+#: The sources a passing reuse run must file, exactly once each.
+#:
+#: A run that files only one of them is not evidence about the other fact. The
+#: gate's zero alone is what a run that stopped before the test body leaves
+#: behind, and a timed zero alone is what a run whose gate never reported
+#: leaves — both were accepted by earlier versions of this check, which is why
+#: the pair is required rather than either line on its own.
+REQUIRED_SOURCES = (GATE_SOURCE, TIMED_SOURCE)
 
 #: The timed test the CLI family gates on preparation.
 #:

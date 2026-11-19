@@ -26,6 +26,17 @@ pub struct Sources {
 
 impl Sources {
     /// Name a family, its variant, and the hash of the inputs it builds.
+    ///
+    /// # Parameters
+    /// - `family`: The stable kebab-case family name, used in the stamp file name and the log line.
+    /// - `variant`: The caller's label for the feature set or tool variant, such as `all-features`
+    ///   or a resolved Clippy version.
+    /// - `inputs`: The hash of the fixture sources and lockfiles, as
+    ///   [`input_hash`](super::input_hash) computes it.
+    ///
+    /// # Returns
+    /// The three values grouped, unconverted beyond [`Into`], so a caller may
+    /// pass borrowed strings without owning them first.
     #[must_use]
     pub fn new(
         family: impl Into<String>,

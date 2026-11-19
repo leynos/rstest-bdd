@@ -41,7 +41,7 @@ const NESTED_BUILD_MARKER: &str = "cargo-bdd-nested-build:";
 /// position is the one thing a partially written or externally edited report
 /// cannot be trusted to preserve.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ReportSource {
+pub(super) enum ReportSource {
     /// The gate admitted a stamp, so this run compiled nothing.
     Gate,
     /// The timed `cargo bdd steps` paid for these compilations.
@@ -152,11 +152,25 @@ fn record_built(captured: &nested_cargo::CapturedOutput) -> nested_cargo::Prepar
 /// checker, and a test that failed because a diagnostic could not be filed
 /// would be reporting the wrong problem.
 fn record(source: ReportSource, compiled_units: usize) {
-    use std::io::Write as _;
-
     let Some(path) = std::env::var_os(REPORT_PATH) else {
         return;
     };
+    record_to(std::path::Path::new(&path), source, compiled_units);
+}
+
+/// Append one report line to `path`.
+///
+/// Split from [`record`] so the line this crate files can be checked without
+/// mutating the process environment: the format is a contract with a reader in
+/// another language, and a writer that could only be exercised by setting a
+/// variable every other test in the binary shares is a writer nothing pins.
+///
+/// The write is attempted and its failure discarded rather than reported: this
+/// is evidence for a separate checker, and a test failed because a diagnostic
+/// could not be filed would be reporting the wrong problem.
+pub(super) fn record_to(path: &std::path::Path, source: ReportSource, compiled_units: usize) {
+    use std::io::Write as _;
+
     let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)

@@ -9,9 +9,11 @@
 //! show it reaching `nested_cargo::input_hash`, because a root that never
 //! reaches the hash is the same as one omitted from the list.
 
+use std::path::Path;
+
 use rstest_bdd_harness::nested_cargo;
 
-use super::input_roots;
+use super::{input_roots, ui_clippy::ui_clippy_preparation};
 
 #[test]
 fn the_workspace_cargo_configuration_is_an_input() {
@@ -43,5 +45,29 @@ fn the_workspace_cargo_configuration_is_an_input() {
     assert_ne!(
         with, without,
         "the workspace Cargo configuration must change the input hash"
+    );
+}
+
+#[test]
+fn the_ui_lint_family_probes_from_its_manifest_directory() {
+    // The UI-lint family is the one whose stamped root and working directory
+    // are deliberately different: `ui_clippy_command` runs `cargo clippy` from
+    // `CARGO_MANIFEST_DIR` while the tree it builds lives under
+    // `target/tests/ui_lints_clippy`. The toolchain probe has to run from the
+    // same directory, because Cargo resolves a relative `RUSTC` and a relative
+    // `CARGO_HOME` against the command's directory — a probe left in the
+    // stamped root would identify a different compiler than the lint cases
+    // use, and the stamp would vouch for that wrong identity.
+    let preparation = ui_clippy_preparation().expect("the UI-lint family");
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    assert_eq!(
+        preparation.working_directory.as_path(),
+        manifest_dir,
+        "the probe must run where the lint command runs, not where it stamps"
+    );
+    assert_eq!(
+        preparation.artefacts,
+        vec![manifest_dir.join("target/tests/ui_lints_clippy")],
+        "the stamped root keeps its own path, which is not the working directory"
     );
 }

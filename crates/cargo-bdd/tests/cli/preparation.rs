@@ -32,6 +32,13 @@ mod nested_build;
 #[path = "preparation/tests/withdrawal.rs"]
 mod withdrawal;
 
+// The report lines the gate and the timed command file are a contract with a
+// reader in another language, so they are pinned against that grammar rather
+// than only observed in a cold end-to-end run.
+#[cfg(test)]
+#[path = "preparation/tests/report.rs"]
+mod report;
+
 // The ownership regression drives the declaration below rather than a
 // literal, so it lives beside it for the same reason.
 #[cfg(test)]

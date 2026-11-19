@@ -33,7 +33,7 @@ import typing as typ
 from prepared_fixture_step import (
     BUILD_REPORT_ENV,
     REMEDY,
-    TIMED_SOURCE,
+    REQUIRED_SOURCES,
     TIMED_TEST,
     read_build_reports,
 )
@@ -50,6 +50,7 @@ __all__ = [
     "expect_preparation",
     "expect_refusal",
     "expect_stale_stamp_refusal",
+    "require_one_of_each",
 ]
 
 
@@ -139,6 +140,68 @@ def judge_run_reports(
     return reports[previous_counts:], reports[:previous_counts]
 
 
+def require_one_of_each(
+    this_run: list[BuildReport],
+    *,
+    previous_counts: int,
+    combined: str,
+) -> None:
+    """Require exactly one report from each producer the reuse check needs.
+
+    A passing reuse run has to show two different facts, and each is filed by
+    its own producer: the gate files one line when it admits a stamp, and the
+    timed command files one line after it has paid for its own nested build.
+    Either line on its own leaves the other fact unproven — the gate's zero is
+    what a run that stopped before the test body leaves behind, and a timed
+    zero with no gate line is a run whose gate never reported at all. Earlier
+    versions of this check accepted one line of either kind, so a missing or
+    malformed line could satisfy it.
+
+    Duplicates are rejected as well as absences. Two lines from one producer
+    mean the run did the thing twice, or that a stale line has been attributed
+    to this run, and neither state is the one the workflow asserts. Requiring
+    exactly one keeps the answer to "did *this* run reuse the tree" a single
+    fact per producer rather than a value that depends on how many lines were
+    written.
+
+    Parameters
+    ----------
+    this_run : list[BuildReport]
+        The reports this run appended, in the order they were written.
+    previous_counts : int
+        How many report lines existed before this run, used only to make the
+        failure message say what the file held before it.
+    combined : str
+        The run's stdout and stderr, used for the failure message.
+
+    Raises
+    ------
+    StepFailureError
+        If any required producer filed no line, or more than one.
+    """
+    for source in REQUIRED_SOURCES:
+        filed = [report for report in this_run if report.source == source]
+        if len(filed) == 1:
+            continue
+        if not filed:
+            msg = (
+                f"this run filed no `source={source}` nested-build report, so "
+                "it cannot show the fact that producer witnesses. The reuse "
+                "check needs one line from each of "
+                f"{list(REQUIRED_SOURCES)}; this run filed {this_run} (the "
+                f"preparation's own reports were the {previous_counts} lines "
+                f"before it). Output:\n{combined}"
+            )
+            raise StepFailureError(msg)
+        msg = (
+            f"this run filed {len(filed)} `source={source}` nested-build "
+            "reports, so its evidence is ambiguous: exactly one line is "
+            "required from each producer. This run filed "
+            f"{this_run}. Output:\n{combined}"
+        )
+        raise StepFailureError(msg)
+
+
 def expect_pass_without_rebuild(
     result: subprocess.CompletedProcess[str],
     *,
@@ -160,12 +223,14 @@ def expect_pass_without_rebuild(
     discards that stderr on success, so a scan of the run's output would find
     nothing however much was compiled.
 
-    The timed report is therefore required, not merely counted. A run that
-    stopped, panicked or never reached the command leaves the gate's zero
-    behind and nothing else, and an earlier version of this check read exactly
-    that as reuse. Each line names its producer, so a run with no
-    ``source=timed`` line fails here however many other lines it filed, and the
-    timed line's own count must be zero for the step to pass.
+    Both reports are therefore required, each exactly once, not merely
+    counted. A run that stopped, panicked or never reached the command leaves
+    the gate's zero behind and nothing else, and an earlier version of this
+    check read exactly that as reuse; a run whose gate never filed anything can
+    equally leave the timed line alone. Each line names its producer, so a run
+    missing either one fails here however many lines it filed, a run filing two
+    from one producer fails as ambiguous, and every line's count must be zero
+    for the step to pass. See [`require_one_of_each`].
 
     The reports are read from the file rather than from the step's output
     precisely because the output cannot carry them. See [`read_build_reports`].
@@ -214,24 +279,8 @@ def expect_pass_without_rebuild(
             f"Output:\n{combined}"
         )
         raise StepFailureError(msg)
-    timed = [report for report in this_run if report.source == TIMED_SOURCE]
-    if not timed:
-        # The gate's own line is what an earlier version of this check read as
-        # reuse. It is filed before the test body runs and reports that no
-        # *preparation* happened, which says nothing about the timed command:
-        # a run that stopped, panicked or never reached it leaves exactly the
-        # gate's zero behind. Requiring the timed producer's own line is what
-        # makes the check about the command it claims to judge.
-        msg = (
-            "this run reported no nested build from the timed `cargo bdd "
-            "steps` command, so it cannot have shown that command reused the "
-            "prepared tree. The gate files its own line before the test body "
-            f"and reports no preparation, which is a different fact. This run "
-            f"filed {this_run} (the preparation's own reports were {prior}); "
-            f"expected a `source={TIMED_SOURCE}` line. Output:\n{combined}"
-        )
-        raise StepFailureError(msg)
-    rebuilt = [report.compiling for report in timed if report.compiling != 0]
+    require_one_of_each(this_run, previous_counts=previous_counts, combined=combined)
+    rebuilt = [report.compiling for report in this_run if report.compiling != 0]
     if rebuilt:
         msg = (
             "the timed test's nested build compiled after preparation, so the "

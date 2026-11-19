@@ -3105,7 +3105,12 @@ rather than by reading this branch's comments.
   other agents, and the managed sccache server had stopped serving. The change
   under test is a `#[cfg(test)]` unit module in `rstest-bdd-harness`, which
   that leg's fixture graph never builds, so this is queue starvation rather
-  than a defect: report it, do not weaken the 20 m budget to make it green.
+  than a defect: report it, and do not weaken the budget to make it green on a
+  run where nothing was measured. The 20 m period did later move to 30 m, but
+  by the opposite route — an isolated run established the test's own cost
+  (1119.268 s) before the budget was touched, and it moved because that cost
+  was queue-dependent rather than because a red run needed a green one. See "A
+  local-host measurement artefact" for the measurement.
 
 ## Outcomes & Retrospective
 
@@ -3508,10 +3513,31 @@ CI runner. The figures that carry over are the ones that describe work rather
 than waiting: preparation elapsed times under contention (all far inside the
 30-minute budget), and `user` time for the cached invocations.
 
-The 20-minute `trybuild_macros` limit is unchanged from `origin/main` and the
-per-invocation cost on an uncontended 2-vCPU lane is a fraction of the queued
-cost measured here. The lane that can actually confirm criterion (c) is the CI
-coverage lane, and that is where the remaining timing evidence belongs.
+The 20-minute `trybuild_macros` limit was originally left unchanged from
+`origin/main`, on the reading that the per-invocation cost on an uncontended
+2-vCPU lane is a fraction of the queued cost measured here. The lane that can
+actually confirm criterion (c) is the CI coverage lane, and that is where the
+remaining timing evidence belongs.
+
+That reading held for two days and then stopped holding on this host. The same
+prepared-tree test was timed in isolation, with nothing else of this
+repository's running, and passed at `PASS [1119.268s]` — 93% of the old period,
+inside it but with no margin. Two full-suite runs the same day crossed the
+period outright at exactly 1200.002 s with the pool at `capacity 4, held 4`.
+The difference between those outcomes and the 1200 s kills is not the work,
+which was identical: it is how far the shared queue happened to have advanced
+when the test's clock started. A period whose pass/fail depends on a
+neighbour's queue position detects the queue, not a hang.
+
+The limit is therefore 30 m, matching the preparation override, and the
+decision is recorded rather than made quietly: a test that is compiling needs a
+budget that admits compiling, and `terminate-after = 1` still ends anything
+genuinely wedged one period later. This does not license raising budgets to
+green a red run — the measurement above is what distinguishes the two, and a
+future raise needs its own. The exact-period contract in
+`crates/rstest-bdd/tests/nextest_config.rs` and the workflow contract under
+`tests/workflow_contracts/` were updated together, so the policy cannot drift
+from the file.
 
 The second prepared-tree attempt is the clearest illustration of that gap. It
 ran the gate (accepted, no `NotFound`), then worked through the fixture set in

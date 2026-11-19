@@ -1,14 +1,23 @@
 //! The gate that decides whether a family is prepared, and the build that
 //! follows when it is not.
 //!
-//! Three entry points reach this module. [`ensure_prepared`] reads the runner
-//! decision from the process environment; [`ensure_prepared_with`] and
-//! [`ensure_prepared_with_probe`] take it — and the toolchain probe — as
-//! parameters so the protocol can be exercised without mutating the
-//! environment or spawning `cargo -vV`. [`prepare_now`] is the unconditional
-//! form the named preparation test uses. The two entry points that supply the
-//! real probe bind it to the preparation's own environment, so the compiler
-//! identified is the one the nested build will run.
+//! Five entry points reach this module. [`ensure_prepared`] reads the runner
+//! decision from the process environment; [`ensure_prepared_with`],
+//! [`ensure_prepared_with_probe`] and [`ensure_prepared_reported`] take it —
+//! and the toolchain probe and the message reporter — as parameters so the
+//! protocol can be exercised without mutating the environment or spawning
+//! `cargo -vV`. [`prepare_now`] is the unconditional form the named preparation
+//! test uses. The entry points that supply the real probe bind it to the
+//! preparation's own environment, so the compiler identified is the one the
+//! nested build will run, and those that supply the real reporter bind it to
+//! `stamp::note`, so production diagnostics are unchanged.
+//!
+//! The reporter is a parameter at the innermost boundary rather than a direct
+//! write to stderr, because the diagnostics are part of what this module
+//! promises: a corrupt stamp is explained and prepared over, not silently
+//! rebuilt. A message written straight to stderr is invisible to any test that
+//! does not capture the entire process's output, so the promise would be
+//! untestable.
 //!
 //! The policy lives here rather than in the stamp module because the two
 //! runners want opposite things from the same fact. An unreadable stamp is
@@ -28,7 +37,7 @@ use super::{
         fingerprint_with,
         matching_stamp,
         missing_stamp_message,
-        note,
+        note as stamp_note,
         render,
         stamp_path,
         unreadable_stamp_error,
@@ -47,8 +56,20 @@ use super::{
 ///
 /// # Errors
 ///
-/// Returns the closure's error when preparation fails, and the I/O error when
-/// the stamp cannot be read or written.
+/// The two runners do not report the same set, because they make opposite
+/// decisions about the same evidence.
+///
+/// Under `cargo nextest` this returns the probe's error, the I/O error when the
+/// stamp cannot be read, and the [`io::ErrorKind::NotFound`] refusal for a
+/// missing or stale stamp — including the failure to render that refusal's
+/// message. It never runs `prepare`, so it never returns the closure's error.
+///
+/// Under plain `cargo test` a read failure is deliberately *not* reported: it
+/// is logged and the family is prepared again, because a corrupt stamp would
+/// otherwise have no remedy but deleting the tree by hand. What this returns
+/// there is the probe's error, the closure's error when preparation fails, the
+/// I/O error when the prepared artefacts cannot be checked, and the I/O error
+/// when the stamp cannot be written.
 pub fn ensure_prepared<F>(preparation: &Preparation, prepare: F) -> io::Result<()>
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
@@ -86,6 +107,15 @@ fn probe_of(preparation: &Preparation) -> impl FnOnce() -> io::Result<String> + 
     move || toolchain_identity(&preparation.environment, &preparation.working_directory)
 }
 
+/// Report a preparation diagnostic the way production does.
+///
+/// Resolved as a function value rather than written inline at each call, so
+/// the boundary below, `invalidate`'s and the production entry points share one
+/// binding: a second spelling of `stamp::note` would let the two diverge
+/// without any test noticing. Shared with the sibling module rather than
+/// duplicated there for that reason.
+pub(super) fn reporter_of() -> impl FnMut(&str) { stamp_note }
+
 /// [`ensure_prepared_with`] with the toolchain probe supplied.
 ///
 /// The probe is a parameter for the same reason the runner decision is: a test
@@ -108,6 +138,38 @@ where
     P: FnOnce() -> io::Result<String>,
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
+    ensure_prepared_reported(preparation, under_nextest, probe, reporter_of(), prepare)
+}
+
+/// [`ensure_prepared_with_probe`] with the diagnostic reporter supplied.
+///
+/// The reporter is a parameter for the same reason the runner decision and the
+/// probe are: the diagnostics this module emits are a promise about what a
+/// developer sees when a stamp is corrupt under `cargo test`, and a message
+/// written straight to stderr cannot be observed by a test without capturing
+/// the whole process's output. Taking it here lets a case assert both halves of
+/// that promise — that the message names what was wrong, and that the family is
+/// prepared again afterwards — against the boundary production actually runs.
+///
+/// It is called at most twice per gate, once before the lock is taken and once
+/// after, and receives the finished message rather than any of its parts.
+///
+/// # Errors
+///
+/// As [`ensure_prepared`], plus the probe's own error.
+#[doc(hidden)]
+pub fn ensure_prepared_reported<P, R, F>(
+    preparation: &Preparation,
+    under_nextest: bool,
+    probe: P,
+    mut report: R,
+    prepare: F,
+) -> io::Result<()>
+where
+    P: FnOnce() -> io::Result<String>,
+    R: FnMut(&str),
+    F: FnOnce() -> io::Result<PreparationSummary>,
+{
     let fingerprint = fingerprint_with(preparation, probe)?;
     let stamp = stamp_path(preparation);
     // An unreadable stamp is neither a match nor an absence, and the two
@@ -118,7 +180,7 @@ where
     let matching = match matching_stamp(&stamp, &fingerprint) {
         Ok(matching) => matching,
         Err(error) if !under_nextest => {
-            note(&format!("stamp {} unreadable ({error})", stamp.display()));
+            report(&format!("stamp {} unreadable ({error})", stamp.display()));
             None
         }
         Err(error) => return Err(unreadable_stamp_error(&stamp, &error)),
@@ -126,7 +188,7 @@ where
     // Both halves are required: a stamp vouches for the inputs, and the tree
     // must still hold the units it recorded.
     if matching.is_some() && artefacts::all_present(preparation, matching.as_ref())? {
-        note(&format!(
+        report(&format!(
             "family={} is prepared ({})",
             preparation.family,
             stamp.display()
@@ -141,7 +203,7 @@ where
         ));
     }
 
-    prepare_locked(preparation, &stamp, &fingerprint, prepare)
+    prepare_locked(preparation, &stamp, &fingerprint, report, prepare)
 }
 
 /// Prepare the family unconditionally, for the named preparation test.
@@ -160,42 +222,45 @@ where
     prepare_now_with_probe(preparation, probe_of(preparation), prepare)
 }
 
-/// Remove the stamp that advertises `preparation` as prepared.
+/// [`prepare_now`] with the diagnostic reporter supplied.
 ///
-/// Both [`prepare_now`] and the lazy `cargo test` path of [`ensure_prepared`]
-/// return early from a matching stamp, so the stamp is what decides whether a
-/// later attempt builds at all. This entry point exists for a caller whose own
-/// completeness rule is stricter than the stamp can be:
-/// [`Preparation::artefacts`] answers "the units the preparation recorded are
-/// still there", and cannot answer "they are the units this family needs",
-/// because only the caller knows which ones those are. A caller that checks its
-/// own witness *after* the gate admitted the stamp can therefore find the stamp
-/// vouching for a tree its assertions cannot use — and if it simply reports
-/// that, every later attempt is refused the same way without the preparation
-/// ever running again.
+/// Split so the unconditional path's diagnostics are observable too: a warm
+/// family is reported as prepared and a cold one names the units it compiled,
+/// both of which are the evidence that cold work left the timed assertions.
 ///
-/// Removing the stamp is what turns the next attempt into a build. It does not
-/// repair the tree: the caller reports the refusal it found, and the recovery
-/// is the next run's.
+/// # Parameters
+/// - `preparation`: The family to prepare.
+/// - `probe`: The toolchain probe the fingerprint is built from.
+/// - `report`: Where a diagnostic goes; called once per message.
+/// - `prepare`: The build to run when the family is not already prepared.
 ///
-/// A stamp that is already absent is not an error. The caller is withdrawing a
-/// claim it has just refuted, and whether that claim was ever written is not
-/// its business; reporting a missing file here would replace the useful failure
-/// (the witness) with a filesystem one.
+/// # Returns
+/// `Ok(())` once the family is prepared or was already, and a stamp written
+/// after a build.
 ///
 /// # Errors
 ///
-/// Returns the removal error when the stamp exists and cannot be removed.
-pub fn invalidate(preparation: &Preparation) -> io::Result<()> {
-    let stamp = stamp_path(preparation);
-    match std::fs::remove_file(&stamp) {
-        Ok(()) => {
-            note(&format!("removed the stamp {}", stamp.display()));
-            Ok(())
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
+/// As [`prepare_now`], plus the probe's own error.
+#[doc(hidden)]
+pub fn prepare_now_reported<P, R, F>(
+    preparation: &Preparation,
+    probe: P,
+    report: R,
+    prepare: F,
+) -> io::Result<()>
+where
+    P: FnOnce() -> io::Result<String>,
+    R: FnMut(&str),
+    F: FnOnce() -> io::Result<PreparationSummary>,
+{
+    let fingerprint = fingerprint_with(preparation, probe)?;
+    prepare_locked(
+        preparation,
+        &stamp_path(preparation),
+        &fingerprint,
+        report,
+        prepare,
+    )
 }
 
 /// [`prepare_now`] with the toolchain probe supplied.
@@ -213,31 +278,41 @@ where
     P: FnOnce() -> io::Result<String>,
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    let fingerprint = fingerprint_with(preparation, probe)?;
-    prepare_locked(preparation, &stamp_path(preparation), &fingerprint, prepare)
+    prepare_now_reported(preparation, probe, reporter_of(), prepare)
 }
 
-/// Run `prepare` under the process-wide lock unless already prepared, then stamp.
-fn prepare_locked<F>(
+/// Run `prepare` under the process's preparation mutex unless already prepared,
+/// then stamp.
+///
+/// The mutex serializes the threads of one test process, which is what plain
+/// `cargo test` has; it is not a cross-process lock, and under nextest the
+/// `cargo-spawning` test group is what keeps two nested builds apart.
+///
+/// `report` receives every diagnostic this function emits, including the
+/// post-lock read failure explained below.
+fn prepare_locked<R, F>(
     preparation: &Preparation,
     stamp: &Path,
     fingerprint: &Fingerprint,
+    mut report: R,
     prepare: F,
 ) -> io::Result<()>
 where
+    R: FnMut(&str),
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
     let _guard = super::lock();
-    // Another process or thread may have prepared the family while this one
-    // waited for the lock. The artefacts are re-checked on the same terms as
-    // the gate: a stamp whose tree was evicted while this process waited is
-    // not a prepared family.
+    // Another thread may have prepared the family while this one waited for
+    // the mutex, and a timed assertion may have evicted the tree while the
+    // build ran. The artefacts are re-checked on the same terms as the gate: a
+    // stamp whose tree was evicted while this thread waited is not a prepared
+    // family.
     //
     // An unreadable stamp is logged and then prepared over rather than
     // propagated. Both callers reach here having already decided to build —
     // `prepare_now`'s contract is to prepare unconditionally, and the lazy
-    // path is only taken after `ensure_prepared_with` chose to re-prepare — so
-    // refusing here would leave a corrupt stamp with no remedy but deleting
+    // path is only taken after `ensure_prepared_reported` chose to re-prepare —
+    // so refusing here would leave a corrupt stamp with no remedy but deleting
     // the tree by hand. What was wrong before was the silence: `.ok()` made an
     // unreadable stamp indistinguishable from a warm one that had merely
     // missed, and the rebuild happened with no explanation. The wording names
@@ -245,7 +320,7 @@ where
     let matching: Option<Stamp> = match matching_stamp(stamp, fingerprint) {
         Ok(matching) => matching,
         Err(error) => {
-            note(&format!(
+            report(&format!(
                 "stamp {} unreadable after waiting for the lock ({error}); preparing again",
                 stamp.display()
             ));
@@ -275,7 +350,7 @@ where
     // pass. See `artefacts::verify_declared`.
     artefacts::verify_declared(preparation, &recorded)?;
     write_stamp(stamp, &render(fingerprint, &recorded))?;
-    note(&format!(
+    report(&format!(
         "family={} prepared in {:.1}s ({} Compiling lines); stamp {}",
         preparation.family,
         started.elapsed().as_secs_f64(),

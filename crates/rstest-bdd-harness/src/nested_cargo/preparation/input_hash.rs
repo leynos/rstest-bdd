@@ -88,6 +88,15 @@ const DIRECTORY_END: &str = "directory-end";
 /// already inside; the walk cuts the descent there, so a cyclic tree is hashed
 /// rather than walked for ever.
 ///
+/// # Parameters
+/// - `roots`: The files and directories the preparation's artefacts derive from, in the order the
+///   caller wants them hashed.
+///
+/// # Returns
+/// The sixteen-digit hexadecimal digest of every entry beneath `roots`. It is
+/// stable across processes and platforms: nothing platform-specific — a
+/// resolved path, a separator or a `read_dir` order — reaches the hasher.
+///
 /// # Errors
 ///
 /// Returns the read error when a named input or one of its files cannot be
