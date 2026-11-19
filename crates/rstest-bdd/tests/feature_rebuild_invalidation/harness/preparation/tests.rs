@@ -239,15 +239,22 @@ fn a_configuration_only_change_invalidates_the_preparation() {
     );
 
     let roots = workspace_inputs().expect("workspace inputs");
+    // `workspace_root` resolves and `cargo_config_inputs` reports through that
+    // resolved form, so the configuration arrives as `.cargo/config.toml`
+    // beneath the same resolved root rather than as this lexical join. Asking
+    // by containment states the question the case means — is this file among
+    // the inputs — and holds whichever form the probe happens to use, which is
+    // what the plain equality here missed on the Windows lane.
+    let is_configuration = |root: &std::path::PathBuf| root.starts_with(&workspace.join(".cargo"));
     assert!(
-        roots.contains(&workspace_config),
+        roots.iter().any(is_configuration),
         "the configuration must be among the family's own inputs: {roots:?}"
     );
 
     let with = nested_cargo::input_hash(&roots).expect("hash with the configuration");
     let without: Vec<std::path::PathBuf> = roots
         .iter()
-        .filter(|root| *root != &workspace_config)
+        .filter(|root| !is_configuration(root))
         .cloned()
         .collect();
     let without = nested_cargo::input_hash(&without).expect("hash without the configuration");

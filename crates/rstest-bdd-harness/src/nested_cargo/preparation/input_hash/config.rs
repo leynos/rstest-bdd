@@ -180,7 +180,7 @@ fn search_root(workspace_root: &Path) -> PathBuf {
 /// The walk's root when `workspace_root` cannot be resolved.
 ///
 /// The directory may not exist yet — the preparation creates the tree it stamps
-/// — and canonicalising a relative path also needs it to exist beneath this
+/// — and canonicalizing a relative path also needs it to exist beneath this
 /// process's directory. Joining the process directory keeps the walk absolute,
 /// which is the property that matters here; the fingerprint still covers the
 /// tree through its other inputs once it exists.
@@ -246,6 +246,14 @@ pub(crate) fn resolve_cargo_home(
 
 #[cfg(test)]
 mod tests {
+    //! Resolution of the walk's root, for roots that exist and roots that do
+    //! not.
+    //!
+    //! The production walk is a read of the tree, so its root is the one input
+    //! a caller decides rather than one the checkout fixes. These cases pin
+    //! that an absolute root is walked as given and that a relative one is
+    //! resolved to an absolute walk, which is what the fingerprint depends on.
+
     use std::path::PathBuf;
 
     use super::{cargo_config_inputs_with, search_root};

@@ -106,7 +106,22 @@ fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     .map_err(|e| eyre::eyre!(e))
 }
 
-fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..") }
+/// The workspace root this test process was compiled in.
+///
+/// Resolved once here rather than at each comparison. `cargo_config_inputs`
+/// canonicalizes the root it is given and reports the workspace configuration
+/// through that resolved form, so a caller holding this function's lexical
+/// spelling (`crates/cargo-bdd/../..`) and an input reported through the
+/// resolved one would be comparing two spellings of a single directory. On
+/// Windows the difference is visible: resolution returns the `\\?\` verbatim
+/// form, which no plain-spelled prefix can match. Resolving at the definition
+/// means every caller compares in one form and no caller has to remember to.
+fn workspace_root() -> PathBuf {
+    let lexical = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    // A missing root is left lexical: the callers that use it to locate a
+    // manifest report that absence themselves, with the path they tried.
+    std::fs::canonicalize(&lexical).unwrap_or(lexical)
+}
 
 // The nested-build target policy has its own behavioural coverage; it lives in
 // a subdirectory so Cargo does not also discover it as a second test target.

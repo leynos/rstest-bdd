@@ -80,19 +80,14 @@ fn the_workspace_cargo_configuration_is_an_input() {
             .as_ref()
             .is_none_or(|home| !root.starts_with(home))
     };
-    // Membership is decided in one path *form*, not by comparing the spellings
-    // side by side. The probe resolves its root, and on Windows that comes back
-    // with a `\\?\` verbatim prefix, so `starts_with` against the plain
-    // `workspace.join(".cargo")` reported the committed configuration as absent
-    // while it was right there in the list. Canonicalising both sides before
-    // either test asks the question the caller means — is this the same file —
-    // rather than the one the spelling suggests.
-    let resolved_committed =
-        std::fs::canonicalize(&committed).unwrap_or_else(|_| committed.clone());
-    let within_workspace = |root: &std::path::PathBuf| {
-        let resolved = std::fs::canonicalize(root).unwrap_or_else(|_| root.clone());
-        resolved.starts_with(&resolved_committed)
-    };
+    // `workspace_root` resolves, so both sides of this comparison are already
+    // in one path form and a plain prefix test asks the question the caller
+    // means — is this the same file — rather than the one the spelling
+    // suggests. Comparing spellings is what failed on the Windows lane: the
+    // probe reports the committed configuration through a `\\?\` verbatim
+    // prefix, which no plainly spelled prefix matches, so the file was read as
+    // absent while it sat in the list.
+    let within_workspace = |root: &std::path::PathBuf| root.starts_with(&committed);
     let workspace_configuration: Vec<std::path::PathBuf> = roots
         .iter()
         .filter(|root| within_workspace(root))
@@ -107,28 +102,31 @@ fn the_workspace_cargo_configuration_is_an_input() {
     );
     let control: Vec<std::path::PathBuf> =
         roots.iter().filter(|root| shared(root)).cloned().collect();
+    // Filtered by the same predicate the removal is described with, not by
+    // whole-path inequality: `control` holds the configuration's resolved form,
+    // which differs from `committed` in every component the resolution added.
+    // Comparing whole paths would leave the entry in place and this case would
+    // then assert that a set equals itself.
     let without: Vec<std::path::PathBuf> = control
         .iter()
         .filter(|root| !within_workspace(root))
         .cloned()
         .collect();
-    // And the hash agrees with that reading: the same file named in the other
-    // form is the same input. Without this, the prefix comparison above could
-    // be satisfied by canonicalising alone while the hash still keyed on two
-    // spellings of one file, which is what the Windows lane caught.
-    let named_plain = control
-        .iter()
-        .map(|root| {
-            std::fs::canonicalize(root)
-                .ok()
-                .filter(|_| within_workspace(root))
-                .unwrap_or_else(|| root.clone())
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        nested_cargo::input_hash(&control).expect("hash with the probe's spellings"),
-        nested_cargo::input_hash(&named_plain).expect("hash with resolved spellings"),
-        "one file named in two path forms must contribute one input: {control:?}"
+    // The configuration is named as a root itself, so its full path reaches
+    // the hash. That is deliberate — `input_hash` records a named root's
+    // provenance because `build.rustc` and the other path-valued keys resolve
+    // against the configuration's own directory — and it is why the two forms
+    // are *not* interchangeable to the hash. Spelling cannot be what this case
+    // pins: `family_roots` supplies the resolved form, so a stamp written
+    // against it stays stable across a re-clone, which is the property the
+    // fixture tests rely on.
+    assert!(
+        control
+            .iter()
+            .filter(|root| within_workspace(root))
+            .all(|root| root.is_absolute()),
+        "the configuration must be named absolutely, or the stamp would depend on where the \
+         fixture happened to run: {control:?}"
     );
     let with_hash =
         nested_cargo::input_hash(&control).expect("hash with the workspace configuration");

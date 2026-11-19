@@ -106,8 +106,22 @@ pub(crate) fn ensure_addition_prepared() -> std::io::Result<()> {
 }
 
 /// The workspace root both fixtures build beneath.
+///
+/// Resolved once here rather than at each comparison. [`workspace_inputs`]
+/// mixes this root's own entries with [`nested_cargo::cargo_config_inputs`],
+/// which canonicalizes the root it is given and reports the workspace
+/// configuration through that resolved form. Holding the lexical spelling
+/// (`crates/rstest-bdd/../..`) beside a resolved one would make the two
+/// disagree about a single directory — on Windows the resolved form carries
+/// the `\\?\` verbatim prefix, which no plain-spelled prefix can match — and a
+/// test asking whether the configuration is among the family's inputs would
+/// answer no while the file sat in the list. Resolving at the definition means
+/// every caller compares in one form and no caller has to remember to.
 fn workspace_root() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    let lexical = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    // A missing root is left lexical: the fixture manifests this root locates
+    // report that absence themselves, with the path they tried.
+    std::fs::canonicalize(&lexical).unwrap_or(lexical)
 }
 
 /// The workspace inputs both fixtures compile against.
