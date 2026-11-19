@@ -15,7 +15,11 @@
 
 use std::path::PathBuf;
 
-use crate::nested_cargo::{cargo_config_inputs, input_hash};
+use crate::nested_cargo::{
+    cargo_config_inputs,
+    input_hash,
+    preparation::{cargo_config_inputs_with, resolve_cargo_home},
+};
 
 /// A workspace root with a `.cargo` directory, and the configuration link in
 /// it.
@@ -59,31 +63,32 @@ fn a_cargo_home_setting_change_invalidates_the_prepared_tree() {
     // input list, editing it left the stamp matching and the timed assertion
     // compiled the graph the preparation was meant to have built.
     //
-    // `CARGO_HOME` is process-wide and the suite runs in parallel, so the
-    // variable is set only around the probes and the hash that compares them.
+    // Both environment variables are process-wide and this suite runs in
+    // parallel, so the Cargo home is supplied to the probe rather than written
+    // into the process. A case that assigned `CARGO_HOME` changed what every
+    // other thread in this binary read: `cargo_configuration_is_an_input`
+    // hashed a directory another case had already deleted, and failed with
+    // `NotFound` on a path it had just created.
     let (workspace, _workspace_config) = workspace_with_cargo_dir().expect("the workspace fixture");
     let cargo_home = tempfile::tempdir().expect("cargo home");
     let home_config = cargo_home.path().join("config.toml");
     std::fs::write(&home_config, "[build]\nrustflags = [\"-Copt-level=1\"]\n")
         .expect("home config");
 
-    let path = cargo_home.path().to_path_buf();
-    temp_env::with_var("CARGO_HOME", Some(path.as_os_str()), || {
-        let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
-        assert!(
-            roots.contains(&home_config),
-            "the CARGO_HOME configuration must be a preparation input: {roots:?}"
-        );
-        let before = input_hash(&roots).expect("hash before");
-        std::fs::write(&home_config, "[build]\nrustflags = [\"-Copt-level=3\"]\n")
-            .expect("home config edit");
-        let after = input_hash(&cargo_config_inputs(workspace.path()).expect("config inputs"))
-            .expect("hash after");
-        assert_ne!(
-            before, after,
-            "a CARGO_HOME-only change must invalidate the prepared artefacts"
-        );
-    });
+    let roots =
+        cargo_config_inputs_with(workspace.path(), Some(cargo_home.path())).expect("config inputs");
+    assert!(
+        roots.contains(&home_config),
+        "the CARGO_HOME configuration must be a preparation input: {roots:?}"
+    );
+    let before = input_hash(&roots).expect("hash before");
+    std::fs::write(&home_config, "[build]\nrustflags = [\"-Copt-level=3\"]\n")
+        .expect("home config edit");
+    let after = input_hash(&roots).expect("hash after");
+    assert_ne!(
+        before, after,
+        "a CARGO_HOME-only change must invalidate the prepared artefacts"
+    );
 }
 
 #[test]
@@ -96,8 +101,9 @@ fn a_relative_cargo_home_is_resolved_against_the_nested_directory() {
     // fixture's own Cargo home left a warm stamp matching and moved the
     // compilation back into the timed test.
     //
-    // `CARGO_HOME` is process-wide and the suite runs in parallel, so it is set
-    // only around the probe.
+    // The value is resolved by `cargo_home` against the workspace, and the
+    // resolution is reached here by passing it through the injectable form, so
+    // the case cannot disturb a sibling that reads the environment.
     let workspace = tempfile::tempdir().expect("workspace dir");
     let nested_home = workspace.path().join(".cargo-cache");
     let nested_config = nested_home.join("config.toml");
@@ -105,18 +111,14 @@ fn a_relative_cargo_home_is_resolved_against_the_nested_directory() {
     std::fs::write(&nested_config, "[build]\nrustflags = [\"-Copt-level=1\"]\n")
         .expect("nested config");
 
-    temp_env::with_var(
-        "CARGO_HOME",
-        Some(std::ffi::OsStr::new(".cargo-cache")),
-        || {
-            let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
-            assert!(
-                roots.contains(&nested_config),
-                "a relative CARGO_HOME must be read from the nested build's directory; the probe \
-                 reported {roots:?} instead of {}",
-                nested_config.display()
-            );
-        },
+    let relative = resolve_cargo_home(workspace.path(), Some(std::ffi::OsStr::new(".cargo-cache")))
+        .expect("a relative CARGO_HOME names a directory");
+    let roots = cargo_config_inputs_with(workspace.path(), Some(&relative)).expect("config inputs");
+    assert!(
+        roots.contains(&nested_config),
+        "a relative CARGO_HOME must be read from the nested build's directory; the probe reported \
+         {roots:?} instead of {}",
+        nested_config.display()
     );
 }
 
@@ -130,13 +132,12 @@ fn an_absolute_cargo_home_is_used_unchanged() {
     let config = cargo_home.path().join("config.toml");
     std::fs::write(&config, "[build]\nrustflags = [\"-Copt-level=1\"]\n").expect("config");
 
-    temp_env::with_var("CARGO_HOME", Some(cargo_home.path().as_os_str()), || {
-        let roots = cargo_config_inputs(workspace.path()).expect("config inputs");
-        assert!(
-            roots.contains(&config),
-            "an absolute CARGO_HOME must be read as given: {roots:?}"
-        );
-    });
+    let roots =
+        cargo_config_inputs_with(workspace.path(), Some(cargo_home.path())).expect("config inputs");
+    assert!(
+        roots.contains(&config),
+        "an absolute CARGO_HOME must be read as given: {roots:?}"
+    );
 }
 
 #[test]
@@ -286,5 +287,40 @@ fn an_unreadable_cargo_configuration_is_an_error() {
         error.kind(),
         std::io::ErrorKind::NotFound,
         "a loop is not an absence: {error}"
+    );
+}
+
+#[test]
+fn a_scratch_directories_configuration_is_an_input() {
+    // The nested builds run in a scratch copy beneath the target directory,
+    // and Cargo's configuration walk starts there rather than at the
+    // workspace. A configuration the walk reaches from the scratch directory —
+    // between it and the checkout — sets profile options or a linker the build
+    // reads and the workspace's own inputs never name.
+    //
+    // The families that prepare against these builds therefore hash the scratch
+    // directory's configuration in addition to the workspace's. This case pins
+    // the composition: a change reachable only from the scratch root must move
+    // the fingerprint, or a stamp written before the edit survives it and the
+    // dependency rebuild lands inside the timed test.
+    let scratch = tempfile::tempdir().expect("scratch root");
+    let cargo_dir = scratch.path().join(".cargo");
+    std::fs::create_dir(&cargo_dir).expect("cargo dir");
+    let config = cargo_dir.join("config.toml");
+    std::fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
+
+    let roots = cargo_config_inputs(scratch.path()).expect("config inputs");
+    assert!(
+        roots.contains(&config),
+        "the scratch directory's own configuration must be an input: {roots:?}"
+    );
+
+    let before = input_hash(&roots).expect("hash before");
+    std::fs::write(&config, "[profile.dev]\nincremental = true\n").expect("config edit");
+    let after = input_hash(&cargo_config_inputs(scratch.path()).expect("config inputs"))
+        .expect("hash after");
+    assert_ne!(
+        before, after,
+        "a scratch-only configuration change must invalidate the prepared artefacts"
     );
 }

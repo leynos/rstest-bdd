@@ -20,6 +20,11 @@ mod config;
 // cannot be narrower than `pub`: `input_hash` exists to hash what a caller
 // names, and discovering Cargo's own configuration is part of that list.
 pub use config::cargo_config_inputs;
+// The two seams the configuration cases vary instead of the process's
+// environment. Both are reached only from `#[cfg(test)]` modules, so a release
+// build carries neither name.
+#[cfg(test)]
+pub(crate) use config::{cargo_config_inputs_with, resolve_cargo_home};
 
 use super::stamp::{PREPARED_FILE_SUFFIX, STAMP_VERSION};
 

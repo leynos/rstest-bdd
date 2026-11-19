@@ -49,6 +49,10 @@ mod stamp_file;
 mod toolchain;
 pub use deadline::{Deadline, instruments_within};
 pub use input_hash::{cargo_config_inputs, input_hash};
+// The seams this crate's configuration cases vary instead of the process's
+// environment; neither has a production caller.
+#[cfg(test)]
+pub(crate) use input_hash::{cargo_config_inputs_with, resolve_cargo_home};
 pub use invalidate::{invalidate, invalidate_reported};
 pub use lifecycle::{
     Instruments,
