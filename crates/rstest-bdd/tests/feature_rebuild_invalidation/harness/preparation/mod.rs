@@ -260,14 +260,26 @@ fn fixture_preparation(
     // left dependency recompilation inside the timed test, which is the same
     // gap `workspace_inputs` closes for the workspace's own files.
     //
-    // The copy may not exist yet on a cold run: this describes the preparation
-    // before the callback creates it. An absent tree cannot hold configuration,
-    // and the workspace inputs above already cover what Cargo reads from there,
-    // so the walk contributes nothing rather than refusing the preparation.
+    // The walk is taken whether or not the copy exists yet, because the two
+    // answers must not differ. It walks *upward*, so once the copy exists it
+    // reports the workspace's own `.cargo` — the same file `workspace_inputs`
+    // has already named. Skipping the walk on a cold run, as this first did,
+    // would make the root list depend on whether the callback had already
+    // created the copy: the preparation would hash one set of roots and write
+    // a stamp for it, and every later run would hash a second set and refuse
+    // that stamp. The two runs differ by nothing the build reads, which is
+    // exactly the disagreement a fingerprint must not have.
+    //
+    // `cargo_config_inputs` resolves its root and falls back to a lexical
+    // absolute path when the directory is absent, so an unstaged copy still
+    // yields the ancestor walk rather than an error.
+    //
+    // This is not the whole of the coverage-lane stamp refusal: that came from
+    // `.profraw` files landing in a hashed root, and `input_hash` now skips
+    // them. A conditional root list is still unsound on its own, which is why
+    // this walk stays unconditional.
     let scratch = (family.scratch)();
-    if scratch.is_dir() {
-        roots.extend(nested_cargo::cargo_config_inputs(&scratch)?);
-    }
+    roots.extend(nested_cargo::cargo_config_inputs(&scratch)?);
     let inputs = nested_cargo::input_hash(&roots)?;
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new(family.name, "locked-offline-test-no-run", inputs),

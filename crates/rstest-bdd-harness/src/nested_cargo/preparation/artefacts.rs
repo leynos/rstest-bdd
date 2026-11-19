@@ -7,11 +7,20 @@
 //! evicts only the profile can leave the stamp untouched. This module supplies
 //! the second half of the answer, in two layers.
 //!
-//! The structural layer refuses a profile that exists and is empty, or that
-//! has lost the directories Cargo reads to decide its units are current. The
-//! exact layer is the one that makes the check sound: the stamp records the
+//! The structural layer refuses a profile that has lost the directories Cargo
+//! reads to decide its units are current. It does not refuse an individual
+//! profile for holding *nothing*: a build selected onto a target triple
+//! legitimately leaves the host profile with only lock files, `build/` and
+//! `incremental/` when nothing in the graph needs a host unit, and refusing
+//! that refused every dependency-free crate built with a target selection. Such
+//! a profile is excused only while another named profile holds a usable tree.
+//!
+//! The exact layer is the one that makes the check sound: the stamp records the
 //! outputs the preparation left beside its dep-info records, and every one of
-//! them must still be present.
+//! them must still be present. It also decides the empty-profile case on its
+//! own terms — a stamp section naming artefacts that are all gone is an
+//! eviction, while a section naming nothing is a profile that was empty when it
+//! was prepared.
 //!
 //! A rule about rustc's file naming cannot decide this. Removing only
 //! `lib<stem>.rlib` while `lib<stem>.rmeta` survives makes Cargo recompile
@@ -27,16 +36,18 @@
 //! units are, and this module records what it found there.
 
 use std::{
-    fs,
     io,
     path::{Path, PathBuf},
 };
 
-use super::{Preparation, layout, stamp::Stamp};
+use state::State;
+
+use super::{Preparation, stamp::Stamp};
 
 mod ownership;
 mod recording;
 mod replacement;
+mod state;
 
 pub(super) use recording::record;
 
@@ -100,14 +111,20 @@ impl Eviction {
 
 /// Why `directory` is not a usable prepared profile, if it is not.
 ///
-/// `vouched` says whether a stamp was found and describes this directory.
-/// `recorded` carries that section's names. A caller with no stamp passes
-/// `true` with `recorded = None`, which is the structural-only answer; a stamp
-/// that was found but says nothing about this directory passes `false`, and is
-/// refused. Those two must not be answered alike: the structural checks below
-/// only prove the profile holds *some* units and records, not the unit a timed
-/// test needs, and `stamp.rs` already states that a section-count disagreement
-/// is refused by the caller.
+/// `recorded` carries the stamp section that describes this directory, with
+/// `None` when the stamp says nothing about it. A caller with no stamp at all
+/// passes `None` too, and the two are told apart by [`State::Unvouched`]: an
+/// unvouched directory is refused for that reason alone, while a caller with no
+/// stamp is making the structural-only answer and has no section to miss.
+///
+/// A profile holding *nothing* is refused here rather than in
+/// [`State::unusable_reason`], because that is what tells a target-selected
+/// build's empty secondary profile — which the structural layer must accept —
+/// from the same profile after an eviction. The stamp records what the
+/// preparation left there, so a section naming nothing is a profile that was
+/// legitimately empty and stays admissible; a section naming artefacts that are
+/// all gone is an eviction, and an empty presence list makes every recorded
+/// name missing without a second rule.
 ///
 /// # Errors
 ///
@@ -115,84 +132,69 @@ impl Eviction {
 /// unreadable tree refuses the preparation instead of passing it.
 fn eviction_of(
     directory: &Path,
-    vouched: bool,
+    state: &State,
     recorded: Option<&[String]>,
     owned: &[String],
+    waive_empty: bool,
 ) -> io::Result<Option<Eviction>> {
-    if let Some(eviction) = no_profile_to_inspect(directory, vouched)? {
-        return Ok(Some(eviction));
+    if let Some(reason) = state.absence_reason() {
+        return Ok(Some(Eviction::whole(directory, reason)));
     }
-    let layout = layout::discover(directory)?;
-    if let Some(eviction) = half_missing(directory, &layout) {
-        return Ok(Some(eviction));
-    }
-    let Some(recorded) = recorded else {
+    let Some(layout) = state.layout() else {
+        // Absence refused both states without a layout above, so this is
+        // unreachable rather than a case with an answer of its own.
         return Ok(None);
     };
-    // Which recorded names survived, and whether a rebuild answers for one that
-    // did not, is the membership rule's whole content; it lives in the module
-    // that documents the rule so this function only decides what to report.
-    let present = recording::recorded_names(directory, &layout, owned)?;
-    let missing = replacement::missing_names(recorded, &present);
-    if missing.is_empty() {
+    if let Some(recorded) = recorded {
+        // The exact layer answers a profile holding nothing at all: a
+        // target-selected build leaves its secondary profile empty, so the
+        // stamp's section decides. A section naming nothing is a profile that
+        // was legitimately empty and stays admissible; a section naming
+        // artefacts that are all gone is an eviction, and the empty presence
+        // list makes every recorded name missing without a second rule.
+        let present = recording::recorded_names(directory, layout, owned)?;
+        let missing = replacement::missing_names(recorded, &present);
+        if missing.is_empty() {
+            return Ok(None);
+        }
+        return Ok(Some(Eviction {
+            profile: directory.to_path_buf(),
+            reason: None,
+            missing,
+        }));
+    }
+    // No stamp section, so only the structural answer is available, and it is
+    // the one a successful target-selected build can make look like damage.
+    if waive_empty && whole_empty_profile(state) {
         return Ok(None);
     }
-    Ok(Some(Eviction {
-        profile: directory.to_path_buf(),
-        reason: None,
-        missing,
-    }))
+    Ok(state
+        .empty_layout_reason()
+        .map(|reason| Eviction::whole(directory, reason)))
 }
 
-/// Refusals that stand before anything inside `directory` is read.
-///
-/// This is the first of the two questions [`eviction_of`] asks: is there a
-/// profile here at all that this family may claim? The second — are the
-/// artefacts the stamp recorded still inside it — needs the layout this
-/// function deliberately does not read, so the caller discovers that once and
-/// keeps it.
-///
-/// `vouched` is checked before any `stat`, so an unvouched directory is refused
-/// for that reason alone: its contents belong to some other preparation,
-/// whatever they happen to be.
-fn no_profile_to_inspect(directory: &Path, vouched: bool) -> io::Result<Option<Eviction>> {
-    if !vouched {
-        return Ok(Some(Eviction::whole(
-            directory,
-            "the stamp records no artefacts for this profile",
-        )));
-    }
-    match fs::metadata(directory) {
-        Ok(metadata) if metadata.is_dir() => Ok(None),
-        // Absent, or present as something that is not a directory: both are the
-        // ordinary eviction named above.
-        Ok(_) => Ok(Some(Eviction::whole(directory, "not a directory"))),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            Ok(Some(Eviction::whole(directory, "absent")))
-        }
-        // A permission or I/O fault must name itself. Folding it into an
-        // eviction would report a tree that cannot be inspected as one that is
-        // known to be empty, which is a diagnosis the reader cannot act on.
-        Err(error) => Err(error),
-    }
+/// Whether `state` is a directory holding neither half of Cargo's layout.
+fn whole_empty_profile(state: &State) -> bool {
+    state
+        .layout()
+        .is_some_and(|layout| layout.units.is_empty() && layout.fingerprints.is_empty())
 }
 
-/// Refuse a profile that is missing either half of Cargo's layout.
+/// Whether some named profile still holds a tree a timed assertion could reuse.
 ///
-/// Naming the directory is the whole diagnosis when a half is missing; nothing
-/// inside it can be reported as individually gone. The two halves are ordered
-/// so the message names the one the preparation most likely lost first, and
-/// `is_usable` remains the single definition of "both".
-fn half_missing(directory: &Path, layout: &layout::Layout) -> Option<Eviction> {
-    if layout.units.is_empty() {
-        return Some(Eviction::whole(directory, "holds no compiled units"));
-    }
-    if layout.fingerprints.is_empty() {
-        return Some(Eviction::whole(directory, "holds no fingerprint records"));
-    }
-    debug_assert!(layout.is_usable(), "both halves were just checked");
-    None
-}
+/// This is the condition that lets a target-selected preparation exist at all.
+/// A build selected onto a target triple writes the fixture's units beneath the
+/// triple and leaves the host profile with only lock files and `build/`
+/// whenever nothing in the graph needs a host unit — measured on a
+/// dependency-free crate, and the state that refused every such preparation
+/// before this rule. What justifies waiving an empty profile is not its own
+/// shape but its sibling holding the tree, so an empty profile is only ever
+/// excused beside one that is populated.
+///
+/// Nothing else is waived. A profile that lost *half* its layout still refuses,
+/// because that is what a partial clean leaves, and a stamp recording
+/// something that has gone still refuses through the exact layer.
+fn any_usable(states: &[State]) -> bool { states.iter().any(State::is_usable) }
 
 /// The artefact directories the stamp vouches for that are no longer usable.
 ///
@@ -214,27 +216,37 @@ pub(super) fn evicted(
     preparation: &Preparation,
     stamp: Option<&Stamp>,
 ) -> io::Result<Vec<Eviction>> {
-    preparation
-        .artefacts
-        .iter()
-        .enumerate()
-        .map(|(index, directory)| {
-            let recorded = stamp.and_then(|stamp| stamp.recorded.get(index));
-            // With a stamp in hand, a directory it says nothing about is
-            // unvouched for: a stamp carrying fewer sections than the
-            // preparation names describes some other preparation, and the
-            // directories it omits must not be waved through by the
-            // structural layer alone.
-            let vouched = stamp.is_none() || recorded.is_some();
-            eviction_of(
-                directory,
-                vouched,
-                recorded.map(Vec::as_slice),
-                &preparation.owned_packages,
-            )
-        })
-        .filter_map(Result::transpose)
-        .collect()
+    let mut states = Vec::with_capacity(preparation.artefacts.len());
+    for (index, directory) in preparation.artefacts.iter().enumerate() {
+        let recorded = stamp.and_then(|stamp| stamp.recorded.get(index));
+        // With a stamp in hand, a directory it says nothing about is
+        // unvouched for: a stamp carrying fewer sections than the
+        // preparation names describes some other preparation, and the
+        // directories it omits must not be waved through by the structural
+        // layer alone.
+        let vouched = stamp.is_none() || recorded.is_some();
+        states.push(state::inspect(directory, vouched)?);
+    }
+    let waive_empty = any_usable(&states);
+    let mut evictions = Vec::new();
+    // Zipped rather than indexed: one state was pushed per directory above, so
+    // the two run in step, and the pairing is what the zip states rather than
+    // an invariant a reader has to recover from the earlier loop.
+    for ((index, directory), directory_state) in
+        preparation.artefacts.iter().enumerate().zip(&states)
+    {
+        let recorded = stamp.and_then(|stamp| stamp.recorded.get(index));
+        if let Some(eviction) = eviction_of(
+            directory,
+            directory_state,
+            recorded.map(Vec::as_slice),
+            &preparation.owned_packages,
+            waive_empty,
+        )? {
+            evictions.push(eviction);
+        }
+    }
+    Ok(evictions)
 }
 
 /// Whether every directory the stamp vouches for still holds its artefacts.

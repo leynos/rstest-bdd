@@ -2228,6 +2228,229 @@ rather than by reading this branch's comments.
       preparation stamp was written for a fingerprint the edited sources no
       longer matched. A gate verdict is only meaningful for a quiesced tree.
 
+- [x] **The hosted-coverage stamp refusal: `.profraw` files were being hashed.**
+  All three `build-test` lanes failed at `e8f17cb8` in *Test and Measure
+  Coverage*, not in lint. Linux failed
+  `bound_feature_file_is_tracked_dependency` with an **empty** evicted list,
+  which by `missing_stamp_message`'s own rule proves the *fingerprint*
+  disagreed rather than the artefacts having gone missing.
+
+  Reproduced deterministically on this host:
+  `RUSTFLAGS="--cfg=coverage -Cinstrument-coverage -Clink-arg=-fuse-ld=mold"
+  cargo nextest run -p rstest-bdd --test feature_rebuild_invalidation
+  --target-dir /tmp/covtarget-issue910`.
+  Two fresh-target runs of the same commit produced different `inputs:`
+  digests, and a separate consumer invocation then refused the stamp the
+  preparation had just written.
+
+  The diagnosis was driven by measurement, not inference. A per-root probe
+  inside `fixture_preparation` showed the root *list* byte-identical between
+  runs while the total hash moved; per-root hashes then isolated it to the
+  `crates` root alone (`4c50b4e3d057d7c3` vs `eb650141f7e00b57`), with the
+  fixture tree and all four configuration files stable. A full recursive
+  content digest of every hashed root, taken before and after one run, named
+  the churn exactly: `default_<hash>_0_<pid>.profraw` files appearing in
+  `crates/rstest-bdd/`, `crates/rstest-bdd-macros/` and
+  `crates/rstest-bdd-harness/`.
+
+  `-Cinstrument-coverage` makes every instrumented test binary drop a profile
+  beside the working directory it ran in — which is the crate whose test just
+  ran, inside the hashed `crates` root. The name carries the process id, so
+  each instrumented run *adds* a file rather than overwriting one. The
+  preparation wrote a stamp, the instrumented binaries it had just been asked
+  about then added profiles, and the consumers refused the stamp. A plain run
+  writes no profile at all, which is why only the coverage lanes failed and the
+  local gates were green.
+
+  Fix: `input_hash::is_build_output` now also skips names ending `.profraw`,
+  alongside `target`, `wip`, `.git` and the stamp files. A coverage profile
+  records what a test executed; it is runtime output like `target`, and nothing
+  a fixture compiles reads it. Regression:
+  `input_hash::tests::coverage_profiles_are_skipped`, which adds *two* profiles
+  under different ids so a fix matching one fixed name or the `default_` prefix
+  would still fail.
+
+  Verified: the full `feature_rebuild_invalidation` binary passes 34/34 under
+  the coverage `RUSTFLAGS`, and a second, separate invocation then accepts the
+  stamp written by the first — `bound_feature_file_is_tracked_dependency` and
+  `scenarios_directory_filtered_file_is_tracked` both green against it.
+
+  A wrong hypothesis was falsified on the way and is recorded so it is not
+  retried: removing the `if scratch.is_dir()` guard around the scratch config
+  walk did **not** stabilize the hash. The unconditional walk is still the
+  right shape — a conditional input makes the fingerprint depend on state the
+  preparation itself creates, and the comment now says so — but it was not the
+  cause of this failure.
+
+- [x] Third copy of the path-spelling defect, at
+  `crates/rstest-bdd/tests/trybuild_macros/preparation/tests.rs:33`, which
+  failed both Windows lanes at `e8f17cb8`. Fixed at its source, matching the
+  two earlier copies: `trybuild_macros/preparation.rs::workspace_root` now
+  resolves once at the definition (kept `Utf8PathBuf`, since
+  `staging::trybuild_target_directory` and `input_roots` take camino paths),
+  and the case compares by containment beneath the resolved `.cargo` directory
+  instead of whole-path equality. The `without` control is cut down by the same
+  predicate, so the two sides differ in exactly the configuration.
+
+- [x] **The empty-host-profile refusal: a target-selected build is not
+  damage.** CodeRabbit's second finding was valid and load-bearing. The
+  structural layer demanded a compiled unit *and* a fingerprint record in every
+  named profile, which is not what Cargo guarantees.
+
+  Measured, not inferred. Two minimal crates were built under
+  `/tmp/probe-f2-845335/`, both with `--target x86_64-unknown-linux-gnu`:
+
+  - a dependency-free library left `target/debug` holding exactly
+    `build/`, `examples/`, `incremental/`, `.cargo-artifact-lock`,
+    `.cargo-build-lock` and `.cargo-lock` — no `.d` record and no
+    `.fingerprint` store anywhere beneath it;
+  - the same crate with one proc-macro dependency left real host units at
+    `target/debug/build/pm/06ae238569adf39b/out/pm-06ae238569adf39b.d`
+    and `target/debug/build/pm/06ae238569adf39b/fingerprint`.
+
+  So the host profile's contents are conditional on the dependency graph. A
+  blanket rule refused every target-selected preparation of a dependency-free
+  crate — a command that had just exited zero — and no test caught it because
+  every fixture in the suite has a host unit.
+
+  The fix lives in the structural layer, not in `profiles()`: that function
+  runs *before* the build and cannot know what the build will produce, so it
+  can name the directories but never vouch for their shape. A new
+  `artefacts/state.rs` reports what each directory holds — `Unvouched`,
+  `Present(layout)` or `Absent(reason)` — and `evicted()` now inspects every
+  directory into `states` first, computes `waive_empty = any_usable(&states)`,
+  and only then decides. The waiver is deliberately narrow:
+
+  - it applies only when the profile holds *neither* half of Cargo's
+    layout (`whole_empty_profile`), so a half-evicted tree still refuses;
+  - it applies only when another named profile in the same preparation
+    holds a usable tree, so a command that produced nothing at all still
+    refuses (`an_empty_profile_beside_no_populated_one_is_refused`);
+  - it applies only on the structural-only path. A stamp section naming
+    artefacts that are all gone still refuses, because an empty presence
+    list makes every recorded name missing without a second rule.
+
+  That third clause is the one a first design got wrong. I had `evicted()`
+  return early with `Ok(Vec::new())` when *any* profile was populated, which
+  would have skipped the exact layer entirely and accepted a genuinely evicted
+  recorded profile. Threading a `waive_empty: bool` into `eviction_of` puts the
+  waiver where it belongs and leaves the stamp's own verdict alone.
+
+  `unusable_reason()` also had to split, because it conflated two refusals with
+  different answers: `absence_reason()` (unvouched or absent — always refuses,
+  however healthy a sibling is) and `empty_layout_reason()` (waivable).
+  Replacing an exact message with a waivable one would have lost the "the stamp
+  records no artefacts for this profile" diagnosis.
+
+  Regressions, nine in `artefacts/state/tests.rs`. The headline one,
+  `a_target_selected_preparation_with_an_empty_host_profile_is_admitted`, is
+  the measured shape above: it asserts the stamp records an empty section for
+  the host profile and a populated one for the selected profile, and that
+  `evicted(&preparation, None)` is empty. Beside it:
+  `a_sole_empty_profile_is_refused` (so `mkdir -p <root>/debug` is not a build),
+  `an_empty_profile_beside_no_populated_one_is_refused`,
+  `a_half_empty_profile_beside_a_populated_one_is_refused` (only `.fingerprint`
+  removed), and `a_host_profile_the_stamp_had_recorded_refuses_once_emptied` —
+  the case the waiver must not swallow, written so it first proves the fixture
+  is admitted and then empties the profile.
+
+  `no_profile_to_inspect` and `half_missing` were deleted from `artefacts.rs`;
+  their logic is what `state.rs` now reports. The existing contract
+  `preparation/tests/target_profile.rs` enforces — evicting only the target
+  profile must still invalidate the preparation, with "artefacts it vouched for
+  are gone" in the message — still passes.
+
+- [x] **The third finding's regression, and two defects that only the gate
+  found.** CodeRabbit's third finding (the symlinked specification file) had no
+  regression, so one was added:
+  `profiles::tests::a_symlinked_specification_file_names_the_resolved_stem`
+  builds `real/actual.json`, links `alias.json` to it, selects
+  `CARGO_BUILD_TARGET=alias.json` and asserts the named profile is
+  `target/actual/debug`. The value is relative and the link exists only beside
+  the working directory, so the case states both halves of the rule — resolve
+  against the child's directory, then take the resolved stem — in one assertion.
+
+  Two further defects surfaced while validating, and the gates are what
+  surfaced them:
+
+  - `profiles/tests.rs::profiles_for` still called `profiles` with two
+    arguments after the working-directory parameter was added. That was a
+    hard `E0061` breaking `make lint`, `make typecheck` and `make test`,
+    and it is the scrutineer's headline finding. Fixed by threading the
+    temporary directory through as the working directory.
+  - `stabilise` at this plan's line 2280, which `make spelling` rejects
+    under the en-GB-oxendict policy and which took `make markdownlint`
+    down with it through its `spelling` prerequisite.
+
+- [x] **A stable `cargo fmt --all` reformatted 340 unrelated files.** Worth
+  recording because it looked like a catastrophically wide change set and was
+  not. This repository pins the formatter —
+  `FMT_TOOLCHAIN ?= nightly-2026-08-07`, per ADR-016 — because `.rustfmt.toml`
+  enables unstable options (`imports_granularity`, `group_imports`,
+  `fn_single_line`, `wrap_comments` and more). Running bare `cargo fmt --all`
+  used the *stable* rustfmt, which warned that it could not set those options
+  and then rewrote the tree in stable's layout: 349 dirty files, of which all
+  but a handful were unrelated to this change. Re-running
+  `cargo +nightly-2026-08-07 fmt --all` restored the intended twelve modified
+  files plus the new `state` module exactly.
+
+  Lesson: use `make fmt` / `$(CARGO_FMT)`, never bare `cargo fmt`, and read a
+  suspiciously large `git status` as a toolchain question before reading it as
+  a diff. `cargo +nightly-2026-08-07 fmt --all -- --check` is clean on the
+  settled tree.
+
+  Verification on the settled tree:
+  `cargo clippy -p rstest-bdd-harness
+  --all-targets --all-features -- -D warnings`
+  exit 0; the `artefacts` module 66 passed; the `nested_cargo` module 200
+  passed (30.05 s); `cargo-bdd --test cli` 37 passed;
+  `rstest-bdd --test trybuild_macros` 51 passed;
+  `rstest-bdd --test feature_rebuild_invalidation` 34 passed. The coverage
+  regression was re-confirmed end to end: under
+  `RUSTFLAGS="-Cinstrument-coverage"` the preparation wrote 327 `.profraw`
+  profiles and a *second, separate* invocation still accepted the stamp
+  ("nested preparation: family=feature-rebuild-invalidation is prepared"). All
+  profiles were then removed. Line budget: `preparation.rs` 393, `artefacts.rs`
+  375, `state/tests.rs` 285, `profiles/tests.rs` 235, `profiles.rs` 183,
+  `state.rs` 114.
+- [x] **A mid-gate edit is indistinguishable from a real stamp defect.**
+  `make test` failed at 2331/2461 with `cargo-bdd::cli list_steps_runs`
+  refusing the `cargo-bdd-cli` stamp, and the message carried **no** evicted
+  artefact list — which by `missing_stamp_message`'s own rule proves the
+  *fingerprint* disagreed. The stamp existed (written 16:00:24) and the
+  preparation test immediately before it had passed in 21.6 s, so nothing was
+  missing.
+
+  The cause was this session's own edit to `input_hash/config.rs`, saved at
+  16:00:18 — while the preparation was already running. `family_roots` hashes
+  the whole `crates/` tree as one root (see
+  `crates/cargo-bdd/tests/cli/preparation.rs`), so the preparation had computed
+  its input hash from the pre-edit tree and written a stamp that no later run
+  could match. `find -newer` against the stamp then found no input changed
+  *after* it, which only ruled out the other direction and briefly looked like
+  a contradiction.
+
+  Diagnosis, not inference: a throwaway probe crate outside the worktree
+  recomputed `input_hash` over the real roots and got `e0f37246a728354e`
+  against the stamp's `34911382e366b99f`; instead of guessing further, a
+  temporary `eprintln!` inside `is_build_output` was used to confirm the walk
+  was skipping exactly `target`/`wip` and nothing else. Both were reverted. The
+  lesson is the one already recorded for commits: **a gate verdict is only
+  meaningful for a quiesced tree**, and a stamp makes that literal — the
+  preparation and its consumers must see the same bytes, so an edit during a
+  run poisons the result for every test after it.
+- [x] **`MD046` came from 6-space continuations; the fix is indentation.**
+  `make markdownlint` reported three `MD046/code-block-style` errors on a file
+  that lints clean at `HEAD`. `MD046`'s `consistent` mode latches onto the
+  file's *first* code block, and the added Progress entry put a continuation
+  line at 6 spaces after a blank line inside a two-space-marker list item. That
+  is exactly content-indent plus four, so CommonMark parses it as an
+  **indented** code block; the three pre-existing fenced blocks then became
+  inconsistent. The fix was to re-indent the added hunk's continuations to the
+  document's dominant 2-space style and nest its sub-lists at the 2-space indent
+  `MD007` wants. Verified with the gate's own binary:
+  `/home/leynos/.bun/bin/markdownlint-cli2` reports `Summary: 0 error(s)`.
+
 ## Surprises & Discoveries
 
 - **A green lint run is a temporary observation, not a property of the tree.**

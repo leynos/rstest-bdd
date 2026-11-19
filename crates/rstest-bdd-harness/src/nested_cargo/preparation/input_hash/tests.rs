@@ -80,6 +80,46 @@ fn build_output_is_skipped_in_every_position() {
     );
 }
 
+/// A coverage profile written beside the inputs does not change the hash.
+///
+/// `-Cinstrument-coverage` makes a test binary drop a
+/// `<name>_<hash>_<pid>.profraw` in the directory it ran in, so a preparation
+/// that hashed one of these invalidates its own stamp the moment an
+/// instrumented test runs — the failure hosted coverage saw on every lane. The
+/// name carries a process id rather than overwriting, so the second half of
+/// this case adds a *second* profile under a different id: a fix that only
+/// ignored one fixed name, or that matched the `default_` prefix, would still
+/// be refused by the run after it, and this asserts the exact property the
+/// gate needs — that no number of profiles changes the answer.
+#[test]
+fn coverage_profiles_are_skipped() {
+    let directory = tempfile::tempdir().expect("temp dir");
+    let input = directory.path().join("feature");
+    fs::write(&input, b"Feature: one").expect("input file");
+    let entries = vec![input];
+
+    let mut before = DefaultHasher::new();
+    hash_sorted(entries.clone(), &mut before, &mut Vec::new()).expect("without a profile");
+    let before = before.finish();
+
+    for profile in [
+        "default_11337809912131070545_0_283041.profraw",
+        "default_11337809912131070545_0_284350.profraw",
+    ] {
+        fs::write(directory.path().join(profile), b"profile").expect("profile");
+    }
+
+    let mut after = DefaultHasher::new();
+    hash_sorted(entries, &mut after, &mut Vec::new()).expect("with profiles");
+
+    assert_eq!(
+        before,
+        after.finish(),
+        "a coverage profile is runtime output, not a fixture input; hashing it makes a stamp \
+         stale by the very instrumented run that reads it"
+    );
+}
+
 /// The same names nested differently are different inputs.
 ///
 /// `src/{lib.rs, tests/check.rs}` and `{src/{lib.rs, tests/check.rs}}` hold

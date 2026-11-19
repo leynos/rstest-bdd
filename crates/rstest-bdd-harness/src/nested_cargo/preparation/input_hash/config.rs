@@ -259,11 +259,23 @@ mod tests {
     use super::{cargo_config_inputs_with, search_root};
 
     /// A checkout holding a `.cargo` directory, and a directory in it.
+    ///
+    /// The paths are derived from the checkout's *resolved* form rather than
+    /// from the raw temporary directory. [`search_root`] canonicalizes, so the
+    /// probe reports every entry through that resolved form; on Windows that
+    /// carries the `\\?\` verbatim prefix, and no path built from the raw
+    /// spelling equals it. The cases below compare the probe's output against
+    /// these paths, so deriving them lexically made every Windows assertion
+    /// fail against a correct implementation.
+    ///
+    /// The temporary directory is returned so it outlives the case; the paths
+    /// beside it are the resolved ones the assertions must use.
     fn checkout_with_nested_directory() -> (tempfile::TempDir, PathBuf, PathBuf, PathBuf) {
         let checkout = tempfile::tempdir().expect("checkout");
-        let nested = checkout.path().join("scratch/fixture");
+        let root = std::fs::canonicalize(checkout.path()).expect("resolved checkout");
+        let nested = root.join("scratch/fixture");
         std::fs::create_dir_all(&nested).expect("nested directory");
-        let cargo_dir = checkout.path().join(".cargo");
+        let cargo_dir = root.join(".cargo");
         std::fs::create_dir(&cargo_dir).expect("cargo dir");
         let config = cargo_dir.join("config.toml");
         std::fs::write(&config, "[build]\nrustflags = [\"-Copt-level=1\"]\n").expect("config");
@@ -291,13 +303,22 @@ mod tests {
         // could reach the fingerprint, and a stamp written from that result
         // survived an edit the nested build would notice.
         //
-        // The relative value here names a real directory beneath this
-        // process's own tree, so the case needs no current-directory change of
-        // the kind the parallel suite must not make. What it pins is the rule:
-        // whatever the process directory is, the walk starts from an absolute
-        // path, and only an absolute ancestry can climb into the checkout.
-        let relative = PathBuf::from("crates/rstest-bdd-harness/src");
+        // What this pins is the rule on its own: a relative root is joined to
+        // the process directory so the walk has an absolute ancestry to climb.
+        // The subtree here deliberately does *not* exist, which is both the
+        // state the rule exists for — the preparation creates the tree it
+        // stamps — and the only state this case can assert portably. A name
+        // that resolved would compare a canonicalized path against a lexically
+        // joined one, and those spellings differ on Windows, where resolution
+        // yields the `\\?\` verbatim prefix. Resolved spellings are covered by
+        // `checkout_with_nested_directory`, which canonicalizes before deriving
+        // every expected path for exactly that reason.
+        let relative = PathBuf::from("a-directory-this-case-does-not-create");
         assert!(relative.is_relative(), "the case needs a relative root");
+        assert!(
+            !relative.exists(),
+            "the case must exercise the fallback, not resolution"
+        );
 
         let rooted = search_root(&relative);
         assert!(
@@ -309,7 +330,7 @@ mod tests {
             std::env::current_dir()
                 .expect("a process directory")
                 .join(&relative),
-            "the resolved root is the absolute spelling of the same directory"
+            "the fallback root is the absolute spelling of the same relative root"
         );
     }
 

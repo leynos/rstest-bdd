@@ -269,9 +269,13 @@ impl Preparation {
         directories: Directories,
         environment: NestedCargoEnv,
     ) -> io::Result<Self> {
+        // The working directory is passed on because Cargo resolves a
+        // path-valued `--target` against it before naming the profile: the
+        // nested builds run in `directories.working`, not in this process's
+        // directory, so a relative specification file names a profile there.
         let artefacts = environment
             .target_directory()?
-            .map(|target| profiles::profiles(&target, &environment))
+            .map(|target| profiles::profiles(&target, &environment, &directories.working))
             .unwrap_or_default();
         Ok(Self {
             family: sources.family,

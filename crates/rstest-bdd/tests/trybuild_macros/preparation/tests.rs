@@ -27,19 +27,28 @@ fn the_workspace_cargo_configuration_is_an_input() {
     // tree, isolates the configuration's contribution: every other input is
     // identical between the two hashes.
     let roots = input_roots().expect("input roots");
-    let workspace_config = super::workspace_root()
-        .join(".cargo/config.toml")
-        .into_std_path_buf();
+    // `workspace_root` resolves and `cargo_config_inputs` reports through that
+    // resolved form, so the configuration arrives as `.cargo/config.toml`
+    // beneath the same resolved root rather than as this lexical join. Asking
+    // by containment states the question the case means — is this file among
+    // the inputs — and holds whichever form the probe happens to use, which is
+    // what the plain equality here missed on the Windows lane: the probe
+    // reported a `\\?\` verbatim path that no plainly spelled entry equals.
+    let cargo_dir = super::workspace_root().join(".cargo").into_std_path_buf();
+    let is_configuration = |root: &std::path::PathBuf| root.starts_with(&cargo_dir);
     assert!(
-        roots.contains(&workspace_config),
-        "expected {} among the preparation inputs: {roots:?}",
-        workspace_config.display()
+        roots.iter().any(is_configuration),
+        "expected the workspace Cargo configuration beneath {} among the preparation inputs: \
+         {roots:?}",
+        cargo_dir.display()
     );
 
     let with = nested_cargo::input_hash(&roots).expect("hash with configuration");
+    // Cut down by the same predicate the assertion above reads with, so the two
+    // sides differ in exactly the configuration and in nothing else.
     let without: Vec<std::path::PathBuf> = roots
         .into_iter()
-        .filter(|root| root != &workspace_config)
+        .filter(|root| !is_configuration(root))
         .collect();
     let without = nested_cargo::input_hash(&without).expect("hash without configuration");
     assert_ne!(

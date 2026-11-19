@@ -82,14 +82,34 @@ const TRYBUILD_PROBE: &str = "step_macros.rs";
 const TRYBUILD_CHECK_PROBE: &str = "scenario_missing_path.rs";
 
 /// The workspace root, two levels above this crate's manifest directory.
+///
+/// Resolved once here rather than at each comparison.
+/// [`nested_cargo::cargo_config_inputs`] canonicalizes the root it is given and
+/// reports the workspace configuration through that resolved form, so a caller
+/// holding the lexical spelling beside a reported entry would be comparing two
+/// spellings of a single directory. On Windows the difference is visible:
+/// resolution returns the `\\?\` verbatim prefix, which no plain-spelled prefix
+/// — and no plainly spelled path, for `contains` — can match. Resolving at the
+/// definition means every caller compares in one form and none has to remember
+/// to.
+///
+/// Kept a [`Utf8PathBuf`] because [`staging::trybuild_target_directory`] and
+/// [`input_roots`] both take or produce camino paths; the resolution happens
+/// through `std` and is converted back.
 fn workspace_root() -> Utf8PathBuf {
-    Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
+    let lexical = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Utf8Path::parent)
         .map_or_else(
             || panic!("workspace root must be two levels above the manifest directory"),
             Utf8Path::to_owned,
-        )
+        );
+    // A root that cannot be resolved is left lexical: the manifests this root
+    // locates report that absence themselves, with the path they tried.
+    let resolved = std::fs::canonicalize(lexical.as_std_path())
+        .ok()
+        .and_then(|path| Utf8PathBuf::from_path_buf(path).ok());
+    resolved.unwrap_or(lexical)
 }
 
 /// The Cargo target directory this binary's nested builds use.

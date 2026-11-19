@@ -40,7 +40,11 @@ fn profiles_for(
         vars.push(("CARGO_BUILD_TARGET".into(), selection.into()));
     }
     let environment = env_from_vars(vars, Some(&target), ProfileDestination::Caller)?;
-    let named = profiles(&target, &environment);
+    // The temporary directory stands in for the directory the nested command
+    // runs in. It is a real, existing directory, which matters for the one case
+    // whose selection is a path: resolution is what names that profile.
+    let working_directory = directory.path().to_path_buf();
+    let named = profiles(&target, &environment, &working_directory);
     Ok((directory, target, named))
 }
 
@@ -92,6 +96,49 @@ fn a_specification_file_selection_names_its_stem() -> std::io::Result<()> {
             target.join("my-spec").join(DEFAULT_PROFILE),
         ],
         "a specification file names its profile by its stem"
+    );
+    Ok(())
+}
+
+/// A specification file named by a symlink is named after what it resolves to.
+///
+/// `CompileTarget::new` canonicalizes a path-valued `--target` and derives
+/// `short_name` from the *resolved* file, so the profile Cargo writes is named
+/// `actual`, not `alias`. Taking the stem of the value as written named a
+/// directory Cargo never writes, and the gate then refused a target the
+/// preparation had just built successfully.
+///
+/// The link is resolved relative to the directory the nested command runs in,
+/// which is not this process's directory: the value here is relative and the
+/// link exists only beside the working directory, so a resolution that started
+/// anywhere else would fall back to `alias` and fail. Both halves of the rule
+/// are therefore stated by this one case.
+#[cfg(unix)]
+#[test]
+fn a_symlinked_specification_file_names_the_resolved_stem() -> std::io::Result<()> {
+    let directory = tempfile::tempdir()?;
+    let target = directory.path().join("target");
+    let real = directory.path().join("real");
+    std::fs::create_dir_all(&real)?;
+    std::fs::write(real.join("actual.json"), b"{}")?;
+    std::os::unix::fs::symlink(
+        real.join("actual.json"),
+        directory.path().join("alias.json"),
+    )?;
+
+    let environment = env_from_vars(
+        vec![("CARGO_BUILD_TARGET".into(), "alias.json".into())],
+        Some(&target),
+        ProfileDestination::Caller,
+    )?;
+    let artefacts = profiles(&target, &environment, directory.path());
+    assert_eq!(
+        artefacts,
+        vec![
+            target.join(DEFAULT_PROFILE),
+            target.join("actual").join(DEFAULT_PROFILE),
+        ],
+        "the profile is named after the resolved file, as Cargo names it"
     );
     Ok(())
 }

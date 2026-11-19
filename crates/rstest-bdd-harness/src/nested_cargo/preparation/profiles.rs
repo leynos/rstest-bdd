@@ -19,7 +19,8 @@
 //! of the tree.
 
 use std::{
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -61,7 +62,11 @@ use super::{DEFAULT_PROFILE, NestedCargoEnv};
 /// complete profile list from somewhere other than this constructor. The
 /// environment route is the one a CI job sets, and is the case reported against
 /// this suite.
-pub(super) fn profiles(target: &Path, environment: &NestedCargoEnv) -> Vec<PathBuf> {
+pub(super) fn profiles(
+    target: &Path,
+    environment: &NestedCargoEnv,
+    working_directory: &Path,
+) -> Vec<PathBuf> {
     let host = target.join(DEFAULT_PROFILE);
     let Some(selection) = target_selection(environment) else {
         return vec![host];
@@ -70,7 +75,7 @@ pub(super) fn profiles(target: &Path, environment: &NestedCargoEnv) -> Vec<PathB
     // carries no usable last component cannot name a profile, so the host
     // profile alone is named and the preparation fails on the missing
     // directory rather than on a guessed one.
-    match profile_name(&selection) {
+    match profile_name(&selection, working_directory) {
         Some(name) => vec![host, target.join(name).join(DEFAULT_PROFILE)],
         None => vec![host],
     }
@@ -91,10 +96,27 @@ pub(super) fn profiles(target: &Path, environment: &NestedCargoEnv) -> Vec<PathB
 /// kept in full, including a triple whose last component happens to look like
 /// an extension.
 ///
+/// A specification file is resolved before its stem is taken, because Cargo
+/// does the same and the stem it uses is the *resolved* file's. `CompileTarget`
+/// canonicalizes a `.json` name in `new` and derives `short_name` from the
+/// result, so a symlink `alias.json` pointing at `actual.json` names the
+/// profile `actual`, not `alias`. Taking the stem of the value as written
+/// named a directory Cargo never writes, and the preparation then rejected a
+/// target it had just built successfully. A relative value is resolved against
+/// `working_directory`, which is the directory the nested command runs in;
+/// resolving against this process's directory would name the wrong tree for the
+/// same reason the target directory itself is resolved against the child's.
+///
+/// A selection that does not resolve is named by its own stem rather than
+/// refused: `CompileTarget::new` fails the whole build in that case, so there
+/// is no successfully built target whose profile this could misname, and a
+/// `None` here would name the host profile alone and hide the real failure
+/// behind a missing-directory refusal.
+///
 /// A selection with no usable final component — `.`, `..`, `/` — cannot name a
 /// directory, and yields `None` so the caller vouches for the host profile
 /// alone rather than for an unrelated tree.
-fn profile_name(selection: &Path) -> Option<&OsStr> {
+fn profile_name(selection: &Path, working_directory: &Path) -> Option<OsString> {
     let name = selection.file_name()?;
     if name.is_empty() {
         return None;
@@ -103,16 +125,33 @@ fn profile_name(selection: &Path) -> Option<&OsStr> {
         .extension()
         .is_some_and(|extension| extension == "json")
     {
-        return non_empty(selection.file_stem());
+        return non_empty(resolved_stem(selection, working_directory));
     }
-    Some(name)
+    Some(name.to_os_string())
+}
+
+/// The stem of `selection` after resolving it as Cargo does.
+///
+/// Resolved against `working_directory` when the value is relative, because
+/// that is the directory the nested command runs in and therefore what Cargo
+/// passes to `try_canonicalize`. An unresolvable path falls back to its own
+/// stem; see [`profile_name`] for why that is the safe direction.
+fn resolved_stem(selection: &Path, working_directory: &Path) -> Option<OsString> {
+    let resolved = fs::canonicalize(working_directory.join(selection))
+        .or_else(|_| fs::canonicalize(selection))
+        .ok();
+    resolved
+        .as_deref()
+        .unwrap_or(selection)
+        .file_stem()
+        .map(OsStr::to_os_string)
 }
 
 /// `candidate`, or `None` when it is empty.
 ///
 /// A specification file named `.json` has an empty stem, which names no
 /// directory.
-fn non_empty(candidate: Option<&OsStr>) -> Option<&OsStr> {
+fn non_empty(candidate: Option<OsString>) -> Option<OsString> {
     candidate.filter(|value| !value.is_empty())
 }
 

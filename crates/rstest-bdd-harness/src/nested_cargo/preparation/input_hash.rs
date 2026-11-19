@@ -35,13 +35,35 @@ use super::stamp::{PREPARED_FILE_SUFFIX, STAMP_VERSION};
 /// what the fixture compiles.
 const BUILD_OUTPUT_ENTRIES: [&str; 3] = ["target", "wip", ".git"];
 
+/// Suffix of the profile files an instrumented test binary writes.
+///
+/// `-Cinstrument-coverage` makes every test binary drop a
+/// `<name>_<hash>_<pid>.profraw` beside the working directory it ran in, and
+/// the working directory here is the crate whose test just ran — inside the
+/// `crates` root this walk hashes. The name carries the process id, so each
+/// instrumented run writes a *new* file rather than overwriting one: the tree
+/// changes on every covered run without a source byte changing.
+///
+/// A coverage profile records what the test executed. It is runtime output,
+/// exactly like `target`, and nothing the fixture compiles reads it. Counting
+/// it made a stamp written by the preparation stale by the time its consumers
+/// ran under `cargo llvm-cov` — the preparation wrote the stamp, then the
+/// instrumented binaries it had just been asked about added profiles, and the
+/// gate refused the stamp with an empty evicted list, which is the signature
+/// of a fingerprint mismatch rather than missing artefacts. Hosted coverage
+/// runs hit this on all three lanes; a plain run never writes a profile at
+/// all, so it could not reproduce.
+const COVERAGE_PROFILE_SUFFIX: &str = ".profraw";
+
 /// Whether an entry name is build output rather than an input.
 ///
 /// The stamp files the preparation module writes are excluded too: they name
 /// the fingerprint computed from these inputs, so counting them would make
 /// every preparation invalidate the fingerprint that describes it.
 fn is_build_output(name: &str) -> bool {
-    BUILD_OUTPUT_ENTRIES.contains(&name) || name.ends_with(PREPARED_FILE_SUFFIX)
+    BUILD_OUTPUT_ENTRIES.contains(&name)
+        || name.ends_with(PREPARED_FILE_SUFFIX)
+        || name.ends_with(COVERAGE_PROFILE_SUFFIX)
 }
 
 /// Marker hashed where a link re-enters a directory already on the walk.
@@ -72,8 +94,9 @@ const DIRECTORY_END: &str = "directory-end";
 /// bytes. A symbolic link contributes its own name and, through the link, the
 /// contents of its target, because that is what Cargo reads. Directory entries
 /// named `target`, `.git` or `wip` are skipped, as are the stamp files the
-/// preparation module writes, so a nested build never invalidates the
-/// fingerprint that describes it.
+/// preparation module writes and the `.profraw` profiles an instrumented test
+/// binary leaves behind, so a nested build never invalidates the fingerprint
+/// that describes it.
 ///
 /// Each entry contributes what kind of entry it is, and each directory
 /// contributes `DIRECTORY_END` after its last entry, so the walk records the
