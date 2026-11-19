@@ -301,23 +301,45 @@ fn is_output_of(name: &str, stem: &str) -> bool {
 /// The outputs a directory's dep-info records describe.
 ///
 /// These are the units Cargo will recompile if their outputs go missing, so they
-/// are exactly the names a preparation must be able to vouch for. The list is
-/// one directory listing, reused for every record: a real unit directory holds
-/// thousands of entries and this runs once per preparation.
+/// are exactly the names a preparation must be able to vouch for.
+///
+/// The directory is listed once and the pairing is driven from the records
+/// rather than by rescanning: one entry can only ever be an output of the one
+/// stem it is named for, so everything a record can match shares that record's
+/// prefix. A real unit directory holds thousands of entries and this runs once
+/// per preparation, so the walk is over prefixes of the sorted listing instead
+/// of over the whole listing once per record.
 ///
 /// # Errors
 ///
 /// Returns the read error when the directory cannot be listed.
 pub(super) fn outputs_in(directory: &Path) -> io::Result<Vec<String>> {
     let present = entries_of(directory)?;
+    // The listing is sorted once, and every lookup below is a slice of it.
+    // `entries_of` returns names in directory order, so sorting here is what
+    // makes the prefix range meaningful.
+    let mut sorted: Vec<&str> = present.iter().map(String::as_str).collect();
+    sorted.sort_unstable();
+
     let mut outputs: BTreeSet<String> = BTreeSet::new();
-    for stem in present.iter().filter_map(|name| dep_info_stem(name)) {
-        outputs.extend(
-            present
-                .iter()
-                .filter(|name| is_output_of(name, stem))
-                .cloned(),
-        );
+    for stem in sorted.iter().filter_map(|name| dep_info_stem(name)) {
+        // Every output of `stem` begins with either `stem` or `lib<stem>`,
+        // which `is_output_of` then confirms. Those two ranges are disjoint
+        // from each other and each visits only entries that could match.
+        for prefix in [stem.to_owned(), format!("lib{stem}")] {
+            let first = sorted.partition_point(|name| *name < prefix.as_str());
+            // `partition_point` answers in `0..=len`, so `first` is always a
+            // valid start; taking the suffix through `get` states that without
+            // an index some future edit could put out of range.
+            let Some(suffix) = sorted.get(first..) else {
+                continue;
+            };
+            for name in suffix.iter().take_while(|name| name.starts_with(&prefix)) {
+                if is_output_of(name, stem) {
+                    outputs.insert((*name).to_owned());
+                }
+            }
+        }
     }
     Ok(outputs.into_iter().collect())
 }

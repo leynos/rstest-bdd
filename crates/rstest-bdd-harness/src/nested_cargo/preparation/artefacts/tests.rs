@@ -102,6 +102,7 @@ fn preparation_for(
         Sources::new("unit", "v", "hash"),
         root.to_path_buf(),
         environment,
+        root.to_path_buf(),
     )
 }
 

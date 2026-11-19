@@ -32,6 +32,7 @@ from prepared_fixture_judgements import (
 from prepared_fixture_step import (
     BUILD_MARKER,
     REMEDY,
+    TIMED_SOURCE,
     build_report_path,
     read_build_reports,
 )
@@ -52,14 +53,17 @@ def a_result(
     return subprocess.CompletedProcess(["step"], returncode, stdout, stderr)
 
 
-def write_reports(target_dir: Path, *counts: int) -> None:
-    """Write one report line per entry in *counts*, in order.
+def write_reports(target_dir: Path, *reports: tuple[str, int]) -> None:
+    """Write one report line per ``(source, count)`` in *reports*, in order.
 
-    The real producer appends, so a workflow's file holds one line per step.
-    Writing them in one call keeps each case's fixture legible while preserving
-    that shape.
+    The real producer appends, so a workflow's file holds one line per step,
+    each naming the producer that filed it. Writing them in one call keeps each
+    case's fixture legible while preserving that shape.
     """
-    lines = [f"{BUILD_MARKER} compiling={count}\n" for count in counts]
+    lines = [
+        f"{BUILD_MARKER} source={source} compiling={count}\n"
+        for source, count in reports
+    ]
     build_report_path(target_dir).write_text("".join(lines), encoding="utf-8")
 
 
@@ -94,7 +98,7 @@ def test_a_refusal_without_the_remedy_is_rejected() -> None:
 
 def test_a_pass_reporting_zero_compiles_is_accepted(tmp_path: Path) -> None:
     """A pass whose report says nothing compiled is the expected reuse."""
-    write_reports(tmp_path, 0)
+    write_reports(tmp_path, ("timed", 0))
     expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
 
 
@@ -103,7 +107,7 @@ def test_a_pass_reporting_a_compile_is_rejected(tmp_path: Path) -> None:
 
     Without this case the predicate could satisfy itself by never failing.
     """
-    write_reports(tmp_path, 0, 7)
+    write_reports(tmp_path, ("preparation", 0), ("timed", 7))
     with pytest.raises(StepFailureError, match="not reused"):
         expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=1)
 
@@ -118,15 +122,29 @@ def test_a_timed_command_that_compiled_is_rejected_despite_the_gates_zero(
     reported reuse while the command was free to rebuild, so a zero from the
     gate followed by a compile from the timed command must still fail.
     """
-    write_reports(tmp_path, 0, 3)
+    write_reports(tmp_path, ("gate", 0), ("timed", 3))
     with pytest.raises(StepFailureError, match="not reused"):
         expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
 
 
 def test_both_counts_being_zero_is_the_accepted_reuse_shape(tmp_path: Path) -> None:
     """The positive control for the pair: gate zero and timed zero together."""
-    write_reports(tmp_path, 0, 0)
+    write_reports(tmp_path, ("gate", 0), ("timed", 0))
     expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
+
+
+def test_a_gate_zero_with_no_timed_report_is_rejected(tmp_path: Path) -> None:
+    """The gate's zero is not evidence about the timed command.
+
+    This is the shape an earlier version of this check accepted: the gate files
+    its zero before the test body runs, so a run that stopped, panicked or
+    never reached ``cargo bdd steps`` leaves exactly that line and nothing
+    else. Reading it as reuse makes the check about the gate rather than about
+    the command it claims to judge.
+    """
+    write_reports(tmp_path, ("gate", 0))
+    with pytest.raises(StepFailureError, match="no nested build from the timed"):
+        expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
 
 
 def test_a_pass_with_no_report_is_rejected(tmp_path: Path) -> None:
@@ -142,7 +160,7 @@ def test_a_pass_with_no_report_is_rejected(tmp_path: Path) -> None:
 
 def test_a_failed_run_is_rejected_before_the_report_is_read(tmp_path: Path) -> None:
     """A non-zero status is reported as such, not as a build problem."""
-    write_reports(tmp_path, 0)
+    write_reports(tmp_path, ("timed", 0))
     with pytest.raises(StepFailureError, match="does not admit the test"):
         expect_pass_without_rebuild(
             a_result(returncode=100), target_dir=tmp_path, previous_counts=0
@@ -155,7 +173,9 @@ def test_a_report_line_this_reader_cannot_parse_is_a_failure(tmp_path: Path) -> 
     The unmarked line stands for any format the reader no longer understands;
     it has to fail rather than leave the check vacuously satisfied.
     """
-    build_report_path(tmp_path).write_text("compiling=0\n", encoding="utf-8")
+    build_report_path(tmp_path).write_text(
+        f"{BUILD_MARKER} compiling=0\n", encoding="utf-8"
+    )
     with pytest.raises(StepFailureError, match="left no nested-build report"):
         expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
 
@@ -170,7 +190,7 @@ def test_an_earlier_steps_compile_does_not_fail_this_steps_reuse(
     Judging the whole file would fail step 3 for the preparation it depends on;
     only the lines added since the snapshot belong to the run under test.
     """
-    write_reports(tmp_path, 51, 0)
+    write_reports(tmp_path, ("preparation", 51), ("timed", 0))
     expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=1)
 
 
@@ -205,21 +225,28 @@ def test_a_failure_that_does_not_name_the_remedy_is_not_the_stamp() -> None:
 
 def test_counts_are_returned_in_the_order_they_were_written(tmp_path: Path) -> None:
     """Order carries which step paid for a build, so it must be preserved."""
-    write_reports(tmp_path, 12, 0, 3)
-    counts = read_build_reports(tmp_path)
-    assert counts == [12, 0, 3], f"counts were reordered or lost: {counts}"
+    write_reports(tmp_path, ("preparation", 12), ("gate", 0), ("timed", 3))
+    reports = read_build_reports(tmp_path)
+    assert [(r.source, r.compiling) for r in reports] == [
+        ("preparation", 12),
+        ("gate", 0),
+        ("timed", 3),
+    ], f"reports were reordered or lost: {reports}"
 
 
 def test_an_absent_file_reads_as_no_reports(tmp_path: Path) -> None:
     """An unwritten report is no reports, not an empty success."""
-    counts = read_build_reports(tmp_path)
-    assert not counts, f"an absent report yielded counts: {counts}"
+    reports = read_build_reports(tmp_path)
+    assert not reports, f"an absent report yielded reports: {reports}"
 
 
 def test_unrelated_lines_are_ignored(tmp_path: Path) -> None:
     """A partially written or hand-inspected file must not confuse the reader."""
     build_report_path(tmp_path).write_text(
-        f"noise\n{BUILD_MARKER} compiling=2\ntrailing\n", encoding="utf-8"
+        f"noise\n{BUILD_MARKER} source={TIMED_SOURCE} compiling=2\ntrailing\n",
+        encoding="utf-8",
     )
-    counts = read_build_reports(tmp_path)
-    assert counts == [2], f"unrelated lines changed the reading: {counts}"
+    reports = read_build_reports(tmp_path)
+    assert [(r.source, r.compiling) for r in reports] == [(TIMED_SOURCE, 2)], (
+        f"unrelated lines changed the reading: {reports}"
+    )

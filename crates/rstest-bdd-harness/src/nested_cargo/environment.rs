@@ -257,12 +257,22 @@ fn redirect_profile_file(vars: &mut Vec<(OsString, OsString)>, destination: Prof
 /// An already-absolute path is returned unchanged. A relative one is joined to
 /// the working directory, and the lookup is the only step that can fail.
 ///
+/// A Windows *drive-relative* value — `C:cache`, which carries a prefix but no
+/// root — is not absolute, and `join` does not repair it: joining replaces the
+/// base entirely when the argument has its own prefix, so the result would be
+/// the same relative `C:cache` this function promises never to return. On a
+/// host that has more than one drive such a value would then mean one
+/// directory to the test and another to the child. It is resolved here by
+/// reconstructing it from the drive's root, which is what Cargo's own working
+/// directory would have to be for the value to be meaningful at all.
+///
 /// # Errors
 ///
-/// Returns the error from reading the current directory. Returning the
-/// relative path instead would hand the child a value that names the fixture
-/// directory rather than the caller's, which is the silent misresolution this
-/// helper exists to prevent.
+/// Returns the error from reading the current directory, and the refusal for a
+/// prefix-relative path that names no drive root. Returning the relative path
+/// instead would hand the child a value that names the fixture directory rather
+/// than the caller's, which is the silent misresolution this helper exists to
+/// prevent.
 pub fn absolute_target_directory(value: &OsStr) -> io::Result<PathBuf> {
     absolute_target_directory_with(value, env::current_dir)
 }
@@ -281,6 +291,9 @@ where
     if path.is_absolute() {
         return Ok(path.to_path_buf());
     }
+    if let Some(relative_to_drive) = drive_relative(path) {
+        return Ok(relative_to_drive);
+    }
     lookup().map(|cwd| cwd.join(path)).map_err(|error| {
         io::Error::new(
             error.kind(),
@@ -294,6 +307,40 @@ where
     })
 }
 
+/// Resolve a Windows path that names a drive without naming a root.
+///
+/// `C:cache` has a prefix and no root, so [`Path::is_absolute`] is false and
+/// [`Path::join`] would return it unchanged. Rebuilding it as `C:\cache` is the
+/// only reading under which it names one directory rather than one per drive
+/// current directory, and Cargo's own resolution has no drive current directory
+/// to consult.
+///
+/// Returns `None` on every path the current platform does not classify as
+/// prefix-relative, which is every path on Unix and every rooted or plainly
+/// relative path on Windows. That keeps the platform-specific shape out of
+/// [`absolute_target_directory_with`] without a `cfg` split.
+fn drive_relative(path: &Path) -> Option<PathBuf> {
+    use std::path::Component;
+
+    let mut components = path.components();
+    let Component::Prefix(prefix) = components.next()? else {
+        return None;
+    };
+    if path.is_absolute() {
+        return None;
+    }
+    // `Prefix`'s own spelling for a drive includes a trailing colon but no
+    // separator, so the root has to be added before the rest.
+    // Assembled as an `OsString` rather than through `PathBuf::push`: `push`
+    // replaces the whole path when its argument looks rooted, which a lone
+    // separator may on some platforms, and that would discard the drive.
+    let mut rooted = prefix.as_os_str().to_os_string();
+    rooted.push(std::path::MAIN_SEPARATOR_STR);
+    let mut rooted = PathBuf::from(rooted);
+    rooted.extend(components);
+    Some(rooted)
+}
+
 /// Describe the filtered environment for inclusion in failure messages.
 #[must_use]
 pub fn describe_env(env: &NestedCargoEnv) -> String {
@@ -305,85 +352,5 @@ pub fn describe_env(env: &NestedCargoEnv) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    //! The target-directory resolution's failure path.
-    //!
-    //! The success paths are covered where they are used, through
-    //! [`NestedCargoEnv`]; what cannot be reached from those is a working
-    //! directory that cannot be read. No portable fixture removes the
-    //! directory the test process is running in, so the lookup is injected.
-
-    use std::{ffi::OsStr, io, path::PathBuf};
-
-    use super::absolute_target_directory_with;
-
-    /// An absolute path in the form this target actually uses.
-    ///
-    /// A Unix literal is *not* absolute on Windows: `Path::is_absolute` needs a
-    /// prefix there, so `/abs/target` takes the relative branch and the test
-    /// asserted a fact about another platform. Naming the drive here keeps one
-    /// fixture that is genuinely absolute on both, rather than two cases that
-    /// would each only exercise one platform.
-    fn absolute_fixture() -> PathBuf {
-        if cfg!(windows) {
-            PathBuf::from(r"C:\abs\target")
-        } else {
-            PathBuf::from("/abs/target")
-        }
-    }
-
-    #[test]
-    fn an_absolute_value_never_consults_the_working_directory() {
-        // The lookup is not merely unused here, it must not be called: an
-        // absolute path is already resolved, and a process whose working
-        // directory has been deleted still names a perfectly good absolute
-        // target. Panicking in the lookup states that rather than asserting
-        // the result and hoping.
-        let absolute = absolute_fixture();
-        let resolved = absolute_target_directory_with(absolute.as_os_str(), || {
-            panic!("an absolute target directory must not consult the working directory")
-        })
-        .expect("an absolute path is resolved without any lookup");
-        assert_eq!(resolved, absolute);
-    }
-
-    #[test]
-    fn an_unreadable_working_directory_is_reported_rather_than_left_relative() {
-        // The regression: this used to fall back to the relative path, which
-        // then named one directory for this process and another for a child
-        // running in a fixture directory. The error must name the value and
-        // the cause, because the caller has no other way to learn that the
-        // working directory is what went wrong.
-        let error = absolute_target_directory_with(OsStr::new("relative-cache"), || {
-            Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "the working directory is gone",
-            ))
-        })
-        .expect_err("an unreadable working directory must not yield a path");
-
-        assert_eq!(
-            error.kind(),
-            io::ErrorKind::NotFound,
-            "the cause's kind must survive: {error}"
-        );
-        let message = error.to_string();
-        assert!(
-            message.contains("relative-cache"),
-            "the unresolved value must be named: {message}"
-        );
-        assert!(
-            message.contains("the working directory is gone"),
-            "the underlying cause must be named: {message}"
-        );
-    }
-
-    #[test]
-    fn a_relative_value_is_joined_to_the_read_working_directory() {
-        let resolved = absolute_target_directory_with(OsStr::new("relative-cache"), || {
-            Ok(PathBuf::from("/some/cwd"))
-        })
-        .expect("a readable working directory resolves a relative value");
-        assert_eq!(resolved, PathBuf::from("/some/cwd/relative-cache"));
-    }
-}
+#[path = "environment/tests.rs"]
+mod tests;

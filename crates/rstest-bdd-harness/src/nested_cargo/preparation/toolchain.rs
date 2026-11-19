@@ -66,11 +66,17 @@ pub(super) fn toolchain_identity(
     environment: &NestedCargoEnv,
     working_directory: &Path,
 ) -> io::Result<String> {
-    let cargo = probe(CARGO, Path::new(env!("CARGO")), environment)?;
+    let cargo = probe(
+        CARGO,
+        Path::new(env!("CARGO")),
+        environment,
+        working_directory,
+    )?;
     let compiler = probe(
         RUSTC,
         &compiler_program(environment, working_directory),
         environment,
+        working_directory,
     )?;
     Ok(compose_identity(&cargo, &compiler))
 }
@@ -104,12 +110,12 @@ fn compose_identity(cargo: &str, compiler: &str) -> String {
 ///
 /// A relative `RUSTC` override is resolved against `working_directory`, the
 /// directory the nested build runs in, because that is how Cargo resolves it.
-/// The probe itself runs in this process's directory, so passing the value
-/// through unchanged would have the probe identify one compiler while the
-/// build ran another — or fail to find the compiler at all when it exists only
-/// beneath the fixture. An absolute override and a bare name are used
-/// unchanged: the first needs no resolution, and the second is looked up
-/// through the child's `PATH` by the probe itself.
+/// [`probe`] spawns the compiler from that same directory, so the path handed
+/// back here and the process that resolves it agree: a compiler that exists
+/// only beneath the fixture is found, and a `rustup` shim picks the toolchain
+/// its directory's `rust-toolchain.toml` names rather than this crate's. An
+/// absolute override and a bare name are used unchanged: the first needs no
+/// resolution, and the second is looked up through the child's `PATH`.
 fn compiler_program(environment: &NestedCargoEnv, working_directory: &Path) -> PathBuf {
     if let Some(configured) = environment.get(RUSTC_KEY) {
         return resolve_compiler_path(configured, working_directory);
@@ -166,7 +172,7 @@ fn compiler_name() -> OsString {
     name
 }
 
-/// Run one `-vV` probe under `environment` and reduce it to its identity.
+/// Run one `-vV` probe under `environment`, from `working_directory`.
 ///
 /// The build-relevant variables are overlaid onto the inherited environment
 /// rather than replacing it. Overlaying is what makes the probe identify the
@@ -176,15 +182,34 @@ fn compiler_name() -> OsString {
 /// a host that installs through `rustup` would fail to identify a compiler the
 /// nested build runs perfectly well.
 ///
+/// The probe runs from `working_directory`, the directory the nested build
+/// runs in, for the same reason: Cargo resolves a relative `RUSTC` and a
+/// relative `CARGO_HOME` against the command's directory, and a plain
+/// `rustc` on `PATH` is usually a `rustup` shim that selects its toolchain
+/// from the `rust-toolchain.toml` it finds by walking up from there. A probe
+/// left in this process's directory would answer for a different toolchain
+/// than the build it is supposed to describe — and a shim with no toolchain
+/// file above the test binary's directory fails outright, taking every
+/// preparation with it.
+///
 /// The program is given as a path wherever it can be, so neither the parent's
 /// nor the child's filtered `PATH` has to find it.
 fn probe(
     program: &'static str,
     executable: &Path,
     environment: &NestedCargoEnv,
+    working_directory: &Path,
 ) -> io::Result<String> {
     let mut command = Command::new(executable);
     command.arg("-vV");
+    // A working directory that has not been created yet is not a reason to
+    // refuse the identity: the preparation creates the tree it stamps, so on
+    // the very first run the directory can be absent. Falling back to the
+    // inherited directory keeps the probe runnable, and the nested build that
+    // follows creates the tree and runs there.
+    if working_directory.is_dir() {
+        command.current_dir(working_directory);
+    }
     for (key, value) in environment.iter() {
         command.env(key, value);
     }

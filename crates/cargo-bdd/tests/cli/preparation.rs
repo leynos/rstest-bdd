@@ -149,10 +149,17 @@ fn cli_preparation_description(
     graph_query_timeout: Duration,
 ) -> Result<(nested_cargo::Preparation, nested_cargo::NestedCargoEnv)> {
     let (child_env, target_root, inputs) = cli_preparation()?;
+    let fixture = fixture_dir();
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", env!("CARGO_PKG_VERSION"), inputs),
         target_root,
         child_env.clone(),
+        // The fixture's own directory, because that is where every nested
+        // `cargo bdd steps` for this family runs. Cargo resolves a relative
+        // `CARGO_HOME` and a relative `RUSTC` against the command's directory,
+        // so recording the stamped target root instead would have the identity
+        // probe read a different tree than the build.
+        fixture,
     )?;
     preparation.owned_packages = closure::fixture_dependency_closure(graph_query_timeout)?;
     Ok((preparation, child_env))
@@ -249,32 +256,68 @@ fn witness_or_withdraw(preparation: &nested_cargo::Preparation) -> Result<()> {
     Err(eyre::eyre!("{error:#}\n{recovery}"))
 }
 
-/// Fail unless `preparation`'s profile holds the fixture's own test binaries.
+/// Fail unless `preparation`'s profiles hold the fixture's own test binaries.
 ///
 /// Shared by the timed gate and the named preparation test so the two cannot
 /// disagree about what "prepared" means: the predicate the preparation proves
 /// is the one the timed assertions require.
 ///
+/// Every profile the family names is searched, and any one holding both
+/// binaries satisfies the witness. The profile the fixture's units land in is
+/// not always the first: a build selected onto a target triple writes the
+/// fixture's units to `<target>/<triple>/debug` and only its build scripts and
+/// proc macros to `<target>/debug`, so a witness reading one named directory
+/// would refuse a preparation that left exactly the binaries it asks for. The
+/// family names both profiles rather than this deciding which one *should*
+/// hold them, because only Cargo knows where a given selection puts them.
+///
+/// The search stops at the first profile that holds them, and a profile that
+/// cannot be listed is remembered rather than raised immediately: in a
+/// `--target` build the host profile is named first and may be unreadable while
+/// the triple's profile holds exactly what the witness asks for. Failing on the
+/// host profile before looking at the second would refuse a prepared tree.
+///
 /// # Errors
 ///
-/// Returns an error naming the profile when a fixture binary is missing, and
-/// the listing error when the profile itself cannot be read.
+/// Returns the listing error when no profile could be read at all, and an error
+/// naming every profile searched when each one was readable and missing a
+/// fixture binary.
 fn require_fixture_binaries(preparation: &nested_cargo::Preparation) -> Result<()> {
-    let profile = preparation
-        .artefacts
-        .first()
-        .ok_or_else(|| eyre::eyre!("the CLI family must describe the profile its units land in"))?;
-    let present = fixture_binaries_present(profile)
-        .wrap_err_with(|| format!("listing the prepared profile {}", profile.display()))?;
-    if !present {
+    let profiles = &preparation.artefacts;
+    if profiles.is_empty() {
         return Err(eyre::eyre!(
-            "preparation must leave the fixture's own test binaries in {}; the timed CLI \
-             assertions read them, and a preparation that compiled nothing leaves the suite with \
-             nothing to inspect",
-            profile.display()
+            "the CLI family must describe the profile its units land in"
         ));
     }
-    Ok(())
+    let mut listing_error: Option<eyre::Error> = None;
+    for profile in profiles {
+        match fixture_binaries_present(profile) {
+            Ok(true) => return Ok(()),
+            Ok(false) => {}
+            Err(error) => {
+                let error = eyre::Report::new(error).wrap_err(format!(
+                    "listing the prepared profile {}",
+                    profile.display()
+                ));
+                if listing_error.is_none() {
+                    listing_error = Some(error);
+                }
+            }
+        }
+    }
+    if let Some(error) = listing_error {
+        return Err(error);
+    }
+    let searched: Vec<String> = profiles
+        .iter()
+        .map(|profile| profile.display().to_string())
+        .collect();
+    Err(eyre::eyre!(
+        "preparation must leave the fixture's own test binaries in one of {}; the timed CLI \
+         assertions read them, and a preparation that compiled nothing leaves the suite with \
+         nothing to inspect",
+        searched.join(", ")
+    ))
 }
 
 /// Prepare the CLI fixture's nested build before any timed assertion.

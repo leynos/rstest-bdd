@@ -7,9 +7,10 @@
 //! directory listing also accepts — one unit's records gone while every
 //! directory survives — `ownership` covers which of those evictions a family
 //! that shares a profile must still refuse, `inputs` covers the environment and
-//! input hashing that decide when a prepared directory is stale, and
-//! `cargo_config` covers Cargo's own configuration as one of those inputs. The
-//! fixtures they share live here.
+//! input hashing that decide when a prepared directory is stale,
+//! `cargo_config` covers Cargo's own configuration as one of those inputs, and
+//! `target_profile` covers an eviction from the second profile a `--target`
+//! build writes. The fixtures they share live here.
 
 mod cargo_config;
 mod compile_counting;
@@ -127,6 +128,7 @@ fn preparation(
         super::Sources::new("unit", variant, inputs),
         directory.to_path_buf(),
         environment.clone(),
+        directory.to_path_buf(),
     )
 }
 

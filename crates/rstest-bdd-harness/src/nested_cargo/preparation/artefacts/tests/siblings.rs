@@ -41,7 +41,8 @@ fn unit_stem(package: &str) -> String { format!("{}-{HASH}", package.replace('-'
 fn owning(root: &Path, target: &Path, packages: &[&str]) -> std::io::Result<Preparation> {
     let environment = env_from_vars(Vec::new(), Some(target), ProfileDestination::Caller)?;
     let sources = Sources::new("unit", "v", "hash");
-    let mut preparation = Preparation::new(sources, root.to_path_buf(), environment)?;
+    let mut preparation =
+        Preparation::new(sources, root.to_path_buf(), environment, root.to_path_buf())?;
     preparation.owned_packages = packages
         .iter()
         .map(|package| (*package).to_owned())

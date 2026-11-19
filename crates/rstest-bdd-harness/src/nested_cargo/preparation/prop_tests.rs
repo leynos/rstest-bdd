@@ -385,6 +385,7 @@ fn a_stamp_beside_the_inputs_does_not_change_the_hash() {
         super::Sources::new("unit", "v", "hash"),
         root.clone(),
         environment,
+        root.clone(),
     )
     .expect("the fixture preparation should describe its artefacts");
     let stamp = super::stamp::stamp_path(&preparation);

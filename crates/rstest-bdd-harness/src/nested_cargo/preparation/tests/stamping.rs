@@ -67,33 +67,36 @@ impl EntryPoint {
 /// Counting the runs here is what lets a case supply only the entry point it
 /// exists to cover — the lazy gate that decides by runner, or the explicit one
 /// a preparation target reaches — and not restate the loop.
-fn runs_over_two_calls(preparation: &Preparation, entry: EntryPoint) -> u32 {
+///
+/// The driver's own error is propagated rather than asserted away. It is the
+/// observation this case is made of: a gate that refused the stamp it had just
+/// written, or failed to write one, is exactly the defect, and a panic inside
+/// the helper would report it as a broken test rather than as that failure.
+fn runs_over_two_calls(preparation: &Preparation, entry: EntryPoint) -> std::io::Result<u32> {
     let mut runs = 0_u32;
     for _ in 0..2 {
-        entry
-            .call(preparation, || {
-                runs += 1;
-                Ok(PreparationSummary { compiled_units: 1 })
-            })
-            .expect("preparation should succeed");
+        entry.call(preparation, || {
+            runs += 1;
+            Ok(PreparationSummary { compiled_units: 1 })
+        })?;
     }
-    runs
+    Ok(runs)
 }
 
 #[rstest::rstest]
 #[case::lazy(EntryPoint::Lazy)]
 #[case::prepare_now(EntryPoint::PrepareNow)]
-fn a_warm_family_is_prepared_once(#[case] entry: EntryPoint) {
-    let (_directory, preparation, _environment) =
-        scratch_preparation().expect("the scratch preparation fixture");
+fn a_warm_family_is_prepared_once(#[case] entry: EntryPoint) -> std::io::Result<()> {
+    let (_directory, preparation, _environment) = scratch_preparation()?;
 
     assert_eq!(
-        runs_over_two_calls(&preparation, entry),
+        runs_over_two_calls(&preparation, entry)?,
         1,
         "{} should see the stamp on its second call",
         entry.name()
     );
     assert!(stamp_path(&preparation).is_file());
+    Ok(())
 }
 
 #[test]
@@ -257,9 +260,14 @@ fn for_fixture_vouches_for_the_whole_target_directory_it_owns() {
     // would leave the stamp matching while the timed assertion paid for the
     // rebuild.
     let directory = tempfile::tempdir().expect("fixture dir");
-    let preparation =
-        Preparation::for_fixture("unit-fixture", directory.path().to_path_buf(), "v", "hash")
-            .expect("the fixture preparation should describe its artefacts");
+    let preparation = Preparation::for_fixture(
+        "unit-fixture",
+        directory.path().to_path_buf(),
+        "v",
+        "hash",
+        directory.path().to_path_buf(),
+    )
+    .expect("the fixture preparation should describe its artefacts");
     assert_eq!(
         preparation.artefacts,
         vec![directory.path().to_path_buf()],

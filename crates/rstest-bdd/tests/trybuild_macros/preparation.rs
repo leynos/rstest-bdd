@@ -29,7 +29,6 @@ use std::{
     env,
     io,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
@@ -37,11 +36,15 @@ use rstest_bdd_harness::{macrotest_support::reject_trybuild_filter, nested_cargo
 
 use super::{macros_fixture, staging, wip};
 
+// The UI-lint family is a module of its own: it shares no constant, no command
+// line and no stamped root with the trybuild family below, and splitting it out
+// keeps both files under the repository's per-file line budget.
+#[path = "preparation/ui_clippy.rs"]
+mod ui_clippy;
+pub(crate) use ui_clippy::ui_clippy_command;
+
 /// Preparation family for the trybuild build tree.
 const TRYBUILD_FAMILY: &str = "trybuild-macros";
-
-/// Preparation family for the UI-lint Clippy build tree.
-const UI_CLIPPY_FAMILY: &str = "trybuild-ui-clippy";
 
 /// Compile-pass fixture that gives the generated trybuild crate a bin target.
 ///
@@ -78,9 +81,6 @@ const TRYBUILD_PROBE: &str = "step_macros.rs";
 /// `trybuild` report a newly created `.stderr` as a failure.
 const TRYBUILD_CHECK_PROBE: &str = "scenario_missing_path.rs";
 
-/// Lint-clean bin that gives the UI-lint crate a target.
-const UI_CLIPPY_PROBE: &str = "step_return_dispatch_lint_clean";
-
 /// The workspace root, two levels above this crate's manifest directory.
 fn workspace_root() -> Utf8PathBuf {
     Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -99,14 +99,6 @@ fn workspace_root() -> Utf8PathBuf {
 /// `--target-dir` selected by `cargo llvm-cov`.
 pub(crate) fn target_directory() -> Utf8PathBuf {
     staging::trybuild_target_directory(&workspace_root())
-}
-
-/// The UI-lint crate's own target directory.
-///
-/// [`ui_clippy_command`] keeps lint runs out of the workspace target so they
-/// cannot pollute the shared artefacts, so the UI-lint family stamps here.
-fn ui_clippy_target_directory() -> Utf8PathBuf {
-    Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("target/tests/ui_lints_clippy")
 }
 
 /// The inputs whose change invalidates a prepared build.
@@ -176,60 +168,18 @@ fn trybuild_variant() -> String {
 /// Describe the trybuild preparation family.
 fn trybuild_preparation(target_directory: &Utf8Path) -> io::Result<nested_cargo::Preparation> {
     let directory = target_directory.join("tests/trybuild");
+    // `trybuild` runs its nested Cargo inside the generated crate, which is a
+    // child of the stamped root, so that is the directory a relative `RUSTC`,
+    // `CARGO_HOME` or `CARGO_BUILD_*` override resolves against. The crate is
+    // named after this package, matching `TARGET_SUBDIR` in the server suite.
+    let generated = directory.join(env!("CARGO_PKG_NAME"));
     nested_cargo::Preparation::for_fixture(
         TRYBUILD_FAMILY,
         directory.into_std_path_buf(),
         trybuild_variant(),
         nested_cargo::input_hash(&input_roots()?)?,
+        generated.into_std_path_buf(),
     )
-}
-
-/// Describe the UI-lint preparation family.
-fn ui_clippy_preparation() -> io::Result<nested_cargo::Preparation> {
-    nested_cargo::Preparation::for_fixture(
-        UI_CLIPPY_FAMILY,
-        ui_clippy_target_directory().into_std_path_buf(),
-        format!("clippy:{}", env!("CARGO_PKG_VERSION")),
-        nested_cargo::input_hash(&input_roots()?)?,
-    )
-}
-
-/// Build the `cargo clippy` invocation the UI-lint cases use.
-///
-/// Shared by the timed cases and the preparation so the two cannot drift: the
-/// timed call appends `--` and its deny arguments, the preparation adds none.
-///
-/// The environment is applied here rather than left to the caller, so a
-/// command built for one mode cannot run with a different one's variables. It
-/// is resolved the same way [`nested_cargo::Preparation::for_fixture`] resolves
-/// it for this family — [`nested_cargo::env_for_directory`] over the stamped
-/// directory — because that is the environment the preparation warmed the
-/// graph under. Handing the child this process's inherited variables instead
-/// would leave `CARGO_MAKEFLAGS` and `CARGO_PKG_*` set: the former names a
-/// jobserver the child cannot open and stalls on Windows, and the latter
-/// describes a different crate. The target directory is therefore set *before*
-/// `apply_to`, which would otherwise clear it.
-pub(crate) fn ui_clippy_command(bin: &str) -> io::Result<Command> {
-    let manifest_dir = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
-    let manifest_path = manifest_dir.join("tests/ui_lints/Cargo.toml");
-    let mut command = Command::new("cargo");
-    let environment = nested_cargo::env_for_directory(
-        ui_clippy_target_directory().as_std_path(),
-        nested_cargo::ProfileDestination::Caller,
-    )?;
-    // `apply_to` clears the environment first, so it must run before the
-    // target directory is set: anything set earlier would be discarded.
-    environment.apply_to(&mut command);
-    command
-        .current_dir(manifest_dir.as_std_path())
-        .env("CARGO_TARGET_DIR", ui_clippy_target_directory().as_str())
-        .arg("clippy")
-        .arg("--locked")
-        .arg("--manifest-path")
-        .arg(manifest_path.as_str())
-        .arg("--bin")
-        .arg(bin);
-    Ok(command)
 }
 
 /// Prepare both families unconditionally, for the named preparation test.
@@ -249,8 +199,8 @@ pub(crate) fn ui_clippy_command(bin: &str) -> io::Result<Command> {
 pub(crate) fn prepare_all(target_directory: &Utf8Path) -> io::Result<()> {
     let trybuild = trybuild_preparation(target_directory)?;
     nested_cargo::prepare_now(&trybuild, prepare_trybuild)?;
-    let ui_clippy = ui_clippy_preparation()?;
-    nested_cargo::prepare_now(&ui_clippy, prepare_ui_clippy)
+    let ui_clippy = ui_clippy::ui_clippy_preparation()?;
+    nested_cargo::prepare_now(&ui_clippy, ui_clippy::prepare_ui_clippy)
 }
 
 /// Gate the timed run on both families having been prepared.
@@ -263,8 +213,8 @@ pub(crate) fn prepare_all(target_directory: &Utf8Path) -> io::Result<()> {
 pub(crate) fn ensure_prepared(target_directory: &Utf8Path) -> io::Result<()> {
     let trybuild = trybuild_preparation(target_directory)?;
     nested_cargo::ensure_prepared(&trybuild, prepare_trybuild)?;
-    let ui_clippy = ui_clippy_preparation()?;
-    nested_cargo::ensure_prepared(&ui_clippy, prepare_ui_clippy)
+    let ui_clippy = ui_clippy::ui_clippy_preparation()?;
+    nested_cargo::ensure_prepared(&ui_clippy, ui_clippy::prepare_ui_clippy)
 }
 
 /// Compile both nested build trees before the timed trybuild assertion.
@@ -344,50 +294,6 @@ fn prepare_trybuild() -> io::Result<nested_cargo::PreparationSummary> {
     // still records the elapsed time, which is the figure the timeout budget is
     // sized from.
     Ok(nested_cargo::PreparationSummary::default())
-}
-
-/// Compile the UI-lint crate's dependency graph.
-///
-/// The probe bin is lint-clean, so this also proves the fixture crate builds.
-/// It deliberately asserts nothing about diagnostics: that stays the timed
-/// cases' job.
-///
-/// The child is bounded by [`nested_cargo::PREPARATION_COMMAND_TIMEOUT`] like
-/// every other preparation command. `Command::output()` would let a wedged
-/// `cargo clippy` — waiting on the package-cache lock, say — hang the run with
-/// no report: under nextest it would spend the preparation test's `slow-timeout`
-/// and lose its output, and under plain `cargo test` the lazy path has no
-/// runner bound at all.
-fn prepare_ui_clippy() -> io::Result<nested_cargo::PreparationSummary> {
-    let mut command = ui_clippy_command(UI_CLIPPY_PROBE)?;
-    let output = nested_cargo::run_bounded_with_timeout(
-        &mut command,
-        nested_cargo::PREPARATION_COMMAND_TIMEOUT,
-    )?;
-    if !output.status.success() {
-        return Err(io::Error::other(format!(
-            "preparing the UI-lint fixture failed:\nstdout:\n{}\nstderr:\n{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr),
-        )));
-    }
-    Ok(nested_cargo::PreparationSummary {
-        compiled_units: count_checked_units(&output.stderr),
-    })
-}
-
-/// Count the units Clippy reported.
-///
-/// Clippy says `Checking` where `cargo build` says `Compiling`; counting both
-/// keeps a mixed log accurate.
-fn count_checked_units(stderr: &[u8]) -> usize {
-    String::from_utf8_lossy(stderr)
-        .lines()
-        .filter(|line| {
-            let line = line.trim_start();
-            line.starts_with("Compiling ") || line.starts_with("Checking ")
-        })
-        .count()
 }
 
 #[cfg(test)]

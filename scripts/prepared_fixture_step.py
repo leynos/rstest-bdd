@@ -19,6 +19,7 @@ import os
 import re
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs fixed argvs; no shell.
+import typing as typ
 from pathlib import Path
 
 #: The repository root, two levels above ``scripts/``.
@@ -40,7 +41,20 @@ BUILD_MARKER = "cargo-bdd-nested-build:"
 BUILD_REPORT_ENV = "RSTEST_BDD_NESTED_BUILD_REPORT"
 
 #: The one report line shape this workflow knows how to read.
-REPORT_LINE = re.compile(rf"{re.escape(BUILD_MARKER)}\s+compiling=(\d+)")
+#:
+#: The ``source`` field names which fact the line files, and it is load-bearing
+#: rather than decorative: the gate's zero proves no *preparation* ran, while
+#: the timed command's count is the only evidence about the timed run itself.
+#: The two are written by different code at different points in a run, so a
+#: reader that saw only counts would have to assume which question it had an
+#: answer to. ``timed`` is the source the reuse judgement requires.
+REPORT_LINE = re.compile(rf"{re.escape(BUILD_MARKER)}\s+source=(\w+)\s+compiling=(\d+)")
+
+#: The report source the timed ``cargo bdd steps`` files.
+#:
+#: Matches ``ReportSource::Timed`` in
+#: ``crates/cargo-bdd/tests/cli/preparation/nested_build.rs``.
+TIMED_SOURCE = "timed"
 
 #: The timed test the CLI family gates on preparation.
 #:
@@ -80,6 +94,23 @@ STEP_TIMEOUT_SECONDS = 1800
 TREE_REAP_SECONDS = 10.0
 
 
+class BuildReport(typ.NamedTuple):
+    """One line of the nested-build report.
+
+    Attributes
+    ----------
+    source : str
+        Which producer filed the line: ``gate``, ``timed`` or ``preparation``.
+        See [`ReportSource`] in
+        ``crates/cargo-bdd/tests/cli/preparation/nested_build.rs``.
+    compiling : int
+        The number of compile units that producer observed, which may be zero.
+    """
+
+    source: str
+    compiling: int
+
+
 def build_report_path(target_dir: Path) -> Path:
     """Return the file this workflow's nested-build reports are appended to.
 
@@ -95,8 +126,8 @@ def build_report_path(target_dir: Path) -> Path:
     return target_dir / "nested-build-report.txt"
 
 
-def read_build_reports(target_dir: Path) -> list[int]:
-    """Return the nested-build counts the workflow has recorded so far.
+def read_build_reports(target_dir: Path) -> list[BuildReport]:
+    """Return the nested-build reports the workflow has recorded so far.
 
     Read from the file the fixture's gate appends to, not from the step's
     captured output. That distinction is the whole point of the file: the
@@ -113,21 +144,24 @@ def read_build_reports(target_dir: Path) -> list[int]:
 
     Returns
     -------
-    list[int]
-        One count per report line, in the order the lines were written, which
-        is the order the steps ran.
+    list[BuildReport]
+        One report per line, in the order the lines were written, which is the
+        order the steps ran. Each carries the source that filed it, because a
+        count alone does not say which question it answers.
     """
     try:
         text = build_report_path(target_dir).read_text(encoding="utf-8")
     except FileNotFoundError:
         return []
-    counts: list[int] = []
+    reports: list[BuildReport] = []
     for line in text.splitlines():
         match = REPORT_LINE.search(line)
         if match is None:
             continue
-        counts.append(int(match.group(1)))
-    return counts
+        reports.append(
+            BuildReport(source=match.group(1), compiling=int(match.group(2)))
+        )
+    return reports
 
 
 def timed_test_argv() -> list[str]:

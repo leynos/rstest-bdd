@@ -243,11 +243,24 @@ impl TrybuildTree {
                 manifest_path.display()
             ))
         })?;
+        // The nested build runs in the generated crate, not in the stamped
+        // root: `trybuild` invokes Cargo inside `<target>/tests/trybuild/<pkg>`,
+        // so that is the directory whose `CARGO_HOME` and relative `RUSTC` the
+        // child resolves. Recording the stamped root here would have the
+        // identity probe resolve them against a directory the build never
+        // uses.
+        let working_directory = self.generated_crate_root().map_err(|error| {
+            io::Error::other(format!(
+                "resolving the generated crate root for {}: {error}",
+                manifest_path.display()
+            ))
+        })?;
         Preparation::for_fixture(
             self.family.clone(),
             target_root,
             self.variant.clone(),
             nested_cargo::input_hash(&self.inputs()?)?,
+            working_directory,
         )
     }
 

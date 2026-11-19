@@ -38,6 +38,8 @@ mod artefacts;
 mod input_hash;
 mod layout;
 mod lifecycle;
+mod profiles;
+mod sources;
 mod stamp;
 mod stamp_file;
 mod toolchain;
@@ -50,6 +52,7 @@ pub use lifecycle::{
     prepare_now,
     prepare_now_with_probe,
 };
+pub use sources::{PreparationSummary, Sources};
 
 #[cfg(test)]
 mod fingerprint_props;
@@ -120,39 +123,6 @@ static PREPARE_LOCK: Mutex<()> = Mutex::new(());
 /// instead.
 pub const DEFAULT_PROFILE: &str = "debug";
 
-/// What a preparation builds, as the caller describes it.
-///
-/// These three travel together: a family is named, it builds a variant, and
-/// what it builds is identified by a hash of its inputs. Grouping them keeps
-/// [`Preparation::new`] readable and stops a caller from pairing one family's
-/// name with another's input hash.
-#[derive(Debug, Clone)]
-pub struct Sources {
-    /// Stable kebab-case family name, used in the stamp file name and logs.
-    pub family: String,
-    /// Caller-supplied label for the feature set or tool variant, such as
-    /// `all-features` or the resolved Clippy version.
-    pub variant: String,
-    /// Caller-supplied hash of the fixture sources and lockfiles.
-    pub inputs: String,
-}
-
-impl Sources {
-    /// Name a family, its variant, and the hash of the inputs it builds.
-    #[must_use]
-    pub fn new(
-        family: impl Into<String>,
-        variant: impl Into<String>,
-        inputs: impl Into<String>,
-    ) -> Self {
-        Self {
-            family: family.into(),
-            variant: variant.into(),
-            inputs: inputs.into(),
-        }
-    }
-}
-
 /// One family of prepared fixture artefacts.
 #[derive(Debug, Clone)]
 pub struct Preparation {
@@ -182,6 +152,10 @@ pub struct Preparation {
     /// The gate requires every directory listed here to exist. A missing one
     /// refuses the preparation exactly as a missing stamp does, which is what
     /// keeps a timed assertion from rebuilding the graph inside its deadline.
+    ///
+    /// A build selected onto a target triple writes two profiles, and both are
+    /// listed. See `profiles::profiles` in this module's private submodules for
+    /// which ones and why.
     pub artefacts: Vec<PathBuf>,
     /// Cargo package names whose compiled units this family's stamp vouches
     /// for by name.
@@ -236,9 +210,12 @@ pub struct Preparation {
     /// describe one Cargo home or compiler while the nested build used
     /// another — the difference being visible only as a timed rebuild.
     ///
-    /// Defaults to [`Preparation::directory`], which is where every family's
-    /// nested build runs, and is a field rather than a derivation so a family
-    /// that builds elsewhere can say so.
+    /// Supplied explicitly to every constructor. It is deliberately not
+    /// derived from [`Preparation::directory`]: that is where the stamp is
+    /// written, and most families build somewhere else. A `trybuild` family
+    /// builds the generated crate in a subdirectory of the stamped root, and
+    /// the UI-lint family runs from `CARGO_MANIFEST_DIR`, so a derived value
+    /// recorded the wrong compiler whenever a relative override was in play.
     pub working_directory: PathBuf,
 }
 
@@ -251,6 +228,25 @@ impl Preparation {
     /// directory the *child* resolves. Deriving both from one value is what
     /// keeps them in step when the target directory moves.
     ///
+    /// # Parameters
+    ///
+    /// - `sources`: the family name, variant label and input hash.
+    /// - `directory`: where the stamp is written, and the root the recorded artefacts are checked
+    ///   beneath.
+    /// - `environment`: the filtered environment the nested commands run with.
+    /// - `working_directory`: the directory those commands actually run in, which Cargo uses to
+    ///   resolve a relative `CARGO_HOME` and a relative `RUSTC`. It is a separate argument rather
+    ///   than a copy of `directory` because the two are not the same place: a `trybuild` family
+    ///   stamps `<target>/tests/<family>` while the generated crate it builds lives in a
+    ///   subdirectory of it, and the UI-lint family runs from `CARGO_MANIFEST_DIR`. Defaulting it
+    ///   to `directory` silently recorded the wrong compiler whenever a relative override was in
+    ///   play.
+    ///
+    /// # Returns
+    ///
+    /// A description whose artefact roots are the target directory's
+    /// `debug` profile, or empty when the environment names no target root.
+    ///
     /// # Errors
     ///
     /// As [`NestedCargoEnv::target_directory`]: a relative target directory
@@ -260,14 +256,15 @@ impl Preparation {
         sources: Sources,
         directory: PathBuf,
         environment: NestedCargoEnv,
+        working_directory: PathBuf,
     ) -> io::Result<Self> {
         let artefacts = environment
             .target_directory()?
-            .map(|target| vec![target.join(DEFAULT_PROFILE)])
+            .map(|target| profiles::profiles(&target, &environment))
             .unwrap_or_default();
         Ok(Self {
             family: sources.family,
-            working_directory: directory.clone(),
+            working_directory,
             directory,
             environment,
             variant: sources.variant,
@@ -305,6 +302,21 @@ impl Preparation {
     /// Coverage stays with the caller: the fixture's own run is what the
     /// coverage gate measures, so an inherited `LLVM_PROFILE_FILE` is kept.
     ///
+    /// # Parameters
+    ///
+    /// - `family`, `variant`, `inputs`: as [`Sources::new`].
+    /// - `directory`: the stamped root, and the directory whose target directory the child
+    ///   receives.
+    /// - `working_directory`: the directory the nested build actually runs in. A `trybuild` family
+    ///   builds the generated crate rather than the stamped root, so callers pass
+    ///   `TrybuildTree::generated_crate_root` here and a UI-lint family passes its manifest
+    ///   directory. See [`Preparation::working_directory`] for why this must not be derived.
+    ///
+    /// # Returns
+    ///
+    /// A description that vouches for the whole of `directory`, since a family
+    /// constructed this way owns its target root.
+    ///
     /// # Errors
     ///
     /// As [`Preparation::new`].
@@ -313,12 +325,14 @@ impl Preparation {
         directory: PathBuf,
         variant: impl Into<String>,
         inputs: impl Into<String>,
+        working_directory: PathBuf,
     ) -> io::Result<Self> {
         let environment = env_for_directory(&directory, ProfileDestination::Caller)?;
         let mut preparation = Self::new(
             Sources::new(family, variant, inputs),
             directory,
             environment,
+            working_directory,
         )?;
         preparation.artefacts = vec![preparation.directory.clone()];
         Ok(preparation)
@@ -355,12 +369,11 @@ pub fn env_for_directory(
     )
 }
 
-/// What one family's preparation did, for the log line.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct PreparationSummary {
-    /// Number of `Compiling` lines the nested builds emitted.
-    pub compiled_units: usize,
-}
-
 /// Take the process-wide preparation lock.
-fn lock() -> MutexGuard<'static, ()> { PREPARE_LOCK.lock().unwrap_or_else(PoisonError::into_inner) }
+///
+/// Shared with `lifecycle`, which is the only caller: the lock's purpose is to
+/// serialize the lazy path, and that path lives there. It stays in this module
+/// because the lock itself does, and a second `Mutex` would serialize nothing.
+pub(super) fn lock() -> MutexGuard<'static, ()> {
+    PREPARE_LOCK.lock().unwrap_or_else(PoisonError::into_inner)
+}

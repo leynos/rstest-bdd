@@ -210,6 +210,62 @@ fn a_dangling_cargo_configuration_link_reads_as_absent() {
 }
 
 #[test]
+fn relocating_identical_configuration_invalidates_the_prepared_tree() {
+    // The name and the bytes of a configuration file are not the whole of what
+    // it means. `build.rustc = "tools/rustc"`, `build.target-dir` and the
+    // relative `CARGO_HOME` form all resolve against the configuration's own
+    // directory, so the same file moved one level up can select a different
+    // compiler or a different build directory while leaving name and content
+    // byte-identical. A hash built from those two alone would survive the move
+    // and admit a timed build that recompiles the graph.
+    //
+    // Both sides are hashed through `input_hash` as *named roots*, which is how
+    // `cargo_config_inputs` supplies them, so the case exercises the rule the
+    // production path uses rather than a hand-built equivalent.
+    // A closure rather than a `Vec` of digests: the two are compared pairwise,
+    // and an index would be the only reason to collect them.
+    let named_config_hash = |directory: &std::path::Path| {
+        std::fs::create_dir(directory.join(".cargo")).expect("cargo dir");
+        let config = directory.join(".cargo/config.toml");
+        std::fs::write(&config, "[build]\nrustc = \"tools/rustc\"\n").expect("identical config");
+        input_hash(&[config]).expect("hash of the named configuration")
+    };
+    let first = tempfile::tempdir().expect("first directory");
+    let second = tempfile::tempdir().expect("second directory");
+    assert_ne!(
+        named_config_hash(first.path()),
+        named_config_hash(second.path()),
+        "an identical configuration named from a different directory must invalidate the prepared \
+         artefacts, because its path-valued settings resolve against that directory"
+    );
+}
+
+#[test]
+fn fixture_tree_identities_stay_checkout_relative() {
+    // The complement of the case above, and the reason the provenance is
+    // recorded only for a *named root*. A fixture tree is hashed by the names
+    // the tree gives its entries, so the same sources in a different checkout
+    // must produce the same digest. Recording absolute paths for every entry
+    // would make each stamp depend on where the repository was cloned: a
+    // second worktree would prepare again with nothing changed, and a stamp
+    // copied between checkouts would be refused for a difference in a path
+    // component the build never reads.
+    let checkout_hash = |checkout: &std::path::Path| {
+        let source = checkout.join("src");
+        std::fs::create_dir(&source).expect("source dir");
+        std::fs::write(source.join("lib.rs"), "pub fn f() {}\n").expect("source");
+        input_hash(&[source]).expect("hash of the fixture tree")
+    };
+    let first = tempfile::tempdir().expect("first checkout");
+    let second = tempfile::tempdir().expect("second checkout");
+    assert_eq!(
+        checkout_hash(first.path()),
+        checkout_hash(second.path()),
+        "a fixture tree must hash by its own names, not by where the checkout lives"
+    );
+}
+
+#[test]
 #[cfg(unix)]
 fn an_unreadable_cargo_configuration_is_an_error() {
     // A configuration path that exists but cannot be inspected must not be

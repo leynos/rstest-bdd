@@ -122,9 +122,22 @@ fn prepared_addition_env() -> Result<process::ChildEnv, String> {
 }
 
 /// Run the baseline `cargo test` and return its output, or the reason it failed.
+///
+/// The exit status is part of the contract, not only the spawn. A baseline that
+/// compiled and then failed a test still leaves the fixture's units in the
+/// profile, so a status-blind caller would go on to assert that a later run
+/// "recompiled nothing" against a baseline that never established anything —
+/// and the experiment would report a rebuild difference that belongs to the
+/// failure rather than to the change under test. `run_cargo` reports only
+/// whether the child could be spawned and bounded, so the status is checked
+/// here, where the caller's expectation of success lives.
 fn baseline_run(env: &process::ChildEnv) -> Result<String, String> {
     match run_cargo(env, &["test", "--locked", "--offline"]) {
-        Ok(captured) => Ok(captured.stdout),
+        Ok(captured) if captured.status => Ok(captured.stdout),
+        Ok(captured) => Err(format!(
+            "baseline cargo test exited non-zero:\n{}",
+            captured.stdout
+        )),
         Err(err) => Err(format!("baseline cargo test failed to run: {err}")),
     }
 }

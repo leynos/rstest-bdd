@@ -124,8 +124,9 @@ fn preparation_over(
     )?;
     Preparation::new(
         super::Sources::new("unit", variant, inputs),
-        target,
+        target.clone(),
         environment,
+        target,
     )
 }
 

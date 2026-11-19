@@ -19,7 +19,7 @@
 use std::fs;
 
 use super::{FIXTURE_PACKAGE, nested_cargo};
-use crate::preparation::closure::fixture_dependency_closure;
+use crate::preparation::closure::{TIMED_GRAPH_QUERY_TIMEOUT, fixture_dependency_closure};
 
 /// The family's declared packages, with the resolution error as an `io::Error`.
 ///
@@ -74,6 +74,7 @@ fn family_preparation(
         nested_cargo::Sources::new("cargo-bdd-cli", "test", "hash"),
         scratch.join("stamp-root"),
         environment,
+        scratch.join("stamp-root"),
     )?;
     preparation.owned_packages = packages;
 
@@ -127,18 +128,69 @@ const REQUIRED_DEPENDENCIES: &[&str] = &[
 /// five are all present is the claim that would otherwise go stale silently: the
 /// mechanism stays correct while a crate the manifest gains disappears from the
 /// declaration.
-#[test]
-fn the_declaration_covers_the_fixtures_workspace_dependencies() {
-    let manifest =
-        super::super::workspace_root().join("crates/cargo-bdd/tests/fixtures/minimal/Cargo.toml");
-    let metadata = cargo_metadata::MetadataCommand::new()
+///
+/// The query is bounded, because this case runs in the timed binary. `.config/
+/// nextest.toml` gives `cargo-bdd::cli` 180 s, and `cargo metadata` takes the
+/// same package-cache lock `cargo tree` does, so an unbounded call here would
+/// let a busy cache kill the test instead of failing it with a diagnosis. The
+/// bound is the timed path's own, and it is applied to the metadata process
+/// rather than to the case as a whole so the error names the query.
+///
+/// # Errors
+///
+/// Returns the query's timeout or spawn error, and the resolution error when
+/// the fixture manifest does not resolve.
+fn fixture_metadata(
+    manifest: &std::path::Path,
+) -> Result<cargo_metadata::Metadata, std::io::Error> {
+    // Built through `cargo_metadata` rather than by spelling the invocation
+    // out here: the crate owns the argument shape and the JSON decoding, and
+    // the only thing this case adds is the bound. `cargo_command` and `parse`
+    // are the two halves `exec` joins, so running them separately keeps the
+    // result identical to `exec`'s apart from the timeout.
+    let mut command = cargo_metadata::MetadataCommand::new();
+    command
         .manifest_path(manifest)
         // The fixture commits its lockfile, so resolution needs no registry:
         // asserting that keeps a test of the declaration from reaching the
         // network, where a registry hiccup would read as a broken graph.
-        .other_options(vec!["--locked".to_owned(), "--offline".to_owned()])
-        .exec()
-        .expect("the fixture manifest must resolve");
+        .other_options(vec!["--locked".to_owned(), "--offline".to_owned()]);
+    let mut cargo = command.cargo_command();
+    let output = nested_cargo::run_bounded_with_timeout(&mut cargo, TIMED_GRAPH_QUERY_TIMEOUT)
+        .map_err(|error| {
+            std::io::Error::new(
+                error.kind(),
+                format!(
+                    "`cargo metadata` for {} did not finish within {} s: {error}",
+                    manifest.display(),
+                    TIMED_GRAPH_QUERY_TIMEOUT.as_secs()
+                ),
+            )
+        })?;
+    if !output.status.success() {
+        return Err(std::io::Error::other(format!(
+            "`cargo metadata` failed for {}:\n{}",
+            manifest.display(),
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    let stdout = std::str::from_utf8(&output.stdout).map_err(|error| {
+        std::io::Error::other(format!("`cargo metadata` emitted no UTF-8: {error}"))
+    })?;
+    // `exec` reads the first line beginning with `{` from the same stream, so
+    // this mirrors it rather than parsing the whole capture.
+    let json = stdout
+        .lines()
+        .find(|line| line.starts_with('{'))
+        .ok_or_else(|| std::io::Error::other("`cargo metadata` printed no JSON object"))?;
+    cargo_metadata::MetadataCommand::parse(json).map_err(std::io::Error::other)
+}
+
+#[test]
+fn the_declaration_covers_the_fixtures_workspace_dependencies() {
+    let manifest =
+        super::super::workspace_root().join("crates/cargo-bdd/tests/fixtures/minimal/Cargo.toml");
+    let metadata = fixture_metadata(&manifest).expect("the fixture manifest must resolve");
     let resolve = metadata.resolve.as_ref().expect("a resolved graph");
     let packages: std::collections::BTreeMap<_, _> = metadata
         .packages

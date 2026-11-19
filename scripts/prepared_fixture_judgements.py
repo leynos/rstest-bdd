@@ -33,6 +33,7 @@ import typing as typ
 from prepared_fixture_step import (
     BUILD_REPORT_ENV,
     REMEDY,
+    TIMED_SOURCE,
     TIMED_TEST,
     read_build_reports,
 )
@@ -40,6 +41,8 @@ from prepared_fixture_step import (
 if typ.TYPE_CHECKING:
     import subprocess
     from pathlib import Path
+
+    from prepared_fixture_step import BuildReport
 
 __all__ = [
     "StepFailureError",
@@ -91,18 +94,18 @@ def expect_refusal(result: subprocess.CompletedProcess[str]) -> None:
         raise StepFailureError(msg)
 
 
-def judge_run_counts(
+def judge_run_reports(
     target_dir: Path,
     previous_counts: int,
     combined: str,
-) -> tuple[list[int], list[int]]:
-    """Split the report into this run's counts and the counts before it.
+) -> tuple[list[BuildReport], list[BuildReport]]:
+    """Split the report into this run's entries and the entries before it.
 
-    The gate's report file accumulates a line per run, so the counts written
-    during the run under judgement have to be told apart from the lines already
-    there. A run that added nothing is a failure rather than a pass: it means
-    the gate never wrote a report, so nothing vouches for what the timed command
-    compiled.
+    The report file accumulates a line per run, so what was written during the
+    run under judgement has to be told apart from what was already there. Lines
+    are attributed by *position* — the file is append-only and the caller
+    snapshots its length — rather than by value, because a count of zero is a
+    legitimate result for two of the three producers.
 
     Parameters
     ----------
@@ -115,28 +118,25 @@ def judge_run_counts(
 
     Returns
     -------
-    tuple[list[int], list[int]]
-        The counts this run appended, then the counts that predate it. Both
+    tuple[list[BuildReport], list[BuildReport]]
+        The lines this run appended, then the lines that predate it. Both
         halves appear in the caller's failure messages.
 
     Raises
     ------
     StepFailureError
-        If the run appended no report line at all.
+        If reading the report fails.
     """
-    counts = read_build_reports(target_dir)
-    prior = counts[:previous_counts]
-    this_run = counts[previous_counts:]
-    if not this_run:
+    try:
+        reports = read_build_reports(target_dir)
+    except OSError as error:
         msg = (
-            "the timed test left no nested-build report, so nothing shows "
-            "whether it reused the prepared tree. The gate writes one to "
-            f"${BUILD_REPORT_ENV} on every run, so its absence means the gate "
-            f"never ran. Counts before this run: {prior}; "
-            f"after: {counts}. Output:\n{combined}"
+            "the nested-build report could not be read, so nothing shows "
+            f"whether the timed test reused the prepared tree: {error}. "
+            f"It is named by ${BUILD_REPORT_ENV}. Output:\n{combined}"
         )
-        raise StepFailureError(msg)
-    return this_run, prior
+        raise StepFailureError(msg) from error
+    return reports[previous_counts:], reports[:previous_counts]
 
 
 def expect_pass_without_rebuild(
@@ -152,17 +152,22 @@ def expect_pass_without_rebuild(
     shows preparation built *this* target directory rather than the run finding
     the graph warm by accident.
 
-    Two counts arrive per run and both must be zero, because they answer
-    different questions. The gate's ``record_reuse`` reports that no
-    *preparation* ran, which by itself says nothing about the timed command: it
-    runs afterwards, in the test body. The timed command files its own count
-    from the stderr it captures, which is the only witness to a rebuild there —
-    its caller discards that stderr on success, so a scan of the run's output
-    would find nothing however much was compiled. Judging the pair is what
-    keeps "the gate skipped preparation" from passing in place of "the timed
-    command compiled nothing".
+    Two reports arrive per run and both matter, because they answer different
+    questions. The gate's ``record_reuse`` reports that no *preparation* ran,
+    which by itself says nothing about the timed command: it runs afterwards,
+    in the test body. The timed command files its own count from the stderr it
+    captures, which is the only witness to a rebuild there — its caller
+    discards that stderr on success, so a scan of the run's output would find
+    nothing however much was compiled.
 
-    The counts are read from the report file rather than from the step's output
+    The timed report is therefore required, not merely counted. A run that
+    stopped, panicked or never reached the command leaves the gate's zero
+    behind and nothing else, and an earlier version of this check read exactly
+    that as reuse. Each line names its producer, so a run with no
+    ``source=timed`` line fails here however many other lines it filed, and the
+    timed line's own count must be zero for the step to pass.
+
+    The reports are read from the file rather than from the step's output
     precisely because the output cannot carry them. See [`read_build_reports`].
 
     Only the lines *this* run added are judged, not the whole file. The file
@@ -197,13 +202,42 @@ def expect_pass_without_rebuild(
             f"{combined}"
         )
         raise StepFailureError(msg)
-    this_run, prior = judge_run_counts(target_dir, previous_counts, combined)
-    rebuilt = [count for count in this_run if count != 0]
+    this_run, prior = judge_run_reports(target_dir, previous_counts, combined)
+    if not this_run:
+        # Nothing at all: the gate never ran, which is the absence the report
+        # file exists to make visible.
+        msg = (
+            "the timed test left no nested-build report, so nothing shows "
+            "whether it reused the prepared tree. The gate writes one to "
+            f"${BUILD_REPORT_ENV} on every run, so its absence means the gate "
+            f"never ran. Reports before this run: {prior}. "
+            f"Output:\n{combined}"
+        )
+        raise StepFailureError(msg)
+    timed = [report for report in this_run if report.source == TIMED_SOURCE]
+    if not timed:
+        # The gate's own line is what an earlier version of this check read as
+        # reuse. It is filed before the test body runs and reports that no
+        # *preparation* happened, which says nothing about the timed command:
+        # a run that stopped, panicked or never reached it leaves exactly the
+        # gate's zero behind. Requiring the timed producer's own line is what
+        # makes the check about the command it claims to judge.
+        msg = (
+            "this run reported no nested build from the timed `cargo bdd "
+            "steps` command, so it cannot have shown that command reused the "
+            "prepared tree. The gate files its own line before the test body "
+            f"and reports no preparation, which is a different fact. This run "
+            f"filed {this_run} (the preparation's own reports were {prior}); "
+            f"expected a `source={TIMED_SOURCE}` line. Output:\n{combined}"
+        )
+        raise StepFailureError(msg)
+    rebuilt = [report.compiling for report in timed if report.compiling != 0]
     if rebuilt:
         msg = (
             "the timed test's nested build compiled after preparation, so the "
-            f"prepared tree was not reused: this run reported {this_run} "
-            f"(the preparation's own count was {prior})"
+            f"prepared tree was not reused: the timed command reported {rebuilt} "
+            f"compiled units (this run's reports were {this_run}, the "
+            f"preparation's own were {prior})"
         )
         raise StepFailureError(msg)
 

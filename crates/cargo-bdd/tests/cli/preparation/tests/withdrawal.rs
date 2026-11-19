@@ -49,6 +49,7 @@ fn scratch_family(
         nested_cargo::Sources::new("cargo-bdd-cli", "test", "hash"),
         scratch.join("stamp-root"),
         environment,
+        scratch.join("stamp-root"),
     )?;
     let stamp = preparation
         .directory

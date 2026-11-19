@@ -18,12 +18,12 @@ use crate::nested_cargo::{
     prepare_now,
 };
 
-/// Write a second profile the way a `--target <triple>` build leaves it.
+/// Write the host profile a `--target <triple>` build also leaves behind.
 ///
 /// `trybuild` passes `--target <triple>` for every generated crate, so a
-/// preparation that runs it leaves the host units in `<root>/debug` and every
-/// other unit in `<root>/<triple>/debug`. Both are part of one prepared tree.
-/// Write the host profile a `--target <triple>` build also leaves behind.
+/// preparation that runs it leaves the host units — build scripts and proc
+/// macros — in `<root>/debug` and every other unit in
+/// `<root>/<triple>/debug`. Both are part of one prepared tree.
 ///
 /// The twin of [`write_target_profile`], and shared by both cases for the same
 /// reason: the two tests have to describe one tree. A profile is a unit
@@ -40,6 +40,7 @@ fn write_host_profile(root: &std::path::Path) -> io::Result<std::path::PathBuf> 
     Ok(host)
 }
 
+/// Write the profile a `--target <triple>` build puts the fixture's units in.
 fn write_target_profile(root: &std::path::Path, triple: &str) -> io::Result<()> {
     let profile = root.join(triple).join("debug");
     let deps = profile.join("deps");
@@ -65,8 +66,9 @@ fn evicting_only_the_target_profile_invalidates_the_preparation() {
     let host = write_host_profile(&root).expect("host profile");
     write_target_profile(&root, "x86_64-unknown-linux-gnu").expect("target profile");
 
-    let preparation = Preparation::for_fixture("unit-fixture", root.clone(), "v", "hash")
-        .expect("the fixture preparation should describe its artefacts");
+    let preparation =
+        Preparation::for_fixture("unit-fixture", root.clone(), "v", "hash", root.clone())
+            .expect("the fixture preparation should describe its artefacts");
     prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
     ensure_prepared_with(&preparation, true, || {
         panic!("a just-prepared family must pass")
@@ -106,8 +108,9 @@ fn the_advertised_preparation_repairs_an_evicted_target_profile() {
     write_host_profile(&root).expect("host profile");
     write_target_profile(&root, "x86_64-unknown-linux-gnu").expect("target profile");
 
-    let preparation = Preparation::for_fixture("unit-fixture", root.clone(), "v", "hash")
-        .expect("the fixture preparation should describe its artefacts");
+    let preparation =
+        Preparation::for_fixture("unit-fixture", root.clone(), "v", "hash", root.clone())
+            .expect("the fixture preparation should describe its artefacts");
     prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("first preparation");
     fs::remove_dir_all(root.join("x86_64-unknown-linux-gnu/debug"))
         .expect("evict the target-profile artefacts");

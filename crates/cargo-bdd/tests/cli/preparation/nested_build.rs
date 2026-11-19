@@ -26,6 +26,41 @@ use crate::{fixture_dir, locate_or_build_cargo_bdd_command};
 /// run, and counting those would report a rebuild that never happened.
 const NESTED_BUILD_MARKER: &str = "cargo-bdd-nested-build:";
 
+/// Which of the two facts a report line files.
+///
+/// The two producers are not interchangeable, and a reader that could not tell
+/// them apart would accept either alone. The gate's zero proves no
+/// *preparation* ran; the timed command's count is the only evidence about the
+/// timed run itself, which happens afterwards. A check that asks "did the timed
+/// command reuse the prepared tree" therefore needs the second line
+/// specifically — a file holding only the gate's zero is the shape of a run in
+/// which the command never reported at all, which is precisely what an earlier
+/// version of the workflow check accepted as reuse.
+///
+/// Recorded as a field rather than inferred from the file's position, because
+/// position is the one thing a partially written or externally edited report
+/// cannot be trusted to preserve.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReportSource {
+    /// The gate admitted a stamp, so this run compiled nothing.
+    Gate,
+    /// The timed `cargo bdd steps` paid for these compilations.
+    Timed,
+    /// The named preparation test built the fixture's dependency graph.
+    Preparation,
+}
+
+impl ReportSource {
+    /// The label this source writes into its report line.
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Gate => "gate",
+            Self::Timed => "timed",
+            Self::Preparation => "preparation",
+        }
+    }
+}
+
 /// Environment variable naming a file to append this family's report to.
 ///
 /// A file rather than a stream, because both carriers a test's output could
@@ -79,7 +114,7 @@ pub(super) fn capture_preparation(
 /// construction — and it must still say so. A report only on the built path
 /// would make "nothing was written" and "nothing was compiled" the same
 /// observation, which is exactly the confusion a rebuild check has to exclude.
-pub(super) fn record_reuse() { record(0); }
+pub(super) fn record_reuse() { record(ReportSource::Gate, 0); }
 
 /// Record the compilations the timed `cargo bdd steps` itself paid for.
 ///
@@ -95,13 +130,13 @@ pub(super) fn record_reuse() { record(0); }
 /// zero here means the timed command compiled nothing, which is the property
 /// the workflow gate asserts, and a nonzero value is a rebuild that no scan of
 /// the run's output could have seen.
-pub(super) fn record_timed(compiling: usize) { record(compiling); }
+pub(super) fn record_timed(compiling: usize) { record(ReportSource::Timed, compiling); }
 
 /// Record the nested build this preparation paid for.
 fn record_built(captured: &nested_cargo::CapturedOutput) -> nested_cargo::PreparationSummary {
     let compiled_units = nested_cargo::count_compiling(captured.stderr.as_bytes())
         + nested_cargo::count_compiling(captured.stdout.as_bytes());
-    record(compiled_units);
+    record(ReportSource::Preparation, compiled_units);
     nested_cargo::PreparationSummary { compiled_units }
 }
 
@@ -109,11 +144,14 @@ fn record_built(captured: &nested_cargo::CapturedOutput) -> nested_cargo::Prepar
 ///
 /// Appending rather than truncating is what lets one file hold a whole
 /// workflow: each step's count becomes its own line, in step order, so a reader
-/// can attribute a rebuild to the step that paid for it. A write failure is
-/// swallowed: this is evidence for a separate checker, and a test that failed
-/// because a diagnostic could not be filed would be reporting the wrong
-/// problem.
-fn record(compiled_units: usize) {
+/// can attribute a rebuild to the step that paid for it. Each line also names
+/// its [`ReportSource`], because the count alone does not say which question it
+/// answers: a zero from the gate and a zero from the timed command are
+/// different facts, and a reader that could only see counts would have to
+/// assume. A write failure is swallowed: this is evidence for a separate
+/// checker, and a test that failed because a diagnostic could not be filed
+/// would be reporting the wrong problem.
+fn record(source: ReportSource, compiled_units: usize) {
     use std::io::Write as _;
 
     let Some(path) = std::env::var_os(REPORT_PATH) else {
@@ -126,5 +164,9 @@ fn record(compiled_units: usize) {
     else {
         return;
     };
-    let _ = writeln!(file, "{NESTED_BUILD_MARKER} compiling={compiled_units}");
+    let _ = writeln!(
+        file,
+        "{NESTED_BUILD_MARKER} source={} compiling={compiled_units}",
+        source.label()
+    );
 }

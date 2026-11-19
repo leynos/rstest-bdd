@@ -172,6 +172,12 @@ struct Family {
     artefact_subdir: &'static str,
     /// The fixture source tree this family hashes and builds.
     source: fn() -> std::path::PathBuf,
+    /// The scratch copy the family's nested builds actually run in.
+    ///
+    /// Kept apart from [`Family::source`]: that is the checked-in tree that is
+    /// hashed, while this is the copy Cargo runs in, so it is the directory a
+    /// relative `CARGO_HOME` or `RUSTC` resolves against.
+    scratch: fn() -> std::path::PathBuf,
     /// Cargo package the fixture's build produces and its experiment cleans.
     package: &'static str,
 }
@@ -181,6 +187,7 @@ const REBUILD: Family = Family {
     name: REBUILD_FAMILY,
     artefact_subdir: "rebuild-invalidation",
     source: fixtures::source_fixture_dir,
+    scratch: fixtures::scratch_fixture_dir,
     package: REBUILD_PACKAGE,
 };
 
@@ -189,6 +196,7 @@ const ADDITION: Family = Family {
     name: ADDITION_FAMILY,
     artefact_subdir: "feature-addition",
     source: fixtures::source_addition_dir,
+    scratch: fixtures::scratch_addition_dir,
     package: ADDITION_PACKAGE,
 };
 
@@ -235,6 +243,10 @@ fn fixture_preparation(
         nested_cargo::Sources::new(family.name, "locked-offline-test-no-run", inputs),
         artefact_directory(process::child_target_directory(env), family.artefact_subdir),
         process::preparation_view(env)?,
+        // The scratch fixture each nested build runs in, not the artefact
+        // directory it stamps: a relative `RUSTC` or `CARGO_HOME` resolves
+        // against the command's directory, and these builds run in the copy.
+        (family.scratch)(),
     )?;
     preparation.owned_packages = owned_packages(family);
     Ok(preparation)

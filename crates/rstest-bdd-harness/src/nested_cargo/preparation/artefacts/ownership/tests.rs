@@ -9,28 +9,46 @@
 //! it, and the declaration check that holds `owned_packages` to what was
 //! actually built, are in the sibling `tests` module beside this one.
 
+use rstest::rstest;
+
 use super::{is_metadata_hash, name_is_owned, strip_unit_suffix};
+
+/// The package the addition family declares as its own.
+///
+/// The sibling's name is spelled inside the cases that need it rather than
+/// declared here: it appears only as literal unit names, which the constant
+/// could not build anyway, and a second declaration would be a copy to keep in
+/// step for no gain.
+const ADDITION: &str = "rstest-bdd-feature-addition-fixture";
+
+/// The owned package set a case states its claim against.
+///
+/// A `&[&str]` of names rather than a `Vec<String>`, because every case states
+/// its declaration literally and the predicate wants the owned half only as a
+/// slice to search.
+fn owned(names: &[&str]) -> Vec<String> { names.iter().copied().map(str::to_owned).collect() }
 
 /// A package's directory form and its crate-name form are both its units.
 ///
 /// Cargo hyphenates the package for `.fingerprint/<package>-<hash>/` and
 /// underscores it for `deps/lib<stem>-<hash>.rlib`, so a rule that knew only
 /// one spelling would leave half of a family's own units unrecorded — and the
-/// unchecked half is where a `cargo clean -p` would go unnoticed.
-#[test]
-fn both_spellings_of_a_package_are_recognized() {
-    let owned = ["rstest-bdd-feature-addition-fixture".to_owned()];
-    for name in [
-        ".fingerprint/rstest-bdd-feature-addition-fixture-0123456789abcdef/invoked.timestamp",
-        "deps/librstest_bdd_feature_addition_fixture-0123456789abcdef.rlib",
-        "deps/rstest_bdd_feature_addition_fixture-0123456789abcdef",
-        "build/rstest-bdd-feature-addition-fixture-0123456789abcdef/out/build-script-build",
-    ] {
-        assert!(
-            name_is_owned(name, &owned),
-            "`{name}` belongs to the package"
-        );
-    }
+/// unchecked half is where a `cargo clean -p` would go unnoticed. Each spelling
+/// is its own case so a failure names the shape that stopped being recognized.
+#[rstest]
+#[case::fingerprint_directory(
+    ".fingerprint/rstest-bdd-feature-addition-fixture-0123456789abcdef/invoked.timestamp"
+)]
+#[case::underscored_rlib("deps/librstest_bdd_feature_addition_fixture-0123456789abcdef.rlib")]
+#[case::underscored_binary("deps/rstest_bdd_feature_addition_fixture-0123456789abcdef")]
+#[case::build_script_directory(
+    "build/rstest-bdd-feature-addition-fixture-0123456789abcdef/out/build-script-build"
+)]
+fn both_spellings_of_a_package_are_recognized(#[case] name: &str) {
+    assert!(
+        name_is_owned(name, &owned(&[ADDITION])),
+        "`{name}` belongs to the package"
+    );
 }
 
 /// A sibling fixture's units are not this family's to vouch for.
@@ -38,21 +56,21 @@ fn both_spellings_of_a_package_are_recognized() {
 /// This is the regression: both scratch families build into the shared
 /// `target/debug`, and the rebuild experiment runs `cargo clean -p` on its own
 /// fixture before every baseline. A stamp that recorded the sibling's units was
-/// refused for ever afterwards.
-#[test]
-fn a_sibling_packages_units_are_not_owned() {
-    let owned = ["rstest-bdd-feature-addition-fixture".to_owned()];
-    for name in [
-        ".fingerprint/rstest-bdd-rebuild-invalidation-fixture-0123456789abcdef/\
-         lib-rstest_bdd_rebuild_invalidation_fixture",
-        "deps/librstest_bdd_rebuild_invalidation_fixture-0123456789abcdef.rlib",
-        "deps/invalidation-0123456789abcdef",
-    ] {
-        assert!(
-            !name_is_owned(name, &owned),
-            "`{name}` belongs to the sibling, not to this family"
-        );
-    }
+/// refused for ever afterwards. The three cases are the three shapes
+/// `cargo clean -p` removes: a record directory, a compiled output and a bare
+/// unit name.
+#[rstest]
+#[case::record_directory(
+    ".fingerprint/rstest-bdd-rebuild-invalidation-fixture-0123456789abcdef/\
+     lib-rstest_bdd_rebuild_invalidation_fixture"
+)]
+#[case::compiled_output("deps/librstest_bdd_rebuild_invalidation_fixture-0123456789abcdef.rlib")]
+#[case::target_named_unit("deps/invalidation-0123456789abcdef")]
+fn a_sibling_packages_units_are_not_owned(#[case] name: &str) {
+    assert!(
+        !name_is_owned(name, &owned(&[ADDITION])),
+        "`{name}` belongs to the sibling, not to this family"
+    );
 }
 
 /// A name that merely shares a prefix or a substring is not the package.
@@ -61,19 +79,17 @@ fn a_sibling_packages_units_are_not_owned() {
 /// shared profile, and the shorter name is a prefix of the longer one's crate
 /// stem. A substring test would claim every one of the longer package's units
 /// for the shorter package — and, worse, would claim a sibling's units for it.
-#[test]
-fn a_prefix_of_a_package_name_is_another_package() {
-    let owned = ["rstest-bdd-feature-addition-fixture".to_owned()];
-    for name in [
-        "deps/librstest_bdd-0123456789abcdef.rlib",
-        "deps/rstest_bdd-0123456789abcdef.d",
-        "deps/librstest_bdd_macros-0123456789abcdef.rlib",
-    ] {
-        assert!(
-            !name_is_owned(name, &owned),
-            "`{name}` is a different package's unit"
-        );
-    }
+/// The macro crate is the third case because its stem extends `rstest_bdd` by
+/// an underscore rather than a hyphen.
+#[rstest]
+#[case::shorter_rlib("deps/librstest_bdd-0123456789abcdef.rlib")]
+#[case::shorter_dep_info("deps/rstest_bdd-0123456789abcdef.d")]
+#[case::macro_crate("deps/librstest_bdd_macros-0123456789abcdef.rlib")]
+fn a_prefix_of_a_package_name_is_another_package(#[case] name: &str) {
+    assert!(
+        !name_is_owned(name, &owned(&[ADDITION])),
+        "`{name}` is a different package's unit"
+    );
 }
 
 /// An independently named target must be declared by its own name.
@@ -83,36 +99,44 @@ fn a_prefix_of_a_package_name_is_another_package() {
 /// *package* name. Declaring only `adapter` therefore owns
 /// `.fingerprint/adapter-<hash>/` and not `deps/libengine-<hash>.rlib`, so
 /// removing just the output leaves the recorded-name check satisfied while the
-/// unit it needs is gone. Listing the target name as well is what closes that,
-/// and this case pins both halves: the package name alone is not enough, and
-/// the pair owns every shape Cargo writes.
-#[test]
-fn an_independently_named_target_needs_its_own_entry() {
-    let package_only = ["adapter".to_owned()];
-    let records = ".fingerprint/adapter-0123456789abcdef/invoked.timestamp";
-    let output = "deps/libengine-0123456789abcdef.rlib";
-    assert!(
-        name_is_owned(records, &package_only),
-        "the records are filed under the package name and stay owned"
+/// unit it needs is gone. Both halves are pinned as separate cases: the package
+/// name alone is not enough, and the pair owns every shape Cargo writes.
+#[rstest]
+#[case::package_name_owns_the_records(
+    &["adapter"],
+    ".fingerprint/adapter-0123456789abcdef/invoked.timestamp",
+    true
+)]
+#[case::package_name_does_not_own_the_output(
+    &["adapter"],
+    "deps/libengine-0123456789abcdef.rlib",
+    false
+)]
+#[case::a_declared_target_owns_its_library(
+    &["adapter", "engine"],
+    "deps/libengine-0123456789abcdef.rlib",
+    true
+)]
+#[case::a_declared_target_owns_its_metadata(
+    &["adapter", "engine"],
+    "deps/libengine-0123456789abcdef.rmeta",
+    true
+)]
+#[case::a_declared_target_owns_its_dep_info(
+    &["adapter", "engine"],
+    "deps/engine-0123456789abcdef.d",
+    true
+)]
+fn an_independently_named_target_needs_its_own_entry(
+    #[case] declared: &[&str],
+    #[case] name: &str,
+    #[case] expected: bool,
+) {
+    assert_eq!(
+        name_is_owned(name, &owned(declared)),
+        expected,
+        "`{name}` against the declaration {declared:?}"
     );
-    assert!(
-        !name_is_owned(output, &package_only),
-        "the output is filed under the target name, which the package name does not match — this \
-         is the hole the caller closes by naming the target"
-    );
-
-    let both = ["adapter".to_owned(), "engine".to_owned()];
-    for name in [
-        records,
-        output,
-        "deps/libengine-0123456789abcdef.rmeta",
-        "deps/engine-0123456789abcdef.d",
-    ] {
-        assert!(
-            name_is_owned(name, &both),
-            "`{name}` must be owned once the target is declared"
-        );
-    }
 }
 
 /// A family that names no package owns the whole profile.
@@ -129,32 +153,28 @@ fn an_empty_ownership_claims_every_name() {
 ///
 /// A stem that happens to end in hex digits is only split when exactly sixteen
 /// of them follow the final `-`, which is what keeps a crate whose name ends in
-/// something hash-shaped from being truncated into a different package.
-#[test]
-fn only_a_real_metadata_hash_is_stripped() {
-    assert_eq!(strip_unit_suffix("libunit-0123456789abcdef"), "libunit");
-    assert_eq!(
-        strip_unit_suffix("libunit-0123456789abcdef.rlib"),
-        "libunit"
-    );
-    assert_eq!(
-        strip_unit_suffix("unit-0123456789abcde"),
-        "unit-0123456789abcde"
-    );
-    assert_eq!(
-        strip_unit_suffix("unit-0123456789abcdef0"),
-        "unit-0123456789abcdef0"
-    );
-    assert_eq!(strip_unit_suffix("unit-not-a-hash"), "unit-not-a-hash");
-    assert_eq!(strip_unit_suffix("invoked.timestamp"), "invoked");
+/// something hash-shaped from being truncated into a different package. The
+/// boundary cases — fifteen digits, seventeen digits, a non-hex character — are
+/// their own cases rather than a run of assertions, so a failure names which
+/// side of the boundary moved.
+#[rstest]
+#[case::bare_stem("libunit-0123456789abcdef", "libunit")]
+#[case::with_extension("libunit-0123456789abcdef.rlib", "libunit")]
+#[case::one_digit_short("unit-0123456789abcde", "unit-0123456789abcde")]
+#[case::one_digit_long("unit-0123456789abcdef0", "unit-0123456789abcdef0")]
+#[case::not_a_hash("unit-not-a-hash", "unit-not-a-hash")]
+#[case::a_plain_file_name("invoked.timestamp", "invoked")]
+fn only_a_real_metadata_hash_is_stripped(#[case] name: &str, #[case] expected: &str) {
+    assert_eq!(strip_unit_suffix(name), expected);
 }
 
 /// The hash shape is sixteen hexadecimal characters and nothing else.
-#[test]
-fn the_hash_shape_is_sixteen_hexadecimal_characters() {
-    assert!(is_metadata_hash("0123456789abcdef"));
-    assert!(is_metadata_hash("0123456789ABCDEF"));
-    assert!(!is_metadata_hash("0123456789abcde"));
-    assert!(!is_metadata_hash("0123456789abcdef0"));
-    assert!(!is_metadata_hash("0123456789abcdeg"));
+#[rstest]
+#[case::lowercase("0123456789abcdef", true)]
+#[case::uppercase("0123456789ABCDEF", true)]
+#[case::one_short("0123456789abcde", false)]
+#[case::one_long("0123456789abcdef0", false)]
+#[case::a_non_hex_digit("0123456789abcdeg", false)]
+fn the_hash_shape_is_sixteen_hexadecimal_characters(#[case] value: &str, #[case] expected: bool) {
+    assert_eq!(is_metadata_hash(value), expected, "{value}");
 }
