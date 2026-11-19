@@ -2208,7 +2208,7 @@ rather than by reading this branch's comments.
         before the probe runs and still prepares under a live budget).
       - The comment in `cargo-bdd/tests/cli/preparation/tests/declaration.rs`
         that claimed the query and probe budgets were "not additive" is
-        corrected: it generalised from a query that *failed*, while a slow
+        corrected: it generalized from a query that *failed*, while a slow
         success was the case that reached the runner's kill. The same stale
         claim on `TIMED_GRAPH_QUERY_TIMEOUT` is corrected too.
       - `witness_or_withdraw` and `require_fixture_binaries` moved from

@@ -136,7 +136,7 @@ fn the_timed_graph_query_keeps_its_own_smaller_budget() {
     // This was not true before the deadline existed. Holding only the query's
     // bound below the period left a slow *success* free to hand both probes a
     // budget that was already spent; a query that *failed* was safe, which is
-    // what the old comment generalised from, and the case in between is the
+    // what the old comment generalized from, and the case in between is the
     // one that reached the runner's kill.
     let query = super::closure::TIMED_GRAPH_QUERY_TIMEOUT.as_secs();
     let preparation = nested_cargo::PREPARATION_COMMAND_TIMEOUT.as_secs();
