@@ -15,6 +15,14 @@ use serial_test::serial;
 
 use super::{cli_child_environment, fixture_dir};
 
+// The witness the family asserts on, and the withdrawal that makes a refused
+// stamp recoverable. Split from this file for the line budget; declared here so
+// the path resolves beside it.
+#[path = "preparation/witness_gate.rs"]
+mod witness_gate;
+
+use witness_gate::witness_or_withdraw;
+
 #[path = "witness.rs"]
 mod witness;
 
@@ -44,8 +52,6 @@ mod report;
 #[cfg(test)]
 #[path = "preparation/tests/ownership.rs"]
 mod ownership;
-
-use witness::fixture_binaries_present;
 
 /// File the compilations the timed `cargo bdd steps` paid for.
 ///
@@ -133,6 +139,18 @@ mod closure;
 /// Cargo package name of the CLI fixture crate.
 const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
 
+/// A budget long enough that no command in a regression can exhaust it.
+///
+/// The withdrawal regressions are about the witness and the stamp it refutes,
+/// not about the budget, so they must not be able to fail because a machine was
+/// slow. They still go through the same gate production does, which is the
+/// point: a case that called the predicate directly would keep passing for a
+/// gate that had stopped consulting it.
+#[cfg(test)]
+fn an_ample_budget() -> nested_cargo::Deadline {
+    nested_cargo::Deadline::starting_now(Duration::from_secs(3600))
+}
+
 /// Describe the CLI preparation family.
 ///
 /// The family names its fixture package's whole dependency closure because it
@@ -143,18 +161,27 @@ const FIXTURE_PACKAGE: &str = "rstest-bdd-cli-fixture";
 /// stamp refused for ever. Naming the closure is the opposite correction: those
 /// units *were* built here, and leaving them out would let their eviction pass.
 ///
-/// `graph_query_timeout` bounds the closure query, and is the caller's because
-/// its two callers are not in the same position: see
-/// [`closure::TIMED_GRAPH_QUERY_TIMEOUT`].
+/// `deadline` is the budget the whole gate has, and is the caller's because its
+/// two callers are not in the same position: see
+/// [`closure::TIMED_GRAPH_QUERY_TIMEOUT`]. It is charged for the closure query
+/// here and handed back so the caller can charge the identity probes against
+/// what is left, rather than giving them a fresh allowance. A query that
+/// succeeds just inside its own limit would otherwise spend the budget the
+/// probes need and let the runner kill the test before either reported.
 ///
 /// # Errors
 ///
 /// Returns the environment, target-directory or input-hash error from
 /// [`cli_preparation`], and the resolution error when the fixture's dependency
-/// closure cannot be read.
+/// closure cannot be read or its query outlives the deadline.
 fn cli_preparation_description(
+    deadline: nested_cargo::Deadline,
     graph_query_timeout: Duration,
-) -> Result<(nested_cargo::Preparation, nested_cargo::NestedCargoEnv)> {
+) -> Result<(
+    nested_cargo::Preparation,
+    nested_cargo::NestedCargoEnv,
+    nested_cargo::Deadline,
+)> {
     let (child_env, target_root, inputs) = cli_preparation()?;
     let fixture = fixture_dir();
     let mut preparation = nested_cargo::Preparation::new(
@@ -170,8 +197,14 @@ fn cli_preparation_description(
         ),
         child_env.clone(),
     )?;
-    preparation.owned_packages = closure::fixture_dependency_closure(graph_query_timeout)?;
-    Ok((preparation, child_env))
+    // The query's own limit and the budget are both respected: the deadline
+    // decides whether there is time to start, and the per-query bound keeps one
+    // contended query from consuming the probes' share.
+    let bound = deadline
+        .cap(graph_query_timeout, "the fixture dependency closure")
+        .wrap_err("the timed CLI gate has no budget left for its graph query")?;
+    preparation.owned_packages = closure::fixture_dependency_closure(bound)?;
+    Ok((preparation, child_env, deadline))
 }
 
 /// Gate a timed CLI test on the preparation test having run.
@@ -191,142 +224,59 @@ fn cli_preparation_description(
 /// matching stamp without running the preparation at all, so the preparation
 /// test's witness cannot run there either; this check does.
 pub(super) fn ensure_cli_prepared() -> Result<()> {
-    let (preparation, child_env) = cli_preparation_description(closure::TIMED_GRAPH_QUERY_TIMEOUT)?;
-    ensure_gated(&preparation, || {
-        nested_build::capture_preparation(&child_env)
-    })
+    // One budget for the whole gate. The closure query and both identity
+    // probes are charged against it, so no later command starts with an
+    // allowance the earlier ones have already spent.
+    let deadline = nested_cargo::Deadline::starting_now(closure::TIMED_GRAPH_QUERY_TIMEOUT);
+    let (preparation, child_env, deadline) =
+        cli_preparation_description(deadline, closure::TIMED_GRAPH_QUERY_TIMEOUT)?;
+    ensure_gated_with(
+        &preparation,
+        nested_cargo::running_under_nextest(),
+        deadline,
+        || nested_build::capture_preparation(&child_env),
+    )
 }
 
-/// The gate itself, with the family and the preparation work supplied.
+/// The gate itself, with the family, the runner decision, the shared budget and
+/// the preparation work supplied.
 ///
 /// Split out so the refusal can be exercised against a synthetic tree without
 /// this test needing the real one. A case that called the predicate below
 /// directly would pass for a gate that had stopped consulting it, so the case
 /// that matters drives *this* function — the same one every timed test reaches
 /// through [`ensure_cli_prepared`].
-fn ensure_gated<P>(preparation: &nested_cargo::Preparation, prepare: P) -> Result<()>
-where
-    P: FnOnce() -> std::io::Result<nested_cargo::PreparationSummary>,
-{
-    ensure_gated_with(preparation, nested_cargo::running_under_nextest(), prepare)
-}
-
-/// [`ensure_gated`] with the runner decision supplied.
 ///
-/// The decision is a parameter for the reason [`nested_cargo::ensure_prepared_with`]
-/// takes one: the two runners reach opposite conclusions from a missing stamp,
-/// and no test can change which runner it is in. The refusal under test lives
-/// on the `cargo test` branch, where the preparation is allowed to run; under
-/// nextest the gate refuses earlier, for a reason that says nothing about the
-/// witness.
+/// The runner decision is a parameter for the reason
+/// [`nested_cargo::ensure_prepared_with`] takes one: the two runners reach
+/// opposite conclusions from a missing stamp, and no test can change which
+/// runner it is in. The refusal under test lives on the `cargo test` branch,
+/// where the preparation is allowed to run; under nextest the gate refuses
+/// earlier, for a reason that says nothing about the witness.
+///
+/// The probes are the commands still to run by this point, so their bounds come
+/// from what is left of `deadline`; the closure query has already been charged
+/// by [`cli_preparation_description`].
 fn ensure_gated_with<P>(
     preparation: &nested_cargo::Preparation,
     under_nextest: bool,
+    deadline: nested_cargo::Deadline,
     prepare: P,
 ) -> Result<()>
 where
     P: FnOnce() -> std::io::Result<nested_cargo::PreparationSummary>,
 {
-    nested_cargo::ensure_prepared_with(preparation, under_nextest, prepare)
-        .wrap_err("nested CLI fixture should be prepared")?;
+    nested_cargo::ensure_prepared_reported(
+        preparation,
+        under_nextest,
+        nested_cargo::instruments_within(preparation, deadline),
+        prepare,
+    )
+    .wrap_err("nested CLI fixture should be prepared")?;
     // A gate that admitted a stamp ran no preparation, so its count is zero by
     // construction — and it must still say so. See `record_reuse`.
     nested_build::record_reuse();
     witness_or_withdraw(preparation)
-}
-
-/// Refuse a preparation whose profile lacks the fixture binaries, and withdraw
-/// the stamp that admitted it.
-///
-/// Both callers reach a preparation through a gate that returns early from a
-/// *matching* stamp: [`nested_cargo::ensure_prepared_with`] on the lazy path and
-/// [`nested_cargo::prepare_now`] in the named test. The stamp is written by the
-/// preparation, before this witness can be read, so a preparation that exits
-/// zero while leaving the fixture's own units out leaves a stamp vouching for a
-/// tree no timed assertion can use. Reporting that alone would make every later
-/// attempt read the same stamp and fail the same way, with the preparation never
-/// running again — the failure would be permanent rather than transient.
-///
-/// Removing the stamp first is what makes the next attempt a build. The
-/// removal's outcome is reported alongside the refusal rather than instead of
-/// it: the missing binaries are the failure, and a stamp that could not be
-/// withdrawn is a second fact the reader needs, not a substitute for the first.
-fn witness_or_withdraw(preparation: &nested_cargo::Preparation) -> Result<()> {
-    let error = match require_fixture_binaries(preparation) {
-        Ok(()) => return Ok(()),
-        Err(error) => error,
-    };
-    let recovery = match nested_cargo::invalidate(preparation) {
-        Ok(()) => "the stamp was withdrawn, so the next run prepares again".to_owned(),
-        Err(removal) => format!(
-            "the stamp could not be withdrawn, so the next run will repeat this failure: {removal}"
-        ),
-    };
-    Err(eyre::eyre!("{error:#}\n{recovery}"))
-}
-
-/// Fail unless `preparation`'s profiles hold the fixture's own test binaries.
-///
-/// Shared by the timed gate and the named preparation test so the two cannot
-/// disagree about what "prepared" means: the predicate the preparation proves
-/// is the one the timed assertions require.
-///
-/// Every profile the family names is searched, and any one holding both
-/// binaries satisfies the witness. The profile the fixture's units land in is
-/// not always the first: a build selected onto a target triple writes the
-/// fixture's units to `<target>/<triple>/debug` and only its build scripts and
-/// proc macros to `<target>/debug`, so a witness reading one named directory
-/// would refuse a preparation that left exactly the binaries it asks for. The
-/// family names both profiles rather than this deciding which one *should*
-/// hold them, because only Cargo knows where a given selection puts them.
-///
-/// The search stops at the first profile that holds them, and a profile that
-/// cannot be listed is remembered rather than raised immediately: in a
-/// `--target` build the host profile is named first and may be unreadable while
-/// the triple's profile holds exactly what the witness asks for. Failing on the
-/// host profile before looking at the second would refuse a prepared tree.
-///
-/// # Errors
-///
-/// Returns the listing error when no profile could be read at all, and an error
-/// naming every profile searched when each one was readable and missing a
-/// fixture binary.
-fn require_fixture_binaries(preparation: &nested_cargo::Preparation) -> Result<()> {
-    let profiles = &preparation.artefacts;
-    if profiles.is_empty() {
-        return Err(eyre::eyre!(
-            "the CLI family must describe the profile its units land in"
-        ));
-    }
-    let mut listing_error: Option<eyre::Error> = None;
-    for profile in profiles {
-        match fixture_binaries_present(profile) {
-            Ok(true) => return Ok(()),
-            Ok(false) => {}
-            Err(error) => {
-                let error = eyre::Report::new(error).wrap_err(format!(
-                    "listing the prepared profile {}",
-                    profile.display()
-                ));
-                if listing_error.is_none() {
-                    listing_error = Some(error);
-                }
-            }
-        }
-    }
-    if let Some(error) = listing_error {
-        return Err(error);
-    }
-    let searched: Vec<String> = profiles
-        .iter()
-        .map(|profile| profile.display().to_string())
-        .collect();
-    Err(eyre::eyre!(
-        "preparation must leave the fixture's own test binaries in one of {}; the timed CLI \
-         assertions read them, and a preparation that compiled nothing leaves the suite with \
-         nothing to inspect",
-        searched.join(", ")
-    ))
 }
 
 /// Prepare the CLI fixture's nested build before any timed assertion.
@@ -355,11 +305,19 @@ fn require_fixture_binaries(preparation: &nested_cargo::Preparation) -> Result<(
 #[test]
 #[serial]
 fn nested_fixture_preparation() -> Result<()> {
-    let (preparation, child_env) =
-        cli_preparation_description(nested_cargo::PREPARATION_COMMAND_TIMEOUT)?;
-    nested_cargo::prepare_now(&preparation, || {
-        nested_build::capture_preparation(&child_env)
-    })?;
+    // This test has its own nine-minute period rather than the timed
+    // assertions' 180 s, so the budget it shares between the closure query and
+    // the probes is the larger one. The deadline still applies: a query that
+    // spent the whole preparation bound would leave the probes nothing, and the
+    // runner would kill the test before either reported.
+    let budget = nested_cargo::PREPARATION_COMMAND_TIMEOUT;
+    let (preparation, child_env, deadline) =
+        cli_preparation_description(nested_cargo::Deadline::starting_now(budget), budget)?;
+    nested_cargo::prepare_now_reported(
+        &preparation,
+        nested_cargo::instruments_within(&preparation, deadline),
+        || nested_build::capture_preparation(&child_env),
+    )?;
     // Through the same function the timed gate uses, so a preparation that
     // leaves no binaries is refused *and* has its stamp withdrawn here too.
     // This test runs before the timed assertions under nextest, so a stamp it

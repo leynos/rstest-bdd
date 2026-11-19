@@ -5,7 +5,7 @@
 //! real family uses, so the case below reads the profile and the stamp
 //! exactly where the gate does.
 
-use super::{ensure_gated_with, nested_cargo};
+use super::{an_ample_budget, ensure_gated_with, nested_cargo};
 
 /// The directory holding the fixture's compiled units, and the stamp file.
 ///
@@ -91,7 +91,7 @@ fn a_refuted_stamp_is_withdrawn_so_the_next_run_can_prepare() {
     // A preparation that succeeds while doing no work at all: the point is
     // that the stamp it then writes vouches for a tree holding none of the
     // fixture's own units.
-    let error = ensure_gated_with(&preparation, false, || {
+    let error = ensure_gated_with(&preparation, false, an_ample_budget(), || {
         Ok(nested_cargo::PreparationSummary::default())
     })
     .expect_err("a preparation that leaves no fixture binaries must not satisfy the gate");
@@ -123,7 +123,7 @@ fn a_refuted_stamp_is_withdrawn_so_the_next_run_can_prepare() {
     // Driving the gate again is what proves the withdrawal made a
     // difference rather than only tidying the tree: the stamp is gone, so
     // the preparation runs and the witness accepts what it left.
-    ensure_gated_with(&preparation, false, || {
+    ensure_gated_with(&preparation, false, an_ample_budget(), || {
         write_fixture_binaries(&profile)
             .expect("the recovery preparation should leave the fixture binaries");
         Ok(nested_cargo::PreparationSummary::default())
@@ -138,7 +138,7 @@ fn a_refuted_stamp_is_withdrawn_so_the_next_run_can_prepare() {
     // must not run here: if it did, the timing would hide a gate that had
     // simply stopped finding the stamp it wrote.
     let mut prepared_again = false;
-    ensure_gated_with(&preparation, true, || {
+    ensure_gated_with(&preparation, true, an_ample_budget(), || {
         prepared_again = true;
         Ok(nested_cargo::PreparationSummary::default())
     })

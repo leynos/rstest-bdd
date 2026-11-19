@@ -20,6 +20,33 @@ use super::{
 use crate::workspace_root;
 
 #[test]
+fn a_spent_gate_budget_refuses_before_the_closure_query_starts() {
+    // The gate creates one deadline and charges the closure query and both
+    // identity probes against it. The failure this pins is the one a per-command
+    // bound alone could not: a query that *succeeds* just inside its own limit
+    // used to hand the probes a budget already spent, and the runner killed the
+    // test before either reported. A budget that is spent before the query has
+    // even started must be refused for the same reason, and the refusal must
+    // name the query so a reader knows which command never ran.
+    let error = cli_preparation_description(
+        nested_cargo::Deadline::starting_now(std::time::Duration::ZERO),
+        super::closure::TIMED_GRAPH_QUERY_TIMEOUT,
+    )
+    .expect_err("a spent budget must not start the closure query");
+    let text = format!("{error:#}");
+    assert!(
+        text.contains("fixture dependency closure"),
+        "the refusal must name the command it declined to start: {text}"
+    );
+    // And it is a deadline refusal rather than a resolution failure: the query
+    // never ran, so the fixture is not reported as unresolvable.
+    assert!(
+        !text.contains("cargo tree"),
+        "a spent budget must not report the query as having run and failed: {text}"
+    );
+}
+
+#[test]
 fn the_workspace_cargo_configuration_is_an_input() {
     // The fixture build runs beneath the workspace, so Cargo applies the
     // committed `.cargo/config.toml`: its development profile options and
@@ -99,11 +126,18 @@ fn the_timed_graph_query_keeps_its_own_smaller_budget() {
     // what the assertion pins; a change to either figure belongs beside the
     // configuration entry that sets it, and must be mirrored here.
     //
-    // Only the query's own bound is checked against the period, not the
-    // query's bound plus the gate's. The two are not additive: a query that
-    // spends its whole budget returns an error and the gate returns before
-    // the identity probe runs, so the worst case a test can reach is one of
-    // them, not both.
+    // Only the query's own bound is checked against the period here, because
+    // the query and the probes are no longer charged separately: the gate
+    // creates one `Deadline` and charges the closure query and both identity
+    // probes against it, so their sum cannot exceed the budget however each
+    // command fares. A query that succeeds just inside its limit therefore
+    // leaves the probes the remainder rather than a fresh allowance.
+    //
+    // This was not true before the deadline existed. Holding only the query's
+    // bound below the period left a slow *success* free to hand both probes a
+    // budget that was already spent; a query that *failed* was safe, which is
+    // what the old comment generalised from, and the case in between is the
+    // one that reached the runner's kill.
     let query = super::closure::TIMED_GRAPH_QUERY_TIMEOUT.as_secs();
     let preparation = nested_cargo::PREPARATION_COMMAND_TIMEOUT.as_secs();
     let cli_period = 180;
@@ -140,9 +174,12 @@ fn the_owned_packages_cover_the_whole_dependency_closure_and_reach_the_gate() {
     // passed. The fixture package is deliberately absent from
     // `owned_packages`: the experiment's own `cargo clean -p` removes it
     // before every baseline, so claiming it would defeat the preparation.
-    let (preparation, _environment) =
-        cli_preparation_description(super::closure::TIMED_GRAPH_QUERY_TIMEOUT)
-            .expect("preparation description should resolve");
+    let query_timeout = super::closure::TIMED_GRAPH_QUERY_TIMEOUT;
+    let (preparation, _environment, _deadline) = cli_preparation_description(
+        nested_cargo::Deadline::starting_now(query_timeout),
+        query_timeout,
+    )
+    .expect("preparation description should resolve");
     let owned: std::collections::BTreeSet<&str> = preparation
         .owned_packages
         .iter()

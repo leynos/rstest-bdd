@@ -45,6 +45,7 @@ pub use environment::{
 };
 pub use preparation::{
     DEFAULT_PROFILE,
+    Deadline,
     Directories,
     Instruments,
     MAX_SEQUENTIAL_COMMANDS,
@@ -58,6 +59,7 @@ pub use preparation::{
     ensure_prepared_with,
     env_for_directory,
     input_hash,
+    instruments_within,
     invalidate,
     invalidate_reported,
     prepare_now,

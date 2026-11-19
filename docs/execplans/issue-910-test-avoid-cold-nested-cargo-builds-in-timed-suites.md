@@ -2178,6 +2178,56 @@ rather than by reading this branch's comments.
       Python module 10.0. `make check-fmt` exits 0 after a `make fmt` pass, and
       `make lint-python` and the 24 workflow-judgement tests pass.
 
+- [x] Implement CodeRabbit's accepted remedy (`4626700815`, thread on
+      `crates/cargo-bdd/tests/cli/preparation/closure.rs`) for the timed CLI
+      gate's slow-success path, as one cooperative subprocess deadline rather
+      than two per-command bounds. The family chose remedy 2: charge every
+      command against a single budget, refusing before a command starts once
+      the budget is spent.
+      - `nested_cargo::Deadline` moved out of `toolchain.rs` into a new
+        `preparation/deadline.rs`, with `remaining` (a spent budget is `None`,
+        not zero, so a refusal is distinguishable from a timeout) and `cap`
+        (the smaller of the remainder and a per-command limit). Its module
+        doc records that this is a *cooperative* deadline: filesystem reads,
+        spawning and child cleanup are not charged.
+      - `ensure_cli_prepared` creates the one budget from
+        `TIMED_GRAPH_QUERY_TIMEOUT` before `cli_preparation_description`, which
+        charges the graph query with `deadline.cap(...)` and returns the
+        deadline so `instruments_within` charges both probes against what is
+        left. The timed test therefore cannot spend 119 s on a successful
+        query and then hand `cargo -vV` and `rustc -vV` a fresh minute each.
+      - `toolchain_identity_within` and `probe_bound` carry the deadline into
+        the real probe; `toolchain_identity` is the `None` wrapper every other
+        family keeps, so existing callers' behaviour is unchanged.
+      - Regressions: `preparation/deadline/tests.rs` (seven arithmetic cases,
+        including one that spends a real budget and shows the *next* command
+        is refused), `preparation/toolchain/tests.rs` (three `probe_bound`
+        cases: no deadline, live deadline, spent deadline refused by name),
+        and `preparation/tests/deadline_gate.rs` (two cases on the production
+        binding, asserting the gate reports `TimedOut` naming `cargo -vV`
+        before the probe runs and still prepares under a live budget).
+      - The comment in `cargo-bdd/tests/cli/preparation/tests/declaration.rs`
+        that claimed the query and probe budgets were "not additive" is
+        corrected: it generalised from a query that *failed*, while a slow
+        success was the case that reached the runner's kill. The same stale
+        claim on `TIMED_GRAPH_QUERY_TIMEOUT` is corrected too.
+      - `witness_or_withdraw` and `require_fixture_binaries` moved from
+        `cargo-bdd/tests/cli/preparation.rs` into
+        `preparation/witness_gate.rs`, and `Deadline`/`instruments_within`
+        moved into their own module, to stay inside the 400-line budget.
+      Focused evidence: 22 tests passed across `preparation::deadline`,
+      `preparation::toolchain` and `preparation::tests::deadline_gate`; clippy
+      clean for both crates with `--all-targets --all-features -D warnings`;
+      `RUSTDOCFLAGS="--cfg docsrs -D warnings" cargo doc -p rstest-bdd-harness
+      --no-deps` clean.
+
+- [x] Lesson: never edit the worktree while a gate set is running. The first
+      attempt at the three-gate run for this change set was invalidated by my
+      own edits — the scrutineer caught a rustdoc link error that I had
+      already fixed under it, and one gpui trybuild test failed because its
+      preparation stamp was written for a fingerprint the edited sources no
+      longer matched. A gate verdict is only meaningful for a quiesced tree.
+
 ## Surprises & Discoveries
 
 - **A green lint run is a temporary observation, not a property of the tree.**

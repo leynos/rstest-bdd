@@ -27,14 +27,22 @@ use super::fixture_dir;
 /// query. The time is spent waiting for another process, not resolving, so the
 /// bound has to cover a queue position as well as the work.
 ///
-/// What remains is enough for the rest of the gate: the identity probe is
-/// bounded at a minute by the harness, and the stamp read and the witness are
-/// local filesystem work. A query that spends the whole two minutes therefore
-/// reports its own timeout, with the reason, before the runner's 180 s period
-/// expires.
+/// This figure is also the whole gate's budget, not only the query's. The
+/// timed gate creates one [`nested_cargo::Deadline`] from it, and
+/// [`cli_preparation_description`](super::cli_preparation_description) charges
+/// the query against it before handing back what is left for the two identity
+/// probes. So a query that *succeeds* after 119 s leaves the probes a second
+/// between them rather than a fresh minute each: a probe with no time left is
+/// refused by name, and the test reports that refusal instead of being killed
+/// by the runner.
+///
+/// The stamp read and the witness that follow the probes are local filesystem
+/// work and are not charged. A query that spends the whole two minutes reports
+/// its own timeout, with the reason, before the runner's 180 s period expires.
 ///
 /// The named preparation test does not use this bound; it has its own period
-/// and passes [`nested_cargo::PREPARATION_COMMAND_TIMEOUT`] instead.
+/// and passes [`nested_cargo::PREPARATION_COMMAND_TIMEOUT`] instead, with
+/// nothing else charged against it.
 pub(super) const TIMED_GRAPH_QUERY_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The workspace crates preparing this fixture compiles.

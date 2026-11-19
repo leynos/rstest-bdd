@@ -21,9 +21,10 @@ use std::{
     io,
     path::{Path, PathBuf},
     process::Command,
+    time::Duration,
 };
 
-use super::super::NestedCargoEnv;
+use super::{super::NestedCargoEnv, deadline::Deadline};
 
 /// The Cargo probe's label.
 const CARGO: &str = "cargo";
@@ -44,7 +45,7 @@ const RUSTC_KEY: &str = "RUSTC";
 /// the point is to turn a stalled shim into a named failure. The nested build
 /// bound is 300 s because a build has real work to do; a probe that needs even
 /// a sixtieth of that is not a probe that is going to finish.
-const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Identify the toolchain that produces the prepared artefacts.
 ///
@@ -66,17 +67,44 @@ pub(super) fn toolchain_identity(
     environment: &NestedCargoEnv,
     working_directory: &Path,
 ) -> io::Result<String> {
+    toolchain_identity_within(environment, working_directory, None)
+}
+
+/// [`toolchain_identity`] charged against a shared [`Deadline`].
+///
+/// The deadline is only meaningful to a caller that also pays for other
+/// subprocesses in the same budget — the timed CLI test's closure query, for
+/// instance. A caller with nothing else to run passes `None` and gets the
+/// per-probe limit alone, which is what every other family wants: their gate
+/// has no period of its own to overrun.
+///
+/// Each probe is bounded by whichever is sooner, the deadline's remainder or
+/// [`PROBE_TIMEOUT`], and a deadline already spent returns before the second
+/// probe is spawned. That ordering is the point of the type: the compiler probe
+/// is the one a spent budget used to reach.
+///
+/// # Errors
+///
+/// As [`toolchain_identity`], plus [`io::ErrorKind::TimedOut`] when the
+/// deadline is spent before a probe can start.
+pub(super) fn toolchain_identity_within(
+    environment: &NestedCargoEnv,
+    working_directory: &Path,
+    deadline: Option<Deadline>,
+) -> io::Result<String> {
     let cargo = probe(
         CARGO,
         Path::new(env!("CARGO")),
         environment,
         working_directory,
+        deadline,
     )?;
     let compiler = probe(
         RUSTC,
         &compiler_program(environment, working_directory),
         environment,
         working_directory,
+        deadline,
     )?;
     Ok(compose_identity(&cargo, &compiler))
 }
@@ -199,7 +227,11 @@ fn probe(
     executable: &Path,
     environment: &NestedCargoEnv,
     working_directory: &Path,
+    deadline: Option<Deadline>,
 ) -> io::Result<String> {
+    // Resolved before the command is built, so a spent budget reports the
+    // deadline rather than spawning a process with no time to run.
+    let bound = probe_bound(deadline, program)?;
     let mut command = Command::new(executable);
     command.arg("-vV");
     // A working directory that has not been created yet is not a reason to
@@ -220,21 +252,39 @@ fn probe(
     // runner report its own timeout instead of naming the probe. `-vV` is a
     // few milliseconds' work on any healthy host, so the bound is generous
     // against real work and still far below the runner's.
-    let output =
-        super::super::run_bounded_with_timeout(&mut command, PROBE_TIMEOUT).map_err(|error| {
-            io::Error::new(
-                error.kind(),
-                format!(
-                    "cannot run `{program} -vV` at {}: {error}",
-                    executable.display()
-                ),
-            )
-        })?;
+    let output = super::super::run_bounded_with_timeout(&mut command, bound).map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!(
+                "cannot run `{program} -vV` at {}: {error}",
+                executable.display()
+            ),
+        )
+    })?;
     identity_from(
         program,
         output.status.success(),
         &String::from_utf8_lossy(&output.stdout),
     )
+}
+
+/// The wall-clock bound for one `-vV` probe.
+///
+/// Split from [`probe`] so the rule the shared deadline exists for is
+/// assertable without spawning anything: `None` is the per-probe limit alone,
+/// and `Some(deadline)` is the smaller of that limit and what the budget has
+/// left, refusing outright when nothing remains. A caller that asked the
+/// budget first and then substituted the per-probe limit would reintroduce the
+/// slow-success failure this split exists to prevent.
+///
+/// # Errors
+///
+/// As [`Deadline::cap`]: [`io::ErrorKind::TimedOut`] naming the probe when the
+/// budget is spent.
+pub(super) fn probe_bound(deadline: Option<Deadline>, program: &str) -> io::Result<Duration> {
+    deadline.map_or(Ok(PROBE_TIMEOUT), |deadline| {
+        deadline.cap(PROBE_TIMEOUT, &format!("`{program} -vV`"))
+    })
 }
 
 /// The identity text from a completed `-vV` invocation.

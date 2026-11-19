@@ -9,9 +9,14 @@
 //! a synthetic non-zero exit, which no portable `process::ExitStatus` can
 //! construct.
 
-use std::path::{Path, PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
-use super::{compose_identity, identity_from, resolve_compiler_path};
+use super::{PROBE_TIMEOUT, compose_identity, identity_from, probe_bound, resolve_compiler_path};
+use crate::nested_cargo::Deadline;
 
 /// A `-vV` invocation's exit outcome and standard output.
 ///
@@ -191,5 +196,59 @@ fn a_toolchain_probe_without_the_three_fields_is_an_error() {
     assert!(
         error.to_string().contains("release, commit-hash or host"),
         "the failure must name the missing fields, got: {error}"
+    );
+}
+
+#[test]
+fn a_probe_without_a_deadline_gets_its_own_limit() {
+    // The ordinary family: nothing else runs in the gate's budget, so the
+    // per-probe limit is the whole answer. A path that consulted a deadline it
+    // was not given, or that reported zero, would refuse every probe on a
+    // family with no period to overrun.
+    let bound = probe_bound(None, CARGO).expect("no deadline cannot refuse");
+    assert_eq!(
+        bound, PROBE_TIMEOUT,
+        "a family without a shared budget keeps the per-probe limit"
+    );
+}
+
+#[test]
+fn a_probe_under_a_live_deadline_gets_the_smaller_of_the_two() {
+    // The slow-success remedy: the budget's remainder is folded in beside the
+    // per-probe limit. With an hour left and a one-minute limit the limit wins,
+    // which is what makes a sequence of healthy probes no slower than before.
+    let deadline = Deadline::starting_now(Duration::from_secs(3600));
+    let bound = probe_bound(Some(deadline), COMPILER).expect("an hour is live");
+    assert_eq!(
+        bound, PROBE_TIMEOUT,
+        "a per-probe limit below the remainder must be taken as-is"
+    );
+    // And with less than a minute left the remainder wins, so two probes
+    // cannot each take a fresh minute out of a budget that has almost none.
+    let tight = Deadline::starting_now(Duration::from_secs(5));
+    let bound = probe_bound(Some(tight), COMPILER).expect("five seconds is live");
+    assert!(
+        bound <= Duration::from_secs(5),
+        "a probe may not be given more than the budget has left: {bound:?}"
+    );
+}
+
+#[test]
+fn a_probe_under_a_spent_deadline_is_refused_by_name() {
+    // The case the deadline was introduced for. A query that succeeded just
+    // inside its own limit used to hand the probes a budget already spent, and
+    // the runner killed the test before either reported. The refusal has to
+    // name the probe so a reader knows which command never started.
+    let error = probe_bound(Some(Deadline::starting_now(Duration::ZERO)), COMPILER)
+        .expect_err("a spent budget must refuse the probe");
+    assert_eq!(
+        error.kind(),
+        io::ErrorKind::TimedOut,
+        "a refusal is a timeout, not a spawn failure: {error}"
+    );
+    let text = error.to_string();
+    assert!(
+        text.contains("`rustc -vV`"),
+        "the refusal must name the probe that never started: {text}"
     );
 }

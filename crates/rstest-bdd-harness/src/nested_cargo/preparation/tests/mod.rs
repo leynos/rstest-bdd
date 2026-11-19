@@ -8,12 +8,14 @@
 //! directory survives — `ownership` covers which of those evictions a family
 //! that shares a profile must still refuse, `inputs` covers the environment and
 //! input hashing that decide when a prepared directory is stale,
-//! `cargo_config` covers Cargo's own configuration as one of those inputs, and
+//! `cargo_config` covers Cargo's own configuration as one of those inputs,
 //! `target_profile` covers an eviction from the second profile a `--target`
-//! build writes. The fixtures they share live here.
+//! build writes, and `deadline_gate` covers what the gate does when it is
+//! handed a budget that is already spent. The fixtures they share live here.
 
 mod cargo_config;
 mod compile_counting;
+mod deadline_gate;
 mod eviction;
 mod fingerprint_records;
 mod inputs;

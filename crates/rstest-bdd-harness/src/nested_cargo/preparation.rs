@@ -37,6 +37,7 @@
 //! would otherwise honour. What a caller needs is re-exported here.
 
 mod artefacts;
+mod deadline;
 mod input_hash;
 mod invalidate;
 mod layout;
@@ -46,6 +47,7 @@ mod sources;
 mod stamp;
 mod stamp_file;
 mod toolchain;
+pub use deadline::{Deadline, instruments_within};
 pub use input_hash::{cargo_config_inputs, input_hash};
 pub use invalidate::{invalidate, invalidate_reported};
 pub use lifecycle::{
