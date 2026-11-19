@@ -241,12 +241,14 @@ fn fixture_preparation(
     let inputs = nested_cargo::input_hash(&roots)?;
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new(family.name, "locked-offline-test-no-run", inputs),
-        artefact_directory(process::child_target_directory(env), family.artefact_subdir),
+        nested_cargo::Directories::new(
+            artefact_directory(process::child_target_directory(env), family.artefact_subdir),
+            // The scratch fixture each nested build runs in, not the artefact
+            // directory it stamps: a relative `RUSTC` or `CARGO_HOME` resolves
+            // against the command's directory, and these builds run in the copy.
+            (family.scratch)(),
+        ),
         process::preparation_view(env)?,
-        // The scratch fixture each nested build runs in, not the artefact
-        // directory it stamps: a relative `RUSTC` or `CARGO_HOME` resolves
-        // against the command's directory, and these builds run in the copy.
-        (family.scratch)(),
     )?;
     preparation.owned_packages = owned_packages(family);
     Ok(preparation)

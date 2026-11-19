@@ -159,14 +159,16 @@ fn cli_preparation_description(
     let fixture = fixture_dir();
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", env!("CARGO_PKG_VERSION"), inputs),
-        target_root,
+        nested_cargo::Directories::new(
+            target_root,
+            // The fixture's own directory, because that is where every nested
+            // `cargo bdd steps` for this family runs. Cargo resolves a relative
+            // `CARGO_HOME` and a relative `RUSTC` against the command's
+            // directory, so recording the stamped target root instead would
+            // have the identity probe read a different tree than the build.
+            fixture,
+        ),
         child_env.clone(),
-        // The fixture's own directory, because that is where every nested
-        // `cargo bdd steps` for this family runs. Cargo resolves a relative
-        // `CARGO_HOME` and a relative `RUSTC` against the command's directory,
-        // so recording the stamped target root instead would have the identity
-        // probe read a different tree than the build.
-        fixture,
     )?;
     preparation.owned_packages = closure::fixture_dependency_closure(graph_query_timeout)?;
     Ok((preparation, child_env))

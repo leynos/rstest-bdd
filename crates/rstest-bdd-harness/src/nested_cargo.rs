@@ -45,6 +45,8 @@ pub use environment::{
 };
 pub use preparation::{
     DEFAULT_PROFILE,
+    Directories,
+    Instruments,
     MAX_SEQUENTIAL_COMMANDS,
     PREPARATION_COMMAND_TIMEOUT,
     Preparation,
@@ -54,14 +56,12 @@ pub use preparation::{
     ensure_prepared,
     ensure_prepared_reported,
     ensure_prepared_with,
-    ensure_prepared_with_probe,
     env_for_directory,
     input_hash,
     invalidate,
     invalidate_reported,
     prepare_now,
     prepare_now_reported,
-    prepare_now_with_probe,
 };
 pub use profile::ProfileDestination;
 

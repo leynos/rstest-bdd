@@ -256,11 +256,12 @@ impl TrybuildTree {
             ))
         })?;
         Preparation::for_fixture(
-            self.family.clone(),
-            target_root,
-            self.variant.clone(),
-            nested_cargo::input_hash(&self.inputs()?)?,
-            working_directory,
+            nested_cargo::Sources::new(
+                self.family.clone(),
+                self.variant.clone(),
+                nested_cargo::input_hash(&self.inputs()?)?,
+            ),
+            nested_cargo::Directories::new(target_root, working_directory),
         )
     }
 

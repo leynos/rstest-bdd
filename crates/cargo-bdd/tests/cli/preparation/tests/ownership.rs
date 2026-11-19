@@ -72,9 +72,8 @@ fn family_preparation(
     )?;
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", "test", "hash"),
-        scratch.join("stamp-root"),
+        nested_cargo::Directories::new(scratch.join("stamp-root"), scratch.join("stamp-root")),
         environment,
-        scratch.join("stamp-root"),
     )?;
     preparation.owned_packages = packages;
 

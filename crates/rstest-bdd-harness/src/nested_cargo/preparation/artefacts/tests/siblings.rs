@@ -14,6 +14,7 @@ use std::{fs, path::Path};
 
 use super::{profile_of, write_store, write_units};
 use crate::nested_cargo::{
+    Directories,
     Preparation,
     ProfileDestination,
     Sources,
@@ -41,8 +42,11 @@ fn unit_stem(package: &str) -> String { format!("{}-{HASH}", package.replace('-'
 fn owning(root: &Path, target: &Path, packages: &[&str]) -> std::io::Result<Preparation> {
     let environment = env_from_vars(Vec::new(), Some(target), ProfileDestination::Caller)?;
     let sources = Sources::new("unit", "v", "hash");
-    let mut preparation =
-        Preparation::new(sources, root.to_path_buf(), environment, root.to_path_buf())?;
+    let mut preparation = Preparation::new(
+        sources,
+        Directories::new(root.to_path_buf(), root.to_path_buf()),
+        environment,
+    )?;
     preparation.owned_packages = packages
         .iter()
         .map(|package| (*package).to_owned())

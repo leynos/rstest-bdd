@@ -383,9 +383,8 @@ fn a_stamp_beside_the_inputs_does_not_change_the_hash() {
     .expect("the fixture environment should resolve");
     let preparation = Preparation::new(
         super::Sources::new("unit", "v", "hash"),
-        root.clone(),
+        super::Directories::new(root.clone(), root.clone()),
         environment,
-        root.clone(),
     )
     .expect("the fixture preparation should describe its artefacts");
     let stamp = super::stamp::stamp_path(&preparation);

@@ -15,15 +15,18 @@ use super::{
     scratch_preparation,
 };
 use crate::nested_cargo::{
+    Directories,
+    Instruments,
     Preparation,
     PreparationSummary,
     ProfileDestination,
+    Sources,
+    ensure_prepared_reported,
     ensure_prepared_with,
-    ensure_prepared_with_probe,
     env_from_vars,
     input_hash,
     prepare_now,
-    prepare_now_with_probe,
+    prepare_now_reported,
 };
 
 /// One entry point into the gate, named for the case that reads the failure.
@@ -261,11 +264,11 @@ fn for_fixture_vouches_for_the_whole_target_directory_it_owns() {
     // rebuild.
     let directory = tempfile::tempdir().expect("fixture dir");
     let preparation = Preparation::for_fixture(
-        "unit-fixture",
-        directory.path().to_path_buf(),
-        "v",
-        "hash",
-        directory.path().to_path_buf(),
+        Sources::new("unit-fixture", "v", "hash"),
+        Directories::new(
+            directory.path().to_path_buf(),
+            directory.path().to_path_buf(),
+        ),
     )
     .expect("the fixture preparation should describe its artefacts");
     assert_eq!(
@@ -306,18 +309,28 @@ fn a_changed_toolchain_invalidates_the_stamp_through_the_gate() {
     let mut builds = 0_u32;
     let stable = || Ok(String::from("release: 1.88.0 commit-hash: a host: x"));
 
-    ensure_prepared_with_probe(&family, false, stable, || {
-        builds += 1;
-        Ok(PreparationSummary::default())
-    })
+    ensure_prepared_reported(
+        &family,
+        false,
+        Instruments::new(stable, |_: &str| {}),
+        || {
+            builds += 1;
+            Ok(PreparationSummary::default())
+        },
+    )
     .expect("the first preparation must stamp under its own identity");
     assert_eq!(builds, 1);
 
     let nightly = || Ok(String::from("release: 1.92.0 commit-hash: b host: x"));
-    ensure_prepared_with_probe(&family, false, nightly, || {
-        builds += 1;
-        Ok(PreparationSummary::default())
-    })
+    ensure_prepared_reported(
+        &family,
+        false,
+        Instruments::new(nightly, |_: &str| {}),
+        || {
+            builds += 1;
+            Ok(PreparationSummary::default())
+        },
+    )
     .expect("a changed toolchain must prepare again, not fail");
     assert_eq!(
         builds, 2,
@@ -326,9 +339,12 @@ fn a_changed_toolchain_invalidates_the_stamp_through_the_gate() {
 
     // And the identity the second preparation stamped with is now honoured:
     // the gate must not rebuild merely because the probe was called again.
-    ensure_prepared_with_probe(&family, true, nightly, || {
-        panic!("the stamp just written must satisfy the gate")
-    })
+    ensure_prepared_reported(
+        &family,
+        true,
+        Instruments::new(nightly, |_: &str| {}),
+        || panic!("the stamp just written must satisfy the gate"),
+    )
     .expect("a stamp under the current identity must be accepted");
 }
 
@@ -343,10 +359,10 @@ fn an_uncertain_toolchain_refuses_to_stamp_or_reuse_a_stamp() {
     // stamp at all.
     let (_directory, family, _environment) =
         scratch_preparation().expect("the scratch preparation fixture");
-    let error = ensure_prepared_with_probe(
+    let error = ensure_prepared_reported(
         &family,
         false,
-        || Err(io::Error::other("cargo -vV failed")),
+        Instruments::new(|| Err(io::Error::other("cargo -vV failed")), |_: &str| {}),
         || panic!("an unidentifiable toolchain must not prepare"),
     )
     .expect_err("a failing probe must refuse the gate");
@@ -363,9 +379,9 @@ fn an_uncertain_toolchain_refuses_to_stamp_or_reuse_a_stamp() {
     // The same must hold for the unconditional entry point, which is the one
     // `make prepare-nested-fixtures` reaches: it may not build against an
     // identity it could not resolve.
-    let refused = prepare_now_with_probe(
+    let refused = prepare_now_reported(
         &family,
-        || Err(io::Error::other("cargo -vV failed")),
+        Instruments::new(|| Err(io::Error::other("cargo -vV failed")), |_: &str| {}),
         || panic!("prepare_now must not build behind a failing probe"),
     )
     .expect_err("prepare_now must refuse a failing probe");

@@ -1,16 +1,22 @@
 //! The gate that decides whether a family is prepared, and the build that
 //! follows when it is not.
 //!
-//! Five entry points reach this module. [`ensure_prepared`] reads the runner
-//! decision from the process environment; [`ensure_prepared_with`],
-//! [`ensure_prepared_with_probe`] and [`ensure_prepared_reported`] take it —
-//! and the toolchain probe and the message reporter — as parameters so the
-//! protocol can be exercised without mutating the environment or spawning
-//! `cargo -vV`. [`prepare_now`] is the unconditional form the named preparation
-//! test uses. The entry points that supply the real probe bind it to the
-//! preparation's own environment, so the compiler identified is the one the
-//! nested build will run, and those that supply the real reporter bind it to
-//! `stamp::note`, so production diagnostics are unchanged.
+//! Four entry points reach this module. [`ensure_prepared`] reads the runner
+//! decision from the process environment; [`ensure_prepared_with`] takes that
+//! decision as a parameter; [`ensure_prepared_reported`] takes the injected
+//! boundaries as well, so the protocol can be exercised without mutating the
+//! environment or spawning `cargo -vV`. [`prepare_now`] is the unconditional
+//! form the named preparation test uses, and [`prepare_now_reported`] is its
+//! injectable twin.
+//!
+//! The probe and the reporter travel together in [`Instruments`] rather than as
+//! two more parameters. Every caller that overrides one of them overrides the
+//! other at the same time, and threading them separately made the innermost
+//! boundary take five arguments — past the count this repository's lints allow
+//! and past what a reader can keep in view. The entry point that supplies the
+//! real pair binds the probe to the preparation's own environment, so the
+//! compiler identified is the one the nested build will run, and binds the
+//! reporter to `stamp::note`, so production diagnostics are unchanged.
 //!
 //! The reporter is a parameter at the innermost boundary rather than a direct
 //! write to stderr, because the diagnostics are part of what this module
@@ -95,16 +101,44 @@ pub fn ensure_prepared_with<F>(
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    ensure_prepared_with_probe(preparation, under_nextest, probe_of(preparation), prepare)
+    ensure_prepared_reported(
+        preparation,
+        under_nextest,
+        instruments_of(preparation),
+        prepare,
+    )
 }
 
-/// Bind the real toolchain probe to the preparation's own environment.
+/// The two boundaries a caller may substitute for the real ones.
 ///
-/// Every entry point that supplies the real probe needs exactly this binding,
-/// and it must be the preparation's environment rather than the process's: the
-/// compiler identified has to be the one the nested build will run.
-fn probe_of(preparation: &Preparation) -> impl FnOnce() -> io::Result<String> + '_ {
-    move || toolchain_identity(&preparation.environment, &preparation.working_directory)
+/// The probe resolves the compiler's identity and the reporter carries this
+/// module's diagnostics. They travel together because they are overridden for
+/// the same purpose and at the same time: a test that cannot make `cargo -vV`
+/// fail and cannot read stderr needs both injected, and a caller that supplies
+/// one of them wants the other's production binding. Grouping them also keeps
+/// the innermost gate inside the argument budget this repository enforces.
+///
+/// The asynchronous forms are the ones the gate takes: the probe is called
+/// exactly once, and its error stops the gate before any stamp is read.
+pub struct Instruments<P, R> {
+    /// Resolves the toolchain identity the fingerprint is built from.
+    pub probe: P,
+    /// Receives every diagnostic the gate emits, as a finished message.
+    pub report: R,
+}
+
+impl<P, R> Instruments<P, R> {
+    /// Pair a probe with a reporter.
+    ///
+    /// # Parameters
+    /// - `probe`: The toolchain probe; called once per gate.
+    /// - `report`: Where diagnostics go; called at most twice per gate, once before the lock is
+    ///   taken and once after.
+    ///
+    /// # Returns
+    /// The two grouped, in the field order the gate takes them.
+    #[must_use]
+    pub fn new(probe: P, report: R) -> Self { Self { probe, report } }
 }
 
 /// Report a preparation diagnostic the way production does.
@@ -116,32 +150,26 @@ fn probe_of(preparation: &Preparation) -> impl FnOnce() -> io::Result<String> + 
 /// duplicated there for that reason.
 pub(super) fn reporter_of() -> impl FnMut(&str) { stamp_note }
 
-/// [`ensure_prepared_with`] with the toolchain probe supplied.
+/// Bind the real toolchain probe to the preparation's own environment.
 ///
-/// The probe is a parameter for the same reason the runner decision is: a test
-/// cannot make `cargo -vV` fail, so a boundary that swallowed the probe's error
-/// would be unreachable from any test that only used the real one. Everything
-/// else is unchanged — the probe is called exactly once, and its error stops
-/// the gate before any stamp is read.
-///
-/// # Errors
-///
-/// As [`ensure_prepared`], plus the probe's own error.
-#[doc(hidden)]
-pub fn ensure_prepared_with_probe<P, F>(
-    preparation: &Preparation,
-    under_nextest: bool,
-    probe: P,
-    prepare: F,
-) -> io::Result<()>
-where
-    P: FnOnce() -> io::Result<String>,
-    F: FnOnce() -> io::Result<PreparationSummary>,
-{
-    ensure_prepared_reported(preparation, under_nextest, probe, reporter_of(), prepare)
+/// Every entry point that supplies the real probe needs exactly this binding,
+/// and it must be the preparation's environment rather than the process's: the
+/// compiler identified has to be the one the nested build will run.
+fn probe_of(preparation: &Preparation) -> impl FnOnce() -> io::Result<String> + '_ {
+    move || toolchain_identity(&preparation.environment, &preparation.working_directory)
 }
 
-/// [`ensure_prepared_with_probe`] with the diagnostic reporter supplied.
+/// The real boundaries, bound to `preparation`.
+///
+/// One binding, used by both production entry points, so the compiler the gate
+/// identifies and the reporter it writes through cannot drift apart.
+pub(super) fn instruments_of(
+    preparation: &Preparation,
+) -> Instruments<impl FnOnce() -> io::Result<String> + '_, impl FnMut(&str)> {
+    Instruments::new(probe_of(preparation), reporter_of())
+}
+
+/// [`ensure_prepared_with`] with the diagnostic reporter supplied.
 ///
 /// The reporter is a parameter for the same reason the runner decision and the
 /// probe are: the diagnostics this module emits are a promise about what a
@@ -161,8 +189,7 @@ where
 pub fn ensure_prepared_reported<P, R, F>(
     preparation: &Preparation,
     under_nextest: bool,
-    probe: P,
-    mut report: R,
+    instruments: Instruments<P, R>,
     prepare: F,
 ) -> io::Result<()>
 where
@@ -170,6 +197,7 @@ where
     R: FnMut(&str),
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
+    let Instruments { probe, mut report } = instruments;
     let fingerprint = fingerprint_with(preparation, probe)?;
     let stamp = stamp_path(preparation);
     // An unreadable stamp is neither a match nor an absence, and the two
@@ -203,7 +231,15 @@ where
         ));
     }
 
-    prepare_locked(preparation, &stamp, &fingerprint, report, prepare)
+    prepare_locked(
+        preparation,
+        &Target {
+            stamp: &stamp,
+            fingerprint: &fingerprint,
+        },
+        report,
+        prepare,
+    )
 }
 
 /// Prepare the family unconditionally, for the named preparation test.
@@ -219,19 +255,20 @@ pub fn prepare_now<F>(preparation: &Preparation, prepare: F) -> io::Result<()>
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    prepare_now_with_probe(preparation, probe_of(preparation), prepare)
+    prepare_now_reported(preparation, instruments_of(preparation), prepare)
 }
 
-/// [`prepare_now`] with the diagnostic reporter supplied.
+/// [`prepare_now`] with the probe and reporter supplied.
 ///
-/// Split so the unconditional path's diagnostics are observable too: a warm
-/// family is reported as prepared and a cold one names the units it compiled,
-/// both of which are the evidence that cold work left the timed assertions.
+/// Split so the unconditional path's diagnostics and compiler identity are
+/// observable too: a warm family is reported as prepared and a cold one names
+/// the units it compiled, both of which are the evidence that cold work left
+/// the timed assertions.
 ///
 /// # Parameters
 /// - `preparation`: The family to prepare.
-/// - `probe`: The toolchain probe the fingerprint is built from.
-/// - `report`: Where a diagnostic goes; called once per message.
+/// - `instruments`: The toolchain probe the fingerprint is built from and where diagnostics go; see
+///   [`Instruments`].
 /// - `prepare`: The build to run when the family is not already prepared.
 ///
 /// # Returns
@@ -244,8 +281,7 @@ where
 #[doc(hidden)]
 pub fn prepare_now_reported<P, R, F>(
     preparation: &Preparation,
-    probe: P,
-    report: R,
+    instruments: Instruments<P, R>,
     prepare: F,
 ) -> io::Result<()>
 where
@@ -253,32 +289,31 @@ where
     R: FnMut(&str),
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
+    let Instruments { probe, report } = instruments;
     let fingerprint = fingerprint_with(preparation, probe)?;
     prepare_locked(
         preparation,
-        &stamp_path(preparation),
-        &fingerprint,
+        &Target {
+            stamp: &stamp_path(preparation),
+            fingerprint: &fingerprint,
+        },
         report,
         prepare,
     )
 }
 
-/// [`prepare_now`] with the toolchain probe supplied.
+/// The stamp and fingerprint a preparation is being judged against.
 ///
-/// # Errors
-///
-/// As [`prepare_now`], plus the probe's own error.
-#[doc(hidden)]
-pub fn prepare_now_with_probe<P, F>(
-    preparation: &Preparation,
-    probe: P,
-    prepare: F,
-) -> io::Result<()>
-where
-    P: FnOnce() -> io::Result<String>,
-    F: FnOnce() -> io::Result<PreparationSummary>,
-{
-    prepare_now_reported(preparation, probe, reporter_of(), prepare)
+/// They are produced together and only ever read together, and grouping them
+/// keeps [`prepare_locked`] inside this repository's argument budget. The
+/// struct is borrowed rather than moved for the same reason its fields are
+/// references: it is a view of two values the caller owns, not a value in its
+/// own right, and moving it would only copy two pointers.
+struct Target<'a> {
+    /// Where the stamp under judgement lives.
+    stamp: &'a Path,
+    /// What that stamp must record for the tree to count as prepared.
+    fingerprint: &'a Fingerprint,
 }
 
 /// Run `prepare` under the process's preparation mutex unless already prepared,
@@ -292,8 +327,7 @@ where
 /// post-lock read failure explained below.
 fn prepare_locked<R, F>(
     preparation: &Preparation,
-    stamp: &Path,
-    fingerprint: &Fingerprint,
+    target: &Target<'_>,
     mut report: R,
     prepare: F,
 ) -> io::Result<()>
@@ -301,6 +335,7 @@ where
     R: FnMut(&str),
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
+    let Target { stamp, fingerprint } = target;
     let _guard = super::lock();
     // Another thread may have prepared the family while this one waited for
     // the mutex, and a timed assertion may have evicted the tree while the

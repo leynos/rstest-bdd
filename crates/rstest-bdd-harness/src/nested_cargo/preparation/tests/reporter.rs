@@ -13,6 +13,7 @@ use std::fs;
 
 use super::{super::stamp::stamp_path, scratch_preparation};
 use crate::nested_cargo::{
+    Instruments,
     Preparation,
     PreparationSummary,
     ensure_prepared_reported,
@@ -47,8 +48,7 @@ fn the_cargo_test_recovery_names_the_unreadable_stamp_and_its_second_read() {
     ensure_prepared_reported(
         &preparation,
         false,
-        || Ok("rustc 1.0\n".to_owned()),
-        collecting(&mut messages),
+        Instruments::new(|| Ok("rustc 1.0\n".to_owned()), collecting(&mut messages)),
         || Ok(PreparationSummary { compiled_units: 1 }),
     )
     .expect("cargo test must recover from an unreadable stamp by preparing");
@@ -96,8 +96,7 @@ fn an_unreadable_stamp_before_the_expected_compile_is_not_reported_as_a_match() 
     ensure_prepared_reported(
         &preparation,
         false,
-        || Ok("rustc 1.0\n".to_owned()),
-        collecting(&mut messages),
+        Instruments::new(|| Ok("rustc 1.0\n".to_owned()), collecting(&mut messages)),
         || Ok(PreparationSummary::default()),
     )
     .expect("a family with no stamp is prepared without a diagnostic");
@@ -125,8 +124,7 @@ fn a_warm_family_is_reported_as_prepared_without_running_the_build() {
         scratch_preparation().expect("the scratch preparation fixture");
     let first = prepare_now_reported(
         &preparation,
-        || Ok("rustc 1.0\n".to_owned()),
-        |_| {},
+        Instruments::new(|| Ok("rustc 1.0\n".to_owned()), |_: &str| {}),
         || Ok(PreparationSummary::default()),
     );
     first.expect("the scratch family prepares");
@@ -135,8 +133,7 @@ fn a_warm_family_is_reported_as_prepared_without_running_the_build() {
     ensure_prepared_reported(
         &preparation,
         false,
-        || Ok("rustc 1.0\n".to_owned()),
-        collecting(&mut messages),
+        Instruments::new(|| Ok("rustc 1.0\n".to_owned()), collecting(&mut messages)),
         || panic!("a warm family must not be prepared again"),
     )
     .expect("the stamp written above must be honoured");
@@ -165,8 +162,7 @@ fn invalidating_reports_the_stamp_it_removed_and_says_nothing_about_an_absent_on
         scratch_preparation().expect("the scratch preparation fixture");
     prepare_now_reported(
         &preparation,
-        || Ok("rustc 1.0\n".to_owned()),
-        |_| {},
+        Instruments::new(|| Ok("rustc 1.0\n".to_owned()), |_: &str| {}),
         || Ok(PreparationSummary::default()),
     )
     .expect("the scratch family prepares");

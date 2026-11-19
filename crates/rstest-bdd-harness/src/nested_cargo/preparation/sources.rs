@@ -1,11 +1,14 @@
 //! What a caller tells a preparation, and what it reports back.
 //!
 //! [`Sources`] is the input side: a family name, a variant label and a hash of
-//! the inputs it builds. [`PreparationSummary`] is the output side: what one
+//! the inputs it builds. [`Directories`] is where that family stamps and where
+//! its nested build runs. [`PreparationSummary`] is the output side: what one
 //! run of that family's preparation commands actually did, for the log line.
-//! Both live beside [`Preparation`](super::Preparation) rather than inside it
-//! because they are the two ends of the same exchange and are never used
+//! All three live beside [`Preparation`](super::Preparation) rather than inside
+//! it because they are the ends of the same exchange and are never used
 //! together by the same code.
+
+use std::path::PathBuf;
 
 /// What a preparation builds, as the caller describes it.
 ///
@@ -47,6 +50,43 @@ impl Sources {
             family: family.into(),
             variant: variant.into(),
             inputs: inputs.into(),
+        }
+    }
+}
+
+/// The two directories a preparation is described by.
+///
+/// They are grouped rather than passed one after another because the pair is
+/// exactly what a caller gets wrong: the stamped root is where the stamp is
+/// written and, for a fixture family, the child's target directory, while the
+/// working directory is where the nested build actually runs. Naming them in a
+/// struct keeps a caller from transposing two `PathBuf`s that have the same
+/// type — a mistake the compiler cannot catch and a stamp would record.
+#[derive(Debug, Clone)]
+pub struct Directories {
+    /// The stamped root, and the target directory the child receives.
+    pub root: PathBuf,
+    /// The directory the nested build runs in; see
+    /// [`Preparation::working_directory`](super::Preparation::working_directory).
+    pub working: PathBuf,
+}
+
+impl Directories {
+    /// Name a stamped root and the directory its nested build runs in.
+    ///
+    /// # Parameters
+    /// - `root`: The stamped root, which for a fixture family is also the child's target directory.
+    /// - `working`: The directory the nested build runs in, which is the stamped root only when the
+    ///   build runs there.
+    ///
+    /// # Returns
+    /// The two grouped, unconverted beyond [`Into`], so a caller may pass
+    /// borrowed paths.
+    #[must_use]
+    pub fn new(root: impl Into<PathBuf>, working: impl Into<PathBuf>) -> Self {
+        Self {
+            root: root.into(),
+            working: working.into(),
         }
     }
 }

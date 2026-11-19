@@ -127,9 +127,8 @@ fn preparation(
 ) -> std::io::Result<Preparation> {
     Preparation::new(
         super::Sources::new("unit", variant, inputs),
-        directory.to_path_buf(),
+        super::Directories::new(directory.to_path_buf(), directory.to_path_buf()),
         environment.clone(),
-        directory.to_path_buf(),
     )
 }
 

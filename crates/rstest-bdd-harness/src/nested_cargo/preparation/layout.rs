@@ -298,6 +298,41 @@ fn is_output_of(name: &str, stem: &str) -> bool {
     library || binary
 }
 
+/// The contiguous run of `sorted` whose entries begin with `prefix`.
+///
+/// `sorted` is in byte order, so every name carrying a given prefix is
+/// contiguous and the run can be found without visiting the rest of the
+/// listing. `partition_point` answers in `0..=len`, so the start is always a
+/// valid slice index; the end is the first entry that no longer carries the
+/// prefix, or the end of the listing.
+fn prefixed_range<'a, 'name>(sorted: &'a [&'name str], prefix: &str) -> &'a [&'name str] {
+    let first = sorted.partition_point(|name| *name < prefix);
+    let rest = sorted.get(first..).unwrap_or_default();
+    let length = rest
+        .iter()
+        .take_while(|name| name.starts_with(prefix))
+        .count();
+    rest.get(..length).unwrap_or_default()
+}
+
+/// Add the entries of `sorted` that are outputs of the unit with `stem`.
+///
+/// Every output of `stem` begins with either `stem` or `lib<stem>`, which
+/// `is_output_of` then confirms. Those two ranges are disjoint from each other
+/// and each visits only entries that could match, so the work stays
+/// proportional to the outputs rather than to the listing.
+fn collect_outputs_of(stem: &str, sorted: &[&str], outputs: &mut BTreeSet<String>) {
+    for prefix in [stem.to_owned(), format!("lib{stem}")] {
+        let candidates = prefixed_range(sorted, &prefix);
+        outputs.extend(
+            candidates
+                .iter()
+                .filter(|name| is_output_of(name, stem))
+                .map(|name| (*name).to_owned()),
+        );
+    }
+}
+
 /// The outputs a directory's dep-info records describe.
 ///
 /// These are the units Cargo will recompile if their outputs go missing, so they
@@ -323,23 +358,7 @@ pub(super) fn outputs_in(directory: &Path) -> io::Result<Vec<String>> {
 
     let mut outputs: BTreeSet<String> = BTreeSet::new();
     for stem in sorted.iter().filter_map(|name| dep_info_stem(name)) {
-        // Every output of `stem` begins with either `stem` or `lib<stem>`,
-        // which `is_output_of` then confirms. Those two ranges are disjoint
-        // from each other and each visits only entries that could match.
-        for prefix in [stem.to_owned(), format!("lib{stem}")] {
-            let first = sorted.partition_point(|name| *name < prefix.as_str());
-            // `partition_point` answers in `0..=len`, so `first` is always a
-            // valid start; taking the suffix through `get` states that without
-            // an index some future edit could put out of range.
-            let Some(suffix) = sorted.get(first..) else {
-                continue;
-            };
-            for name in suffix.iter().take_while(|name| name.starts_with(&prefix)) {
-                if is_output_of(name, stem) {
-                    outputs.insert((*name).to_owned());
-                }
-            }
-        }
+        collect_outputs_of(stem, &sorted, &mut outputs);
     }
     Ok(outputs.into_iter().collect())
 }

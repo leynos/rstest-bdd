@@ -12,8 +12,10 @@ use std::{fs, io};
 use super::super::stamp::stamp_path;
 use crate::nested_cargo::{
     DEFAULT_PROFILE,
+    Directories,
     Preparation,
     PreparationSummary,
+    Sources,
     ensure_prepared_with,
     prepare_now,
 };
@@ -66,9 +68,11 @@ fn evicting_only_the_target_profile_invalidates_the_preparation() {
     let host = write_host_profile(&root).expect("host profile");
     write_target_profile(&root, "x86_64-unknown-linux-gnu").expect("target profile");
 
-    let preparation =
-        Preparation::for_fixture("unit-fixture", root.clone(), "v", "hash", root.clone())
-            .expect("the fixture preparation should describe its artefacts");
+    let preparation = Preparation::for_fixture(
+        Sources::new("unit-fixture", "v", "hash"),
+        Directories::new(root.clone(), root.clone()),
+    )
+    .expect("the fixture preparation should describe its artefacts");
     prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
     ensure_prepared_with(&preparation, true, || {
         panic!("a just-prepared family must pass")
@@ -108,9 +112,11 @@ fn the_advertised_preparation_repairs_an_evicted_target_profile() {
     write_host_profile(&root).expect("host profile");
     write_target_profile(&root, "x86_64-unknown-linux-gnu").expect("target profile");
 
-    let preparation =
-        Preparation::for_fixture("unit-fixture", root.clone(), "v", "hash", root.clone())
-            .expect("the fixture preparation should describe its artefacts");
+    let preparation = Preparation::for_fixture(
+        Sources::new("unit-fixture", "v", "hash"),
+        Directories::new(root.clone(), root.clone()),
+    )
+    .expect("the fixture preparation should describe its artefacts");
     prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("first preparation");
     fs::remove_dir_all(root.join("x86_64-unknown-linux-gnu/debug"))
         .expect("evict the target-profile artefacts");

@@ -18,8 +18,10 @@ one public gate per runner position:
 
 - `ensure_prepared` decides by runner and either admits a prepared tree or
   prepares one.
-- `ensure_prepared_with` and `ensure_prepared_with_probe` are the injectable
-  forms of the same decision.
+- `ensure_prepared_with` takes the runner decision as a parameter, and
+  `ensure_prepared_reported` takes the injected `Instruments` as well, so the
+  protocol can be exercised without mutating the environment or spawning
+  `cargo -vV`.
 - `prepare_now` is the unconditional preparation the `prepare-nested-fixtures`
   target reaches.
 - `invalidate` withdraws a stamp a witness has refuted.

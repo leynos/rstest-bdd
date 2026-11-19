@@ -2143,6 +2143,40 @@ rather than by reading this branch's comments.
       same suite on clean runners with no competing agents and passed all three
       `build-test` lanes. The new head `2e46a6fb` is therefore gated on its own
       hosted run rather than on a re-run that would queue behind the same pool.
+- [x] Clear the CodeScene findings the gate raised on `c8611a72`, all of them
+      in code this branch introduces. Two rules were involved: one critical
+      (`Bumpy Road Ahead` on `outputs_in`) and three advisory (argument counts
+      on `Preparation::new`, `Preparation::for_fixture`, `prepare_locked` and
+      `ensure_prepared_reported`, plus a `Similar Structure` cluster over the
+      probe/reporter ladder). The fixes are structural rather than suppressive:
+      - `outputs_in` now sorts the listing once and scans two prefix ranges
+        through `prefixed_range` and `collect_outputs_of`, so a stem's outputs
+        are found without visiting the rest of the listing.
+      - `Sources` (already present) is joined by `Directories`, grouping the
+        stamped root and the working directory. Both are `PathBuf`, so a caller
+        that transposed them got a stamp recording the wrong tree and no
+        compiler complaint; the struct removes the possibility.
+      - `Instruments` groups the toolchain probe and the diagnostic reporter.
+        Both are overridden for the same purpose and at the same time, and
+        threading them separately is what pushed the innermost boundary past
+        the argument budget.
+      - `ensure_prepared_with_probe` and `prepare_now_with_probe` are **gone**.
+        A caller audit found no use for the probe-only rung once `Instruments`
+        existed: every test that supplied a probe also supplied a reporter, so
+        the rung was a public entry point with no independent purpose. The
+        ladder is now `ensure_prepared` → `ensure_prepared_with` →
+        `ensure_prepared_reported`, with the same shape for `prepare_now`.
+      - `Target` groups the stamp and fingerprint that `prepare_locked` judges,
+        which were only ever read together.
+      - `scripts/prepared_fixture_judgements.py`'s 51-line
+        `expect_pass_without_rebuild` was split into `judge_run_reports`,
+        `require_one_of_each` (now a `collections.Counter` over
+        `describe_count_offence`) and `require_no_rebuild`, and its docstring's
+        rationale moved to the module docstring where the other framing already
+        lived.
+      `cs delta main` now returns an empty array and `cs review` scores the
+      Python module 10.0. `make check-fmt` exits 0 after a `make fmt` pass, and
+      `make lint-python` and the 24 workflow-judgement tests pass.
 
 ## Surprises & Discoveries
 
@@ -3304,11 +3338,12 @@ The second is the *fallible toolchain probe*. `cargo -vV` identifies the
 compiler, and a probe that swallowed its error would silently fingerprint an
 unknown toolchain — the state in which a stamp written by one compiler is read
 by another. Resolution is now an `io::Result` propagated to the gate, and
-`ensure_prepared_with_probe` takes the probe as a parameter for the same reason
-the runner decision is one: no test can make `cargo -vV` fail, so a boundary
-that discarded the error would be unreachable from any test using the real
-probe. The probe is called exactly once, and its error stops the gate before
-any stamp is read.
+`ensure_prepared_reported` takes the probe as a parameter — carried in
+`Instruments` alongside the diagnostic reporter — for the same reason the
+runner decision is one: no test can make `cargo -vV` fail, so a boundary that
+discarded the error would be unreachable from any test using the real probe.
+The probe is called exactly once, and its error stops the gate before any stamp
+is read.
 
 The same reasoning produced the fallible target-directory resolution behind
 `absolute_target_directory`: a relative `CARGO_TARGET_DIR` names one directory
@@ -3323,11 +3358,15 @@ relative and the failed-lookup branches are all reachable from a test.
 The shared preparation policy is
 `crates/rstest-bdd-harness/src/nested_cargo/preparation.rs`, with the stamp
 protocol in `preparation/stamp.rs` and directory hashing in
-`preparation/input_hash.rs`. `Preparation::new` takes the three values that
-identify a family (`Sources`: name, variant label, input hash), the directory
-it stamps, and the filtered `NestedCargoEnv` its commands run with;
-`prepare_now` runs a closure unconditionally and writes the stamp on success;
-`ensure_prepared` fails fast under nextest and prepares lazily otherwise.
+`preparation/input_hash.rs`. `Preparation::new` takes a `Sources` grouping the
+three values that identify a family (name, variant label, input hash), a
+`Directories` grouping the stamped root and the working directory, and the
+filtered `NestedCargoEnv` its commands run with; `prepare_now` runs a closure
+unconditionally and writes the stamp on success; `ensure_prepared` fails fast
+under nextest and prepares lazily otherwise. The injectable forms take an
+`Instruments` grouping the toolchain probe and the diagnostic reporter, so a
+test can make `cargo -vV` fail and read the gate's stderr without either one
+being reachable from production's own binding.
 
 The five suites:
 

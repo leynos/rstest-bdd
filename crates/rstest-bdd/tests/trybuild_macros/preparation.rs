@@ -174,11 +174,15 @@ fn trybuild_preparation(target_directory: &Utf8Path) -> io::Result<nested_cargo:
     // named after this package, matching `TARGET_SUBDIR` in the server suite.
     let generated = directory.join(env!("CARGO_PKG_NAME"));
     nested_cargo::Preparation::for_fixture(
-        TRYBUILD_FAMILY,
-        directory.into_std_path_buf(),
-        trybuild_variant(),
-        nested_cargo::input_hash(&input_roots()?)?,
-        generated.into_std_path_buf(),
+        nested_cargo::Sources::new(
+            TRYBUILD_FAMILY,
+            trybuild_variant(),
+            nested_cargo::input_hash(&input_roots()?)?,
+        ),
+        nested_cargo::Directories::new(
+            directory.into_std_path_buf(),
+            generated.into_std_path_buf(),
+        ),
     )
 }
 

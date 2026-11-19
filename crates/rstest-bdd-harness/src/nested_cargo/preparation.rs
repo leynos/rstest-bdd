@@ -49,15 +49,14 @@ mod toolchain;
 pub use input_hash::{cargo_config_inputs, input_hash};
 pub use invalidate::{invalidate, invalidate_reported};
 pub use lifecycle::{
+    Instruments,
     ensure_prepared,
     ensure_prepared_reported,
     ensure_prepared_with,
-    ensure_prepared_with_probe,
     prepare_now,
     prepare_now_reported,
-    prepare_now_with_probe,
 };
-pub use sources::{PreparationSummary, Sources};
+pub use sources::{Directories, PreparationSummary, Sources};
 
 #[cfg(test)]
 mod fingerprint_props;
@@ -244,12 +243,10 @@ impl Preparation {
     /// # Parameters
     ///
     /// - `sources`: the family name, variant label and input hash.
-    /// - `directory`: the stamp's directory, and the root the recorded artefacts are checked
-    ///   beneath.
+    /// - `directories`: the stamp's root and the directory the nested build runs in; see
+    ///   [`Directories`].
     /// - `environment`: the filtered environment the nested commands run with, which also names the
     ///   target directory the artefacts are derived from.
-    /// - `working_directory`: where those commands run, which is not the stamp's directory for most
-    ///   families; see [`Preparation::working_directory`].
     ///
     /// # Returns
     ///
@@ -263,9 +260,8 @@ impl Preparation {
     /// artefact path, which the gate would then check against the wrong root.
     pub fn new(
         sources: Sources,
-        directory: PathBuf,
+        directories: Directories,
         environment: NestedCargoEnv,
-        working_directory: PathBuf,
     ) -> io::Result<Self> {
         let artefacts = environment
             .target_directory()?
@@ -273,8 +269,8 @@ impl Preparation {
             .unwrap_or_default();
         Ok(Self {
             family: sources.family,
-            working_directory,
-            directory,
+            working_directory: directories.working,
+            directory: directories.root,
             environment,
             variant: sources.variant,
             inputs: sources.inputs,
@@ -312,36 +308,25 @@ impl Preparation {
     ///
     /// # Parameters
     ///
-    /// - `family`, `variant`, `inputs`: as [`Sources::new`].
-    /// - `directory`: the stamped root, and the directory whose target directory the child
-    ///   receives.
-    /// - `working_directory`: the directory the nested build actually runs in. A `trybuild` family
-    ///   builds the generated crate rather than the stamped root, so callers pass
-    ///   `TrybuildTree::generated_crate_root` here and a UI-lint family passes its manifest
-    ///   directory. See [`Preparation::working_directory`] for why this must not be derived.
+    /// - `sources`: the family name, variant label and input hash, as [`Sources::new`].
+    /// - `directories`: the stamped root, which is also the target directory the child receives,
+    ///   and the directory the nested build actually runs in. A `trybuild` family builds the
+    ///   generated crate rather than the stamped root, so callers pass
+    ///   `TrybuildTree::generated_crate_root` as the working directory and a UI-lint family passes
+    ///   its manifest directory. See [`Preparation::working_directory`] for why this must not be
+    ///   derived.
     ///
     /// # Returns
     ///
-    /// A description that vouches for the whole of `directory`, since a family
-    /// constructed this way owns its target root.
+    /// A description that vouches for the whole of the stamped root, since a
+    /// family constructed this way owns its target directory.
     ///
     /// # Errors
     ///
     /// As [`Preparation::new`].
-    pub fn for_fixture(
-        family: impl Into<String>,
-        directory: PathBuf,
-        variant: impl Into<String>,
-        inputs: impl Into<String>,
-        working_directory: PathBuf,
-    ) -> io::Result<Self> {
-        let environment = env_for_directory(&directory, ProfileDestination::Caller)?;
-        let mut preparation = Self::new(
-            Sources::new(family, variant, inputs),
-            directory,
-            environment,
-            working_directory,
-        )?;
+    pub fn for_fixture(sources: Sources, directories: Directories) -> io::Result<Self> {
+        let environment = env_for_directory(&directories.root, ProfileDestination::Caller)?;
+        let mut preparation = Self::new(sources, directories, environment)?;
         preparation.artefacts = vec![preparation.directory.clone()];
         Ok(preparation)
     }

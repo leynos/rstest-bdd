@@ -11,7 +11,7 @@
 use std::fs;
 
 use super::{all_present, record};
-use crate::nested_cargo::{Preparation, ProfileDestination, Sources, env_from_vars};
+use crate::nested_cargo::{Directories, Preparation, ProfileDestination, Sources, env_from_vars};
 
 /// The profile directory a `preparation_with` fixture vouches for.
 ///
@@ -100,9 +100,8 @@ fn preparation_for(
     let environment = env_from_vars(Vec::new(), Some(target), ProfileDestination::Caller)?;
     Preparation::new(
         Sources::new("unit", "v", "hash"),
-        root.to_path_buf(),
+        Directories::new(root.to_path_buf(), root.to_path_buf()),
         environment,
-        root.to_path_buf(),
     )
 }
 

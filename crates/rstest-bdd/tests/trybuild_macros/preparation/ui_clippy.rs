@@ -34,14 +34,18 @@ fn ui_clippy_target_directory() -> Utf8PathBuf {
 /// Describe the UI-lint preparation family.
 pub(super) fn ui_clippy_preparation() -> io::Result<nested_cargo::Preparation> {
     nested_cargo::Preparation::for_fixture(
-        UI_CLIPPY_FAMILY,
-        ui_clippy_target_directory().into_std_path_buf(),
-        format!("clippy:{}", env!("CARGO_PKG_VERSION")),
-        nested_cargo::input_hash(&input_roots()?)?,
-        // `ui_clippy_command` sets `current_dir` to this manifest directory, so
-        // it — not the stamped target root — is where Cargo resolves a relative
-        // `RUSTC` or `CARGO_HOME` for this family.
-        Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf(),
+        nested_cargo::Sources::new(
+            UI_CLIPPY_FAMILY,
+            format!("clippy:{}", env!("CARGO_PKG_VERSION")),
+            nested_cargo::input_hash(&input_roots()?)?,
+        ),
+        nested_cargo::Directories::new(
+            ui_clippy_target_directory().into_std_path_buf(),
+            // `ui_clippy_command` sets `current_dir` to this manifest
+            // directory, so it — not the stamped target root — is where Cargo
+            // resolves a relative `RUSTC` or `CARGO_HOME` for this family.
+            Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf(),
+        ),
     )
 }
 
