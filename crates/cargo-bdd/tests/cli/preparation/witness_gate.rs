@@ -46,66 +46,50 @@ pub(super) fn witness_or_withdraw(preparation: &nested_cargo::Preparation) -> Re
     Err(eyre::eyre!("{error:#}\n{recovery}"))
 }
 
-/// Fail unless `preparation`'s profiles hold the fixture's own test binaries.
+/// Fail unless `preparation`'s selected profile holds the fixture's own test
+/// binaries.
 ///
 /// Shared by the timed gate and the named preparation test so the two cannot
 /// disagree about what "prepared" means: the predicate the preparation proves
 /// is the one the timed assertions require.
 ///
-/// Every profile the family names is searched, and any one holding both
-/// binaries satisfies the witness. The profile the fixture's units land in is
-/// not always the first: a build selected onto a target triple writes the
-/// fixture's units to `<target>/<triple>/debug` and only its build scripts and
-/// proc macros to `<target>/debug`, so a witness reading one named directory
-/// would refuse a preparation that left exactly the binaries it asks for. The
-/// family names both profiles rather than this deciding which one *should*
-/// hold them, because only Cargo knows where a given selection puts them.
+/// Only the *selected* profile is read, which is the last one the family
+/// names. Without a target selection that is `<target>/debug`, the only
+/// profile there is. A build selected onto a triple writes the fixture's test
+/// binaries to `<target>/<triple>/debug` and only its build scripts and proc
+/// macros to `<target>/debug`, and [`nested_cargo::Preparation::new`] names
+/// the host profile first and the triple's second.
 ///
-/// The search stops at the first profile that holds them, and a profile that
-/// cannot be listed is remembered rather than raised immediately: in a
-/// `--target` build the host profile is named first and may be unreadable while
-/// the triple's profile holds exactly what the witness asks for. Failing on the
-/// host profile before looking at the second would refuse a prepared tree.
+/// Accepting either profile was the earlier rule, and it admitted a tree the
+/// timed command would rebuild: binaries a previous host build left in
+/// `<target>/debug` satisfied the witness after the triple's own had been
+/// removed, although a selected build never reads the host copies. The
+/// selection decides which profile Cargo reads, so it decides which profile
+/// the witness reads.
 ///
 /// # Errors
 ///
-/// Returns the listing error when no profile could be read at all, and an error
-/// naming every profile searched when each one was readable and missing a
-/// fixture binary.
+/// Returns the listing error when the selected profile cannot be read, and an
+/// error naming that profile when it is readable and missing a fixture binary.
 pub(super) fn require_fixture_binaries(preparation: &nested_cargo::Preparation) -> Result<()> {
-    let profiles = &preparation.artefacts;
-    if profiles.is_empty() {
+    let Some(profile) = preparation.artefacts.last() else {
         return Err(eyre::eyre!(
             "the CLI family must describe the profile its units land in"
         ));
+    };
+    let present = fixture_binaries_present(profile).map_err(|error| {
+        eyre::Report::new(error).wrap_err(format!(
+            "listing the prepared profile {}",
+            profile.display()
+        ))
+    })?;
+    if present {
+        return Ok(());
     }
-    let mut listing_error: Option<eyre::Error> = None;
-    for profile in profiles {
-        match fixture_binaries_present(profile) {
-            Ok(true) => return Ok(()),
-            Ok(false) => {}
-            Err(error) => {
-                let error = eyre::Report::new(error).wrap_err(format!(
-                    "listing the prepared profile {}",
-                    profile.display()
-                ));
-                if listing_error.is_none() {
-                    listing_error = Some(error);
-                }
-            }
-        }
-    }
-    if let Some(error) = listing_error {
-        return Err(error);
-    }
-    let searched: Vec<String> = profiles
-        .iter()
-        .map(|profile| profile.display().to_string())
-        .collect();
     Err(eyre::eyre!(
-        "preparation must leave the fixture's own test binaries in one of {}; the timed CLI \
-         assertions read them, and a preparation that compiled nothing leaves the suite with \
-         nothing to inspect",
-        searched.join(", ")
+        "preparation must leave the fixture's own test binaries in {}; the timed CLI assertions \
+         read them, and a preparation that compiled nothing leaves the suite with nothing to \
+         inspect",
+        profile.display()
     ))
 }

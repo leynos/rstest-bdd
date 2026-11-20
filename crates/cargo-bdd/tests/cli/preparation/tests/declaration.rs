@@ -200,9 +200,9 @@ fn the_owned_packages_cover_the_whole_dependency_closure_and_reach_the_gate() {
     // the closure. A preparation that stopped wiring the closure would leave
     // every assertion below green — they test the local set — while the gate
     // filtered the dependency's records out of both sides and an eviction
-    // passed. The fixture package is deliberately absent from
-    // `owned_packages`: the experiment's own `cargo clean -p` removes it
-    // before every baseline, so claiming it would defeat the preparation.
+    // passed. The fixture's test targets are part of that list as well: they
+    // are units named for the target rather than for any package, so the
+    // closure alone leaves their outputs unowned.
     let query_timeout = super::closure::TIMED_GRAPH_QUERY_TIMEOUT;
     let (preparation, _environment, _deadline) = cli_preparation_description(
         nested_cargo::Deadline::starting_now(query_timeout),
@@ -214,11 +214,15 @@ fn the_owned_packages_cover_the_whole_dependency_closure_and_reach_the_gate() {
         .iter()
         .map(String::as_str)
         .collect();
-    let expected: std::collections::BTreeSet<&str> = closure.iter().map(String::as_str).collect();
+    let expected: std::collections::BTreeSet<&str> = closure
+        .iter()
+        .map(String::as_str)
+        .chain(super::witness::FIXTURE_TEST_BINARIES)
+        .collect();
     assert_eq!(
         owned, expected,
-        "the preparation must hand the gate exactly the fixture's dependency closure, and the \
-         fixture itself must not be among them"
+        "the preparation must hand the gate exactly the fixture's dependency closure and its test \
+         targets"
     );
 
     // The registry half specifically: a list built from the manifests alone

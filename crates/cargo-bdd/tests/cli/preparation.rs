@@ -53,6 +53,12 @@ mod report;
 #[path = "preparation/tests/ownership.rs"]
 mod ownership;
 
+// The fixture's test targets are units of their own, so their eviction and the
+// profile they are read from are pinned apart from the package cases above.
+#[cfg(test)]
+#[path = "preparation/tests/test_targets.rs"]
+mod test_targets;
+
 /// File the compilations the timed `cargo bdd steps` paid for.
 ///
 /// The gate's [`nested_build::record_reuse`] reports a different fact — that no
@@ -203,8 +209,23 @@ fn cli_preparation_description(
     let bound = deadline
         .cap(graph_query_timeout, "the fixture dependency closure")
         .wrap_err("the timed CLI gate has no budget left for its graph query")?;
-    preparation.owned_packages = closure::fixture_dependency_closure(bound)?;
+    preparation.owned_packages = owned_units(closure::fixture_dependency_closure(bound)?);
     Ok((preparation, child_env, deadline))
+}
+
+/// The names the family's stamp speaks for: the closure and the test targets.
+///
+/// The closure names *packages*, and a package name covers only the units that
+/// share it. The fixture's two integration tests are separate units named for
+/// their targets — `deps/diagnostics_fixture-<hash>` rather than anything
+/// carrying `rstest-bdd-cli-fixture` — so the closure alone filtered them out
+/// of both the recorded and the present name lists. Removing a prepared test
+/// binary then compared equal to itself, a second variant in the same profile
+/// satisfied the witness, and the timed command relinked the missing one
+/// inside its limit. Naming the targets makes their outputs part of the record.
+fn owned_units(mut closure: Vec<String>) -> Vec<String> {
+    closure.extend(witness::FIXTURE_TEST_BINARIES.map(str::to_owned));
+    closure
 }
 
 /// Gate a timed CLI test on the preparation test having run.
