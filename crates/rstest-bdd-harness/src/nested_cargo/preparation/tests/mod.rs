@@ -25,6 +25,7 @@ mod inputs;
 mod ownership;
 mod reporter;
 mod staging;
+mod staging_lock;
 mod stamp_file;
 mod stamping;
 mod target_profile;

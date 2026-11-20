@@ -41,7 +41,7 @@ where
     S: FnOnce() -> io::Result<()>,
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
-    stage()?;
+    stage_locked(stage)?;
     prepare_now(preparation, prepare)
 }
 
@@ -76,7 +76,7 @@ where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
     if !under_nextest {
-        stage()?;
+        stage_locked(stage)?;
     } else if !preparation.working_directory.is_dir() {
         let unstaged = format!("{} (absent)", preparation.working_directory.display());
         return Err(io::Error::new(
@@ -85,4 +85,24 @@ where
         ));
     }
     ensure_prepared_building(preparation, under_nextest, prepare)
+}
+
+/// Run `stage` under the preparation lock.
+///
+/// Staging replaces a tree that a preparation's nested build reads, so it must
+/// not overlap another caller's staging or another caller's build. Both
+/// happen under this lock: `prepare_locked` holds it for the whole of a
+/// preparation, and this holds it for the whole of a staging step, so a
+/// second caller that finds the tree cold waits rather than removing it
+/// beneath the first.
+///
+/// The lock is released before the preparation that follows takes it again.
+/// That gap is safe because staging is idempotent: a caller that stages in it
+/// finds the tree current and leaves it alone.
+fn stage_locked<S>(stage: S) -> io::Result<()>
+where
+    S: FnOnce() -> io::Result<()>,
+{
+    let _guard = crate::nested_cargo::preparation::lock();
+    stage()
 }

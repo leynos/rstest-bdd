@@ -1163,10 +1163,13 @@ first, through `prepare_now_staged` and `ensure_prepared_building_staged`: the
 rebuild-invalidation families copy their scratch fixture as `Family::stage`, so
 a relative `RUSTC` or a toolchain file in the copy is in place when the cold
 identity is taken. The staged gate does not stage under nextest, where it may
-not build either. A `trybuild` family cannot stage this way, because `trybuild`
-creates the generated crate itself; that crate holds no toolchain file and no
-compiler, so its cold identity is taken from the nearest existing ancestor as
-before.
+not build either; there it refuses a family whose working directory is absent,
+naming the preparation command, before it identifies anything. Staging runs
+under the preparation lock, because it replaces a tree that another caller's
+nested build may be reading. A `trybuild` family cannot stage this way, because
+`trybuild` creates the generated crate itself; that crate holds no toolchain
+file and no compiler, so its cold identity is taken from the nearest existing
+ancestor as before.
 
 An empty `artefacts` list is treated as satisfied: a caller that described no
 artefact directories leaves the stamp as the whole gate.

@@ -2928,7 +2928,10 @@ copies in is not seen, so the stamp records a compiler the build does not run
 and the first warm gate refuses it. `stage` must be idempotent and must not
 build. `prepare_now_staged` always runs it; `ensure_prepared_building_staged`
 runs it only where the gate may build, so a timed test under `cargo nextest`
-never writes the tree it is about to judge.
+never writes the tree it is about to judge. Under `cargo nextest` a family
+whose working directory is absent is refused with the preparation command. Both
+run `stage` under the same process-wide lock the preparation takes, so a
+staging step never overlaps another staging step or another caller's build.
 
 `Reused` is a statement about the callback, not about blocking. On the
 uncontended fast path the stamp and artefact checks are answered before the
