@@ -167,3 +167,40 @@ fn the_staged_gate_stages_only_where_it_may_build() -> io::Result<()> {
     assert!(root.join("scratch").is_dir(), "the lazy path must stage");
     Ok(())
 }
+
+#[test]
+fn an_unstaged_family_under_nextest_is_refused_with_the_remedy() -> io::Result<()> {
+    // The cold filtered run: nothing has staged the tree, and the compiler the
+    // family names lives inside it. Identifying first reports a failed
+    // `rustc -vV`, which is true and useless — the reader needs the command
+    // that prepares the family, and neither staging nor preparation may run.
+    let directory = tempfile::tempdir()?;
+    let root = fs::canonicalize(directory.path())?;
+    let preparation = family(&root, "unstaged-nextest", Path::new("tools/rustc"))?;
+
+    let mut staged = false;
+    let error = ensure_prepared_building_staged(
+        &preparation,
+        true,
+        || {
+            staged = true;
+            Ok(())
+        },
+        || panic!("a timed test must never prepare"),
+    )
+    .expect_err("an unstaged family must be refused under nextest");
+
+    assert_eq!(error.kind(), io::ErrorKind::NotFound, "got: {error}");
+    let text = error.to_string();
+    assert!(
+        text.contains("make prepare-nested-fixtures"),
+        "the refusal must name the preparation command: {text}"
+    );
+    assert!(
+        !text.contains("rustc -vV"),
+        "the refusal must not be the compiler probe's: {text}"
+    );
+    assert!(!staged, "a gate that may not build must not stage either");
+    assert!(!root.join("scratch").exists(), "nothing may be written");
+    Ok(())
+}

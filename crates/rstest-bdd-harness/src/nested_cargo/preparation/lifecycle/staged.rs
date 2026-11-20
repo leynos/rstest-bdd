@@ -19,7 +19,11 @@
 use std::io;
 
 use super::{PreparationOutcome, ensure_prepared_building, prepare_now};
-use crate::nested_cargo::preparation::{Preparation, PreparationSummary};
+use crate::nested_cargo::preparation::{
+    Preparation,
+    PreparationSummary,
+    stamp::{missing_stamp_message, stamp_path},
+};
 
 /// [`prepare_now`], with the working directory staged before it is identified.
 ///
@@ -44,14 +48,22 @@ where
 /// [`ensure_prepared_building`], staged first wherever it is allowed to build.
 ///
 /// Under `nextest` the gate never prepares, so it does not stage either: a
-/// timed test must not write the tree it is about to judge, and an unstaged
-/// family is refused there exactly as an unprepared one is. Under plain
+/// timed test must not write the tree it is about to judge. Under plain
 /// `cargo test` the gate may build, and `stage` runs before the toolchain is
 /// identified for the reason this module gives.
 ///
+/// An unstaged family under `nextest` is refused *before* it is identified.
+/// Staging is what creates the working directory, so its absence already
+/// answers the question the gate asks: no preparation has run. Identifying
+/// first would instead fail on whatever the directory was going to supply — a
+/// relative `RUSTC` beneath it names no file yet — and report a compiler probe
+/// where the reader needs the preparation command.
+///
 /// # Errors
 ///
-/// Returns `stage`'s error when it runs and fails, and otherwise as
+/// Returns `stage`'s error when it runs and fails, the fail-fast
+/// [`io::ErrorKind::NotFound`] refusal naming the preparation command when the
+/// working directory is absent under `nextest`, and otherwise as
 /// [`ensure_prepared_building`].
 pub fn ensure_prepared_building_staged<S, F>(
     preparation: &Preparation,
@@ -65,6 +77,12 @@ where
 {
     if !under_nextest {
         stage()?;
+    } else if !preparation.working_directory.is_dir() {
+        let unstaged = format!("{} (absent)", preparation.working_directory.display());
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            missing_stamp_message(preparation, &stamp_path(preparation), &[unstaged]),
+        ));
     }
     ensure_prepared_building(preparation, under_nextest, prepare)
 }
