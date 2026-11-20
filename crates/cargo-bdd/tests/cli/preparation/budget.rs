@@ -67,6 +67,18 @@ pub(super) fn described_from<Q>(inputs: Inputs, budget: Budget, query: Q) -> Res
 where
     Q: FnOnce(Duration) -> Result<Vec<String>>,
 {
+    // The query's own limit and the budget are both respected: the deadline
+    // decides whether there is time to start, and the per-query bound keeps one
+    // contended query from consuming the probes' share.
+    //
+    // Taken first, before the description is built. Building it can touch the
+    // filesystem — a path-valued `CARGO_BUILD_TARGET` is canonicalized — and
+    // work placed between a caller starting its budget and this check is work
+    // that can spend the budget before the query is ever offered it.
+    let bound = budget
+        .deadline
+        .cap(budget.query_limit, "the fixture dependency closure")
+        .wrap_err("the timed CLI gate has no budget left for its graph query")?;
     let (child_env, target_root, hash) = inputs;
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", env!("CARGO_PKG_VERSION"), hash),
@@ -81,13 +93,6 @@ where
         ),
         child_env.clone(),
     )?;
-    // The query's own limit and the budget are both respected: the deadline
-    // decides whether there is time to start, and the per-query bound keeps one
-    // contended query from consuming the probes' share.
-    let bound = budget
-        .deadline
-        .cap(budget.query_limit, "the fixture dependency closure")
-        .wrap_err("the timed CLI gate has no budget left for its graph query")?;
     preparation.owned_packages = owned_units(query(bound)?);
     Ok((preparation, child_env, budget.deadline))
 }
