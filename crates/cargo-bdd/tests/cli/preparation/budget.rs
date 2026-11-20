@@ -79,6 +79,10 @@ where
         .deadline
         .cap(budget.query_limit, "the fixture dependency closure")
         .wrap_err("the timed CLI gate has no budget left for its graph query")?;
+    // And the query runs at once, before anything else is done. A bound that
+    // waited behind the description would be stale by however long that took,
+    // and the query could then start after the deadline it was sized from.
+    let owned = owned_units(query(bound)?);
     let (child_env, target_root, hash) = inputs;
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", env!("CARGO_PKG_VERSION"), hash),
@@ -93,7 +97,7 @@ where
         ),
         child_env.clone(),
     )?;
-    preparation.owned_packages = owned_units(query(bound)?);
+    preparation.owned_packages = owned;
     Ok((preparation, child_env, budget.deadline))
 }
 
