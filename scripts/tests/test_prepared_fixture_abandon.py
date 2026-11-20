@@ -13,6 +13,7 @@ import shutil
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - spawns a fixed interpreter argv; no shell.
 import sys
+import threading
 import time
 import typing as typ
 from pathlib import Path
@@ -125,32 +126,77 @@ def test_a_surviving_tree_is_abandoned_while_it_is_still_running(
             survivor.wait()
 
 
-@pytest.fixture
-def interrupt_soon() -> cabc.Iterator[None]:
-    """Raise ``KeyboardInterrupt`` in this thread half a second from now.
+#: How long the step is given to reach ``communicate`` once its child is up.
+#:
+#: The child's readiness is observed, not assumed; this covers only the few
+#: instructions between the step starting its process and waiting for it,
+#: which nothing outside the step can observe.
+SETTLE_SECONDS = 0.2
 
-    The interrupt arrives as a signal, the way a real one does, so it lands
-    inside whatever the step is blocked in and is handled by that code's own
-    interrupt path.
+
+@pytest.fixture
+def interrupt_once_ready() -> cabc.Iterator[cabc.Callable[..., None]]:
+    """Interrupt this thread once a step's child has shown it is ready.
+
+    The fixture yields a function that takes the file the child writes its
+    process id to. A waiter thread watches for that file, optionally waits
+    for that process to exit *without reaping it*, and only then delivers the
+    interrupt as a signal, so it lands inside whatever the step is blocked in
+    and is handled by that code's own interrupt path. Nothing here depends on
+    how long the child takes to start.
+
+    Yields
+    ------
+    cabc.Callable[..., None]
+        ``arm(pid_file, *, after_exit)``, to be called before the step runs.
     """
 
     def interrupt(signum: int, frame: object) -> typ.NoReturn:
-        """Turn the alarm into the interrupt under test."""
+        """Turn the signal into the interrupt under test."""
         del signum, frame
         raise KeyboardInterrupt
 
+    def wait_then_interrupt(pid_file: Path, *, after_exit: bool) -> None:
+        """Deliver the interrupt once the child is ready, or give up."""
+        deadline = time.monotonic() + PROMPT_SECONDS
+        while not (pid_file.exists() and pid_file.read_text(encoding="utf-8")):
+            if time.monotonic() > deadline:
+                return
+            time.sleep(0.01)
+        if after_exit:
+            # ``WNOWAIT`` observes the exit and leaves the process waitable,
+            # so the reap is still the real ``communicate``'s to perform.
+            pid = int(pid_file.read_text(encoding="utf-8"))
+            os.waitid(os.P_PID, pid, os.WEXITED | os.WNOWAIT)
+        time.sleep(SETTLE_SECONDS)
+        os.kill(os.getpid(), signal.SIGALRM)
+
+    waiters: list[threading.Thread] = []
+
+    def arm(pid_file: Path, *, after_exit: bool) -> None:
+        """Start the waiter for the step about to run."""
+        waiter = threading.Thread(
+            target=wait_then_interrupt,
+            args=(pid_file,),
+            kwargs={"after_exit": after_exit},
+            daemon=True,
+        )
+        waiter.start()
+        waiters.append(waiter)
+
     previous = signal.signal(signal.SIGALRM, interrupt)
-    signal.setitimer(signal.ITIMER_REAL, 0.5)
     try:
-        yield
+        yield arm
     finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
+        for waiter in waiters:
+            waiter.join(timeout=PROMPT_SECONDS)
         signal.signal(signal.SIGALRM, previous)
 
 
-@pytest.mark.usefixtures("interrupt_soon")
 def test_an_interrupt_after_the_leader_exited_keeps_the_directory(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    interrupt_once_ready: cabc.Callable[..., None],
 ) -> None:
     """A descendant that outlives a reaped leader is reported, not ignored.
 
@@ -176,6 +222,7 @@ def test_an_interrupt_after_the_leader_exited_keeps_the_directory(
         step.run_step([sys.executable, "-c", program], target_dir=target_dir)
 
     monkeypatch.setattr(workflow, "run_workflow", run_workflow)
+    interrupt_once_ready(pid_file, after_exit=True)
     try:
         assert workflow.main([]) == 1, "an unconfirmed cleanup is a failure"
         assert used[0].is_dir(), "the directory must survive the interrupt"
@@ -187,9 +234,10 @@ def test_an_interrupt_after_the_leader_exited_keeps_the_directory(
             shutil.rmtree(directory, ignore_errors=True)
 
 
-@pytest.mark.usefixtures("interrupt_soon")
 def test_an_interrupted_step_has_its_tree_terminated(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    interrupt_once_ready: cabc.Callable[..., None],
 ) -> None:
     """An interrupt removes the tree before it propagates.
 
@@ -205,6 +253,7 @@ def test_an_interrupted_step_has_its_tree_terminated(
         f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
         "time.sleep(120)\n"
     )
+    interrupt_once_ready(pid_file, after_exit=False)
     with pytest.raises(KeyboardInterrupt):
         step.run_step([sys.executable, "-c", program], target_dir=tmp_path)
     group = int(pid_file.read_text(encoding="utf-8"))
