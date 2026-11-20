@@ -26,7 +26,7 @@ use std::{collections::BTreeMap, fs, path::Path};
 
 use proptest::prelude::*;
 
-use super::{Preparation, input_hash};
+use super::input_hash;
 
 /// One file to create, as a path relative to the tree root.
 type Tree = BTreeMap<RelPath, Vec<u8>>;
@@ -189,28 +189,6 @@ fn tree() -> impl Strategy<Value = Tree> {
     })
 }
 
-/// Whether every parent directory `path` needs is already implied by `tree`.
-///
-/// Writing `path` creates the directories above it, and each of those is an
-/// ordinary entry name the hash records. A tree that lacked one would gain it
-/// when `path` was written, so the two hashes would differ for a reason
-/// unrelated to whether `path` itself was excluded.
-fn parents_exist(tree: &Tree, path: &RelPath) -> bool {
-    let segments: Vec<&str> = path.as_str().split('/').collect();
-    let Some((_, ancestors)) = segments.split_last() else {
-        return true;
-    };
-    let mut parent = String::new();
-    ancestors.iter().all(|segment| {
-        if !parent.is_empty() {
-            parent.push('/');
-        }
-        parent.push_str(segment);
-        let parent = RelPath::new(parent.clone());
-        tree.keys().any(|kept| parent.is_prefix_of(kept))
-    })
-}
-
 /// Create `tree` under `root`, creating each parent directory as needed.
 ///
 /// Only one creation order exists here, and that is deliberate. An earlier
@@ -309,92 +287,55 @@ proptest! {
         }
     }
 
-    /// Excluded entries never reach the hash, at any depth.
+    /// An excluded entry at the root of the tree never reaches the hash.
     ///
-    /// The excluded subtree is varied independently of the inputs, so a case
-    /// that excluded only root-level entries would be caught: the added member
-    /// can be nested.
-    ///
-    /// Two preconditions, and both are about not testing the wrong thing.
-    /// The path must not collide with an existing one, or the two trees hold
-    /// different entries. And every parent directory it needs must already
-    /// exist in the tree: creating `p/target` under a tree with no `p` adds
-    /// `p` itself, which is an ordinary input name, so the hashes would differ
-    /// for a reason that has nothing to do with the exclusion.
+    /// The entry is added beside the generated inputs, with a generated tail
+    /// beneath it, so nothing above it has to exist. The one precondition is
+    /// that it does not collide with a path the tree already holds, or the two
+    /// trees would hold different entries. Every other case compares.
     #[test]
-    fn excluded_entries_do_not_reach_the_hash(tree in tree(), extra in excluded_path()) {
-        if !tree.keys().any(|kept| kept.conflicts_with(&extra)) && parents_exist(&tree, &extra) {
-            let mut with_extra = tree.clone();
-            with_extra.insert(extra, b"build output".to_vec());
-            let without = setup(hash_of(&tree))?;
-            let with = setup(hash_of(&with_extra))?;
-            prop_assert_eq!(
-                without,
-                with,
-                "build output must be excluded wherever it appears"
-            );
-        }
-    }
-}
-
-/// The generator refuses exactly the Windows device names, and no others.
-///
-/// Run 43617094223 failed on `tree = { "nul/a": [] }`: `write_tree` reached
-/// `fs::write` and Windows resolved `nul` as a device, so no directory could be
-/// created for it. A property generator that can spell such a name will
-/// eventually spell it, so the exclusion has to be complete rather than lucky.
-/// The positive half is what keeps the filter from over-reaching: `nul_`,
-/// `null`, `com0` and `lpt` are ordinary names, and rejecting them would lose
-/// real coverage.
-#[test]
-fn windows_device_names_are_the_only_segments_excluded() {
-    for reserved in [
-        "con", "prn", "aux", "nul", "com1", "com9", "lpt1", "lpt9", "CON", "Nul", "COM5",
-    ] {
-        assert!(
-            is_windows_reserved(reserved),
-            "{reserved} is a Windows device name and cannot be created as a file"
+    fn excluded_entries_at_the_root_do_not_reach_the_hash(
+        tree in tree(),
+        root in proptest::sample::select(EXCLUDED.as_slice()),
+        tail in proptest::collection::vec(ordinary_segment(), 1..=2),
+    ) {
+        let extra = RelPath::new(format!("{root}/{}", tail.join("/")));
+        prop_assume!(!tree.keys().any(|kept| kept.conflicts_with(&extra)));
+        let mut with_extra = tree.clone();
+        with_extra.insert(extra, b"build output".to_vec());
+        prop_assert_eq!(
+            setup(hash_of(&tree))?,
+            setup(hash_of(&with_extra))?,
+            "build output at the root must be excluded"
         );
     }
-    for ordinary in [
-        "nul_", "null", "con_", "console", "com0", "com10", "lpt", "lpt0", "lpt10", "a", "target",
-    ] {
-        assert!(
-            !is_windows_reserved(ordinary),
-            "{ordinary} is an ordinary name and excluding it would lose coverage"
+
+    /// An excluded entry beside an input, inside a directory, never reaches
+    /// the hash.
+    ///
+    /// The directory is built here, not hoped for: it holds an ordinary input
+    /// in both trees, so adding `<directory>/<excluded>/output` creates no
+    /// ordinary name, and the comparison is reached in every case. A generated
+    /// prefix would exist in the tree only by coincidence, and a case whose
+    /// prefix was absent passed without comparing anything.
+    #[test]
+    fn excluded_entries_beside_an_input_do_not_reach_the_hash(
+        tree in tree(),
+        root in proptest::sample::select(EXCLUDED.as_slice()),
+    ) {
+        let directory = RelPath::new(String::from("dedicated"));
+        prop_assume!(!tree.keys().any(|kept| kept.conflicts_with(&directory)));
+        let mut without = tree;
+        without.insert(RelPath::new(String::from("dedicated/input")), b"input".to_vec());
+        let mut with_extra = without.clone();
+        let nested = RelPath::new(format!("dedicated/{root}/output"));
+        with_extra.insert(nested, b"build output".to_vec());
+        prop_assert_eq!(
+            setup(hash_of(&without))?,
+            setup(hash_of(&with_extra))?,
+            "build output inside a directory must be excluded"
         );
     }
 }
 
-/// The stamp's own file is not an input, so a family that stamps a root does
-/// not thereby invalidate its own fingerprint.
-#[test]
-fn a_stamp_beside_the_inputs_does_not_change_the_hash() {
-    let directory = tempfile::tempdir().expect("temp dir");
-    let root = directory.path().to_path_buf();
-    fs::write(root.join("feature.feature"), b"Feature: one").expect("input");
-
-    let before = input_hash(std::slice::from_ref(&root)).expect("hash before");
-    // The name is the one `write_stamp` derives for a family rooted here.
-    let environment = crate::nested_cargo::env_from_vars(
-        Vec::new(),
-        Some(&std::env::temp_dir().join("target")),
-        crate::nested_cargo::ProfileDestination::Caller,
-    )
-    .expect("the fixture environment should resolve");
-    let preparation = Preparation::new(
-        super::Sources::new("unit", "v", "hash"),
-        super::Directories::new(root.clone(), root.clone()),
-        environment,
-    )
-    .expect("the fixture preparation should describe its artefacts");
-    let stamp = super::stamp::stamp_path(&preparation);
-    assert_eq!(stamp.parent(), Some(root.as_path()), "stamp beside inputs");
-    fs::write(&stamp, b"fingerprint").expect("stamp");
-    let after = input_hash(std::slice::from_ref(&root)).expect("hash after");
-
-    assert_eq!(
-        before, after,
-        "the stamp records the fingerprint of these inputs, so it cannot be one of them"
-    );
-}
+mod fixed_cases;
