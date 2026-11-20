@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Generated step wrappers now release their fixture borrow guards straight
+  after the step call, before turning the outcome into a `StepExecution` or
+  `StepError`. Crates that enable `clippy::significant_drop_tightening` no
+  longer get that lint on macro-generated code when a fixture type has a
+  significant `Drop`. Runtime behaviour is unchanged.
+
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and
   `find_step_with_mode` in favour of `lookup_step_with_metadata` and

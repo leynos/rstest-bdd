@@ -24,7 +24,7 @@ use bindings::{
 };
 use datatable::{CacheIdents, gen_datatable_decl};
 pub(super) use declarations::{PreparedArgs, StepMeta};
-use fixtures::gen_fixture_decls;
+use fixtures::{fixture_guard_idents, gen_fixture_decls};
 use step_parse::{ArgParseContext, gen_single_step_parse};
 use step_struct::{PlaceholderInfo, gen_step_struct_decl};
 
@@ -350,6 +350,7 @@ pub(super) fn prepare_argument_processing(
     } = bind_arguments(args, &binding_idents);
 
     let declares = gen_fixture_decls(&fixtures, ident, ctx_ident);
+    let fixture_guards = fixture_guard_idents(&fixtures);
     let all_captures = capture_accessors(placeholder_names.len());
     let step_struct_present = step_struct.is_some();
     let StepArgParseResult {
@@ -377,6 +378,7 @@ pub(super) fn prepare_argument_processing(
     let docstring_decl = gen_docstring_decl(docstring, pattern, ident);
     PreparedArgs {
         declares,
+        fixture_guards,
         step_arg_parses,
         step_struct_decl,
         datatable_decl,
