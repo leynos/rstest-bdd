@@ -1,7 +1,7 @@
 //! Regression coverage for `TrybuildTree`: the inputs that invalidate a
 //! prepared tree, and the `trybuild=` filter that must refuse preparation.
 
-use std::fs;
+use std::{ffi::OsStr, fs};
 
 use super::{TrybuildTree, trybuild_filter};
 
@@ -28,7 +28,7 @@ fn trybuild_inputs_include_the_workspace_cargo_configuration() {
     fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
 
     let tree = TrybuildTree::new(&crate_root, "under-test", "family", "variant");
-    let inputs = tree.inputs(&crate_root).expect("inputs");
+    let inputs = tree.inputs_from(&crate_root, None).expect("inputs");
     assert!(
         inputs.contains(&config),
         "the workspace Cargo configuration must be a preparation input: {inputs:?}"
@@ -72,16 +72,58 @@ fn a_relative_cargo_home_is_read_from_the_generated_crate() {
     .expect("generated home config");
 
     let tree = TrybuildTree::new(&crate_root, "under-test", "family", "variant");
-    // The value is set for the duration of this case only; the helper below
-    // scopes it, and `temp_env` serializes such cases within the binary.
-    temp_env::with_var("CARGO_HOME", Some("cargo-home"), || {
-        let inputs = tree.inputs(&generated).expect("inputs");
-        assert!(
-            inputs.contains(&generated_config),
-            "a relative CARGO_HOME must be read from the generated crate the build runs in, not \
-             from the workspace; the probe reported {inputs:?}"
-        );
-    });
+    let inputs = tree
+        .inputs_from(&generated, Some(OsStr::new("cargo-home")))
+        .expect("inputs");
+    assert!(
+        inputs.contains(&generated_config),
+        "a relative CARGO_HOME must be read from the generated crate the build runs in, not from \
+         the workspace; the probe reported {inputs:?}"
+    );
+}
+
+#[test]
+fn a_rustflags_edit_in_the_generated_crate_refuses_the_stamp() {
+    // The composition the path check above cannot make on its own: a stamp is
+    // judged by the fingerprint, so a `CARGO_HOME` read from the right
+    // directory still has to change the hash when a file in it changes.
+    // Discovery rooted at the workspace would satisfy a path assertion about
+    // the generated crate only if it reported it, and would leave the stamp
+    // valid across an edit that rebuilds dependency artefacts.
+    let workspace = tempfile::tempdir().expect("workspace dir");
+    let root = fs::canonicalize(workspace.path()).expect("resolved workspace");
+    let crate_root = root.join("crates/under-test");
+    fs::create_dir_all(&crate_root).expect("crate dir");
+    fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("manifest");
+
+    let generated = root.join("target/tests/trybuild/under-test");
+    let generated_home = generated.join("cargo-home");
+    fs::create_dir_all(&generated_home).expect("generated cargo home");
+    let generated_config = generated_home.join("config.toml");
+    fs::write(
+        &generated_config,
+        "[build]\nrustflags = [\"-Copt-level=1\"]\n",
+    )
+    .expect("generated home config");
+
+    let tree = TrybuildTree::new(&crate_root, "under-test", "family", "variant");
+    let cargo_home = Some(OsStr::new("cargo-home"));
+    let before = tree
+        .fingerprint_from(&generated, cargo_home)
+        .expect("fingerprint before");
+    fs::write(
+        &generated_config,
+        "[build]\nrustflags = [\"-Copt-level=2\"]\n",
+    )
+    .expect("edited generated home config");
+    let after = tree
+        .fingerprint_from(&generated, cargo_home)
+        .expect("fingerprint after");
+
+    assert_ne!(
+        before, after,
+        "an edit to the Cargo home the nested build reads must invalidate the stamp"
+    );
 }
 
 #[test]

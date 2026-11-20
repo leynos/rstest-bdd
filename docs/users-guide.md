@@ -2919,11 +2919,17 @@ run, and `PreparationOutcome::Prepared` means the closure did.
 
 `Reused` is a statement about the callback, not about blocking. On the
 uncontended fast path the stamp is read and answered before the lock is
-requested, so a warm family really does cost only that read. But under plain
+requested, so a warm family costs that read and no build. But under plain
 `cargo test` two callers can both observe a missing stamp, and the loser of
 that race then takes the lock, re-reads the stamp the winner wrote, and returns
-`Reused` from there. For a caller that must not block at all, use `admit`,
-whose read-only query never takes the lock.
+`Reused` from there.
+
+Neither path is free of work: judging a stamp means identifying the toolchain,
+which spawns `cargo -vV` and `rustc -vV`, and a matching stamp under `admit` is
+followed by the filesystem check that the recorded artefacts are still there.
+What `admit` promises is narrower than "never blocks": it never takes the
+preparation lock, so it cannot wait behind another caller's build. Use it when
+that is the wait you need to avoid.
 
 The gate's name and the runner decision are two separate things, on purpose.
 Nothing inside the gate reads the environment: `running_under_nextest` is

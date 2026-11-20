@@ -1550,10 +1550,17 @@ rather than by reading this branch's comments.
       ceiling fired 463 s later with nothing logged in between, and the same
       test run alone afterwards passed in **352 s**. The log carries 178
       `[build-limits] ... waiting for a compile slot` lines, one naming 158
-      crates ahead, so the elapsed time was queue time rather than compiler
-      time; the "0 Compiling lines" in the preparation's own summary is the
-      same fact. This is a bounded-wait expiry under shared admission, which
-      the operating contract classes as a wait and not an impasse.
+      crates ahead, so admission was saturated throughout. How much of the
+      elapsed time that accounts for is not something this log can settle: the
+      `[build-limits]` lines show waiting happened and show its position in
+      the queue, not how long each wait lasted. The "0 Compiling lines" in the
+      preparation's own summary does not help either, and an earlier revision
+      of this plan was wrong to cite it — `prepare_trybuild` returns
+      `PreparationSummary::default()`, so the zero is a default and not a
+      measurement. What the log does establish is the elapsed time and that
+      the same test passes in 352 s alone and 29.5 s on CI. This is a
+      bounded-wait expiry under shared admission, which the operating
+      contract classes as a wait and not an impasse.
 - [x] Clear the `// weave: run 'weave explain ...'` annotations the conflict
       resolution left in resolved files. Four were present, not three, and
       `make check-fmt` named two of them as formatting diffs. They are

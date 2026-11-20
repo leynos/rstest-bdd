@@ -43,6 +43,7 @@ pub use environment::{
     describe_env,
     env_from_vars,
 };
+pub(crate) use preparation::cargo_config_inputs_from_with;
 pub use preparation::{
     Admission,
     DEFAULT_PROFILE,

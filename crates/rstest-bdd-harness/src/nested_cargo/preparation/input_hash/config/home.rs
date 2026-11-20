@@ -73,34 +73,28 @@ pub(crate) fn resolve_cargo_home(
 
 /// The platform home directory, resolved the way Cargo resolves it.
 ///
-/// This is not `std::env::home_dir`'s rule. Cargo deliberately ignores `HOME`
-/// on Windows — the standard library's home directory does not, and the `home`
-/// crate's own module docs call that out as the reason Cargo and rustup carry
-/// their own definition. Using the wrong variable there would name a `.cargo`
-/// the build never reads whenever `HOME` and `USERPROFILE` disagree, so an
-/// edit to the real Cargo home would leave the fingerprint unchanged and move
-/// dependency compilation into a timed assertion.
+/// Cargo's `home` crate defines its own `home_dir` because the standard
+/// library's used to consult `HOME` on Windows, which made a Rust program
+/// behave differently under Cygwin or MinGW. That divergence is gone — std
+/// changed in 1.85 — but Cargo's definition is still the one that decides
+/// which `.cargo` a build reads, so the rule is taken from its source rather
+/// than inferred from what `std::env::home_dir` happens to do.
 ///
-/// The rules, matching `cargo`'s `home` crate:
+/// On **Windows** the two now agree: `USERPROFILE` when set and non-empty,
+/// otherwise the OS profile folder (`GetUserProfileDirectory` in std,
+/// `SHGetKnownFolderPath(FOLDERID_Profile)` in Cargo — the same directory by a
+/// different call). `HOME` is never consulted by either, and consulting it
+/// would name a `.cargo` the build never reads whenever `HOME` and
+/// `USERPROFILE` disagree.
 ///
-/// - **Windows:** `USERPROFILE` when set and non-empty, otherwise the OS profile folder
-///   (`SHGetKnownFolderPath` for `FOLDERID_Profile`). `HOME` is never consulted.
-/// - **Unix:** `HOME` when set, *even if empty* — Cargo returns the empty value rather than falling
-///   back — otherwise the passwd entry for the current uid. The `getpwuid_r` fallback is not
-///   reproduced here; a host with `HOME` unset yields `None`, which is the existing behaviour and
-///   is reported as "no default to name" rather than guessed at.
-fn platform_home() -> Option<PathBuf> {
-    #[cfg(windows)]
-    {
-        std::env::var_os("USERPROFILE")
-            .filter(|home| !home.is_empty())
-            .map(PathBuf::from)
-    }
-    #[cfg(not(windows))]
-    {
-        std::env::var_os("HOME").map(PathBuf::from)
-    }
-}
+/// On **Unix** Cargo delegates to `std::env::home_dir` outright, so this does
+/// too. `HOME` when set — including when set to the empty string, which Cargo
+/// also returns verbatim — and otherwise the passwd entry for the current uid,
+/// so the `getpwuid_r` fallback comes with it. That fallback is the case that
+/// matters here: without it a host with `HOME` unset would report no home at
+/// all, drop the real `.cargo` out of the fingerprint, and let a configuration
+/// edit leave the stamp valid.
+pub(super) fn platform_home() -> Option<PathBuf> { std::env::home_dir() }
 
 #[cfg(test)]
 mod tests {
@@ -108,9 +102,9 @@ mod tests {
     //!
     //! The platform rule itself reads process-wide environment, which these
     //! parallel cases cannot vary safely. Taking the home as a parameter is
-    //! what lets the *rule* be pinned here; `platform_home`'s choice of
-    //! variable is a `cfg` in the parent and is exercised on each platform's
-    //! own CI lane.
+    //! what lets the *rule* be pinned here; `platform_home` itself is a single
+    //! call into the standard library, whose own per-platform rule is tested
+    //! there.
 
     use std::{ffi::OsStr, path::PathBuf};
 

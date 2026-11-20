@@ -15,6 +15,7 @@
 
 use std::{
     error::Error,
+    ffi::OsStr,
     io,
     path::{Path, PathBuf},
 };
@@ -302,6 +303,20 @@ impl TrybuildTree {
     /// inspected, so an unreadable configuration refuses the preparation
     /// instead of silently leaving it out of the input hash.
     fn inputs(&self, working_directory: &Path) -> io::Result<Vec<PathBuf>> {
+        self.inputs_from(working_directory, std::env::var_os("CARGO_HOME").as_deref())
+    }
+
+    /// [`Self::inputs`] with `CARGO_HOME` supplied rather than read.
+    ///
+    /// The value is the variable's contents, not a resolved directory — a
+    /// relative one is still re-rooted against `working_directory`. It exists
+    /// so the rule can be exercised without a case setting process-wide state
+    /// that every other thread in this binary would then read.
+    fn inputs_from(
+        &self,
+        working_directory: &Path,
+        cargo_home: Option<&OsStr>,
+    ) -> io::Result<Vec<PathBuf>> {
         let Some(workspace_root) = self
             .crate_root
             .parent()
@@ -315,11 +330,30 @@ impl TrybuildTree {
             .map(|entry| workspace_root.join(entry))
             .filter(|path| path.exists())
             .collect();
-        roots.extend(nested_cargo::cargo_config_inputs_from(
+        roots.extend(nested_cargo::cargo_config_inputs_from_with(
             &workspace_root,
             working_directory,
+            cargo_home,
         )?);
         Ok(roots)
+    }
+
+    /// The fingerprint a stamp for this tree is judged by.
+    ///
+    /// Exposed to this module's tests so the configuration inputs can be
+    /// exercised through the hash that actually decides invalidation, not
+    /// merely by asserting which paths discovery reported.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::inputs`].
+    #[cfg(test)]
+    fn fingerprint_from(
+        &self,
+        working_directory: &Path,
+        cargo_home: Option<&OsStr>,
+    ) -> io::Result<String> {
+        nested_cargo::input_hash(&self.inputs_from(working_directory, cargo_home)?)
     }
 }
 

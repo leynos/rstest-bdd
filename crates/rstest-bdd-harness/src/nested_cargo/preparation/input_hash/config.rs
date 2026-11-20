@@ -24,11 +24,10 @@ use std::{
 
 mod home;
 
-use home::cargo_home;
-// Re-exported for its one consumer, a test module, so a release build does not
-// carry a name nothing reaches.
-#[cfg(test)]
+// Re-exported because the export is the one place a relative value is
+// re-rooted, and the preparation's own cases exercise that rule directly.
 pub(crate) use home::resolve_cargo_home;
+use home::{cargo_home, platform_home};
 
 /// Paths of the Cargo configuration files that apply at `workspace_root`.
 ///
@@ -107,7 +106,27 @@ pub fn cargo_config_inputs_from(
     walk_root: &Path,
     working_directory: &Path,
 ) -> io::Result<Vec<PathBuf>> {
-    let cargo_home = cargo_home(working_directory);
+    cargo_config_inputs_from_with(
+        walk_root,
+        working_directory,
+        std::env::var_os("CARGO_HOME").as_deref(),
+    )
+}
+
+/// [`cargo_config_inputs_from`] with the environment supplied.
+///
+/// The value is what `CARGO_HOME` holds, not a resolved directory: a relative
+/// one still has to be re-rooted against `working_directory`, which is the
+/// rule this form exists to keep exercisable. A test that set the variable
+/// around a call would change what every other thread in the same binary
+/// reads, and the cases in this module run in parallel, so the value arrives
+/// as a parameter instead.
+pub(crate) fn cargo_config_inputs_from_with(
+    walk_root: &Path,
+    working_directory: &Path,
+    cargo_home: Option<&OsStr>,
+) -> io::Result<Vec<PathBuf>> {
+    let cargo_home = resolve_cargo_home(working_directory, cargo_home, platform_home);
     cargo_config_inputs_with(walk_root, cargo_home.as_deref())
 }
 

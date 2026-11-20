@@ -48,6 +48,7 @@ mod stamp;
 mod stamp_file;
 mod toolchain;
 pub use deadline::{Deadline, instruments_within};
+pub(crate) use input_hash::cargo_config_inputs_from_with;
 pub use input_hash::{cargo_config_inputs, cargo_config_inputs_from, input_hash};
 // The seams this crate's configuration cases vary instead of the process's
 // environment; neither has a production caller.
