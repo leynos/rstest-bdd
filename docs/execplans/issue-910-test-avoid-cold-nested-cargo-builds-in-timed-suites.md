@@ -3148,7 +3148,12 @@ rather than by reading this branch's comments.
     sends both signals before the leader is reaped so the group id cannot
     have been reused, raises `TreeSurvivedError` when the tree cannot be
     confirmed gone, and never waits without a bound. The driver keeps the
-    target directory in that case. An interrupt takes the same path.
+    target directory in that case. An interrupt that arrives while the
+    step's process is unreaped is cleaned up the same way. One that arrives
+    after `Popen.communicate` has reaped an exited process is not: the group
+    id may then have been reused, so the group is sent no signal, is only
+    asked whether it exists, and is reported as a surviving tree if it does,
+    which again keeps the directory.
 
   One lesson for the next change to that driver: three of its new tests failed
   the Windows lanes, because they signal process groups and `os.getpgid` does
