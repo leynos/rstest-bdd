@@ -872,7 +872,8 @@ rather than by reading this branch's comments.
       path hash, and the build-output exclusion each fail a named test. The
       surviving properties (`renaming_an_input_changes_the_hash`,
       `changing_an_input_changes_the_hash`,
-      `excluded_entries_do_not_reach_the_hash`) still test real invariants, and
+      `excluded_entries_do_not_reach_the_hash`, later split into a root-level
+      and a nested property) still test real invariants, and
       the module documents what it cannot show rather than implying coverage
       it does not have. Lesson: a property test must be falsified before it is
       believed, exactly like the predicate it guards.
@@ -3162,8 +3163,8 @@ rather than by reading this branch's comments.
 
 - [x] **Deliver the review items that were confirmed and queued but never
   landed.** 2026-11-20. An audit of the unresolved threads before the final
-  approval request found six replies from 18 November that accepted a finding
-  and promised it "for the follow-up batch". Two had since been done. Four had
+  approval request found seven replies from 18 November that accepted a finding
+  and promised it "for the follow-up batch". Two had since been done. Five had
   not, and are done now:
 
   - The rebuild-invalidation families claimed their five workspace crates
@@ -3180,6 +3181,10 @@ rather than by reading this branch's comments.
     entry, so removing one alone does not fail it; removing both does.
   - The withdrawal case starts from a seeded stamp, and four witness cases
     share the `deps_directory` fixture.
+  - The exclusion property skipped its comparison whenever its generated
+    prefix was absent from the tree, which was nearly always. It is now two
+    properties, one at the root and one inside a directory the case builds,
+    and each compares in every case. Both fail with exclusion disabled.
 
   The lesson is about the ledger, not the code: a reply that says "queued" is
   an open item until a commit closes it, and it should be tracked as one.
