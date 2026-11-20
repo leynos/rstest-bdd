@@ -85,6 +85,32 @@ pub fn cargo_config_inputs(workspace_root: &Path) -> io::Result<Vec<PathBuf>> {
     cargo_config_inputs_with(workspace_root, cargo_home.as_deref())
 }
 
+/// The configuration inputs when the walk and the command directory differ.
+///
+/// [`cargo_config_inputs`] uses one directory for both jobs, which is right
+/// whenever the nested build runs inside the root being walked. It is wrong for
+/// a family whose build runs *below* the stamped root: `trybuild` invokes Cargo
+/// inside `<target>/tests/trybuild/<pkg>`, so that generated crate is the
+/// directory a relative `CARGO_HOME` resolves against, while the walk must
+/// still start at the workspace to find the configuration Cargo discovers by
+/// climbing. Naming only one of the two would either miss that configuration or
+/// resolve the home against a directory the build never uses — and the
+/// generated crate lives under `target/`, which [`input_hash`] skips, so the
+/// mistake cannot be caught indirectly.
+///
+/// # Errors
+///
+/// As [`cargo_config_inputs`].
+///
+/// [`input_hash`]: super::input_hash
+pub fn cargo_config_inputs_from(
+    walk_root: &Path,
+    working_directory: &Path,
+) -> io::Result<Vec<PathBuf>> {
+    let cargo_home = cargo_home(working_directory);
+    cargo_config_inputs_with(walk_root, cargo_home.as_deref())
+}
+
 /// [`cargo_config_inputs`] with the Cargo home supplied rather than resolved.
 ///
 /// The resolution reads process-wide environment, which makes it the one part

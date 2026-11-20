@@ -268,7 +268,7 @@ impl TrybuildTree {
             nested_cargo::Sources::new(
                 self.family.clone(),
                 self.variant.clone(),
-                nested_cargo::input_hash(&self.inputs()?)?,
+                nested_cargo::input_hash(&self.inputs(&working_directory)?)?,
             ),
             nested_cargo::Directories::new(target_root, working_directory),
         )
@@ -286,12 +286,22 @@ impl TrybuildTree {
     /// every `target` directory, so build output never invalidates its own
     /// stamp.
     ///
+    /// `working_directory` is the generated crate, which is where the nested
+    /// build actually runs, and it is passed to configuration discovery rather
+    /// than the workspace root for one reason: a relative `CARGO_HOME` is
+    /// interpreted against the command's directory. Cargo would read
+    /// `generated-crate/cargo-home`, while discovery rooted at the workspace
+    /// would name `workspace/cargo-home` — a different tree, whose
+    /// configuration changes would then leave the fingerprint untouched. The
+    /// generated crate lives under `target/`, which `input_hash` skips, so its
+    /// own `CARGO_HOME` cannot be covered indirectly either.
+    ///
     /// # Errors
     ///
     /// Returns the error when a Cargo configuration path exists but cannot be
     /// inspected, so an unreadable configuration refuses the preparation
     /// instead of silently leaving it out of the input hash.
-    fn inputs(&self) -> io::Result<Vec<PathBuf>> {
+    fn inputs(&self, working_directory: &Path) -> io::Result<Vec<PathBuf>> {
         let Some(workspace_root) = self
             .crate_root
             .parent()
@@ -305,90 +315,13 @@ impl TrybuildTree {
             .map(|entry| workspace_root.join(entry))
             .filter(|path| path.exists())
             .collect();
-        roots.extend(nested_cargo::cargo_config_inputs(&workspace_root)?);
+        roots.extend(nested_cargo::cargo_config_inputs_from(
+            &workspace_root,
+            working_directory,
+        )?);
         Ok(roots)
     }
 }
 
 #[cfg(test)]
-mod tests {
-    //! Regression coverage for `TrybuildTree`: the inputs that invalidate a
-    //! prepared tree, and the `trybuild=` filter that must refuse preparation.
-
-    use std::fs;
-
-    use super::{TrybuildTree, trybuild_filter};
-
-    #[test]
-    fn trybuild_inputs_include_the_workspace_cargo_configuration() {
-        // `trybuild` builds the generated crate beneath the workspace, so Cargo
-        // discovers the workspace `.cargo/config.toml` and applies its profile
-        // and linker settings. A stamp that ignored it would survive a
-        // configuration-only edit, and the timed case would compile the changed
-        // graph inside its own deadline.
-        let workspace = tempfile::tempdir().expect("workspace dir");
-        // The input probe canonicalizes the directory it walks from, so every
-        // configuration path it reports is spelled through the resolved form.
-        // On Windows that carries a `\\?\` verbatim prefix and may shorten an
-        // 8.3 temporary name, so a path built from the raw temporary directory
-        // never equals the reported one. The fixture is therefore built from
-        // the resolved root, which is the same tree.
-        let root = fs::canonicalize(workspace.path()).expect("resolved workspace");
-        let crate_root = root.join("crates/under-test");
-        fs::create_dir_all(&crate_root).expect("crate dir");
-        fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("manifest");
-        fs::create_dir(root.join(".cargo")).expect("cargo dir");
-        let config = root.join(".cargo/config.toml");
-        fs::write(&config, "[profile.dev]\nincremental = false\n").expect("config");
-
-        let tree = TrybuildTree::new(&crate_root, "under-test", "family", "variant");
-        let inputs = tree.inputs().expect("inputs");
-        assert!(
-            inputs.contains(&config),
-            "the workspace Cargo configuration must be a preparation input: {inputs:?}"
-        );
-    }
-
-    #[test]
-    fn preparation_refuses_a_trybuild_filter() {
-        // `trybuild` retains only the queued fixtures whose path contains the
-        // filter substring, so a filtered preparation would queue both probes
-        // and run a subset of them — then write the complete stamp anyway. That
-        // stamp would admit the timed case into a tree missing the mode it did
-        // not warm, which is the cold-build failure issue 910 records.
-        let error = trybuild_filter([
-            "nested_fixture_preparation".to_owned(),
-            "trybuild=scenario_attributes".to_owned(),
-        ])
-        .expect_err("a filtered preparation must be refused");
-        assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
-        let message = error.to_string();
-        assert!(
-            message.contains("trybuild=scenario_attributes"),
-            "the refusal must name the offending filter: {message}"
-        );
-    }
-
-    #[test]
-    fn preparation_accepts_an_unfiltered_run() {
-        // The common case: the runner's own arguments, and possibly a test-name
-        // filter that `trybuild` ignores. Neither may be read as a fixture
-        // filter, and a bare `trybuild=` prefix with no suffix is not one.
-        for arguments in [
-            vec!["nested_fixture_preparation".to_owned()],
-            vec![
-                "nested_fixture_preparation".to_owned(),
-                "trybuild=".to_owned(),
-            ],
-            vec![
-                "nested_fixture_preparation".to_owned(),
-                "--exact".to_owned(),
-            ],
-        ] {
-            assert!(
-                trybuild_filter(arguments.clone()).is_ok(),
-                "an unfiltered run must prepare: {arguments:?}"
-            );
-        }
-    }
-}
+mod tests;

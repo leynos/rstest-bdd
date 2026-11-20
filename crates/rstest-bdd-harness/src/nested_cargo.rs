@@ -59,6 +59,7 @@ pub use preparation::{
     admit,
     admit_with_probe,
     cargo_config_inputs,
+    cargo_config_inputs_from,
     ensure_prepared_building,
     ensure_prepared_building_reported,
     env_for_directory,

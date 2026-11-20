@@ -127,9 +127,20 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   `nested preparation: family=trybuild-macros prepared in 1642.7s
   (0 Compiling lines)` —
   `trybuild-macros` finished with 157 s left of the period, so `ui-clippy`
-  never started. The `0 Compiling lines` was the load signal: nothing compiled,
-  and all 1642.7 s went to waiting for compiler admission on this host
-  (capacity 4, all held, ~80–115 foreign crates queued throughout).
+  never started.
+
+  The `0 Compiling lines` is **not** evidence that nothing compiled, and an
+  earlier revision of this plan wrongly presented it as a load signal.
+  `prepare_trybuild` returns `PreparationSummary::default()` because `trybuild`
+  streams its nested Cargo's output to this process's own streams, so the unit
+  count cannot be captured there (see the comment at
+  `crates/rstest-bdd/tests/trybuild_macros/preparation.rs:323-326`). The zero
+  is therefore the default, not a measurement: it reads the same whether the
+  probe compiled nothing or compiled everything. What the log does establish is
+  the elapsed time — 1642.7 s against a 1800 s period — and that `ui-clippy`
+  never started. The queueing explanation rests on the separate
+  `build-limits-status` observation recorded below (capacity 4, all held,
+  ~80–115 foreign crates waiting), not on the unit count.
 
   **CI settled it.** Run `44673737187` on the same `bc06a3d9` ran the identical
   test green on the Linux lane:
@@ -2985,7 +2996,12 @@ rather than by reading this branch's comments.
   - The two stamps the timed test gates on were **reused**, not rebuilt — the
     log says `family=trybuild-macros is prepared` and
     `family=trybuild-ui-clippy is prepared`. So no cold preparation leaked into
-    the timed body; the failure is not issue 910's defect returning.
+    the timed body; the failure is not issue 910's defect returning. To be
+    precise about what that proves: reuse means the **preparation callback did
+    not run**, not that the timed command compiled nothing. The timed suite's
+    own trybuild cases compile whatever they compile regardless; the claim
+    here is only that the dependency preparation this change owns had already
+    happened.
   - The timed window carries **1153** `[build-limits]` lines, including
     `waiting for a compile slot (60 ahead, 45s)` and repeated
     `managed sccache server is not serving compilations`. `build-limits-status`

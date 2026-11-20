@@ -227,8 +227,10 @@ fn a_probe_runs_beneath_the_nested_directory_even_before_it_exists() {
     assert_eq!(
         probe_directory(&cold),
         Some(crate_dir),
-        "an absent directory must fall back to its nearest existing ancestor, not to the \
-         process's own directory"
+        concat!(
+            "an absent directory must fall back to its nearest existing ",
+            "ancestor, not to the process's own directory"
+        )
     );
 }
 

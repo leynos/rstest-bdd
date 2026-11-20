@@ -2914,8 +2914,16 @@ command that prepares the family, `make prepare-nested-fixtures` in this
 repository, because a timed test running in its own process cannot prepare
 without paying the cost it is meant to avoid. Under plain `cargo test` it
 prepares lazily behind a process-wide lock. Its return value states which
-happened: `PreparationOutcome::Reused` means no build ran and no lock was
-taken, and `PreparationOutcome::Prepared` means the closure did.
+happened: `PreparationOutcome::Reused` means the preparation callback did not
+run, and `PreparationOutcome::Prepared` means the closure did.
+
+`Reused` is a statement about the callback, not about blocking. On the
+uncontended fast path the stamp is read and answered before the lock is
+requested, so a warm family really does cost only that read. But under plain
+`cargo test` two callers can both observe a missing stamp, and the loser of
+that race then takes the lock, re-reads the stamp the winner wrote, and returns
+`Reused` from there. For a caller that must not block at all, use `admit`,
+whose read-only query never takes the lock.
 
 The gate's name and the runner decision are two separate things, on purpose.
 Nothing inside the gate reads the environment: `running_under_nextest` is

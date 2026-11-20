@@ -18,12 +18,15 @@ use std::{
 /// that it is interpreted relative to the command's working directory; the
 /// nested builds run beneath the workspace, not in this process's directory, so
 /// passing the value through unchanged would name two different trees.
-/// Otherwise the default is the `home` directory's `.cargo`, from `HOME` on
-/// Unix and `USERPROFILE` on Windows — the same pair Cargo's own default
-/// resolves through. A host with neither variable set has no default to name,
-/// and is left out rather than guessed at.
+/// Otherwise the default is the platform home directory's `.cargo`, resolved by
+/// [`platform_home`]. A host with no home to name is left out rather than
+/// guessed at.
 pub(super) fn cargo_home(working_directory: &Path) -> Option<PathBuf> {
-    resolve_cargo_home(working_directory, std::env::var_os("CARGO_HOME").as_deref())
+    resolve_cargo_home(
+        working_directory,
+        std::env::var_os("CARGO_HOME").as_deref(),
+        platform_home,
+    )
 }
 
 /// The Cargo home for an explicitly resolved `CARGO_HOME`.
@@ -33,10 +36,21 @@ pub(super) fn cargo_home(working_directory: &Path) -> Option<PathBuf> {
 /// writing to an environment variable every other thread in this binary reads.
 ///
 /// An empty value is treated as unset, which is what Cargo does: it then falls
-/// back to `$HOME/.cargo` (or `$USERPROFILE/.cargo` on Windows).
+/// back to the platform home's `.cargo` via `home`.
+///
+/// # Why a relative value must be re-rooted
+///
+/// Cargo reads a relative `CARGO_HOME` against the working directory of the
+/// command that consults it. The nested build runs in the fixture or generated
+/// crate, not wherever the fingerprint happens to be computed, so a value
+/// passed through unchanged would point the probe at one tree and the build at
+/// another. `working_directory` is therefore the *nested command's* directory
+/// and not the stamped root; the two differ for the trybuild families, where
+/// the generated crate lives beneath `target/`.
 pub(crate) fn resolve_cargo_home(
     working_directory: &Path,
     explicit: Option<&OsStr>,
+    home: fn() -> Option<PathBuf>,
 ) -> Option<PathBuf> {
     if let Some(explicit) = explicit {
         let explicit = PathBuf::from(explicit);
@@ -54,8 +68,124 @@ pub(crate) fn resolve_cargo_home(
             });
         }
     }
-    let home = std::env::var_os("HOME")
-        .filter(|home| !home.is_empty())
-        .or_else(|| std::env::var_os("USERPROFILE").filter(|home| !home.is_empty()))?;
-    Some(PathBuf::from(home).join(".cargo"))
+    Some(home()?.join(".cargo"))
+}
+
+/// The platform home directory, resolved the way Cargo resolves it.
+///
+/// This is not `std::env::home_dir`'s rule. Cargo deliberately ignores `HOME`
+/// on Windows — the standard library's home directory does not, and the `home`
+/// crate's own module docs call that out as the reason Cargo and rustup carry
+/// their own definition. Using the wrong variable there would name a `.cargo`
+/// the build never reads whenever `HOME` and `USERPROFILE` disagree, so an
+/// edit to the real Cargo home would leave the fingerprint unchanged and move
+/// dependency compilation into a timed assertion.
+///
+/// The rules, matching `cargo`'s `home` crate:
+///
+/// - **Windows:** `USERPROFILE` when set and non-empty, otherwise the OS profile folder
+///   (`SHGetKnownFolderPath` for `FOLDERID_Profile`). `HOME` is never consulted.
+/// - **Unix:** `HOME` when set, *even if empty* — Cargo returns the empty value rather than falling
+///   back — otherwise the passwd entry for the current uid. The `getpwuid_r` fallback is not
+///   reproduced here; a host with `HOME` unset yields `None`, which is the existing behaviour and
+///   is reported as "no default to name" rather than guessed at.
+fn platform_home() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        std::env::var_os("USERPROFILE")
+            .filter(|home| !home.is_empty())
+            .map(PathBuf::from)
+    }
+    #[cfg(not(windows))]
+    {
+        std::env::var_os("HOME").map(PathBuf::from)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! The default Cargo home, exercised through the injected resolver.
+    //!
+    //! The platform rule itself reads process-wide environment, which these
+    //! parallel cases cannot vary safely. Taking the home as a parameter is
+    //! what lets the *rule* be pinned here; `platform_home`'s choice of
+    //! variable is a `cfg` in the parent and is exercised on each platform's
+    //! own CI lane.
+
+    use std::{ffi::OsStr, path::PathBuf};
+
+    use super::resolve_cargo_home;
+
+    /// A resolver that reports no home at all.
+    fn no_home() -> Option<PathBuf> { None }
+
+    #[test]
+    fn an_absent_cargo_home_falls_back_to_the_platform_home() {
+        // The default is the platform home's `.cargo`. Getting this wrong is
+        // silent: the walk would simply read a directory Cargo never consults,
+        // so an edit to the real Cargo home would leave the fingerprint
+        // unchanged and move the rebuild into a timed assertion.
+        let resolved = resolve_cargo_home(&PathBuf::from("/srv/workspace"), None, || {
+            Some(PathBuf::from("/home/tester"))
+        });
+        assert_eq!(
+            resolved,
+            Some(PathBuf::from("/home/tester").join(".cargo")),
+            "the default must be the platform home's `.cargo`"
+        );
+    }
+
+    #[test]
+    fn an_empty_cargo_home_is_treated_as_unset() {
+        // Cargo treats an empty value as unset — not as the working directory,
+        // which is what joining an empty relative path would produce.
+        let resolved = resolve_cargo_home(
+            &PathBuf::from("/srv/workspace"),
+            Some(OsStr::new("")),
+            || Some(PathBuf::from("/home/tester")),
+        );
+        assert_eq!(
+            resolved,
+            Some(PathBuf::from("/home/tester").join(".cargo")),
+            "an empty CARGO_HOME must fall through to the default, not become the workspace"
+        );
+    }
+
+    #[test]
+    fn a_relative_cargo_home_resolves_against_the_command_directory() {
+        // The finding this fixes: a relative value must follow the nested
+        // command, which is not necessarily the directory being walked.
+        let command_directory = PathBuf::from("/srv/target/tests/trybuild/pkg");
+        let resolved =
+            resolve_cargo_home(&command_directory, Some(OsStr::new("cargo-home")), no_home);
+        assert_eq!(
+            resolved,
+            Some(command_directory.join("cargo-home")),
+            "a relative CARGO_HOME belongs to the command's directory"
+        );
+    }
+
+    #[test]
+    fn an_absolute_cargo_home_ignores_the_command_directory() {
+        let resolved = resolve_cargo_home(
+            &PathBuf::from("/srv/target/tests/trybuild/pkg"),
+            Some(OsStr::new("/opt/cargo-home")),
+            no_home,
+        );
+        assert_eq!(
+            resolved,
+            Some(PathBuf::from("/opt/cargo-home")),
+            "an absolute CARGO_HOME must be used unchanged"
+        );
+    }
+
+    #[test]
+    fn no_home_anywhere_yields_none_rather_than_a_guess() {
+        // A host with no home to name has no default to report. Inventing one
+        // would put a directory into the fingerprint that Cargo does not read.
+        assert_eq!(
+            resolve_cargo_home(&PathBuf::from("/srv"), None, no_home),
+            None
+        );
+    }
 }

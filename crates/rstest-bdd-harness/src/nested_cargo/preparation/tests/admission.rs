@@ -162,8 +162,10 @@ fn an_unreadable_stamp_is_reported_by_runner() -> io::Result<()> {
     assert_eq!(
         admit(&preparation, false)?,
         Admission::NotPrepared,
-        "plain cargo test prepares over a corrupt stamp, so the query answers the same as for a \
-         stale one"
+        concat!(
+            "plain cargo test prepares over a corrupt stamp, ",
+            "so the query answers the same as for a stale one"
+        )
     );
     Ok(())
 }

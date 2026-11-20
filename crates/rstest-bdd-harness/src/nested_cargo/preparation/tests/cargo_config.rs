@@ -126,8 +126,12 @@ fn a_relative_cargo_home_is_resolved_against_the_nested_directory() {
     std::fs::write(&nested_config, "[build]\nrustflags = [\"-Copt-level=1\"]\n")
         .expect("nested config");
 
-    let relative = resolve_cargo_home(&workspace_root, Some(std::ffi::OsStr::new(".cargo-cache")))
-        .expect("a relative CARGO_HOME names a directory");
+    let relative = resolve_cargo_home(
+        &workspace_root,
+        Some(std::ffi::OsStr::new(".cargo-cache")),
+        || Some(std::path::PathBuf::from("/home/unused")),
+    )
+    .expect("a relative CARGO_HOME names a directory");
     let roots = cargo_config_inputs_with(&workspace_root, Some(&relative)).expect("config inputs");
     assert!(
         roots.contains(&nested_config),
