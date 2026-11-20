@@ -15,7 +15,12 @@
 //! manifests alone covers the direct edges and leaves the rest unprotected,
 //! which is the defect this case exists to catch one level down.
 
-use super::super::{ADDITION, REBUILD, WORKSPACE_DEPENDENCIES, fixture_preparation};
+use rstest_bdd_harness::nested_cargo;
+
+use super::{
+    super::{ADDITION, REBUILD, WORKSPACE_DEPENDENCIES, fixture_preparation},
+    prepared::{child_env, evict, populate_profile, require_stamp_under, write_units},
+};
 use crate::harness::process;
 
 /// The workspace crates one scratch fixture builds, read from its own graph.
@@ -158,4 +163,80 @@ fn the_declaration_matches_the_fixtures_resolved_graph() {
             family.name
         );
     }
+}
+
+/// A registry crate both fixtures resolve to without naming it.
+///
+/// `inventory` arrives through `rstest-bdd`, which registers steps with it, so
+/// it is in neither manifest and in both lockfiles.
+const REGISTRY_DEPENDENCY: &str = "inventory";
+
+#[test]
+fn each_family_claims_its_lockfiles_registry_packages() {
+    for family in [REBUILD, ADDITION] {
+        let environment = process::child_env_from_vars(Vec::new())
+            .expect("the fixture environment should resolve");
+        let preparation =
+            fixture_preparation(&environment, family).expect("preparation description");
+        let claimed: std::collections::BTreeSet<&str> = preparation
+            .owned_if_built
+            .iter()
+            .map(String::as_str)
+            .collect();
+        assert!(
+            claimed.contains(REGISTRY_DEPENDENCY),
+            "{} must claim {REGISTRY_DEPENDENCY}: preparing the fixture compiles it, and Cargo \
+             rebuilds a crate whose fingerprint records went",
+            family.name
+        );
+        // The fixture is removed by its own experiment before every baseline,
+        // so a stamp that claimed it would be refused on the next assertion.
+        assert!(
+            !claimed.contains(family.package),
+            "{} must not claim its own fixture package",
+            family.name
+        );
+        for workspace_crate in WORKSPACE_DEPENDENCIES {
+            assert!(
+                !claimed.contains(workspace_crate),
+                "{workspace_crate} is declared outright and must not be repeated as optional"
+            );
+        }
+    }
+}
+
+#[test]
+fn evicting_a_registry_dependency_fails_the_gate() -> std::io::Result<()> {
+    // The gap the registry claim closes. Before it, `inventory`'s records were
+    // owned by nobody: filtered out of what the stamp recorded and out of what
+    // the gate found, so removing them compared equal and the stamp stood.
+    let external = tempfile::tempdir()?;
+    let env = child_env(external.path())?;
+    let preparation = fixture_preparation(&env, ADDITION)?;
+    require_stamp_under(external.path(), &preparation)?;
+    populate_profile(&env, &preparation)?;
+    write_units(&env, &[REGISTRY_DEPENDENCY])?;
+    nested_cargo::prepare_now(&preparation, || {
+        Ok(nested_cargo::PreparationSummary::default())
+    })?;
+    nested_cargo::ensure_prepared_building(&preparation, true, || {
+        panic!("a just-prepared family must be reused")
+    })?;
+
+    let records = process::child_target_directory(&env)
+        .join(nested_cargo::DEFAULT_PROFILE)
+        .join(format!(
+            ".fingerprint/{REGISTRY_DEPENDENCY}-0123456789abcdef"
+        ));
+    evict(&records)?;
+
+    let error = nested_cargo::ensure_prepared_building(&preparation, true, || {
+        panic!("a timed test must never prepare")
+    })
+    .expect_err("an evicted registry dependency must fail the gate");
+    assert!(
+        error.to_string().contains(REGISTRY_DEPENDENCY),
+        "the refusal must name {REGISTRY_DEPENDENCY}, not just the profile: {error}"
+    );
+    Ok(())
 }

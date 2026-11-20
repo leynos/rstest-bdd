@@ -115,12 +115,6 @@ pub(super) fn populate_profile(
     env: &process::ChildEnv,
     preparation: &nested_cargo::Preparation,
 ) -> std::io::Result<()> {
-    let target = process::child_target_directory(env);
-    let profile = format!("{}/deps", nested_cargo::DEFAULT_PROFILE);
-    let fingerprints = format!("{}/.fingerprint", nested_cargo::DEFAULT_PROFILE);
-    let root = cap_std::fs::Dir::open_ambient_dir(target, ambient_authority())?;
-    root.create_dir_all(&profile)?;
-    root.create_dir_all(&fingerprints)?;
     // A family that declares nothing claims its whole profile and needs only
     // the structural layer satisfied, so one unowned unit is exact for it.
     let packages: Vec<&str> = preparation
@@ -133,6 +127,20 @@ pub(super) fn populate_profile(
     } else {
         packages
     };
+    write_units(env, &packages)
+}
+
+/// Write one compiled unit and its fingerprint records for each of `packages`.
+///
+/// Split from [`populate_profile`] so a case can add a unit the family claims
+/// without requiring — a registry package, which is owned only if built.
+pub(super) fn write_units(env: &process::ChildEnv, packages: &[&str]) -> std::io::Result<()> {
+    let target = process::child_target_directory(env);
+    let profile = format!("{}/deps", nested_cargo::DEFAULT_PROFILE);
+    let fingerprints = format!("{}/.fingerprint", nested_cargo::DEFAULT_PROFILE);
+    let root = cap_std::fs::Dir::open_ambient_dir(target, ambient_authority())?;
+    root.create_dir_all(&profile)?;
+    root.create_dir_all(&fingerprints)?;
     for package in packages {
         // Cargo hyphenates a package in its record directory and uses the same
         // stem in `deps`, which is the spelling `name_is_owned` matches.

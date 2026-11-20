@@ -335,6 +335,7 @@ fn fixture_preparation(
         process::preparation_view(env)?,
     )?;
     preparation.owned_packages = owned_packages(family);
+    preparation.owned_if_built = registry::registry_packages(family)?;
     Ok(preparation)
 }
 
@@ -387,6 +388,9 @@ fn run_prepared(
         compiled_units: nested_cargo::count_compiling(&output.stderr),
     })
 }
+
+// The registry half of each family's ownership claim, read from its lockfile.
+mod registry;
 
 #[cfg(test)]
 mod tests;
