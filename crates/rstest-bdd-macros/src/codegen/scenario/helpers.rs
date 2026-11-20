@@ -37,9 +37,6 @@ fn cell_to_lit(value: &str) -> syn::LitStr {
     syn::LitStr::new(value, proc_macro2::Span::call_site())
 }
 
-/// Returns true when an Examples row contains at least one non-empty cell.
-pub(crate) fn row_has_values(row: &[String]) -> bool { row.iter().any(|cell| !cell.is_empty()) }
-
 /// Returns true when any parameter uses an underscore-prefixed identifier.
 ///
 /// The single underscore `_` pattern is ignored. Only identifier patterns are
@@ -119,6 +116,9 @@ pub(crate) fn generate_case_attrs(
 }
 
 /// Internal helper for generating case attributes with optional index prepending.
+///
+/// Every row becomes a case, including all-empty rows (Cucumber runs them), so
+/// the prepended index is also the row's position in the substituted steps.
 fn generate_case_attrs_internal(
     examples: &crate::parsing::examples::ExampleTable,
     prepend_index: bool,
@@ -127,7 +127,6 @@ fn generate_case_attrs_internal(
         .rows
         .iter()
         .enumerate()
-        .filter(|(_, row)| row_has_values(row))
         .map(|(idx, row)| {
             let cells = row.iter().map(|v| {
                 let lit = cell_to_lit(v);
@@ -372,5 +371,30 @@ mod tests {
     #[case(parse_quote! { fn test() }, false)]
     fn detects_underscore_prefixed_params(#[case] sig: syn::Signature, #[case] expected: bool) {
         assert_eq!(has_underscore_prefixed_params(&sig), expected);
+    }
+
+    #[test]
+    fn all_empty_rows_become_cases_with_aligned_indexes() {
+        let examples = crate::parsing::examples::ExampleTable {
+            headers: vec!["value".to_owned()],
+            rows: vec![
+                vec!["a".to_owned()],
+                vec![String::new()],
+                vec!["b".to_owned()],
+            ],
+            row_tags: vec![Vec::new(); 3],
+        };
+        let attrs: Vec<String> = generate_indexed_case_attrs(&examples)
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(
+            attrs,
+            [
+                "# [case (0usize , \"a\")]",
+                "# [case (1usize , \"\")]",
+                "# [case (2usize , \"b\")]",
+            ]
+        );
     }
 }
