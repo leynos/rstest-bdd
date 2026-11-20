@@ -2969,6 +2969,64 @@ directory the child actually builds in.
 
 This API exists for test-support code and is not intended for production paths.
 
+### Locating workspace binaries in integration tests
+
+The `binary_test_support` module of `rstest-bdd-harness` helps a test find a
+workspace binary and build it when it is absent. The module is `#[doc(hidden)]`
+test support and is not part of the supported public API, so use it only from
+test helpers.
+
+`locate_or_build_binary` returns a `std::process::Command` for the binary. It
+tries these steps in order and stops at the first that succeeds:
+
+1. **`CARGO_BIN_EXE_<name>`.** If this variable is set, its value is used as
+   the binary path. The name is used exactly as given, so `todo-cli` reads
+   `CARGO_BIN_EXE_todo-cli`.
+2. **The profile directory.** Otherwise the helper starts from the running test
+   executable and takes its profile directory: the parent of `deps`, or, under
+   Cargo's `build/<package>/<hash>/out` layout, the directory above `build`. An
+   executable in neither layout uses its own parent directory. The helper then
+   checks once whether `<profile>/<name>` (with the platform executable suffix)
+   is a file. If the executable path cannot be read, it checks `./<name>`.
+3. **Metadata and build.** Otherwise `cargo metadata --no-deps` for the manifest
+   gives the target directory, and `<target>/debug/<name>` is used if it is a
+   file. If it is not, `cargo build --bin <name>` runs in the workspace root. A
+   failed build returns `BinaryLocateError::BuildFailed` with the captured
+   output. If the binary is still absent, the result is
+   `BinaryLocateError::MissingBinary`.
+
+Step 2 does not consult the target root and does not search other directories.
+
+`target_directory_of(executable: &Path) -> Option<PathBuf>` is a separate
+helper that the steps above do not call. It walks up from the executable,
+skipping the executable itself, and returns the first directory that holds
+Cargo's `CACHEDIR.TAG`, which marks a target directory root. It returns `None`
+when no ancestor carries the tag. The caller should then fall back to
+`target_directory_for_manifest` rather than guess a directory.
+
+```rust,no_run
+use std::path::{Path, PathBuf};
+
+use rstest_bdd_harness::binary_test_support::{
+    BinaryName, locate_or_build_binary, target_directory_of,
+};
+
+fn todo_cli() -> Result<std::process::Command, Box<dyn std::error::Error>> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let cmd = locate_or_build_binary(
+        &root.join("Cargo.toml"),
+        root,
+        BinaryName::new("todo-cli"),
+    )?;
+    Ok(cmd)
+}
+
+fn target_root() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    target_directory_of(&exe)
+}
+```
+
 ## Running and maintaining tests
 
 Once feature files and step definitions are in place, scenarios run via the

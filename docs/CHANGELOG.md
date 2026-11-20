@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `rstest-bdd-harness::binary_test_support`, a `#[doc(hidden)]` test-support
+  module, gained `target_directory_of`. It returns the target root of a test
+  executable by finding Cargo's `CACHEDIR.TAG`, or `None` when no ancestor
+  carries it. The `CARGO_BIN_EXE_<name>` fallback in `locate_or_build_binary`
+  probes the executable's profile directory, including Cargo's
+  `build/<package>/<hash>/out` layout, and does not use the target root. No
+  supported API changed.
+
 - `rstest-bdd-harness::nested_cargo` gained the preparation API that keeps a
   nested Cargo build out of a timed assertion's deadline. A caller describes a
   `Preparation` (family, variant, artefact directories and input hash), and

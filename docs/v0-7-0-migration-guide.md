@@ -223,6 +223,20 @@ mechanism that drains the pipes to completion instead, such as reading them to
 EOF on threads you join, or letting the child inherit the parent's streams and
 collecting them outside this helper.
 
+## Test-support binary lookup
+
+`rstest_bdd_harness::binary_test_support` is `#[doc(hidden)]` test support and
+is not part of the supported public API. The following additions need no action
+from a caller of the supported crates.
+
+- `binary_test_support::target_directory_of` is new. It takes a `&Path` to a
+  test executable and returns `Option<PathBuf>`: the nearest ancestor that
+  holds Cargo's `CACHEDIR.TAG`, or `None` when there is none.
+  `locate_or_build_binary` does not call it.
+- The fallback that `locate_or_build_binary` uses when `CARGO_BIN_EXE_<name>` is
+  unset probes the test executable's profile directory, not the target root.
+  The lookup is private, so there is no public signature to update.
+
 ## Migration checklist
 
 - [ ] Add ambiguity handling wherever a lookup result is consumed:
