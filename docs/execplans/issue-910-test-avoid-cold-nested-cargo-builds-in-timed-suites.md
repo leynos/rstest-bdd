@@ -2531,6 +2531,42 @@ rather than by reading this branch's comments.
   10.0, no findings**. The rule was not suppressed and no allowlist entry was
   added.
 
+- [x] **The cold-run probe directory: the same cold/warm asymmetry, in the
+  toolchain probe.** CodeRabbit thread `4627594441` observed that
+  `lifecycle.rs:199` (`read_stamp(preparation, probe)`) and `prepared.rs:77`
+  (`fingerprint_with(preparation, probe)`) both run the toolchain probe
+  *before* the `prepare` callback copies the scratch tree, so on the first gate
+  `preparation.working_directory` — which `preparation/mod.rs:305-311` sets to
+  `family.scratch()` — does not exist yet. `probe` then fell back to this
+  process's own directory.
+
+  The concrete consequence turned out to be unreachable *on this host*: the
+  repository pins `channel = "stable"` in the root `rust-toolchain.toml`, the
+  fixtures carry no `rust-toolchain` file of their own, and the scratch root is
+  `target/tests/rebuild-invalidation` inside the same checkout — so the shim's
+  upward walk reaches the same pin from either directory, and
+  `RUSTUP_TOOLCHAIN` is in `FINGERPRINT_EXACT` besides. But that safety is an
+  accident of where the scratch root sits, not a property the probe enforces,
+  and it is exactly the cold/warm asymmetry this change already fixed for the
+  configuration-input walk
+  (`a_root_named_through_a_parent_contributes_the_same_walk_cold_and_warm`). A
+  scratch root outside the checkout, or a pinned fixture, would select a
+  different toolchain cold than warm; the stamp would then name a compiler the
+  nested build never runs, and the timed gate would either refuse its own stamp
+  or admit a tree built by a compiler it never identified.
+
+  Fixed by starting the probe in the nearest **existing** ancestor of the
+  nested directory (`probe_directory`). That is the deepest directory the shim
+  would have visited on a warm run, so the toolchain file it resolves is the
+  same one, and the only difference is the components that do not exist to be
+  descended into yet. The inherited directory survives only as the last resort
+  for a path with no existing ancestor at all, rather than as the answer for
+  every cold run. The regression,
+  `a_probe_runs_beneath_the_nested_directory_even_before_it_exists`, puts an
+  existing ancestor above an absent tail and pins both halves of the rule.
+  Focused check:
+  `cargo nextest run -p rstest-bdd-harness -E 'test(/toolchain/)'` — 21 passed.
+
 - [x] **The seventh copy of the path-spelling defect, and the one its own
   comment claimed was immune.** Run `44673737187` on `bc06a3d9` failed *both*
   Windows lanes — `build-test (windows, default features)` and
