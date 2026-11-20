@@ -300,3 +300,73 @@ fn a_probe_under_a_spent_deadline_is_refused_by_name() {
         "the refusal must name the probe that never started: {text}"
     );
 }
+
+/// The hand-off between the two probes, driven with programs that take time.
+///
+/// The cases above state the bound's arithmetic, and the gate cases start from
+/// a budget that is either spent or ample. Neither drives a *slow, successful*
+/// first probe into the second, which is the path a fresh allowance substituted
+/// between them would leave green. The shims are shell scripts, so this is
+/// Unix-only; the rule it pins is not.
+#[cfg(unix)]
+mod hand_off {
+    use std::{fs, io, os::unix::fs::PermissionsExt as _, path::Path, time::Duration};
+
+    use super::super::{Scene, identity_with};
+    use crate::nested_cargo::{Deadline, ProfileDestination, env_from_vars};
+
+    /// Write an executable shell script at `path`.
+    fn write_script(path: &Path, body: &str) -> io::Result<()> {
+        fs::write(path, format!("#!/bin/sh\n{body}\n"))?;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755))
+    }
+
+    #[test]
+    fn a_slow_successful_cargo_probe_leaves_the_compiler_probe_only_the_remainder() -> io::Result<()>
+    {
+        let directory = tempfile::tempdir()?;
+        let root = fs::canonicalize(directory.path())?;
+        // Cargo answers correctly, but only after half the budget has gone.
+        let cargo = root.join("cargo");
+        write_script(
+            &cargo,
+            "sleep 2\nprintf 'release: c\\ncommit-hash: c\\nhost: c\\n'",
+        )?;
+        // The compiler would answer well inside a fresh per-probe limit and
+        // far outside what the budget has left. `exec` keeps it one process,
+        // so killing it closes its pipes at once.
+        let compiler = root.join("rustc");
+        write_script(&compiler, "exec sleep 30")?;
+        let environment = env_from_vars(
+            vec![("RUSTC".into(), compiler.into_os_string())],
+            Some(&root.join("target")),
+            ProfileDestination::Caller,
+        )?;
+        let scene = Scene {
+            environment: &environment,
+            working_directory: &root,
+        };
+
+        let budget = Duration::from_secs(4);
+        let started = std::time::Instant::now();
+        let error = identity_with(&cargo, &scene, Some(Deadline::starting_now(budget)))
+            .expect_err("the compiler probe must be cut off by what the budget has left");
+
+        assert_eq!(
+            error.kind(),
+            io::ErrorKind::TimedOut,
+            "the budget, not the compiler's own failure, must end the probe: {error}"
+        );
+        assert!(
+            error.to_string().contains("rustc -vV"),
+            "the Cargo probe succeeded, so the refusal must name the compiler: {error}"
+        );
+        // A fresh allowance would have let the compiler run its full 30 s.
+        assert!(
+            started.elapsed() < Duration::from_secs(20),
+            "the compiler probe must not be given a limit of its own: {:?}",
+            started.elapsed()
+        );
+        Ok(())
+    }
+}

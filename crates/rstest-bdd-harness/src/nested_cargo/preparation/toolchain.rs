@@ -96,11 +96,25 @@ pub(super) fn toolchain_identity_within(
         environment,
         working_directory,
     };
-    let cargo = probe(CARGO, Path::new(env!("CARGO")), &scene, deadline)?;
+    identity_with(Path::new(env!("CARGO")), &scene, deadline)
+}
+
+/// Probe `cargo` and then the compiler, both against one `deadline`.
+///
+/// Split from [`toolchain_identity_within`] so the hand-off between the two
+/// probes can be driven with a controlled Cargo: the production caller always
+/// passes `env!("CARGO")`, which answers in milliseconds and so can never show
+/// that a slow first probe leaves the second less time.
+fn identity_with(
+    cargo: &Path,
+    scene: &Scene<'_>,
+    deadline: Option<Deadline>,
+) -> io::Result<String> {
+    let cargo = probe(CARGO, cargo, scene, deadline)?;
     let compiler = probe(
         RUSTC,
-        &compiler_program(environment, working_directory),
-        &scene,
+        &compiler_program(scene.environment, scene.working_directory),
+        scene,
         deadline,
     )?;
     Ok(compose_identity(&cargo, &compiler))

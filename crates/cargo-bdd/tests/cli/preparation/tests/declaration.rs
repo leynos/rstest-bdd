@@ -247,3 +247,29 @@ fn the_owned_packages_cover_the_whole_dependency_closure_and_reach_the_gate() {
         );
     }
 }
+
+#[test]
+fn the_closure_query_is_charged_against_the_budget_the_gate_receives() {
+    // The hand-off the gate depends on. `cli_preparation_description` pays for
+    // the closure query and returns the deadline the probes are then charged
+    // against, so what it returns must be the budget it was given less the
+    // query — not a fresh allowance. The gate cases in the harness start from a
+    // budget that is already spent or ample, so they stay green if a new
+    // deadline is substituted here; only measuring across the real query shows
+    // it. The query takes the package-cache lock and spawns Cargo, so its cost
+    // is never zero.
+    let budget = super::closure::TIMED_GRAPH_QUERY_TIMEOUT;
+    let deadline = nested_cargo::Deadline::starting_now(budget);
+    let started = std::time::Instant::now();
+    let (_preparation, _environment, handed_on) =
+        cli_preparation_description(deadline, budget).expect("the description should resolve");
+    let spent = started.elapsed();
+    let left = handed_on
+        .remaining()
+        .expect("a two-minute budget outlives one graph query");
+    assert!(
+        left + spent <= budget,
+        "the probes must be left the budget less the query ({spent:?}), not a fresh allowance: \
+         {left:?} remains of {budget:?}"
+    );
+}
