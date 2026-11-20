@@ -3126,6 +3126,35 @@ rather than by reading this branch's comments.
   is unchanged from `main`: only `target_directory_of` is new, so the documents
   state the behaviour and do not call it a change.
 
+- [x] **Follow-up findings on the fixes above, and on the workflow driver.**
+  2026-11-20. Review of the commits above produced a second set of findings,
+  each narrower than the last. They are recorded here because several were
+  defects in code written that same day.
+
+  - Staging ran outside the preparation lock, which the copy had been under
+    while it lived in the preparation callback. `stage_locked` restores that
+    (`fddebb47`); a two-thread case fails without it.
+  - Under nextest an unstaged family went on to a compiler probe that could
+    not succeed. The staged gate now refuses it with the preparation command
+    (`a4a7e3f6`).
+  - The CLI gate's budget hand-off moved into `preparation/budget.rs`. The
+    query runs as soon as its bound is taken and the description is built
+    from its answer, so the order is fixed by what each function is given
+    (`2b9b023b`, `49622156`).
+  - `scripts/prepared_fixture_step.py` stopped waiting once the step's own
+    process had exited, so a descendant could outlive a timeout and the
+    driver then removed the directory under it. Termination now lives in
+    `scripts/prepared_fixture_tree.py`. It waits for the process *group*,
+    sends both signals before the leader is reaped so the group id cannot
+    have been reused, raises `TreeSurvivedError` when the tree cannot be
+    confirmed gone, and never waits without a bound. The driver keeps the
+    target directory in that case. An interrupt takes the same path.
+
+  One lesson for the next change to that driver: three of its new tests failed
+  the Windows lanes, because they signal process groups and `os.getpgid` does
+  not exist there. `make test` runs `scripts/tests` on every lane, so a
+  POSIX-only case needs a skip.
+
 ## Surprises & Discoveries
 
 - **A green lint run is a temporary observation, not a property of the tree.**
