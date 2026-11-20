@@ -1,9 +1,10 @@
 //! Tokenizes tag expressions into keywords, parentheses, and tag identifiers.
 //!
 //! The lexer accepts tags that already include the leading `@` and supports
-//! alphanumeric, underscore, and hyphen characters. Keywords are case
-//! insensitive so teams can write expressions like `@fast Or not @wip` without
-//! surprises. The emitted [`Token`] stream feeds the recursive-descent parser.
+//! ASCII alphanumeric, underscore, hyphen, colon, and full-stop characters,
+//! matching the tags `gherkin` accepts (`@stage:draft`, `@v1.2`). Keywords are
+//! case insensitive so teams can write expressions like `@fast Or not @wip`
+//! without surprises. The emitted [`Token`] stream feeds the recursive-descent parser.
 
 use super::ast::TagExprError;
 
@@ -181,4 +182,9 @@ impl<'a> Lexer<'a> {
 }
 
 /// Return whether a character may occur in a tag identifier.
-fn is_tag_char(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }
+///
+/// `:` and `.` are accepted because `gherkin` accepts them in tags, so a
+/// feature may be tagged `@stage:draft` or `@v1.2`.
+fn is_tag_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '.')
+}

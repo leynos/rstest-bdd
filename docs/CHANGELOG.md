@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Tag expressions in `tags = "..."` filters now accept `:` and `.` in tag
+  names, as `gherkin` does in feature files, so filters such as `@stage:draft`
+  and `@v1.2` parse instead of failing to compile.
+
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and
   `find_step_with_mode` in favour of `lookup_step_with_metadata` and

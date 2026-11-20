@@ -146,7 +146,7 @@ Development (BDD) frameworks and improves the developer experience.
 - [x] 3.4.6. Specify associativity (`and`/`or` left-associative; `not`
   unary-prefix) and reject unknown tokens (`&&`, `||`, `!`) at compile time.
 - [x] 3.4.7. Specify case rules and identifier grammar:
-  - Tag identifiers are case-sensitive and match `[A-Za-z_][A-Za-z0-9_]*`.
+  - Tag identifiers are case-sensitive and match `[A-Za-z0-9_.:-]+`.
   - Operator keywords (`and`, `or`, `not`) are case-insensitive and reserved;
     they cannot be used as identifiers.
 - [x] 3.4.8. Implement a single shared parser used by both macros to guarantee

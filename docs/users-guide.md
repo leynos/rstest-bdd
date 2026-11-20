@@ -1017,9 +1017,10 @@ feature, the matched scenario, and—when dealing with `Scenario Outline`—the
 `Examples:` block that produced each generated row. Expressions support the
 operators `and`, `or`, and `not` (case-insensitive) and respect the precedence
 `not` > `and` > `or`; parentheses may be used to override this ordering. Tags
-include the leading `@`. When the filter is combined with `index` or `name`,
-the macro emits a compile error if the selected scenario does not satisfy the
-expression.
+include the leading `@`. Tag names may contain ASCII letters, digits, `_`, `-`,
+`:` and `.`, so a filter can name tags such as `@stage:draft` or `@v1.2`. When
+the filter is combined with `index` or `name`, the macro emits a compile error
+if the selected scenario does not satisfy the expression.
 
 ### Harness adapter and attribute policy
 
