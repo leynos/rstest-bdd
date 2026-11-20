@@ -73,7 +73,7 @@ fn a_relative_cargo_home_is_read_from_the_generated_crate() {
 
     let tree = TrybuildTree::new(&crate_root, "under-test", "family", "variant");
     // The value is set for the duration of this case only; the helper below
-    // scopes it, and `temp_env` serialises such cases within the binary.
+    // scopes it, and `temp_env` serializes such cases within the binary.
     temp_env::with_var("CARGO_HOME", Some("cargo-home"), || {
         let inputs = tree.inputs(&generated).expect("inputs");
         assert!(
