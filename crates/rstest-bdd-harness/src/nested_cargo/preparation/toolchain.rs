@@ -244,13 +244,10 @@ fn probe(
     let bound = probe_bound(deadline, program)?;
     let mut command = Command::new(executable);
     command.arg("-vV");
-    // A working directory that has not been created yet is not a reason to
-    // refuse the identity: the preparation creates the tree it stamps, so on
-    // the very first run the directory can be absent. Falling back to the
-    // inherited directory keeps the probe runnable, and the nested build that
-    // follows creates the tree and runs there.
-    if scene.working_directory.is_dir() {
-        command.current_dir(scene.working_directory);
+    // Started in a directory that exists on the cold run as well as every warm
+    // one; see [`probe_directory`] for why the inherited directory is not it.
+    if let Some(directory) = probe_directory(scene.working_directory) {
+        command.current_dir(directory);
     }
     for (key, value) in scene.environment.iter() {
         command.env(key, value);
@@ -276,6 +273,41 @@ fn probe(
         output.status.success(),
         &String::from_utf8_lossy(&output.stdout),
     )
+}
+
+/// The directory a `-vV` probe runs in.
+///
+/// The probe must start where the nested build will, because a `rustup` shim
+/// picks its toolchain from the `rust-toolchain.toml` it finds by walking up
+/// from there. On the cold run that directory does not exist yet — the
+/// preparation creates the tree it stamps — and a missing directory is no
+/// reason to refuse the identity, so something has to stand in for it.
+///
+/// What must not stand in is this process's own directory, which is what an
+/// unconditional `current_dir` refusal leaves the command with. The two
+/// directories need not share an ancestry: this process may run in a workspace
+/// whose pin is not the fixture's, or outside any pinned tree at all. The walk
+/// would then select a different toolchain cold than warm, and the stamp
+/// written from it would name a compiler the nested build never runs — the
+/// timed gate would then either refuse its own stamp or admit a tree built by
+/// a compiler it never identified.
+///
+/// The nearest ancestor that *does* exist is the answer instead. It is the
+/// deepest directory the shim would actually have visited on a warm run, so
+/// the toolchain file it resolves is the same one, and the only difference is
+/// the absent components that no walk can descend through yet. `None`, which
+/// happens only when nothing resolves including the filesystem root, leaves
+/// the command in the inherited directory: that is the last resort it used to
+/// be for every cold run, not the rule.
+pub(super) fn probe_directory(working_directory: &Path) -> Option<PathBuf> {
+    if working_directory.is_dir() {
+        return Some(working_directory.to_path_buf());
+    }
+    working_directory
+        .ancestors()
+        .skip(1)
+        .find(|ancestor| ancestor.is_dir())
+        .map(Path::to_path_buf)
 }
 
 /// The wall-clock bound for one `-vV` probe.

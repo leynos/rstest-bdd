@@ -17,7 +17,14 @@ use std::{
 
 use rstest::rstest;
 
-use super::{PROBE_TIMEOUT, compose_identity, identity_from, probe_bound, resolve_compiler_path};
+use super::{
+    PROBE_TIMEOUT,
+    compose_identity,
+    identity_from,
+    probe_bound,
+    probe_directory,
+    resolve_compiler_path,
+};
 use crate::nested_cargo::Deadline;
 
 /// A `-vV` invocation's exit outcome and standard output.
@@ -185,6 +192,43 @@ fn a_dot_prefixed_compiler_override_is_resolved_rather_than_taken_as_a_name() {
         resolved,
         nested_directory().join(".cargo").join("rustc"),
         "a value naming a location must be resolved, dot or not"
+    );
+}
+
+/// A probe's directory is the nested build's own, whether or not it exists yet.
+///
+/// The cold case is the reason this rule exists. `lifecycle` fingerprints the
+/// family *before* its callback copies the scratch tree, so on the very first
+/// gate the nested directory is absent while the probe still has to run. A
+/// command left in this process's directory answers for whatever toolchain
+/// happens to be pinned above the test binary, which need not be the fixture's;
+/// the shim's upward walk then selects a different toolchain cold than warm and
+/// the stamp names a compiler the build never runs.
+///
+/// The substitute is the nearest existing ancestor, which is where that walk
+/// would have reached on a warm run — so both halves of the eventual build
+/// resolve the same toolchain file, and the only difference is the components
+/// that do not exist to be descended into.
+#[test]
+fn a_probe_runs_beneath_the_nested_directory_even_before_it_exists() {
+    let checkout = tempfile::tempdir().expect("checkout");
+    let root = std::fs::canonicalize(checkout.path()).expect("resolved checkout");
+    // An existing ancestor with a pin above it, and an absent tail beneath.
+    let crate_dir = root.join("fixture");
+    std::fs::create_dir(&crate_dir).expect("the crate directory");
+    let cold = crate_dir.join("target/tests/family/fixture");
+    assert!(!cold.exists(), "the cold half needs an absent directory");
+
+    assert_eq!(
+        probe_directory(&crate_dir),
+        Some(crate_dir.clone()),
+        "a directory that exists is where the probe runs, unchanged"
+    );
+    assert_eq!(
+        probe_directory(&cold),
+        Some(crate_dir),
+        "an absent directory must fall back to its nearest existing ancestor, not to the \
+         process's own directory"
     );
 }
 
