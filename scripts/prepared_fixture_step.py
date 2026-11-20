@@ -15,6 +15,7 @@ file in the environment: a reader looking for that channel should find it beside
 the code that opens it.
 """
 
+import contextlib
 import os
 import re
 import signal
@@ -301,6 +302,40 @@ def group_exited(group: int) -> bool:
     return False
 
 
+def settle(stack: contextlib.ExitStack, process: subprocess.Popen[str]) -> None:
+    """Terminate a timed-out step's tree, abandoning it if it will not go.
+
+    *stack* owns *process*, and leaving it normally waits for the process with
+    no bound, which a process that survived `SIGKILL` will not allow. So when
+    the tree cannot be confirmed gone the process is taken out of the stack
+    and its pipes are closed, and the error reaches the caller.
+
+    Raises
+    ------
+    TreeSurvivedError
+        When [`terminate_tree`] could not confirm the tree gone. The process
+        has been abandoned, not reaped, when this is raised.
+    """
+    try:
+        terminate_tree(process)
+    except TreeSurvivedError:
+        stack.pop_all()
+        abandon_pipes(process)
+        raise
+
+
+def abandon_pipes(process: subprocess.Popen[str]) -> None:
+    """Close this side of *process*'s pipes without waiting for it.
+
+    Used only for a process that could not be confirmed dead. The driver then
+    holds no descriptor on a tree it has given up on; the process is left
+    unreaped, because waiting for it is what cannot be bounded.
+    """
+    for pipe in (process.stdout, process.stderr):
+        if pipe is not None:
+            pipe.close()
+
+
 def run_step(
     argv: list[str],
     *,
@@ -332,32 +367,34 @@ def run_step(
     Raises
     ------
     subprocess.TimeoutExpired
-        When the step outlives ``STEP_TIMEOUT_SECONDS``. The tree has already
-        been terminated when this is raised.
+        When the step outlives ``STEP_TIMEOUT_SECONDS``.
+    KeyboardInterrupt
+        When the driver is interrupted while the step runs.
 
     Notes
     -----
-    When the step timed out and its tree could not be confirmed gone,
-    [`terminate_tree`] raises `TreeSurvivedError` and that error replaces the
-    timeout, because the caller must then keep the target directory.
+    The tree has been terminated when either is raised. If it could not be
+    confirmed gone, [`settle`] raises `TreeSurvivedError` in their place,
+    because the caller must then keep the target directory.
     """
     env = os.environ.copy()
     env["CARGO_TARGET_DIR"] = str(target_dir)
     env[BUILD_REPORT_ENV] = str(build_report_path(target_dir))
-    with (
-        subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv, no shell.
-            argv,
-            cwd=REPO_ROOT,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            start_new_session=True,
-        ) as process,
-    ):
+    with contextlib.ExitStack() as stack:
+        process = stack.enter_context(
+            subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv, no shell.
+                argv,
+                cwd=REPO_ROOT,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+            )
+        )
         try:
             stdout, stderr = process.communicate(timeout=STEP_TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            terminate_tree(process)
+        except subprocess.TimeoutExpired, KeyboardInterrupt:
+            settle(stack, process)
             raise
         return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)

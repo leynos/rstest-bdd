@@ -9,6 +9,8 @@ runner. The process-tree termination behind a step's timeout is covered in
 ``test_prepared_fixture_tree``.
 """
 
+import os
+import shutil
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - only constructs values and exceptions; spawns nothing.
 import sys
 import typing as typ
@@ -230,6 +232,53 @@ def test_an_unconfirmed_cleanup_fails_and_preserves_the_directory(
     finally:
         for directory in used:
             directory.rmdir()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="needs process groups")
+def test_a_leader_that_cannot_be_reaped_still_reaches_the_driver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A process that survives ``SIGKILL`` fails the run without hanging it.
+
+    Every bounded wait for the step's process is made to time out, which is
+    what a process stuck in the kernel looks like. The step must then give
+    up on the process, not wait for it without a bound, so the error reaches
+    the driver and the driver keeps the directory.
+    """
+    monkeypatch.setattr(step, "STEP_TIMEOUT_SECONDS", 0.5)
+    monkeypatch.setattr(step, "TREE_REAP_SECONDS", 0.5)
+    real_wait = subprocess.Popen.wait
+    leaders: list[subprocess.Popen[str]] = []
+    unbounded: list[int] = []
+    used: list[Path] = []
+
+    def wait(self: subprocess.Popen[str], timeout: float | None = None) -> int:
+        """Time out every bounded wait, and record any unbounded one."""
+        leaders.append(self)
+        if timeout is None:
+            unbounded.append(self.pid)
+            return real_wait(self)
+        raise subprocess.TimeoutExpired(self.args, timeout)
+
+    def run_workflow(target_dir: Path) -> None:
+        """Run one step that outlives its bound."""
+        used.append(target_dir)
+        program = "import time\ntime.sleep(120)\n"
+        step.run_step([sys.executable, "-c", program], target_dir=target_dir)
+
+    monkeypatch.setattr(subprocess.Popen, "wait", wait)
+    monkeypatch.setattr(workflow, "run_workflow", run_workflow)
+    try:
+        assert workflow.main([]) == 1, "an unreapable leader is a failure"
+        assert used[0].is_dir(), "the directory must survive an unconfirmed cleanup"
+        assert not unbounded, "the step must not wait for the leader unbounded"
+    finally:
+        # The process was killed; only the wait was made to fail. Reap it and
+        # remove the directory the driver rightly kept.
+        for leader in leaders:
+            real_wait(leader)
+        for directory in used:
+            shutil.rmtree(directory, ignore_errors=True)
 
 
 def test_keep_leaves_the_private_directory_for_inspection(
