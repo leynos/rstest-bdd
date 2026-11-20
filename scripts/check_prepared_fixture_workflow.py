@@ -92,13 +92,13 @@ from prepared_fixture_step import (
     REMEDY,
     REPO_ROOT,
     STEP_TIMEOUT_SECONDS,
-    TreeSurvivedError,
     build_report_path,
     preparation_argv,
     read_build_reports,
     run_step,
     timed_test_argv,
 )
+from prepared_fixture_tree import TreeSurvivedError
 
 __all__ = [
     "REMEDY",

@@ -5,8 +5,9 @@ the driver removes the target directory it was writing to. These cases drive
 ``terminate_tree`` and the timeout path of ``run_step`` against small child
 processes: a tree that honours ``SIGTERM``, one that ignores it, a descendant
 that outlives its parent, and a descendant that holds the captured pipe of a
-parent that already exited. They signal process groups, so they are skipped
-where the platform has none.
+parent that already exited. They signal process groups, so ``conftest`` leaves
+this module uncollected where the platform has none;
+``test_prepared_fixture_tree_logic`` covers the same rules there.
 """
 
 import contextlib
@@ -23,6 +24,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import prepared_fixture_step as step
+import prepared_fixture_tree as tree
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -98,9 +100,6 @@ STUBBORN_TREE = (
     "time.sleep(120)\n"
 )
 
-#: These cases signal process groups, which only POSIX has.
-posix_only = pytest.mark.skipif(os.name != "posix", reason="needs process groups")
-
 
 def group_is_empty(group: int) -> bool:
     """Return whether no process is left in *group*."""
@@ -114,25 +113,23 @@ def group_is_empty(group: int) -> bool:
 @pytest.fixture
 def short_reap(monkeypatch: pytest.MonkeyPatch) -> None:
     """Shorten the grace period so a stubborn child costs a moment, not 10 s."""
-    monkeypatch.setattr(step, "TREE_REAP_SECONDS", 0.5)
+    monkeypatch.setattr(tree, "TREE_REAP_SECONDS", 0.5)
 
 
-@posix_only
 @pytest.mark.usefixtures("short_reap")
 def test_a_tree_that_ignores_sigterm_is_killed_within_the_grace_period() -> None:
     """``SIGKILL`` follows when the polite signal is ignored."""
     with spawned(STUBBORN_CHILD) as process:
-        step.terminate_tree(process)
+        tree.terminate_tree(process)
         killed = process.returncode == -signal.SIGKILL
         assert killed, f"expected SIGKILL, got status {process.returncode}"
 
 
-@posix_only
 @pytest.mark.usefixtures("short_reap")
 def test_a_tree_that_honours_sigterm_is_not_escalated() -> None:
     """A child that exits on ``SIGTERM`` is never sent ``SIGKILL``."""
     with spawned(POLITE_CHILD) as process:
-        step.terminate_tree(process)
+        tree.terminate_tree(process)
         polite = process.returncode == -signal.SIGTERM
         assert polite, f"expected SIGTERM, got status {process.returncode}"
 
@@ -181,23 +178,24 @@ def signal_log(monkeypatch: pytest.MonkeyPatch) -> SignalLog:
     return log
 
 
-@posix_only
 def test_a_finished_process_is_left_alone(signal_log: SignalLog) -> None:
-    """A process the caller already reaped is sent nothing at all.
+    """The group of an already-reaped process is asked about, never signalled.
 
     Its id is no longer tied to this step: the group may have emptied and the
     id been handed to an unrelated process, which a signal would then reach.
+    Signal zero only asks whether the group exists, so it is the one thing
+    that may still be sent.
     """
     with subprocess.Popen(
         [sys.executable, "-c", "pass"], start_new_session=True, text=True
     ) as process:
         process.wait()
-        step.terminate_tree(process)
+        tree.terminate_tree(process)
         assert process.returncode == 0, "a finished process keeps its status"
-    assert signal_log.sent == [], "a reaped process's group must not be signalled"
+    delivered = [sig for sig, _unreaped in signal_log.sent if sig != 0]
+    assert not delivered, "a reaped process's group must not be signalled"
 
 
-@posix_only
 @pytest.mark.usefixtures("short_reap")
 def test_every_delivered_signal_is_sent_before_the_leader_is_reaped(
     signal_log: SignalLog,
@@ -210,7 +208,7 @@ def test_every_delivered_signal_is_sent_before_the_leader_is_reaped(
     """
     with spawned(STUBBORN_TREE) as process:
         signal_log.watched.append(process)
-        step.terminate_tree(process)
+        tree.terminate_tree(process)
         delivered = [live for sig, live in signal_log.sent if sig != 0]
         probes = [live for sig, live in signal_log.sent if sig == 0]
         assert delivered == [True, True], "SIGTERM and SIGKILL precede the reap"
@@ -218,7 +216,6 @@ def test_every_delivered_signal_is_sent_before_the_leader_is_reaped(
         assert not any(probes), "after the reap the group is only probed"
 
 
-@posix_only
 @pytest.mark.usefixtures("short_reap")
 def test_a_group_that_cannot_be_confirmed_gone_is_reported(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -229,17 +226,16 @@ def test_a_group_that_cannot_be_confirmed_gone_is_reported(
     safe once the tree has gone. When that cannot be established the step
     says so, in a form the caller can tell apart from an ordinary timeout.
     """
-    monkeypatch.setattr(step, "group_exited", lambda _group: False)
-    with spawned(POLITE_CHILD) as process, pytest.raises(step.TreeSurvivedError):
-        step.terminate_tree(process)
+    monkeypatch.setattr(tree, "group_exited", lambda _group: False)
+    with spawned(POLITE_CHILD) as process, pytest.raises(tree.TreeSurvivedError):
+        tree.terminate_tree(process)
 
     monkeypatch.setattr(step, "STEP_TIMEOUT_SECONDS", 0.5)
     program = "import time\ntime.sleep(120)\n"
-    with pytest.raises(step.TreeSurvivedError):
+    with pytest.raises(tree.TreeSurvivedError):
         step.run_step([sys.executable, "-c", program], target_dir=tmp_path)
 
 
-@posix_only
 @pytest.mark.usefixtures("short_reap")
 def test_a_step_that_outlives_its_bound_is_killed_and_the_timeout_reraised(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -259,7 +255,6 @@ def test_a_step_that_outlives_its_bound_is_killed_and_the_timeout_reraised(
         os.kill(int(pid_file.read_text(encoding="utf-8")), 0)
 
 
-@posix_only
 @pytest.mark.usefixtures("short_reap")
 def test_a_descendant_that_outlives_its_parent_is_killed_too() -> None:
     """The parent exiting on ``SIGTERM`` does not end the wait.
@@ -269,24 +264,22 @@ def test_a_descendant_that_outlives_its_parent_is_killed_too() -> None:
     still writing into the directory the caller is about to remove.
     """
     with spawned(PARENT_OF_STUBBORN_CHILD) as process:
-        step.terminate_tree(process)
+        tree.terminate_tree(process)
         polite = process.returncode == -signal.SIGTERM
         assert polite, f"the parent should die on SIGTERM, got {process.returncode}"
         assert group_is_empty(process.pid), "the descendant must be gone as well"
 
 
-@posix_only
 @pytest.mark.usefixtures("short_reap")
 def test_a_tree_that_ignores_sigterm_throughout_is_killed_as_a_group() -> None:
     """Parent and descendant both outlast ``SIGTERM`` and both get ``SIGKILL``."""
     with spawned(STUBBORN_TREE) as process:
-        step.terminate_tree(process)
+        tree.terminate_tree(process)
         killed = process.returncode == -signal.SIGKILL
         assert killed, f"the parent should need SIGKILL, got {process.returncode}"
         assert group_is_empty(process.pid), "the descendant must be gone as well"
 
 
-@posix_only
 @pytest.mark.usefixtures("short_reap")
 def test_a_timed_out_step_has_its_whole_stubborn_tree_killed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -304,7 +297,6 @@ def test_a_timed_out_step_has_its_whole_stubborn_tree_killed(
     assert group_is_empty(group), "the whole tree must be gone before the raise"
 
 
-@posix_only
 @pytest.mark.usefixtures("short_reap")
 def test_a_descendant_holding_the_pipe_of_an_exited_parent_is_killed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
