@@ -29,6 +29,7 @@ from test_prepared_fixture_tree import POLITE_CHILD, group_is_empty, spawned
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+    import types
 
 #: A step that would run far past any bound a case sets.
 SLEEPER = [sys.executable, "-c", "import time\ntime.sleep(120)\n"]
@@ -126,38 +127,44 @@ def test_a_surviving_tree_is_abandoned_while_it_is_still_running(
             survivor.wait()
 
 
-#: How long the step is given to reach ``communicate`` once its child is up.
-#:
-#: The child's readiness is observed, not assumed; this covers only the few
-#: instructions between the step starting its process and waiting for it,
-#: which nothing outside the step can observe.
-SETTLE_SECONDS = 0.2
+def interrupt(signum: int, frame: object) -> typ.NoReturn:
+    """Turn the waiter's signal into the interrupt under test."""
+    del signum, frame
+    raise KeyboardInterrupt
 
 
-@pytest.fixture
-def interrupt_once_ready() -> cabc.Iterator[cabc.Callable[..., None]]:
-    """Interrupt this thread once a step's child has shown it is ready.
+class Interrupter:
+    """Interrupts the main thread once a step is waiting for a ready child.
 
-    The fixture yields a function that takes the file the child writes its
-    process id to. A waiter thread watches for that file, optionally waits
-    for that process to exit *without reaping it*, and only then delivers the
-    interrupt as a signal, so it lands inside whatever the step is blocked in
-    and is handled by that code's own interrupt path. Nothing here depends on
-    how long the child takes to start.
+    The interrupt is held back until three things have been *observed*, none
+    of them assumed from elapsed time:
 
-    Yields
-    ------
-    cabc.Callable[..., None]
-        ``arm(pid_file, *, after_exit)``, to be called before the step runs.
+    - the child has written its process id to a file, so it is running;
+    - the main thread has entered ``Popen``'s own ``_communicate``, so the
+      interrupt lands inside the real wait and is handled by its own
+      interrupt path; and
+    - where asked, the child has exited, seen without reaping it.
     """
 
-    def interrupt(signum: int, frame: object) -> typ.NoReturn:
-        """Turn the signal into the interrupt under test."""
-        del signum, frame
-        raise KeyboardInterrupt
+    def __init__(self) -> None:
+        """Start with no step waiting and no waiter running."""
+        self.waiting = threading.Event()
+        self.waiters: list[threading.Thread] = []
 
-    def wait_then_interrupt(pid_file: Path, *, after_exit: bool) -> None:
-        """Deliver the interrupt once the child is ready, or give up."""
+    def note_the_wait(self, frame: types.FrameType, event: str, arg: object) -> None:
+        """Record the profiled thread entering the real ``communicate`` wait.
+
+        Installed as a profile function, which the interpreter calls on every
+        function call in the thread that installed it.
+        """
+        del arg
+        code = frame.f_code
+        entering = event == "call" and code.co_name == "_communicate"
+        if entering and code.co_filename == subprocess.__file__:
+            self.waiting.set()
+
+    def wait_then_interrupt(self, pid_file: Path, *, after_exit: bool) -> None:
+        """Deliver the interrupt once everything above holds, or give up."""
         deadline = time.monotonic() + PROMPT_SECONDS
         while not (pid_file.exists() and pid_file.read_text(encoding="utf-8")):
             if time.monotonic() > deadline:
@@ -168,29 +175,56 @@ def interrupt_once_ready() -> cabc.Iterator[cabc.Callable[..., None]]:
             # so the reap is still the real ``communicate``'s to perform.
             pid = int(pid_file.read_text(encoding="utf-8"))
             os.waitid(os.P_PID, pid, os.WEXITED | os.WNOWAIT)
-        time.sleep(SETTLE_SECONDS)
-        os.kill(os.getpid(), signal.SIGALRM)
+        if self.waiting.wait(timeout=PROMPT_SECONDS):
+            os.kill(os.getpid(), signal.SIGALRM)
 
-    waiters: list[threading.Thread] = []
+    def arm(self, pid_file: Path, *, after_exit: bool) -> None:
+        """Start a waiter for the step about to run.
 
-    def arm(pid_file: Path, *, after_exit: bool) -> None:
-        """Start the waiter for the step about to run."""
+        Parameters
+        ----------
+        pid_file : Path
+            The file the step's child writes its process id to.
+        after_exit : bool
+            Whether to wait for that process to exit before interrupting.
+        """
         waiter = threading.Thread(
-            target=wait_then_interrupt,
+            target=self.wait_then_interrupt,
             args=(pid_file,),
             kwargs={"after_exit": after_exit},
             daemon=True,
         )
         waiter.start()
-        waiters.append(waiter)
+        self.waiters.append(waiter)
 
-    previous = signal.signal(signal.SIGALRM, interrupt)
-    try:
-        yield arm
-    finally:
-        for waiter in waiters:
+    def join(self) -> None:
+        """Wait for every waiter to finish or give up."""
+        for waiter in self.waiters:
             waiter.join(timeout=PROMPT_SECONDS)
-        signal.signal(signal.SIGALRM, previous)
+
+
+@pytest.fixture
+def interrupt_once_ready() -> cabc.Iterator[cabc.Callable[..., None]]:
+    """Provide ``arm(pid_file, *, after_exit)`` for a step about to run.
+
+    The interrupt arrives as a signal, the way a real one does. See
+    [`Interrupter`] for what it waits to observe first.
+
+    Yields
+    ------
+    cabc.Callable[..., None]
+        The function that starts the waiter; call it before the step runs.
+    """
+    interrupter = Interrupter()
+    previous_handler = signal.signal(signal.SIGALRM, interrupt)
+    previous_profile = sys.getprofile()
+    sys.setprofile(interrupter.note_the_wait)
+    try:
+        yield interrupter.arm
+    finally:
+        sys.setprofile(previous_profile)
+        interrupter.join()
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def test_an_interrupt_after_the_leader_exited_keeps_the_directory(
