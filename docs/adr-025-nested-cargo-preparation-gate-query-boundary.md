@@ -2,25 +2,29 @@
 
 ## Status
 
-Accepted (2026-11-19): the gate keeps its current shape — a private
-`matching_stamp` predicate behind a public `ensure_prepared` that may prepare.
-The alternative, a public typed query returning the stamp-and-artefact decision
-and a separately named mutating entry point, is declined for this surface.
+Accepted (2026-11-19), **superseded in part** (2026-11-19): the original
+decision kept the gate in one shape — a private `matching_stamp` predicate
+behind a public entry point that may prepare — and declined a public typed
+query. That decline is now withdrawn. The gate is split into a read-only
+admission query with a typed answer and a separately named build-capable entry
+point. The reasoning that declined the *original* proposal is kept below,
+because the replacement was designed to answer it rather than to ignore it. See
+[Superseding decision](#superseding-decision-2026-11-19).
 
 ## Date
 
-2026-11-19.
+2026-11-19; superseding section added 2026-11-19.
 
 ## Context and problem statement
 
-`crates/rstest-bdd-harness/src/nested_cargo/preparation/lifecycle.rs` exposes
-one public gate per runner position:
+`crates/rstest-bdd-harness/src/nested_cargo/preparation/lifecycle.rs` exposed,
+at the time of the original decision, one public gate per runner position:
 
-- `ensure_prepared` decides by runner and either admits a prepared tree or
-  prepares one.
-- `ensure_prepared_with` takes the runner decision as a parameter, and
-  `ensure_prepared_reported` takes the injected `Instruments` as well, so the
-  protocol can be exercised without mutating the environment or spawning
+- `ensure_prepared` decided by runner and either admitted a prepared tree or
+  prepared one, reading `NEXTEST_RUN_ID` itself.
+- `ensure_prepared_with` took the runner decision as a parameter, and
+  `ensure_prepared_reported` took the injected `Instruments` as well, so the
+  protocol could be exercised without mutating the environment or spawning
   `cargo -vV`.
 - `prepare_now` is the unconditional preparation the `prepare-nested-fixtures`
   target reaches.
@@ -32,8 +36,10 @@ present? A reviewer asked for a public typed query that returns *why* a tree
 was or was not admitted, and for the mutating entry point to be renamed so that
 a caller cannot reach a build through something named like a query.
 
-The observation behind the request is real: `ensure_prepared` can run a build,
-and its name does not say so. What is disputed is the remedy.
+The observation behind the request is real: `ensure_prepared` could run a
+build, and its name did not say so. What was disputed was the remedy, and
+[Superseding decision](#superseding-decision-2026-11-19) records the remedy
+that was eventually taken.
 
 ## Decision drivers
 
@@ -67,11 +73,14 @@ and its name does not say so. What is disputed is the remedy.
 
 Option 2, for this surface and this PR.
 
-Option 1 was declined because it buys a caller-visible decision that no caller
-in this workspace wants, at the cost of exposing the artefact and profile
-derivation that `profiles.rs` and `artefacts/` exist to keep in one place. A
-public decision type would either become a second source of truth for "what
-counts as prepared" or force those modules' internals into the public API.
+Option 1 was declined because, as it was then specified, it bought a
+caller-visible decision that no caller in this workspace wanted, at the cost of
+exposing the artefact and profile derivation that `profiles.rs` and
+`artefacts/` exist to keep in one place. A public decision type would either
+become a second source of truth for "what counts as prepared" or force those
+modules' internals into the public API.
+[Superseding decision](#superseding-decision-2026-11-19) records how a query
+was later added without either cost.
 
 Option 3 was declined because it makes every call site responsible for the same
 two-step sequence, and a site that asked only the first question would silently
@@ -79,20 +88,19 @@ skip preparation — the failure mode the gate exists to prevent.
 
 What the declined request did change, and what this PR does carry:
 
-- `ensure_prepared`'s `# Errors` section distinguishes the two runners rather
-  than claiming the read error is always returned. Under plain `cargo test` an
+- The gate's `# Errors` section distinguishes the two runners rather than
+  claiming the read error is always returned. Under plain `cargo test` an
   unreadable stamp is logged and prepared over; under Nextest it is refused.
 - The module prose describes the lazy recovery, the process-wide
   `PREPARE_LOCK`, and the `cargo-spawning` test group's role in ordering
   accurately, rather than implying the mutex serializes independent processes.
-- The stderr reporter is injected through `ensure_prepared_reported`,
-  `prepare_now_reported` and `invalidate_reported`, so the diagnostics are
-  observable from a test instead of only from a terminal.
+- The stderr reporter is injected through the reported entry points —
+  `ensure_prepared_building_reported`, `prepare_now_reported` and
+  `invalidate_reported` — so the diagnostics are observable from a test instead
+  of only from a terminal.
 
-The saved request for a public typed query is therefore **recorded as
-declined** rather than as an implemented change. A future change that finds a
-caller which genuinely needs the decision without acting on it should reopen
-this ADR rather than growing the query beside the gate.
+The saved request for a public typed query was therefore recorded here as
+**declined** at the time, and is withdrawn by the superseding section below.
 
 The separation of `stamp.rs`'s responsibilities was deferred by this decision
 and has since been carried out. `preparation/stamp.rs` is now a module root
@@ -124,13 +132,17 @@ past the repository's per-file line budget, so the gate is a module root too:
   `instruments_of` — with the production probe and reporter paired in one
   place, so the compiler the gate identifies and the stream it writes through
   cannot drift apart.
-- `lifecycle.rs` keeps the decision and the build: the four entry points, the
-  `Target` view passed to `prepare_locked`, and the locking and stamping that
-  follow a build.
+- `lifecycle.rs` keeps the decision and the build: the build-capable entry
+  points, the `Target` view passed to `prepare_locked`, and the locking and
+  stamping that follow a build.
+- `lifecycle/admission.rs` holds the read-only query — `Admission`,
+  `UnreadableStamp`, `admit` and `admit_with_probe` — so a name that reads like
+  a question is implemented in a module that can only answer it.
 
-The parent re-exports both, so `lifecycle::Instruments`,
-`lifecycle::reporter_of` and `lifecycle::instruments_of` resolve exactly as
-before for `deadline`, `invalidate` and the workspace tests.
+The parent re-exports all three, so `lifecycle::Instruments`,
+`lifecycle::reporter_of`, `lifecycle::instruments_of`, `lifecycle::admit` and
+`lifecycle::ensure_prepared_building` resolve for `deadline`, `invalidate` and
+the workspace tests.
 
 No call site outside `preparation/` moved: the module root re-exports the same
 names under the same visibility. The split is recorded here because it is the
@@ -138,15 +150,64 @@ deferral this decision named, not because it changes the decision.
 
 ## Consequences
 
-- The gate stays one function per runner position, and every caller's name
-  states whether it may build.
 - A caller cannot obtain the stamp decision without either acting on it or
-  taking the preparable entry point.
+  taking the preparable entry point; the superseding decision below keeps that
+  property while making the preparable entry point's name admit what it does.
 - The reason a tree was refused is carried by the gate's error rather than by a
-  decision value, so there is one explanation path rather than two.
+  decision value, so there is one explanation path rather than two. The
+  superseding decision adds an *answer* path beside it without replacing the
+  error the gate raises.
 - If a future caller needs to distinguish refusal reasons programmatically, the
   error chain's source carries them today; that is the extension point to use
-  before widening the public surface.
+  before widening the public surface. `Admission` is the narrow exception,
+  added only for the inaction guarantee the section below describes.
+
+## Superseding decision (2026-11-19)
+
+The typed query is **adopted**, in a form that pays neither cost Option 1 was
+declined for. The public surface is now:
+
+- `admit(preparation, under_nextest) -> io::Result<Admission>` is the read-only
+  admission query. It performs no build, writes no stamp and takes no lock. Its
+  answer is a typed [`Admission`] with three variants: `Reusable`,
+  `NotPrepared` and `Unreadable(UnreadableStamp)`.
+- `admit_with_probe(preparation, under_nextest, probe)` is the same query with
+  the toolchain probe supplied, so the answer can be exercised against a chosen
+  compiler identity without spawning `cargo -vV`.
+- `ensure_prepared_building(preparation, under_nextest, prepare)` is the
+  build-capable entry point. Its name states that it may prepare, and its
+  `PreparationOutcome` return value — `Reused` or `Prepared` — states whether a
+  build ran.
+- `ensure_prepared_building_reported` takes the injected `Instruments` as well.
+
+What changed from the declined proposal, and why it is now acceptable:
+
+- **No derivation is exposed.** The query is not a second implementation of
+  "what counts as prepared". It consumes the same private `stamp::read_stamp`
+  answer and calls the same `artefacts::all_present` predicate the gate does,
+  so the two cannot disagree. The split that makes it possible is `read_stamp`
+  returning a `StampReading { fingerprint, decision }` — one composition of the
+  fingerprint serving both the comparison and the later stamp write — rather
+  than the caller recomposing either.
+- **The runner decision is no longer read inside the gate.** Every public
+  entry point takes `under_nextest` as a parameter. The environment read moved
+  to the call sites that resolve it — `nested_cargo::running_under_nextest` is
+  now called by the test-support boundary (`TrybuildTree::ensure_prepared`), by
+  the workspace suites that already took the decision explicitly, and nowhere
+  inside a gate whose name does not mention it.
+- **The two refusal variants earn their place by different callers.** `admit`
+  exists for callers that need to *report* whether a tree is reusable without
+  acting on the answer — the same role a diagnostics-first workflow needs — and
+  the no-build/no-stamp/no-lock guarantee is exactly what makes it safe to
+  reach from a context that must not prepare. `ensure_prepared_building`
+  remains the only entry point that can build.
+
+The tests added with the split live in `preparation/tests/admission.rs` and pin
+each refusal separately: a cold tree answers `NotPrepared` and leaves no stamp,
+a warm tree answers `Reusable` and its stamp comes back byte-identical, an
+evicted profile answers `NotPrepared`, an unreadable stamp answers `Unreadable`
+under Nextest and `NotPrepared` under plain `cargo test`, and the query answers
+while another thread holds `PREPARE_LOCK`.
 
 ## Links
 

@@ -40,9 +40,15 @@ const PROBE: &str = "tests/fixtures_macros/scenario_attributes_gpui.rs";
 
 /// A compile-fail fixture, probed only to warm check mode.
 ///
-/// It is never asserted on here: the point is that `trybuild` checks it rather
-/// than builds it, which populates the metadata graph that a `check`-mode timed
-/// case needs and leaves it warm.
+/// The point is that `trybuild` *checks* it rather than builds it, which
+/// populates the metadata graph that a `check`-mode timed case needs and leaves
+/// it warm. That is a weaker assertion than it may look: `compile_fail` still
+/// requires the fixture to fail to compile and, because a `.stderr` snapshot
+/// sits beside it, still compares that snapshot. A probe whose snapshot drifted
+/// therefore fails the preparation rather than quietly warming nothing — which
+/// is the right place for it to fail, since a warm graph proven by a fixture
+/// that no longer rejects the way it used to is not evidence the timed case can
+/// trust.
 const COMPILE_FAIL_PROBE: &str = "tests/fixtures_macros/scenario_harness_gpui_sync_rejected.rs";
 
 /// The trybuild tree this test binary prepares.

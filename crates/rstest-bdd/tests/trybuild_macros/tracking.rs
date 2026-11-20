@@ -189,6 +189,7 @@ mod tests {
 
     use std::{
         fs,
+        io,
         time::{Duration, SystemTime},
     };
 
@@ -209,11 +210,17 @@ mod tests {
     /// later than `run_started` would still work, but one made earlier would
     /// let a case confuse "when the fixture was built" with "when the run
     /// began".
+    ///
+    /// It is fallible rather than panicking: creating the directory is setup,
+    /// and a failure there is a fact about the host worth reporting as itself.
+    /// The `?` belongs in the test body, where the error can name which setup
+    /// failed — an `expect` here would turn an unwritable temporary directory
+    /// into a panic attributed to the assertion under test.
     #[rstest::fixture]
-    fn prepared_directory() -> (tempfile::TempDir, SystemTime) {
-        let directory = tempfile::tempdir().expect("temp dir");
+    fn prepared_directory() -> io::Result<(tempfile::TempDir, SystemTime)> {
+        let directory = tempfile::tempdir()?;
         let run_started = SystemTime::now();
-        (directory, run_started)
+        Ok((directory, run_started))
     }
 
     #[test]
@@ -333,12 +340,13 @@ mod tests {
         "a coarse-timestamp host must not fail the assertion for a file it wrote promptly"
     )]
     fn the_freshness_rule_classifies_a_dep_info_by_when_it_was_written(
-        prepared_directory: (tempfile::TempDir, SystemTime),
+        prepared_directory: io::Result<(tempfile::TempDir, SystemTime)>,
         #[case] written: Written,
         #[case] expected: usize,
         #[case] reason: &str,
     ) {
-        let (directory, run_started) = prepared_directory;
+        let (directory, run_started) =
+            prepared_directory.expect("a temporary directory for the dep-info cases");
         write_dep_info(
             directory.path(),
             written.file_name(),

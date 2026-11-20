@@ -48,8 +48,10 @@ mod ownership;
 mod recording;
 mod replacement;
 mod state;
+mod verification;
 
 pub(super) use recording::record;
+pub(super) use verification::{verify_declared, verify_recorded, verify_structural};
 
 /// How many missing names a failure message lists before summarizing.
 ///
@@ -177,7 +179,19 @@ fn eviction_of(
         let present = recording::recorded_names(directory, layout, owned)?;
         let missing = replacement::missing_names(recorded, &present);
         if missing.is_empty() {
-            return Ok(None);
+            // The exact comparison refuses only what the section names, so a
+            // section naming nothing refuses nothing however damaged the
+            // directory is. That is the partial layout: compiled units still
+            // present, the fingerprint store gone. A stamp recorded while the
+            // profile was legitimately empty, followed by an eviction of the
+            // store, would then be waived and a timed assertion would reuse a
+            // tree Cargo cannot treat as current.
+            //
+            // The structural answer decides instead, under exactly the rule
+            // the no-section path uses: a wholly empty profile is admissible
+            // only beside a usable sibling, and anything else is refused for
+            // the half it lost.
+            return Ok(structural_eviction(directory, state, waive_empty));
         }
         return Ok(Some(Eviction {
             profile: directory.to_path_buf(),
@@ -187,12 +201,26 @@ fn eviction_of(
     }
     // No stamp section, so only the structural answer is available, and it is
     // the one a successful target-selected build can make look like damage.
+    Ok(structural_eviction(directory, state, waive_empty))
+}
+
+/// The structural answer: refuse a profile whose layout is missing a half.
+///
+/// A profile holding neither half is what a target-selected build leaves where
+/// the host has no units, and it is admissible exactly when a sibling profile
+/// holds the tree — that is what `waive_empty` records. Anything else with an
+/// incomplete layout is refused for the half it lost.
+///
+/// Shared by the two paths that reach it: a directory the stamp says nothing
+/// about, and one whose section names nothing and so cannot refuse anything
+/// through the exact comparison.
+fn structural_eviction(directory: &Path, state: &State, waive_empty: bool) -> Option<Eviction> {
     if waive_empty && whole_empty_profile(state) {
-        return Ok(None);
+        return None;
     }
-    Ok(state
+    state
         .empty_layout_reason()
-        .map(|reason| Eviction::whole(directory, reason)))
+        .map(|reason| Eviction::whole(directory, reason))
 }
 
 /// Whether `state` is a directory holding neither half of Cargo's layout.
@@ -282,115 +310,6 @@ pub(super) fn evicted(
 /// Returns the read error when any directory cannot be inspected.
 pub(super) fn all_present(preparation: &Preparation, stamp: Option<&Stamp>) -> io::Result<bool> {
     Ok(evicted(preparation, stamp)?.is_empty())
-}
-
-/// Refuse a just-finished preparation whose profile is not structurally usable.
-///
-/// A preparation command can succeed — Cargo exits zero — while the artefacts
-/// it was meant to produce are not there, for example when a concurrent `cargo
-/// clean` ran between the build and this check. Writing a stamp over that
-/// state would advertise a prepared family whose next timed assertion pays for
-/// the rebuild, so the caller is told which directories are missing instead.
-///
-/// # Errors
-///
-/// Returns [`io::ErrorKind::NotFound`] naming every unusable profile, and the
-/// read error when a profile cannot be inspected.
-pub(super) fn verify_structural(preparation: &Preparation) -> io::Result<()> {
-    refuse_evictions(preparation, &evicted(preparation, None)?)
-}
-
-/// Refuse a just-finished preparation whose recorded artefacts have gone.
-///
-/// The second half of [`verify_structural`]: a unit's outputs can disappear
-/// between being recorded and being stamped, which leaves every directory the
-/// structural layer names in place.
-///
-/// # Errors
-///
-/// As [`verify_structural`].
-pub(super) fn verify_recorded(
-    preparation: &Preparation,
-    recorded: &[Vec<String>],
-) -> io::Result<()> {
-    let stamp = Stamp {
-        recorded: recorded.to_vec(),
-    };
-    refuse_evictions(preparation, &evicted(preparation, Some(&stamp))?)
-}
-
-/// Refuse a preparation whose declared packages contributed no recorded name.
-///
-/// [`Preparation::owned_packages`] is a claim: "these packages are what my
-/// preparation built, so my stamp speaks for their units". The ownership
-/// filter turns that claim into a *restriction* — names outside it are dropped
-/// from the record — but a restriction alone cannot detect a claim that is
-/// wrong in the safe-looking direction. A package named there that the build
-/// never actually produced contributes nothing to the record, so its units are
-/// silently absent from the stamp; evicting them later then compares an empty
-/// list with an empty list and passes the gate, which is precisely the failure
-/// the ownership rule exists to prevent. The same happens for a name that is
-/// misspelled or stale after a package rename.
-///
-/// Checking each declared package for at least one recorded name closes that
-/// hole. It is deliberately run after [`record`] and before the stamp is
-/// written: the record is what the command actually left, so a disagreement
-/// between declaration and reality is visible there and nowhere else.
-///
-/// Skipped when `owned_packages` is empty, because an empty list means the
-/// family claims its whole target directory and has declared nothing to check.
-///
-/// # Errors
-///
-/// Returns [`io::ErrorKind::InvalidInput`] naming every declared package that
-/// contributed no recorded name.
-pub(super) fn verify_declared(
-    preparation: &Preparation,
-    recorded: &[Vec<String>],
-) -> io::Result<()> {
-    if preparation.owned_packages.is_empty() {
-        return Ok(());
-    }
-    let names: Vec<&String> = recorded.iter().flatten().collect();
-    let unbuilt: Vec<&str> = preparation
-        .owned_packages
-        .iter()
-        .filter(|package| {
-            !names
-                .iter()
-                .any(|name| ownership::name_is_owned(name, std::slice::from_ref(*package)))
-        })
-        .map(String::as_str)
-        .collect();
-    if unbuilt.is_empty() {
-        return Ok(());
-    }
-    Err(io::Error::new(
-        io::ErrorKind::InvalidInput,
-        format!(
-            "preparation of family `{}` declares owned packages that contributed no recorded \
-             artefact: {}. A stamp that named them would vouch for units this preparation never \
-             built, so their eviction would pass the gate unnoticed",
-            preparation.family,
-            unbuilt.join(", ")
-        ),
-    ))
-}
-
-/// Turn a non-empty eviction list into the preparation failure.
-fn refuse_evictions(preparation: &Preparation, evicted: &[Eviction]) -> io::Result<()> {
-    if evicted.is_empty() {
-        return Ok(());
-    }
-    let described: Vec<String> = evicted.iter().map(Eviction::describe).collect();
-    Err(io::Error::new(
-        io::ErrorKind::NotFound,
-        format!(
-            "preparation of family `{}` finished but left no usable artefacts in {}",
-            preparation.family,
-            described.join(", ")
-        ),
-    ))
 }
 
 #[cfg(test)]

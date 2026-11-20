@@ -2,13 +2,19 @@
 //!
 //! Exercises [`hash_sorted`] from the parent [`input_hash`](super) module
 //! against an entry sequence supplied by hand, and [`input_hash`] over small
-//! trees on disk. The sort is the reason this module exists: on ext4
-//! `read_dir` returns entries in a hash of their names, so no sequence of file
-//! creations can force the unsorted order a property test would need, and
-//! `preparation::prop_tests` records that limitation in its own header.
+//! trees on disk. The sort is the reason this module exists: `read_dir`
+//! exposes no portable order, so no sequence of file creations can force the
+//! unsorted order a property test would need. That is true of every
+//! filesystem rather than of any one of them — a directory may be linear, may
+//! be hash-indexed, and is free to change between runs — and it is the actual
+//! reason the sequence here is supplied by hand.
+//!
 //! Everything else about the walk — the kind markers, the directory boundary,
 //! the symlink handling — is specified by the property tests, which generate
-//! trees this module could only enumerate by hand.
+//! trees this module could only enumerate by hand. Cycle coverage is the
+//! exception: the dedicated symlink cases below state it directly, because a
+//! link back to an ancestor has to fail by hanging rather than by asserting,
+//! and that is not a shape a generated tree can be trusted to produce.
 
 use std::{collections::hash_map::DefaultHasher, fs, hash::Hasher};
 
@@ -17,16 +23,20 @@ use super::{hash_sorted, input_hash};
 /// The same entries hash the same whatever order the directory listed
 /// them in.
 ///
-/// This cannot be expressed by creating a tree two ways. On ext4 —
-/// measured on this host — `read_dir` returns entries in a hash of their
-/// names, independent of creation order and of how many times the
-/// directory grew, so two trees with the same names and contents list
-/// identically however they were written. A test written that way passes
-/// even when the sort is removed, which was verified by replacing the
-/// sort with a reversal and watching it still pass.
+/// This cannot be expressed by creating a tree two ways, because `read_dir`
+/// exposes no portable order to control. Measured on this host, one filesystem
+/// listed entries in a hash of their names, independent of creation order and
+/// of how many times the directory grew, so two trees with the same names and
+/// contents listed identically however they were written. That is one
+/// filesystem's behaviour rather than a rule a test may rely on: a linear
+/// directory returns creation order, and a hash-indexed one can change as it
+/// grows. Either way the trap is the same — a tree-shaped test passes even when
+/// the sort is removed, which was verified by replacing the sort with a
+/// reversal and watching it still pass.
 ///
 /// Handing the walk a known-unsorted sequence is the only way to see the
-/// difference: this fails immediately if the sort goes away.
+/// difference, and it does not depend on any directory's behaviour: this fails
+/// immediately if the sort goes away.
 #[test]
 fn entries_hash_in_sorted_order_not_listing_order() {
     let directory = tempfile::tempdir().expect("temp dir");
@@ -91,12 +101,18 @@ fn build_output_is_skipped_in_every_position() {
 /// ignored one fixed name, or that matched the `default_` prefix, would still
 /// be refused by the run after it, and this asserts the exact property the
 /// gate needs — that no number of profiles changes the answer.
+///
+/// The profiles are pushed onto `entries` rather than only written into the
+/// directory, because `hash_sorted` walks the sequence it is handed: writing
+/// them beside the input without naming them hashed the same one-file list
+/// twice and asserted nothing. One profile deliberately carries a basename that
+/// does not start with `default_`, so a fix keyed to that prefix fails here.
 #[test]
 fn coverage_profiles_are_skipped() {
     let directory = tempfile::tempdir().expect("temp dir");
     let input = directory.path().join("feature");
     fs::write(&input, b"Feature: one").expect("input file");
-    let entries = vec![input];
+    let mut entries = vec![input];
 
     let mut before = DefaultHasher::new();
     hash_sorted(entries.clone(), &mut before, &mut Vec::new()).expect("without a profile");
@@ -104,9 +120,11 @@ fn coverage_profiles_are_skipped() {
 
     for profile in [
         "default_11337809912131070545_0_283041.profraw",
-        "default_11337809912131070545_0_284350.profraw",
+        "other_binary_11337809912131070545_0_284350.profraw",
     ] {
-        fs::write(directory.path().join(profile), b"profile").expect("profile");
+        let path = directory.path().join(profile);
+        fs::write(&path, b"profile").expect("profile");
+        entries.push(path);
     }
 
     let mut after = DefaultHasher::new();

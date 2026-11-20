@@ -144,9 +144,10 @@ as a prefix. Both are described below.
 
 ### Timed tests no longer prepare their own nested builds
 
-`ensure_prepared` returns `Ok(())` when the family's stamp matches and every
-directory in `Preparation::artefacts` still holds its outputs. Otherwise it
-behaves differently per runner:
+`ensure_prepared_building` reports `PreparationOutcome::Reused` when the
+family's stamp matches and every directory in `Preparation::artefacts` still
+holds its outputs; `PreparationOutcome::Prepared` means a build ran. Otherwise
+it behaves differently per runner:
 
 - under `cargo nextest`, whose every test runs in its own process, it returns
   `io::ErrorKind::NotFound` naming the command that prepares the family;
@@ -243,7 +244,9 @@ collecting them outside this helper.
   conversion; retain `#[datatable(...)]` policies for table fields.
 - [ ] If a suite shells out to a nested `cargo`, move the cold build into a
       named preparation test reached by `prepare_now` and gate the timed tests
-      on `ensure_prepared`; run that preparation pass under Nextest before the
+      on `ensure_prepared_building`, passing `running_under_nextest()` from the
+      test boundary; use `admit` where the suite only needs to know whether the
+      tree is reusable. Run that preparation pass under Nextest before the
       timed suite.
 - [ ] Add `?` to every `nested_cargo` environment, target-directory and
       `Preparation` constructor call that now returns `io::Result`.

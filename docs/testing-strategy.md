@@ -219,16 +219,27 @@ while passing in under a second once the graph was warm.
 
 Each affected binary therefore names a preparation test alongside the timed
 ones. `nested_fixture_preparation` compiles the fixture graphs and writes a
-stamp inside the artefact directory; the timed tests gate on `ensure_prepared`.
-Three properties make this a fix rather than a deferral:
+stamp inside the artefact directory; the timed tests gate on
+`ensure_prepared_building`, and anything that only needs to know _whether_ the
+tree is reusable calls the read-only `admit`, which builds nothing, writes no
+stamp and takes no lock. Three properties make this a fix rather than a
+deferral:
 
-- **The stamp records what a cached build would have to match.** It carries a
-  hash of the build-relevant environment, the toolchain identity (both Cargo's
-  and the compiler's own `-vV`), a variant label and the fixture inputs, so a
-  changed compiler, feature set or fixture source forces preparation again
-  rather than reusing artefacts that no longer correspond. It lives inside the
-  directory it describes, so evicting that directory evicts the claim of
-  preparedness with it.
+- **The stamp records what a cached build would have to match.** Two different
+  things sit side by side in it, and they are recorded in different forms. The
+  **fixture inputs** — the source roots the family derives from, plus the Cargo
+  configuration files that apply to them — reach the stamp only as a hash: the
+  caller supplies the roots, and what is stored is the digest over them. The
+  rest is stored **in the clear**, escaped one field per line: the
+  build-relevant environment variables, the toolchain identity (both Cargo's
+  and the compiler's own `-vV`), and a variant label. That split is deliberate.
+  A mismatch on a hashed input says only "the inputs changed"; a mismatch on a
+  named field says _which_ variable or which toolchain changed, and that is the
+  message a developer needs. Either way — changed compiler, changed feature
+  set, changed fixture source, or a changed Cargo configuration file — the
+  fingerprint moves, so preparation runs again rather than reusing artefacts
+  that no longer correspond. The stamp lives inside the directory it describes,
+  so evicting that directory evicts the claim of preparedness with it.
 - **The preparation has a budget of its own, and the assertion keeps the one it
   had.** Under nextest the preparation test's `slow-timeout` is set in
   `.config/nextest.toml` to a figure sized for a cold compile; no timed

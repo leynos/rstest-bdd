@@ -55,10 +55,14 @@ pub use input_hash::{cargo_config_inputs, input_hash};
 pub(crate) use input_hash::{cargo_config_inputs_with, resolve_cargo_home};
 pub use invalidate::{invalidate, invalidate_reported};
 pub use lifecycle::{
+    Admission,
     Instruments,
-    ensure_prepared,
-    ensure_prepared_reported,
-    ensure_prepared_with,
+    PreparationOutcome,
+    UnreadableStamp,
+    admit,
+    admit_with_probe,
+    ensure_prepared_building,
+    ensure_prepared_building_reported,
     prepare_now,
     prepare_now_reported,
 };

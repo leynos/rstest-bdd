@@ -16,7 +16,7 @@ use crate::nested_cargo::{
     Preparation,
     PreparationSummary,
     Sources,
-    ensure_prepared_with,
+    ensure_prepared_building,
     prepare_now,
 };
 
@@ -74,7 +74,7 @@ fn evicting_only_the_target_profile_invalidates_the_preparation() {
     )
     .expect("the fixture preparation should describe its artefacts");
     prepare_now(&preparation, || Ok(PreparationSummary::default())).expect("preparation");
-    ensure_prepared_with(&preparation, true, || {
+    ensure_prepared_building(&preparation, true, || {
         panic!("a just-prepared family must pass")
     })
     .expect("the freshly written stamp must accept both profiles");
@@ -84,7 +84,7 @@ fn evicting_only_the_target_profile_invalidates_the_preparation() {
     assert!(host.is_dir(), "the host profile must survive");
     assert!(stamp_path(&preparation).is_file(), "the stamp must survive");
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("an evicted target profile must fail the gate");
@@ -142,7 +142,7 @@ fn the_advertised_preparation_repairs_an_evicted_target_profile() {
         "the repair must leave the evicted profile populated"
     );
 
-    ensure_prepared_with(&preparation, true, || {
+    ensure_prepared_building(&preparation, true, || {
         panic!("the repaired family must be admitted without preparing again")
     })
     .expect("the stamp written after the repair must accept the repaired tree");

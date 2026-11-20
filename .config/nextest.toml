@@ -103,25 +103,31 @@ test-group = "cargo-spawning"
 # Allow the full fixture set to rebuild without treating slow, healthy compiler
 # work as a hung test.
 #
-# The budget is sized for a genuinely cold compiler cache, which is what a
-# trunk run meets after a cache eviction or a key change. Measured on
-# `ubicloud-standard-2` for `rstest-bdd::trybuild_macros step_macros_compile`:
-# it exceeded the former 10 minute budget on run 33871787845's first attempt
-# with nothing in sccache, took 386.8 s on the rerun with 297 objects in
-# scope, and 200.5 s and 186.1 s on runs 33884577115 and 33888769029 against
-# a full generation. A passing test never spends the budget, so the larger
-# figure costs nothing except on the run it rescues.
+# The budget is sized for the work these binaries still do *after* the cold
+# compile has left them, which is what the `nested_fixture_preparation` override
+# above arranges. Measured on `ubicloud-standard-2` for
+# `rstest-bdd::trybuild_macros step_macros_compile`: it exceeded the former 10
+# minute budget on run 33871787845's first attempt with nothing in sccache, took
+# 386.8 s on the rerun with 297 objects in scope, and 200.5 s and 186.1 s on
+# runs 33884577115 and 33888769029 against a full generation.
 #
-# A dedicated CI lane is not the slowest host this runs on. The same test took
-# 1119.268 s on the development machine while the shared compile-admission
-# pool was saturated (capacity 4, all 4 held, ~216 foreign `cargo` processes in
-# the queue) — 93% of the previous 20 minute period, and it exceeded that
-# period outright on two full-suite runs the same day. The work was real
-# compiler progress, not a hang: it passed as soon as it was given the time.
-# 30 minutes matches the preparation override below and keeps `terminate-after`
-# as the hang detector it is meant to be.
+# Those figures were *cold-cache* runs, and they were the reason this period was
+# once raised to 30 minutes. The raise is withdrawn: the preparation test now
+# builds the dependency graph — both trybuild modes and the UI-lint clippy tree
+# — before any of these binaries runs, so the timed body no longer pays it.
+# What remains per fixture is one `cargo metadata` query and one rustc
+# invocation against an already-warm graph, which is tens of seconds in total.
+# 1119.268 s on a saturated shared compile-admission pool (capacity 4, all 4
+# held, ~216 foreign `cargo` processes queued) was measured against the old
+# body and is retained here as the evidence that motivated moving the work, not
+# as a sizing input for what is left.
+#
+# A passing test never spends the budget, so 20 minutes costs nothing except on
+# the run it rescues, and `terminate-after` stays the hang detector it is meant
+# to be. The preparation override above keeps its longer period because it is
+# the one that compiles.
 filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros) | binary_id(rstest-bdd-server::workspace_discovery_compile)"
-slow-timeout = { period = "30m", terminate-after = 1, grace-period = "5s" }
+slow-timeout = { period = "20m", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 
 [[profile.default.overrides]]

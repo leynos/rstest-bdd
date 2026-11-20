@@ -2518,6 +2518,373 @@ rather than by reading this branch's comments.
   `list_steps_runs` and now confirmed a second time. The full gate re-run on
   the settled tree passes 2461/2461.
 
+- [x] **`4a77c9a684dba3de` is the cold-preparation hash, not a racing edit.**
+  2026-11-19. The entry above read that number as evidence of a mid-run tree
+  mutation. It is not: it is exactly what the *unfixed* code computes when the
+  scratch tree does not exist yet, and `82ac8b3d18fc6ffe` is what it computes
+  once the scratch exists. Both are reproduced deterministically by an
+  out-of-worktree probe over the real root list, with nothing else changing.
+
+  The mechanism is a root spelled through `..`. `fixtures::scratch_fixture_dir`
+  spells the scratch as `<checkout>/crates/rstest-bdd/../../target/tests/...`
+  so it survives a move, and `fixture_preparation` walks it *before* its own
+  callback creates the tree. `search_root` resolved the root with
+  `fs::canonicalize`, which fails on a path that does not exist yet, so a cold
+  run fell back to the lexical spelling. `Path::ancestors` is purely lexical,
+  so that spelling then contributed `crates`, `crates/..`, `crates/rstest-bdd`
+  and `crates/rstest-bdd/..` to the walk — and the last of those resolves to
+  the checkout, so the walk reported the checkout's own `.cargo/config.toml` a
+  second time under the `crates/rstest-bdd/../../.cargo` spelling. `input_hash`
+  hashes a named root by its full path (`PROVENANCE_KIND`), so the duplicate
+  was not merely redundant: it contributed different bytes.
+
+  Cold therefore produced eleven roots and warm ten, and the two hashes above.
+  The preparation wrote a stamp under the cold list, every later consumer
+  computed the warm one, and the gate refused the stamp **with an empty evicted
+  list** — the documented signature of a fingerprint mismatch rather than
+  missing artefacts. That is the hosted coverage-lane failure on `37d259a3`,
+  reproduced locally.
+
+  The fix resolves the *longest existing prefix* of the walk root and
+  re-appends the remainder, so the `..` components collapse whether or not the
+  tree exists. Cold and warm now both yield ten roots and `e91239ee98f85c9f`.
+  The regression case
+  `a_root_named_through_a_parent_contributes_the_same_walk_cold_and_warm` was
+  confirmed to fail against the old `search_root` with precisely the duplicate
+  entry (`other-crate/../.cargo/config.toml` beside `.cargo/config.toml`) and
+  to pass with the fix.
+
+  The lesson for the diagnosis, not only the fix: an "empty evicted list"
+  proves the fingerprint disagreed, and a fingerprint disagreement can come
+  from the *shape of the root list* rather than from any file changing. The
+  earlier search for a mutated input file was looking in the wrong place.
+
+- [x] **Two CodeRabbit inline findings, both real, both verified by reverting
+  the fix.** 2026-11-19, against `37d259a3`.
+
+  *`artefacts.rs`, the empty stamp section.* A section naming nothing is the
+  record of a legitimately empty profile — a target-selected build leaves its
+  secondary profile holding only lock files and `build/`. But the exact layer
+  compares the presence list against the recorded names, so with no recorded
+  names `missing` is empty however damaged the directory is: the comparison
+  refuses nothing. A stamp written while the profile was empty, followed by an
+  eviction of `.fingerprint`, was therefore waived, and a timed assertion would
+  reuse a tree Cargo cannot treat as current. The empty-section path now
+  returns the same structural answer the no-section path already used, factored
+  into `structural_eviction` so the two cannot drift. The legitimate case is
+  untouched: a wholly empty profile is still admitted beside a usable sibling,
+  which
+  `state::tests::a_target_selected_preparation_with_an_empty_host_profile_is_admitted`
+  covers end to end. `an_empty_stamp_section_cannot_waive_a_partial_layout`
+  fails against the old code with exactly the partial layout and passes with it.
+
+  *`input_hash/tests.rs`, a vacuous test.* `coverage_profiles_are_skipped`
+  wrote two `.profraw` files into the temporary directory but never named them
+  in the `entries` vector, and `hash_sorted` walks only the sequence it is
+  handed. Both hashes were therefore taken over the same one-file list, and the
+  case passed whatever `is_build_output` did. The profiles are now pushed onto
+  `entries`, and one basename deliberately does not start with `default_`, so a
+  fix keyed to that prefix fails here too.
+
+  Both findings are the same shape: a check that reads as covering a case and
+  does not. The first waived a state its comment said it refused; the second
+  asserted a property its fixture never exercised.
+
+- [x] **The gate split into a read-only query and a named build-capable entry
+  point.** 2026-11-19, after the `CHANGES_REQUESTED` review on `37d259a3`
+  failed the Unit Architecture pre-merge check.
+
+  The review's requirement was that a caller be able to ask whether a family is
+  prepared without reaching a build through something named like a query, and
+  that the runner decision be passed rather than read from the ambient process.
+  ADR-025 had originally declined a public typed query, so the decision needed
+  revisiting rather than overriding quietly; the ADR now records a
+  `## Superseding decision (2026-11-19)` section and is marked superseded in
+  part.
+
+  The decline's stated cost was that a public query would either become a
+  second source of truth for "what counts as prepared" or force `profiles.rs`
+  and `artefacts/` internals into the public API. Neither is paid:
+  `stamp::read_stamp` now returns a `StampReading { fingerprint, decision }` —
+  one composition serving both the comparison and the later stamp write — and
+  `admit` consumes that same private answer and calls the same
+  `artefacts::all_present` predicate the gate does. No derivation is exposed.
+
+  The surface:
+  - `admit(preparation, under_nextest) -> io::Result<Admission>` — read-only;
+    no build, no stamp write, no lock. `Admission` is `Reusable`,
+    `NotPrepared` or `Unreadable(UnreadableStamp)`.
+  - `admit_with_probe` — the same query with the toolchain probe supplied.
+  - `ensure_prepared_building(preparation, under_nextest, prepare) ->
+    io::Result<PreparationOutcome>` — the only entry point that can build, with
+    `Reused` / `Prepared` stating whether one ran.
+  - `ensure_prepared_building_reported` — the same with `Instruments` supplied.
+
+  `running_under_nextest()` moved out of the gate entirely and is now resolved
+  at the call sites that own the test: `TrybuildTree::ensure_prepared`, the two
+  workspace preparation suites, and `ensure_gated_with` in `cargo-bdd`.
+
+  `UnreadableStamp` carries the read failure as a `String` because `io::Error`
+  is neither `Clone` nor `PartialEq`, and the query's answer is compared in
+  tests.
+
+  Seven cases in `preparation/tests/admission.rs` pin the answer and, beside
+  it, each of the three refusals: a cold tree answers `NotPrepared` and leaves
+  no stamp; a warm tree answers `Reusable` and its stamp comes back
+  byte-identical; an evicted profile answers `NotPrepared`; an unreadable stamp
+  answers `Unreadable` under Nextest and `NotPrepared` under plain
+  `cargo test`; the query answers while another thread holds `PREPARE_LOCK`;
+  the probe is called once per query and its identity is honoured.
+
+  Verified: `cargo check --workspace --all-targets --all-features` clean, and
+  `cargo test -p rstest-bdd-harness --lib` reporting 259 passed, 0 failed.
+
+- [x] **The trybuild compile-test `slow-timeout` reverted from 30 m to 20 m.**
+  2026-11-19, addressing the Linked Issues pre-merge check on `37d259a3`.
+
+  The check's rule is that an assertion deadline must not move to accommodate
+  work the change was meant to remove, and this plan's own claim was "No
+  assertion deadline needs to change". The 30 m period had been raised earlier
+  in this work because `step_macros_compile` took 1119.268 s on a saturated
+  shared compile-admission pool — but that was *cold compile* work, and the
+  cold dependency graph is now `nested_fixture_preparation`'s job. What remains
+  inside the four compile-test bodies is a timed assertion over an already-warm
+  graph: roughly one `cargo metadata` preflight per fixture, tens of seconds.
+  Keeping 30 m would have hidden exactly the cost this issue exists to move.
+
+  The 1119.268 s figure is retained as motivating evidence for the **30 m
+  preparation period**, which is the one period that should be sized for a cold
+  build. `.config/nextest.toml`, `nextest_config.rs`,
+  `docs/developers-guide.md`, `docs/users-guide.md` and
+  `docs/testing-strategy.md` now agree: preparation 30 m, compile tests 20 m.
+
+- [x] **The local timeout and the CI failure are two different faults, and
+  only one of them is ours.** 2026-11-19, after gate run 8.
+
+  Local `make test` timed out one test at exactly `1200.003 s`:
+  `rstest-bdd::trybuild_macros runner::step_macros_compile`. Hosted CI on the
+  same head, `37d259a3`, failed a *different* test in 0.206 s:
+  `rstest-bdd::feature_rebuild_invalidation
+  bound_feature_file_is_tracked_dependency`.
+  Reading them as one symptom would have produced the wrong fix, so they were
+  separated before anything changed.
+
+  *The local timeout is environmental, not a regression.* The timed body
+  compiled no dependency graph — one `Checking rstest-bdd-tests` in 22.80 s,
+  which is the fixture crate itself, exactly the work the change intends to
+  leave there. What it did do was wait: 427 `waiting for a compile slot` lines
+  with the queue 64 deep, and 682
+  `the managed sccache server is not serving compilations` notices spanning the
+  whole body. `build-limits-status` during this session showed
+  `capacity 4, held 4, healthy` with most of the queue belonging to `netsuke`
+  and `gauss` worktrees — other repositories' builds, which this agent must not
+  kill. The decisive comparison is the last green CI run on this branch,
+  `44511800661`: there `step_macros_compile` passed in **34.890 s** on the
+  Linux coverage lane. A test that takes 35 s with a serving cache and a free
+  slot does not need a wider period because it took 1200 s queued behind other
+  agents. The 20 m revert stands.
+
+  *The CI failure is ours, and it is the root-spelling defect already recorded
+  above.* The refusal named the **workspace** target
+  (`crates/rstest-bdd/../../target/tests/rebuild-invalidation/...`) while the
+  coverage lane ran `--target-dir target/llvm-cov-target`, and the evicted list
+  was empty — by `missing_stamp_message`'s own rule, a fingerprint disagreement
+  rather than missing artefacts. The preparation test passed in 13.836 s at
+  `16:22:20`; the assertion refused the stamp it wrote five minutes later.
+  `search_root`'s cold/warm divergence explains it exactly: the preparation
+  walked a scratch root that did not exist yet and hashed the lexical `..`
+  ancestry, while the consumer walked the now-existing tree and hashed the
+  resolved one. That is the same defect as `4a77c9a684dba3de` versus
+  `82ac8b3d18fc6ffe`, and it is fixed by resolving the longest existing prefix
+  in `search_root`.
+
+  Two `wip` results in the local log (`step_return_alias_error_not_display`,
+  `scenario_missing_step_warning`) are also environmental: both fixtures are
+  unreached by this change, their tracked `.stderr` files are byte-identical to
+  `HEAD`, and trybuild reported "successfully created new stderr files", which
+  is what it says when a snapshot comparison ran before the expectations were
+  staged in a run that was already being killed. Neither reproduces as a
+  snapshot diff.
+
+- [x] **Posting the same disposition from three pool accounts made CodeRabbit
+  disengage, and that — not its findings — is what left 26 threads open.**
+  2026-11-19.
+
+  Of the 138 review threads on #916, 42 are unresolved and 26 of those have a
+  CodeRabbit comment last. Reading them in order showed why. At
+  2026-11-18T20:25–20:26 the *same reply text* was posted to the same threads
+  from `buzzybee-df12`, `pandalump` and `wafflecat-df12` — three different pool
+  accounts — because the token is selected with `shuf` per posting operation.
+  CodeRabbit answered each with its disengagement notice ("Seems like the
+  humans are having a chat") instead of a disposition, and the threads stayed
+  unresolved.
+
+  The lesson is a one-comment-per-thread rule, not a token-selection change:
+  the pool is still the required route, but a single reply per thread is
+  enough, and its disposition is what puts CodeRabbit back into
+  answer-or-concede. Re-posting the same argument under a new identity reads as
+  several people talking over each other and costs more than it buys. Reply
+  once, cite the commit and the code, and let the single answer stand.
+
+  The three threads that had already received a *substantive* CodeRabbit answer
+  before the duplicates are the ones worth trusting: `recording.rs:123` (files
+  directly inside per-unit `fingerprint/`), `input_hash/tests.rs:11` (the ext4
+  wording), and `prop_tests.rs:227` (`cap_std`). For those the duplicate was
+  noise on top of a real back-and-forth.
+
+  A second, independent observation from the same pass: two findings dated
+  2026-11-19T16:44:41 — `artefacts.rs:170` and `input_hash/tests.rs:113` — are
+  already fixed in the staged tree, so they arrived after the push and will be
+  satisfied by the commit that lands the staged work rather than needing new
+  edits.
+
+- [x] **A structural assertion is not a recorded-name assertion, and two cases
+  were checking the wrong one.** 2026-11-19.
+
+  Both eviction cases in
+  `rstest-bdd/tests/feature_rebuild_invalidation/harness/preparation/tests.rs`
+  asserted `preparation.directory.is_dir()` before calling the gate — the
+  *parent* of the stamp. If the stamp file itself had gone missing the gate
+  would still have returned `NotFound`, for the opposite reason, and the case
+  would have passed while proving nothing about artefact eviction.
+
+  They now assert `stamp_file(preparation).is_file()` immediately before the
+  call. The helper reconstructs the path from the documented rule
+  (`.{family}.rstest-bdd-prepared` inside `Preparation::directory`) because
+  `stamp_path` and `PREPARED_FILE_SUFFIX` are both crate-private. The comment
+  says why the file rather than the directory is the thing to check: a refusal
+  caused by a missing stamp reports that nothing was ever prepared, which is a
+  different fact from "the artefacts it recorded are gone".
+
+  The same file also gained `require_stamp_under`, called inside the
+  `prepared_family` fixture *before* it writes anything. A regression in target
+  resolution would otherwise leave a stamp in the shared scratch root and be
+  reported only after the damage.
+
+- [x] **`prepare_now` is unconditional about fail-fast, not about the stamp.**
+  2026-11-19. `trybuild_macros/preparation.rs` said `prepare_now` "rebuilds
+  even when a current stamp is present". It does not: `prepare_locked` returns
+  `PreparationOutcome::Reused` when the stamp matches and the artefacts are
+  present. The unconditional part is that it never declines *because a family
+  was never prepared* — which is what `make prepare-nested-fixtures` needs
+  under nextest. The doc now says that, and says the re-run is cheap.
+
+  The gpui and tokio `macro_compile/preparation.rs` files carried a matching
+  overstatement: their `COMPILE_FAIL_PROBE` was "never asserted on". Dropping
+  the `TestCases` after `compile_fail` does still compare the `.stderr`
+  snapshot beside the fixture, so a drifted snapshot fails the preparation. The
+  docs now say that instead, and say why it is the right place for it to fail.
+
+- [x] **The eviction-test file crossed the 400-line budget, and the split was
+  already named in its own prose.** 2026-11-19. `tests.rs` reached 463 lines
+  after the assertions above. `prepared_family`'s doc already said the cases
+  "share the same four steps", so that machinery — `stamp_file`,
+  `require_stamp_under`, `child_env`, `populate_profile`, `PreparedFamily`,
+  `prepared_family`, `evict`, `scratch_fixture` — moved to a sibling
+  `tests/prepared.rs` (241 lines). `tests.rs` is now 253 lines and holds only
+  the claims about the gate.
+
+  The module is called `prepared`, not `fixtures`, because
+  `crate::harness::fixtures` already exists and a second one shadowed it in
+  every `use` in this tree. `check_rs_file_lengths.py` exits 0 with no
+  allowlist entry.
+
+- [x] **Gate results on the settled tree, 2026-11-20.** `make check-fmt`
+  exit 0 (`129 files left unchanged`); `make markdownlint` exit 0
+  (`Summary: 0 error(s)`, typos gate clean); `make lint` exit 0;
+  `make typecheck` exit 0 (`All checks passed!`).
+
+  `make test` reached **2432 passed, 1 timed out, 7 skipped** of 2470, and the
+  timeout was `rstest-bdd::trybuild_macros runner::step_macros_compile` at its
+  own 1200 s bound. Diagnosed rather than assumed:
+
+  - The two stamps the timed test gates on were **reused**, not rebuilt — the
+    log says `family=trybuild-macros is prepared` and
+    `family=trybuild-ui-clippy is prepared`. So no cold preparation leaked into
+    the timed body; the failure is not issue 910's defect returning.
+  - The timed window carries **1153** `[build-limits]` lines, including
+    `waiting for a compile slot (60 ahead, 45s)` and repeated
+    `managed sccache server is not serving compilations`. `build-limits-status`
+    reported `capacity 4, held 4, healthy` with ~40 compilations queued, and
+    several other agents were running `make test` on this host, one of them in
+    this same repository.
+  - Inside that window 52 of the 55 trybuild cases that ran passed. The last
+    one, `result_fixture_requires_result_scenario.rs`, was still waiting when
+    the bound expired.
+
+  **Hosted CI on the same commit is the decisive comparison**: run 44561443682
+  shows 0 `wip/` writes and no timeout. Its only failure is
+  `bound_feature_file_is_tracked_dependency`, which is the CI fault already
+  fixed in this tree by `search_root`'s longest-existing-prefix resolution. The
+  local timeout therefore does not reproduce off this host's compile queue.
+
+  Two `wip/` files did appear locally (`step_return_alias_error_not_display`,
+  `scenario_missing_step_warning`), and **both were absorbed, not failures.**
+  That is what these two cases are built to do: each is queued through
+  `compile_fail_with_normalized_output` rather than plain `t.compile_fail`, so
+  `trybuild` writes `wip/`, the normalizers run over both sides, and
+  `normalized_outputs_match` deletes the file when the normalized texts agree.
+
+  Replaying both normalizer chains outside the test proves the agreement. For
+  `step_return_alias_error_not_display` the actual output carries the extra
+  `conditionally` wording *and* the `----` underlining plus an
+  `unsatisfied requirement introduced here:` block; the normalizer erases all
+  three, and the two sides then compare equal. For
+  `scenario_missing_step_warning` the two sides are already byte-identical after
+  `normalize_fixture_paths`. Both `.stderr` files are byte-identical to HEAD,
+  and `wip/` is empty after the run, which is the observable signature of both
+  cases having passed.
+
+- [x] **The preparation-budget tolerance fired, and was recorded rather than
+  raised.** 2026-11-20. `make prepare-nested-fixtures` on a contended host:
+  `cargo-bdd::cli` prepared in 23.8 s and `feature_rebuild_invalidation` in 0.5
+  s (both warm), while `rstest-bdd::trybuild_macros` prepared its family
+  successfully but took **1279.8 s** and was then terminated by its own 30 m
+  `slow-timeout` at 1800.003 s.
+
+  The preparation itself succeeded — its own log line says
+  `nested preparation: family=trybuild-macros prepared in 1279.8s
+  (0 Compiling lines)`
+  and the 109 KB stamp was written. What overran was the whole preparation
+  *test*, which also carries the queueing time behind the `cargo-spawning`
+  group. A first attempt had been killed by my own background time limit at 435
+  s, mid-compile, not by the repository.
+
+  This is the plan's own Budget tolerance, exactly: "if a single preparation
+  test exceeds its 30-minute budget on a cold two-vCPU runner, that is evidence
+  the budget or the family split is wrong; record the measurement and revisit
+  rather than raising the number." Recorded. Two facts bound how much weight it
+  carries: this host had ~4 concurrent foreign `make test` jobs, load 19–38 on
+  24 CPUs, and `sccache` was not serving, so it is not the two-vCPU runner the
+  tolerance names; and the hosted CI run 44561443682 does not time out.
+
+- [x] **The `20 m` trybuild period is a revert, not a tightening.** The branch
+  head had widened that override from `origin/main`'s `20m` to `30m`, which the
+  plan's first constraint forbids ("Do not widen an assertion deadline"). The
+  staged working tree restores `20m`, and `nextest_config.rs`
+  (`trybuild_nextest_override_preserves_timeout_contract`) asserts `20m`
+  accordingly. The point is not that 20 m is generous — it is that the reason
+  this issue exists is that the *cold* compile must not happen inside that
+  period, so the correct response to a timeout is to check that the stamps were
+  reused, not to buy more time.
+
+- [x] **A `target/` eviction between two of my own commands, cause unknown.**
+  2026-11-20. The `trybuild-macros` stamp was present and 109063 bytes at
+  02:05; by 02:38 the entire worktree `target/` tree was gone (`target/debug`
+  recreated 02:51, `target/tests/` absent). The focused re-run that had been
+  intended to prove the timed body fits then failed instantly with
+  `the artefacts it vouched for are gone (/…/target/tests/trybuild (absent))` —
+  which is the stamp doing its job, and confirms the gate's message names a
+  real cause.
+
+  Ruled out: no `CARGO_TARGET_DIR` in the environment, `target/` is not a
+  symlink, `~/.cargo/config.toml` sets only the compiler wrappers, no
+  syncthing, and no `cargo clean`/`rm -rf target` in any agent log I can read.
+  Disk was not full (178 G free, 90 % used). Recorded as unexplained rather
+  than attributed to this change: nothing in the diff can delete a target
+  directory, and a preparation stamp refusing a vanished tree is the designed
+  behaviour either way.
+
 ## Surprises & Discoveries
 
 - **A green lint run is a temporary observation, not a property of the tree.**
@@ -3613,7 +3980,7 @@ One consequence of sharing the gate is worth recording. The server suite is the
 only prepared tree with nothing to stage: its fixtures reference no feature
 file, so `prepare` has no fallible step and Clippy reports
 `clippy::unnecessary_wraps`. Returning the bare summary would not compile, since
-`TrybuildTree::prepare_now` and `ensure_prepared` both take an
+`TrybuildTree::prepare_now` and `TrybuildTree::ensure_prepared` both take an
 `io::Result`-returning closure so that a tree whose preparation can fail uses
 the same gate. The signature therefore stays, with a scoped
 `#[expect(clippy::unnecessary_wraps, reason = ...)]` recording why the result
@@ -3678,7 +4045,7 @@ The second is the *fallible toolchain probe*. `cargo -vV` identifies the
 compiler, and a probe that swallowed its error would silently fingerprint an
 unknown toolchain — the state in which a stamp written by one compiler is read
 by another. Resolution is now an `io::Result` propagated to the gate, and
-`ensure_prepared_reported` takes the probe as a parameter — carried in
+`ensure_prepared_building_reported` takes the probe as a parameter — carried in
 `Instruments` alongside the diagnostic reporter — for the same reason the
 runner decision is one: no test can make `cargo -vV` fail, so a boundary that
 discarded the error would be unreachable from any test using the real probe.
@@ -3702,11 +4069,18 @@ protocol in `preparation/stamp.rs` and directory hashing in
 three values that identify a family (name, variant label, input hash), a
 `Directories` grouping the stamped root and the working directory, and the
 filtered `NestedCargoEnv` its commands run with; `prepare_now` runs a closure
-unconditionally and writes the stamp on success; `ensure_prepared` fails fast
-under nextest and prepares lazily otherwise. The injectable forms take an
-`Instruments` grouping the toolchain probe and the diagnostic reporter, so a
-test can make `cargo -vV` fail and read the gate's stderr without either one
-being reachable from production's own binding.
+unconditionally and writes the stamp on success; `ensure_prepared_building`
+fails fast under nextest and prepares lazily otherwise. The build-capable entry
+point's name states that it may build, and its `PreparationOutcome` return
+value states whether one ran. `admit` is the read-only query beside it: it
+performs no build, writes no stamp, takes no lock, and answers `Reusable`,
+`NotPrepared` or `Unreadable`. Neither reads the process environment — the
+runner decision arrives as a parameter, resolved once by the call site with
+`running_under_nextest`. The injectable forms take an `Instruments` grouping
+the toolchain probe and the diagnostic reporter, so a test can make `cargo -vV`
+fail and read the gate's stderr without either one being reachable from
+production's own binding. See
+`docs/adr-025-nested-cargo-preparation-gate-query-boundary.md`.
 
 The five suites:
 
@@ -3734,9 +4108,10 @@ preparation never looks complete.
 `cargo-bdd::cli`, `rstest-bdd::trybuild_macros` and
 `rstest-bdd::feature_rebuild_invalidation` each gain a
 `nested_fixture_preparation` test and gate their timed tests on
-`ensure_prepared`. Assertions and assertion budgets are unchanged. The trybuild
-dep-info assertion is tightened to compare against the start of its own run,
-because a prepared tree means the artefacts are no longer necessarily fresh.
+`ensure_prepared_building`. Assertions and assertion budgets are unchanged. The
+trybuild dep-info assertion is tightened to compare against the start of its
+own run, because a prepared tree means the artefacts are no longer necessarily
+fresh.
 
 ### Stage C: scheduling and contract (complete)
 
@@ -3777,8 +4152,8 @@ by one mutant are not re-paid by the next.
 The trade is that under `cargo test` the first invocation that reaches a
 preparation gate does the cold compile inside its own timeout. `cargo nextest`
 cannot be assumed, because the mutation lane invokes `cargo test`; and
-`ensure_prepared` deliberately prepares lazily there rather than failing, so
-the run continues from a cold target instead of stopping.
+`ensure_prepared_building` deliberately prepares lazily there rather than
+failing, so the run continues from a cold target instead of stopping.
 
 Two costs are real and worth naming. First, that first invocation pays the cold
 compile on its own timeout, exactly the failure mode issue 910 fixes for
@@ -3979,8 +4354,14 @@ advance, and `step_macros_compile` passing after 6,864 s when run directly.
 ## Interfaces and dependencies
 
 `rstest_bdd_harness::nested_cargo` exposes `Preparation`, `PreparationSummary`,
-`Sources`, `prepare_now`, `ensure_prepared`, `input_hash`,
+`PreparationOutcome`, `Admission`, `UnreadableStamp`, `Sources`, `Instruments`,
+`admit`, `admit_with_probe`, `prepare_now`, `prepare_now_reported`,
+`ensure_prepared_building`, `ensure_prepared_building_reported`, `input_hash`,
 `PREPARATION_COMMAND_TIMEOUT`, `MAX_SEQUENTIAL_COMMANDS`, `ProfileDestination`,
-`running_under_nextest` and `count_compiling`. The stamp and hashing modules
-stay private. `TrybuildTree`, which the harness and server crates share, lives
-one level up in `macrotest_support` rather than in `nested_cargo`.
+`running_under_nextest` and `count_compiling`. `ensure_prepared_building` is
+the only entry point that may build; `admit` cannot. The `*_reported` forms are
+`#[doc(hidden)]` and take the injected boundaries. The stamp and hashing
+modules stay private, so no caller can reconstruct the answer `admit` gives.
+`TrybuildTree`, which the harness and server crates share, lives one level up in
+`macrotest_support` rather than in `nested_cargo`; its `ensure_prepared`
+resolves `running_under_nextest` once and passes it to the gate.

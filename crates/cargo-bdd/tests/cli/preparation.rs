@@ -248,7 +248,7 @@ pub(super) fn ensure_cli_prepared() -> Result<()> {
 /// through [`ensure_cli_prepared`].
 ///
 /// The runner decision is a parameter for the reason
-/// [`nested_cargo::ensure_prepared_with`] takes one: the two runners reach
+/// [`nested_cargo::ensure_prepared_building`] takes one: the two runners reach
 /// opposite conclusions from a missing stamp, and no test can change which
 /// runner it is in. The refusal under test lives on the `cargo test` branch,
 /// where the preparation is allowed to run; under nextest the gate refuses
@@ -266,7 +266,7 @@ fn ensure_gated_with<P>(
 where
     P: FnOnce() -> std::io::Result<nested_cargo::PreparationSummary>,
 {
-    nested_cargo::ensure_prepared_reported(
+    nested_cargo::ensure_prepared_building_reported(
         preparation,
         under_nextest,
         nested_cargo::instruments_within(preparation, deadline),

@@ -64,9 +64,9 @@ impl Fingerprint {
 /// and the probe's failure be exercised independently.
 ///
 /// There is no infallible [`fingerprint`](self) wrapper: production callers
-/// reach [`fingerprint_with`] through `lifecycle`, which supplies the real
-/// probe, so a second entry point that also resolved the toolchain would be a
-/// second place for the probe's error to be swallowed.
+/// reach [`fingerprint_with`] through `stamp::read_stamp`, which supplies the
+/// real probe, so a second entry point that also resolved the toolchain would
+/// be a second place for the probe's error to be swallowed.
 ///
 /// # Errors
 ///

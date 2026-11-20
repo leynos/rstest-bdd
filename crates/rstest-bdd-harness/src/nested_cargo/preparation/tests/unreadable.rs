@@ -10,7 +10,7 @@
 use std::fs;
 
 use super::{super::stamp::stamp_path, scratch_preparation};
-use crate::nested_cargo::{Preparation, PreparationSummary, ensure_prepared_with, prepare_now};
+use crate::nested_cargo::{Preparation, PreparationSummary, ensure_prepared_building, prepare_now};
 
 /// Write a stamp that exists but cannot be read as text.
 ///
@@ -36,7 +36,7 @@ fn nextest_reports_an_unreadable_stamp_rather_than_calling_it_missing() {
         scratch_preparation().expect("the scratch preparation fixture");
     write_unreadable_stamp(&preparation).expect("unreadable stamp");
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("an unreadable stamp under nextest must not prepare")
     })
     .expect_err("an unreadable stamp must refuse the gate");
@@ -63,7 +63,7 @@ fn cargo_test_prepares_again_behind_an_unreadable_stamp() {
     write_unreadable_stamp(&preparation).expect("unreadable stamp");
     let mut runs = 0_u32;
 
-    ensure_prepared_with(&preparation, false, || {
+    ensure_prepared_building(&preparation, false, || {
         runs += 1;
         Ok(PreparationSummary { compiled_units: 1 })
     })
@@ -77,7 +77,7 @@ fn cargo_test_prepares_again_behind_an_unreadable_stamp() {
     // than paying for the build again. An unreadable stamp that survived the
     // preparation would cost a rebuild on every single run.
     let mut runs_after = runs;
-    ensure_prepared_with(&preparation, false, || {
+    ensure_prepared_building(&preparation, false, || {
         runs_after += 1;
         Ok(PreparationSummary::default())
     })
@@ -110,7 +110,7 @@ fn prepare_now_replaces_an_unreadable_stamp_and_leaves_a_reusable_one() {
     // The stamp left behind describes the tree, so the gate accepts it without
     // running the closure again.
     let mut rebuilds = builds;
-    ensure_prepared_with(&preparation, false, || {
+    ensure_prepared_building(&preparation, false, || {
         rebuilds += 1;
         Ok(PreparationSummary::default())
     })

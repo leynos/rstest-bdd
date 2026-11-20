@@ -19,7 +19,7 @@ use super::{Preparation, lifecycle::reporter_of, stamp::stamp_path};
 /// Remove the stamp that advertises `preparation` as prepared.
 ///
 /// Both [`prepare_now`](super::prepare_now) and the lazy `cargo test` path of
-/// [`ensure_prepared`](super::ensure_prepared) return early from a matching
+/// [`ensure_prepared_building`](super::ensure_prepared_building) return early from a matching
 /// stamp, so the stamp is what decides whether a later attempt builds at all.
 /// This entry point exists for a caller whose own completeness rule is stricter
 /// than the stamp can be: `Preparation::artefacts` answers "the units the
@@ -49,7 +49,7 @@ pub fn invalidate(preparation: &Preparation) -> io::Result<()> {
 /// [`invalidate`] with the diagnostic reporter supplied.
 ///
 /// The reporter is a parameter for the reason
-/// [`ensure_prepared_reported`](super::ensure_prepared_reported) gives: a
+/// [`ensure_prepared_building_reported`](super::ensure_prepared_building_reported) gives: a
 /// message written straight to stderr is not observable by a test, and this
 /// one describes a claim being withdrawn, which is worth asserting.
 ///

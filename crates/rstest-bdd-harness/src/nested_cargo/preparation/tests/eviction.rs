@@ -9,12 +9,19 @@
 
 use std::{fs, io};
 
-use super::{super::stamp::stamp_path, prepared_profile, scratch_preparation};
+use super::{
+    super::{
+        artefacts::evicted,
+        stamp::{Stamp, stamp_path},
+    },
+    prepared_profile,
+    scratch_preparation,
+};
 use crate::nested_cargo::{
     NestedCargoEnv,
     Preparation,
     PreparationSummary,
-    ensure_prepared_with,
+    ensure_prepared_building,
     prepare_now,
 };
 
@@ -27,7 +34,7 @@ pub(super) fn stamped_preparation() -> io::Result<(tempfile::TempDir, Preparatio
 {
     let (directory, preparation, environment) = scratch_preparation()?;
     prepare_now(&preparation, || Ok(PreparationSummary::default()))?;
-    ensure_prepared_with(&preparation, true, || {
+    ensure_prepared_building(&preparation, true, || {
         panic!("a just-prepared family must pass")
     })?;
     Ok((directory, preparation, environment))
@@ -53,7 +60,7 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
          the stamp alone cannot answer this question"
     );
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("an evicted profile must fail the gate");
@@ -64,6 +71,55 @@ fn evicting_only_the_profile_invalidates_the_preparation() {
         "the message must name the evicted artefacts: {message}"
     );
     assert!(message.contains("debug"), "{message}");
+}
+
+#[test]
+fn an_empty_stamp_section_cannot_waive_a_partial_layout() {
+    // A stamp section naming nothing is the record of a profile that was
+    // legitimately empty: a target-selected build leaves its secondary profile
+    // holding only lock files and `build/`, and the structural layer would
+    // otherwise refuse every such preparation.
+    //
+    // The exact layer cannot see that case's opposite. When the section is
+    // empty, the presence list is compared against no recorded names, so
+    // `missing` is empty however damaged the directory is — the comparison
+    // refuses nothing. That is the partial layout: compiled units still
+    // present, the fingerprint store gone. A stamp recorded while the profile
+    // was empty, followed by an eviction of the store, would then be waived and
+    // a timed assertion would reuse a tree Cargo cannot treat as current.
+    //
+    // The structural answer is the same one the no-section path gives, so the
+    // legitimate case is unaffected: a wholly empty profile is still admitted
+    // when a sibling holds the tree, which
+    // `state::tests::a_target_selected_preparation_with_an_empty_host_profile_is_admitted`
+    // covers end to end.
+    //
+    // Driven through `evicted` with `Some(&stamp)` rather than through the
+    // gate, because the gate needs a matching fingerprint and this is a claim
+    // about what a *matching* stamp's empty section may excuse.
+    let (_directory, preparation, _environment) =
+        stamped_preparation().expect("a preparation that has already stamped a usable profile");
+    let profile = prepared_profile(&preparation)
+        .expect("the preparation describes the profile directory it reuses");
+    fs::remove_dir_all(profile.join(".fingerprint")).expect("evict the fingerprint store");
+    assert!(
+        profile.join("deps").is_dir(),
+        "the layout must be partial: units present, store gone"
+    );
+
+    let stamp = Stamp {
+        recorded: vec![Vec::new()],
+    };
+    let evictions = evicted(&preparation, Some(&stamp)).expect("the eviction walk");
+
+    let described = evictions
+        .first()
+        .expect("an empty stamp section must not waive a profile whose fingerprint store is gone")
+        .describe();
+    assert!(
+        described.contains("holds no fingerprint records"),
+        "the refusal must name the missing half: {described}"
+    );
 }
 
 #[test]
@@ -103,7 +159,7 @@ fn evicting_either_required_half_alone_invalidates_the_preparation() {
             "only {half} may be missing, so its sibling still has to satisfy its own check"
         );
 
-        let error = ensure_prepared_with(&preparation, true, || {
+        let error = ensure_prepared_building(&preparation, true, || {
             panic!("a timed test must never prepare")
         })
         .expect_err("a missing required half must fail the gate");
@@ -150,7 +206,7 @@ fn emptying_a_unit_directory_invalidates_the_preparation() {
         "the stamp must survive an emptied directory"
     );
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("an emptied unit directory must fail the gate");
@@ -180,7 +236,7 @@ fn a_dep_info_record_without_its_output_invalidates_the_preparation() {
         "both required halves must survive"
     );
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("a missing unit output must fail the gate");
@@ -230,7 +286,7 @@ fn a_metadata_only_unit_is_paired_with_its_dep_info_record() {
         "the dep-info must survive"
     );
 
-    let error = ensure_prepared_with(&preparation, true, || panic!("never prepares"))
+    let error = ensure_prepared_building(&preparation, true, || panic!("never prepares"))
         .expect_err("a metadata-only unit that went missing must fail the gate");
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
     let message = error.to_string();
@@ -263,7 +319,7 @@ fn an_empty_profile_directory_is_not_a_prepared_family() {
         "{error}"
     );
     // And the gate still refuses the same state, so no stamp was written.
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("an empty profile must fail the gate");

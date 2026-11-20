@@ -206,6 +206,10 @@ impl TrybuildTree {
     ///
     /// As [`Self::prepare_now`], the filter guard belongs in the closure.
     ///
+    /// The runner decision is resolved here, at the boundary that is itself
+    /// test support, rather than inside the nested gate: the gate takes it as a
+    /// parameter so its behaviour is never a property of the ambient process.
+    ///
     /// # Errors
     ///
     /// Returns a [`io::ErrorKind::NotFound`] error naming the preparation
@@ -216,7 +220,12 @@ impl TrybuildTree {
     where
         F: FnOnce() -> io::Result<PreparationSummary>,
     {
-        nested_cargo::ensure_prepared(&self.preparation()?, prepare)
+        nested_cargo::ensure_prepared_building(
+            &self.preparation()?,
+            nested_cargo::running_under_nextest(),
+            prepare,
+        )
+        .map(|_outcome| ())
     }
 
     /// The generated crate's directory under the shared trybuild root.

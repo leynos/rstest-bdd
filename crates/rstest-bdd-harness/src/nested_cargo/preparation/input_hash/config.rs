@@ -22,6 +22,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod home;
+
+use home::cargo_home;
+// Re-exported for its one consumer, a test module, so a release build does not
+// carry a name nothing reaches.
+#[cfg(test)]
+pub(crate) use home::resolve_cargo_home;
+
 /// Paths of the Cargo configuration files that apply at `workspace_root`.
 ///
 /// Cargo discovers configuration by walking from a command's working directory
@@ -141,6 +149,11 @@ fn config_entry_is_present(path: &Path) -> io::Result<bool> {
 /// process's environment. A test that set `CARGO_HOME` around a call would be
 /// changing what every other thread in the same binary reads, and this module's
 /// own cases would then race each other for it.
+///
+/// The walk's own directories are reported through the resolved root, so a
+/// root named with `..` components contributes the same ancestry whether or
+/// not the tree exists yet. See [`search_root`]. The Cargo home is reported as
+/// the caller supplied it; see [`resolve_cargo_home`] for its spelling rule.
 fn config_search_dirs(workspace_root: &Path, cargo_home: Option<&Path>) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = search_root(workspace_root)
         .ancestors()
@@ -168,23 +181,65 @@ fn config_search_dirs(workspace_root: &Path, cargo_home: Option<&Path>) -> Vec<P
 /// survives an edit to one, which is the invalidation this module exists to
 /// force.
 ///
-/// A directory that cannot be resolved — it does not exist yet, or a component
-/// cannot be inspected — is walked as given. The preparation creates the tree
-/// it stamps, so on a first run the root may be absent; falling back keeps the
-/// walk working, and the fingerprint's other inputs still cover the tree once
-/// it exists.
+/// Resolution also has to be *stable across a tree that does not exist yet*,
+/// which is why the longest existing prefix is resolved rather than the whole
+/// path. The preparation walks this root before its own callback creates the
+/// tree, and the scratch root is named through `crates/rstest-bdd/../..`. When
+/// the whole path was resolved only if it existed, a cold run kept that
+/// spelling and contributed four extra lexical ancestors — `crates`, then
+/// `crates/rstest-bdd` and its `..` forms — while a warm run resolved it and
+/// contributed none. The two walks therefore reported different `.cargo`
+/// directories for the same tree, so a stamp written by the cold preparation
+/// was refused by every later consumer with an empty evicted list. Resolving
+/// the existing prefix collapses the `..` components in both cases and the
+/// walk agrees.
 fn search_root(workspace_root: &Path) -> PathBuf {
-    fs::canonicalize(workspace_root).unwrap_or_else(|_| lexical_root(workspace_root))
+    let absolute = absolute_root(workspace_root);
+    let Some((resolved, remainder)) = split_at_existing_prefix(&absolute) else {
+        // No prefix of the path resolves; the absolute spelling is the best
+        // available answer.
+        return absolute;
+    };
+    reappend(resolved, &remainder)
 }
 
-/// The walk's root when `workspace_root` cannot be resolved.
+/// The longest existing prefix of `absolute`, and the components after it.
+///
+/// Each step strips one trailing component and tries again; the components
+/// stripped so far are returned in the order they were removed, which is why
+/// [`reappend`] walks them back to front. `None` means nothing resolved at
+/// all, not even the filesystem root.
+fn split_at_existing_prefix(absolute: &Path) -> Option<(PathBuf, Vec<&OsStr>)> {
+    let mut remainder: Vec<&OsStr> = Vec::new();
+    let mut prefix = absolute;
+    loop {
+        if let Ok(resolved) = fs::canonicalize(prefix) {
+            return Some((resolved, remainder));
+        }
+        let parent = prefix.parent()?;
+        remainder.push(prefix.components().next_back()?.as_os_str());
+        prefix = parent;
+    }
+}
+
+/// Re-append the components stripped by [`split_at_existing_prefix`].
+///
+/// They were removed from the tail, so they are pushed back in reverse.
+fn reappend(mut resolved: PathBuf, remainder: &[&OsStr]) -> PathBuf {
+    for component in remainder.iter().rev() {
+        resolved.push(component);
+    }
+    resolved
+}
+
+/// The walk's root when `workspace_root` could not be made absolute.
 ///
 /// The directory may not exist yet — the preparation creates the tree it stamps
 /// — and canonicalizing a relative path also needs it to exist beneath this
 /// process's directory. Joining the process directory keeps the walk absolute,
 /// which is the property that matters here; the fingerprint still covers the
 /// tree through its other inputs once it exists.
-fn lexical_root(workspace_root: &Path) -> PathBuf {
+fn absolute_root(workspace_root: &Path) -> PathBuf {
     if workspace_root.is_absolute() {
         return workspace_root.to_path_buf();
     }
@@ -194,184 +249,5 @@ fn lexical_root(workspace_root: &Path) -> PathBuf {
     )
 }
 
-/// The Cargo home directory, honouring `CARGO_HOME` and Cargo's default.
-///
-/// An explicitly set `CARGO_HOME` wins, because that is what Cargo itself does
-/// and the search must name the same directory the build reads. A relative
-/// value is resolved against `working_directory`, matching Cargo's own rule
-/// that it is interpreted relative to the command's working directory; the
-/// nested builds run beneath the workspace, not in this process's directory, so
-/// passing the value through unchanged would name two different trees.
-/// Otherwise the default is the `home` directory's `.cargo`, from `HOME` on
-/// Unix and `USERPROFILE` on Windows — the same pair Cargo's own default
-/// resolves through. A host with neither variable set has no default to name,
-/// and is left out rather than guessed at.
-fn cargo_home(working_directory: &Path) -> Option<PathBuf> {
-    resolve_cargo_home(working_directory, std::env::var_os("CARGO_HOME").as_deref())
-}
-
-/// The Cargo home for an explicitly resolved `CARGO_HOME`.
-///
-/// Split from [`cargo_home`] so the resolution rule — the one place a relative
-/// value is re-rooted — can be exercised for a chosen value, without a case
-/// writing to an environment variable every other thread in this binary reads.
-///
-/// An empty value is treated as unset, which is what Cargo does: it then falls
-/// back to `$HOME/.cargo` (or `$USERPROFILE/.cargo` on Windows).
-pub(crate) fn resolve_cargo_home(
-    working_directory: &Path,
-    explicit: Option<&OsStr>,
-) -> Option<PathBuf> {
-    if let Some(explicit) = explicit {
-        let explicit = PathBuf::from(explicit);
-        if !explicit.as_os_str().is_empty() {
-            // Cargo interprets a relative `CARGO_HOME` against the working
-            // directory of the command that reads it. The nested build's
-            // working directory is the workspace (or a fixture beneath it),
-            // not this process's, so the value has to be joined here or the
-            // probe would read one tree while the build read another. An
-            // absolute value is used unchanged, as Cargo does.
-            return Some(if explicit.is_absolute() {
-                explicit
-            } else {
-                working_directory.join(explicit)
-            });
-        }
-    }
-    let home = std::env::var_os("HOME")
-        .filter(|home| !home.is_empty())
-        .or_else(|| std::env::var_os("USERPROFILE").filter(|home| !home.is_empty()))?;
-    Some(PathBuf::from(home).join(".cargo"))
-}
-
 #[cfg(test)]
-mod tests {
-    //! Resolution of the walk's root, for roots that exist and roots that do
-    //! not.
-    //!
-    //! The production walk is a read of the tree, so its root is the one input
-    //! a caller decides rather than one the checkout fixes. These cases pin
-    //! that an absolute root is walked as given and that a relative one is
-    //! resolved to an absolute walk, which is what the fingerprint depends on.
-
-    use std::path::PathBuf;
-
-    use super::{cargo_config_inputs_with, search_root};
-
-    /// A checkout holding a `.cargo` directory, and a directory in it.
-    ///
-    /// The paths are derived from the checkout's *resolved* form rather than
-    /// from the raw temporary directory. [`search_root`] canonicalizes, so the
-    /// probe reports every entry through that resolved form; on Windows that
-    /// carries the `\\?\` verbatim prefix, and no path built from the raw
-    /// spelling equals it. The cases below compare the probe's output against
-    /// these paths, so deriving them lexically made every Windows assertion
-    /// fail against a correct implementation.
-    ///
-    /// The temporary directory is returned so it outlives the case; the paths
-    /// beside it are the resolved ones the assertions must use.
-    fn checkout_with_nested_directory() -> (tempfile::TempDir, PathBuf, PathBuf, PathBuf) {
-        let checkout = tempfile::tempdir().expect("checkout");
-        let root = std::fs::canonicalize(checkout.path()).expect("resolved checkout");
-        let nested = root.join("scratch/fixture");
-        std::fs::create_dir_all(&nested).expect("nested directory");
-        let cargo_dir = root.join(".cargo");
-        std::fs::create_dir(&cargo_dir).expect("cargo dir");
-        let config = cargo_dir.join("config.toml");
-        std::fs::write(&config, "[build]\nrustflags = [\"-Copt-level=1\"]\n").expect("config");
-        (checkout, nested, config, cargo_dir)
-    }
-
-    #[test]
-    fn an_absolute_root_keeps_its_own_ancestry() {
-        // An absolute root already names one tree, so rooting it must not move
-        // it. Without this, a fix that always joined the current directory
-        // would still pass the case below by re-rooting everything.
-        let (_checkout, nested, _config, _cargo_dir) = checkout_with_nested_directory();
-        assert_eq!(
-            search_root(&nested),
-            nested,
-            "an absolute root must be walked as given"
-        );
-    }
-
-    #[test]
-    fn a_relative_root_resolves_to_an_absolute_walk() {
-        // `Path::ancestors` is lexical. Walking `scratch/fixture` yields
-        // `scratch/fixture`, `scratch` and the empty path, none of which is a
-        // directory in the tree — so no configuration above the scratch root
-        // could reach the fingerprint, and a stamp written from that result
-        // survived an edit the nested build would notice.
-        //
-        // What this pins is the rule on its own: a relative root is joined to
-        // the process directory so the walk has an absolute ancestry to climb.
-        // The subtree here deliberately does *not* exist, which is both the
-        // state the rule exists for — the preparation creates the tree it
-        // stamps — and the only state this case can assert portably. A name
-        // that resolved would compare a canonicalized path against a lexically
-        // joined one, and those spellings differ on Windows, where resolution
-        // yields the `\\?\` verbatim prefix. Resolved spellings are covered by
-        // `checkout_with_nested_directory`, which canonicalizes before deriving
-        // every expected path for exactly that reason.
-        let relative = PathBuf::from("a-directory-this-case-does-not-create");
-        assert!(relative.is_relative(), "the case needs a relative root");
-        assert!(
-            !relative.exists(),
-            "the case must exercise the fallback, not resolution"
-        );
-
-        let rooted = search_root(&relative);
-        assert!(
-            rooted.is_absolute(),
-            "a walked root must be absolute, or its ancestry is not the tree's: {rooted:?}"
-        );
-        assert_eq!(
-            rooted,
-            std::env::current_dir()
-                .expect("a process directory")
-                .join(&relative),
-            "the fallback root is the absolute spelling of the same relative root"
-        );
-    }
-
-    #[test]
-    fn configuration_above_the_root_reaches_the_inputs() {
-        // The defect stated as an outcome rather than as a shape: the nested
-        // build reads `<checkout>/.cargo/config.toml`, so a probe given the
-        // nested directory must report that file. Before the walk was rooted it
-        // reported nothing above the nested path.
-        let (_checkout, nested, config, cargo_dir) = checkout_with_nested_directory();
-        let roots = cargo_config_inputs_with(&nested, None).expect("config inputs");
-        assert!(
-            roots.contains(&config),
-            "configuration above the root must reach the fingerprint: {roots:?}"
-        );
-        assert!(
-            roots.iter().any(|path| path.starts_with(&cargo_dir)),
-            "the checkout's own `.cargo` is visited on the way up: {roots:?}"
-        );
-    }
-
-    #[test]
-    fn a_named_cargo_home_is_searched_last() {
-        // Cargo reads `$CARGO_HOME/config.toml` in addition to the walk, and
-        // the walk's own entries take precedence, so the home is consulted
-        // after every ancestor rather than instead of them.
-        let (_checkout, nested, config, _cargo_dir) = checkout_with_nested_directory();
-        let home = tempfile::tempdir().expect("cargo home");
-        let home_config = home.path().join("config.toml");
-        std::fs::write(&home_config, "[build]\nrustflags = [\"-Copt-level=1\"]\n")
-            .expect("home config");
-
-        let roots = cargo_config_inputs_with(&nested, Some(home.path())).expect("config inputs");
-        assert!(
-            roots.contains(&config) && roots.contains(&home_config),
-            "both the walk and the home contribute: {roots:?}"
-        );
-        assert_eq!(
-            roots.last(),
-            Some(&home_config),
-            "the home is consulted after the walk, as Cargo does: {roots:?}"
-        );
-    }
-}
+mod tests;

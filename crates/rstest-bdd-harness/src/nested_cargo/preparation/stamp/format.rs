@@ -57,6 +57,7 @@ impl StampText {
 /// Only the recorded names are kept: a `Stamp` exists at all because its
 /// fingerprint already matched, so re-storing the text would let a caller
 /// compare it again and reach a different answer.
+#[derive(Debug)]
 pub(in crate::nested_cargo::preparation) struct Stamp {
     /// Artefact names recorded per artefact directory, in
     /// [`Preparation::artefacts`](super::super::Preparation) order.

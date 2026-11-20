@@ -18,7 +18,7 @@
 //!   keeps it authoritative if a future override ever matched the same tests.
 //! * `trybuild_nextest_override_preserves_timeout_contract` requires exactly one override to name
 //!   any of the four compile-test binaries, and that override's filter to name all four and no
-//!   others. It then requires the override to keep a 30 m `slow-timeout` period, `terminate-after =
+//!   others. It then requires the override to keep a 20 m `slow-timeout` period, `terminate-after =
 //!   1`, a 5 s grace period and membership of the `cargo-spawning` group, and the default profile's
 //!   `global-timeout` to exceed the period in seconds.
 //! * `feature_rebuild_nextest_override_preserves_timeout_contract` requires exactly one override to
@@ -34,10 +34,14 @@
 //! hidden instead of moved: the preparation override is the only place in the
 //! file where a cold dependency build may spend a test's budget.
 //!
-//! The trybuild period moved 20 m to 30 m on measurement: `step_macros_compile`
-//! passed in 1119.268 s here with admission saturated, 93% of the old period,
-//! and crossed it twice the same day. It was compiling, not hung, so
-//! `terminate-after` stays a hang detector.
+//! The trybuild period is back at 20 m. It had been raised to 30 m on a
+//! measurement of `step_macros_compile` compiling for 1119.268 s with
+//! admission saturated — the work was real, not a hang. That work is now the
+//! preparation test's: `nested_fixture_preparation` builds both trybuild modes
+//! and the UI-lint clippy tree before these binaries run, so the timed body
+//! meets a warm graph. Sizing the timed override for a cold compile would hide
+//! the very cost this change moves, and `terminate-after` stays a hang
+//! detector.
 //!
 //! Four binaries now carry a longer period: the preparation, the `cargo-bdd`
 //! CLI smoke tests, `rstest-bdd-harness::binary_test_support_cargo`, and the
@@ -62,7 +66,6 @@
 
 use std::{error::Error, io};
 
-use rstest_bdd_harness::nested_cargo;
 use toml::Value;
 
 #[path = "nextest_config/support.rs"]
@@ -74,9 +77,11 @@ use support::{
     duration_seconds,
     nextest_configuration,
     nextest_version,
-    test_group_max_threads,
     trybuild_override_candidates,
 };
+
+#[path = "nextest_config/overrides.rs"]
+mod overrides;
 
 const FEATURE_REBUILD_BINARY: &str = "rstest-bdd::feature_rebuild_invalidation";
 
@@ -257,10 +262,10 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         .and_then(Value::as_str)
         .ok_or_else(|| io::Error::other("trybuild nextest override must name a period"))?;
     assert_eq!(
-        period, "30m",
-        "trybuild nextest override must allow a 30-minute slow timeout: a cold compiler cache \
-         costs this fixture tree about 6 minutes, and a saturated shared compile-admission pool \
-         took the same test past 20 minutes on this host",
+        period, "20m",
+        "trybuild nextest override must allow a 20-minute slow timeout: the cold dependency graph \
+         belongs to `nested_fixture_preparation`, and widening this period would hide a timed \
+         body that had started compiling again rather than reporting it",
     );
 
     let global_timeout = default_global_timeout(&configuration)?;
@@ -288,112 +293,5 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         "trybuild nextest override must remain in the cargo-spawning group",
     );
 
-    Ok(())
-}
-
-#[test]
-fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
-    let configuration = nextest_configuration()?;
-    let overrides = default_overrides(&configuration)?;
-    let filter = format!("binary_id({FEATURE_REBUILD_BINARY})");
-    let matching = overrides
-        .iter()
-        .filter(|override_value| {
-            override_value.get("filter").and_then(Value::as_str) == Some(filter.as_str())
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        matching.len(),
-        1,
-        "the feature-rebuild test must have exactly one exact nextest override",
-    );
-    let override_value = matching
-        .first()
-        .expect("the asserted single feature-rebuild override must be present");
-    let slow_timeout = override_value
-        .get("slow-timeout")
-        .and_then(Value::as_table)
-        .expect("feature-rebuild override must contain a slow-timeout table");
-    assert_eq!(
-        slow_timeout.get("period").and_then(Value::as_str),
-        Some("600s")
-    );
-    assert_eq!(
-        slow_timeout
-            .get("terminate-after")
-            .and_then(Value::as_integer),
-        Some(1)
-    );
-    assert_eq!(
-        slow_timeout.get("grace-period").and_then(Value::as_str),
-        Some("5s")
-    );
-    assert_eq!(
-        override_value.get("test-group").and_then(Value::as_str),
-        Some("cargo-spawning")
-    );
-    Ok(())
-}
-
-/// Keep cold-build drift from consuming the run-level reserve again.
-/// The per-command preparation bound must fire before the runner's test bound.
-///
-/// A preparation test may run several sequential bounded commands: the
-/// rebuild-invalidation preparation compiles one fixture, then runs the
-/// addition fixture's metadata preflight and its compile. The contract is
-/// `MAX_SEQUENTIAL_COMMANDS × PREPARATION_COMMAND_TIMEOUT < preparation period`,
-/// recomputed from both constants rather than from a number repeated here, so
-/// raising the command count without resizing the bound fails loudly. The
-/// named timeout error this protects is the only report that carries the
-/// child's captured output; a runner slow-timeout discards it.
-#[test]
-fn preparation_command_bound_fires_before_the_runner_kills_the_test() -> Result<(), Box<dyn Error>>
-{
-    let configuration = nextest_configuration()?;
-    let overrides = default_overrides(&configuration)?;
-    let preparation = single_preparation_override(overrides)?;
-    let period = preparation
-        .get("slow-timeout")
-        .and_then(Value::as_table)
-        .and_then(|slow_timeout| slow_timeout.get("period"))
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            io::Error::other("the preparation override must set a slow-timeout period")
-        })?;
-    let period_seconds = duration_seconds(period)?;
-    let sequential_commands = nested_cargo::MAX_SEQUENTIAL_COMMANDS;
-    let command_seconds = nested_cargo::PREPARATION_COMMAND_TIMEOUT.as_secs();
-    assert!(
-        command_seconds * sequential_commands < period_seconds,
-        "the {command_seconds}s per-command preparation bound times {sequential_commands} \
-         sequential commands must stay below the preparation override's {period_seconds}s period, \
-         or nextest kills the test before the named timeout error can report it",
-    );
-    Ok(())
-}
-
-#[test]
-fn nested_cargo_run_retains_cold_build_reserve() -> Result<(), Box<dyn Error>> {
-    let configuration = nextest_configuration()?;
-    // R-6 is a sizing scenario, not a sum of every test's maximum. Keep its
-    // baseline and cold-build perturbation separate so neither is mistaken
-    // for measured elapsed time on this host.
-    let reference_lane_seconds = 180 + 600 * 4 + 600 * 3;
-    let cold_invocations = 10;
-    let additional_seconds_per_invocation = 19;
-    let minimum_reserve_seconds = 600;
-    let required = reference_lane_seconds
-        + cold_invocations * additional_seconds_per_invocation
-        + minimum_reserve_seconds;
-    let actual = duration_seconds(default_global_timeout(&configuration)?)?;
-    assert!(
-        actual >= required,
-        "nested Cargo needs {required}s including cold-build drift and reserve, got {actual}s",
-    );
-    assert_eq!(
-        test_group_max_threads(&configuration, "cargo-spawning")?,
-        1,
-        "nested Cargo builds must remain serialized to avoid competing for compiler resources",
-    );
     Ok(())
 }

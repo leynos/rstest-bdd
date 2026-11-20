@@ -1,20 +1,19 @@
 //! Regression coverage for where the preparation stamp lives.
 //!
 //! Exercises this family's `fixture_preparation` and `workspace_inputs`
-//! helpers together with the harness's `prepare_now`, `ensure_prepared_with`
+//! helpers together with the harness's `prepare_now`, `ensure_prepared_building`
 //! and `input_hash`, over the child environment the parent module resolves. A
 //! stamp is only meaningful if it is evicted together with the artefacts it
 //! vouches for. An inherited `CARGO_TARGET_DIR` moves those artefacts out of
 //! the workspace `target/`, so a stamp stored in the scratch root would survive
 //! an eviction of the external directory, keep matching, and let the timed
 //! assertion pay for a cold dependency compile — the exact failure issue 910
-//! removes. A sibling `ownership` module covers the family's declaration of
-//! which packages its build produced.
+//! removes.
+//!
+//! The cases below are the claims about the gate; the setup they share lives in
+//! the sibling [`prepared`] module. A sibling `ownership` module covers the
+//! family's declaration of which packages its build produced.
 
-use std::ffi::OsString;
-
-use cap_std::ambient_authority;
-use rstest::fixture;
 use rstest_bdd_harness::nested_cargo;
 
 use super::{REBUILD, fixture_preparation, workspace_inputs};
@@ -22,170 +21,17 @@ use crate::harness::{fixtures, process};
 
 // The families' ownership declaration, exercised against what their fixtures
 // actually resolve to. Its own module because it is a separate claim from the
-// stamp-location regressions above.
+// stamp-location regressions here.
 #[path = "tests/ownership.rs"]
 mod ownership;
 
-/// A child environment whose artefacts go to `target_directory`.
-fn child_env(target_directory: &std::path::Path) -> std::io::Result<process::ChildEnv> {
-    process::child_env_from_vars(vec![(
-        OsString::from("CARGO_TARGET_DIR"),
-        target_directory.as_os_str().to_os_string(),
-    )])
-}
+// The setup the eviction cases share: an external target directory, a family
+// described against it, a populated profile, and a stamp written and accepted.
+// Its own module because it is several times the size of any case that uses it.
+#[path = "tests/prepared.rs"]
+mod prepared;
 
-/// Leave `env`'s target directory as a real build would: a profile holding
-/// Cargo's dependency artefacts.
-///
-/// The gate requires a unit directory and a fingerprint store inside the
-/// profile, not merely the profile directory, so a fixture that created only
-/// the latter would make the first gate refuse for a reason other than the
-/// eviction under test.
-///
-/// Every unit is written as rustc writes one — a `.d` record beside the output
-/// it describes — because that pairing is what the discovery walk follows. A
-/// bare placeholder file in `deps` would leave the profile with no units, and
-/// the gate would refuse the eviction for the wrong reason.
-///
-/// One unit per declared package, not one unit in total. The preparation holds
-/// its declaration to the record: a package named in `owned_packages` that
-/// contributed no artefact is refused, because a stamp that named it would
-/// vouch for units this preparation never built and their later eviction would
-/// pass. A fixture that wrote a single unowned `unit` would therefore be
-/// refused before any eviction ran. Writing one unit per declared package keeps
-/// the fixture truthful about what it built, so the only reason a case can
-/// refuse is the eviction it performs.
-///
-/// Every write goes through a [`Dir`] capability opened on the target
-/// directory, with paths relative to it. The target is named by the child
-/// environment, which a test controls, and the later evictions remove it
-/// wholesale; confining the fixture's I/O to a handle on the intended directory
-/// means a mistake in that path creates nothing outside it. `Dir` also refuses
-/// a path that is absolute or that climbs out with `..`, so the confinement is
-/// enforced rather than merely intended.
-fn populate_profile(
-    env: &process::ChildEnv,
-    preparation: &nested_cargo::Preparation,
-) -> std::io::Result<()> {
-    let target = process::child_target_directory(env);
-    let profile = format!("{}/deps", nested_cargo::DEFAULT_PROFILE);
-    let fingerprints = format!("{}/.fingerprint", nested_cargo::DEFAULT_PROFILE);
-    let root = cap_std::fs::Dir::open_ambient_dir(target, ambient_authority())?;
-    root.create_dir_all(&profile)?;
-    root.create_dir_all(&fingerprints)?;
-    // A family that declares nothing claims its whole profile and needs only
-    // the structural layer satisfied, so one unowned unit is exact for it.
-    let packages: Vec<&str> = preparation
-        .owned_packages
-        .iter()
-        .map(String::as_str)
-        .collect();
-    let packages = if packages.is_empty() {
-        vec!["unit"]
-    } else {
-        packages
-    };
-    for package in packages {
-        // Cargo hyphenates a package in its record directory and uses the same
-        // stem in `deps`, which is the spelling `name_is_owned` matches.
-        let stem = format!("{package}-0123456789abcdef");
-        root.write(format!("{profile}/{stem}.d"), b"dep-info")?;
-        root.write(format!("{profile}/lib{stem}.rlib"), b"artefact")?;
-        root.create_dir_all(format!("{fingerprints}/{stem}"))?;
-        root.write(
-            format!("{fingerprints}/{stem}/record"),
-            b"fingerprint record",
-        )?;
-    }
-    Ok(())
-}
-
-/// A prepared family whose stamp the gate accepted.
-///
-/// Handed to the eviction cases, which differ only in what they then remove.
-/// The temporary directory is a field rather than a return-value tail so the
-/// fixtures owning it cannot be dropped while a case is still using the tree.
-struct PreparedFamily {
-    /// Owns the external target directory; dropped with this value.
-    _external: tempfile::TempDir,
-    /// The environment the preparation and the gate both saw.
-    env: process::ChildEnv,
-    /// The family description its stamp was written for.
-    preparation: nested_cargo::Preparation,
-    /// The profile directory the stamp vouches for.
-    profile: std::path::PathBuf,
-}
-
-/// Prepare a family over a populated profile and require the stamp to be accepted.
-///
-/// The three eviction cases share the same four steps — an external target
-/// directory, a family described against it, a populated profile, and a stamp
-/// written and accepted — and then differ only in what they remove. Each used
-/// to repeat all four, so a change to the preparation contract had to be made
-/// three times and could be made correctly in two.
-///
-/// It is fallible because every step in it is: a temporary directory, the child
-/// environment, the preparation description and the profile writes can each
-/// fail. Returning the first failure lets the test body report why the fixture
-/// could not be built instead of panicking inside it.
-///
-/// # Errors
-///
-/// Returns the first failure from creating the directories, resolving the
-/// environment, describing the family, populating the profile, or writing and
-/// accepting the stamp.
-#[fixture]
-fn prepared_family() -> std::io::Result<PreparedFamily> {
-    let external = tempfile::tempdir()?;
-    let env = child_env(external.path())?;
-    let preparation = fixture_preparation(&env, REBUILD)?;
-    populate_profile(&env, &preparation)?;
-    let profile = process::child_target_directory(&env).join(nested_cargo::DEFAULT_PROFILE);
-
-    nested_cargo::prepare_now(&preparation, || {
-        Ok(nested_cargo::PreparationSummary::default())
-    })?;
-    // Whether a freshly-written stamp is accepted is a precondition of every
-    // eviction case, not the behaviour any of them measures.
-    nested_cargo::ensure_prepared_with(&preparation, true, || {
-        panic!("a just-prepared family must satisfy the gate")
-    })?;
-    Ok(PreparedFamily {
-        _external: external,
-        env,
-        preparation,
-        profile,
-    })
-}
-
-/// Remove `path` wholesale through a capability on its parent.
-///
-/// The eviction cases delete a whole directory, and a `Dir` capability cannot
-/// remove the directory it is open on, so the capability is opened one level up
-/// and the target removed by name. `Dir` refuses an absolute path or one that
-/// climbs out with `..`, so a mistake in a fixture path cannot delete anything
-/// outside the temporary directory the case owns.
-fn evict(path: &std::path::Path) -> std::io::Result<()> {
-    let description = || {
-        std::io::Error::other(format!(
-            "{} cannot be evicted through its parent",
-            path.display()
-        ))
-    };
-    let parent = path.parent().ok_or_else(description)?;
-    let name = path.file_name().ok_or_else(description)?;
-    let name = name.to_str().ok_or_else(description)?;
-    cap_std::fs::Dir::open_ambient_dir(parent, ambient_authority())?.remove_dir_all(name)
-}
-
-/// A scratch copy of the fixture, standing in for `fixtures::scratch_root`.
-fn scratch_fixture() -> std::io::Result<tempfile::TempDir> {
-    let scratch = tempfile::tempdir()?;
-    let root = cap_std::fs::Dir::open_ambient_dir(scratch.path(), ambient_authority())?;
-    root.create_dir("fixture")?;
-    root.write("fixture/Cargo.toml", b"[package]\nname = \"f\"\n")?;
-    Ok(scratch)
-}
+use prepared::{child_env, evict, prepared_family, scratch_fixture, stamp_file};
 
 #[test]
 fn an_inherited_target_directory_moves_the_stamp_with_the_artefacts() {
@@ -267,7 +113,7 @@ fn a_configuration_only_change_invalidates_the_preparation() {
 
 #[rstest::rstest]
 fn evicting_the_artefacts_invalidates_the_preparation(
-    #[from(prepared_family)] prepared: std::io::Result<PreparedFamily>,
+    #[from(prepared_family)] prepared: std::io::Result<prepared::PreparedFamily>,
 ) {
     // Prepare a family whose artefacts live outside the scratch tree, then
     // evict exactly that directory while leaving the scratch fixture alone.
@@ -294,7 +140,7 @@ fn evicting_the_artefacts_invalidates_the_preparation(
 
     evict(process::child_target_directory(&prepared.env)).expect("evict the artefact directory");
 
-    let error = nested_cargo::ensure_prepared_with(preparation, true, || {
+    let error = nested_cargo::ensure_prepared_building(preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("the evicted artefacts must fail the gate");
@@ -336,7 +182,7 @@ fn a_relative_target_directory_stamps_where_the_child_builds() {
 
 #[rstest::rstest]
 fn evicting_only_the_profile_invalidates_the_preparation(
-    #[from(prepared_family)] prepared: std::io::Result<PreparedFamily>,
+    #[from(prepared_family)] prepared: std::io::Result<prepared::PreparedFamily>,
 ) {
     // `clean_fixture_units` runs `cargo clean -p <fixture>`, and a plain
     // `rm -rf <target>/debug` does the same thing more broadly. Both leave
@@ -347,13 +193,18 @@ fn evicting_only_the_profile_invalidates_the_preparation(
     let preparation = &prepared.preparation;
 
     evict(&prepared.profile).expect("evict only the profile");
+    // The stamp *file*, not merely the directory holding it. A refusal caused
+    // by a missing stamp would say nothing about artefacts: the gate would be
+    // reporting that nothing was ever prepared. Asserting the file is present
+    // immediately before the call is what makes the refusal evidence that the
+    // recorded artefact names were consulted and found gone.
     assert!(
-        preparation.directory.is_dir(),
-        "the family's scratch root and its stamp must survive: that is why the stamp alone cannot \
-         answer this question"
+        stamp_file(preparation).is_file(),
+        "the family's stamp must survive the profile eviction: {}",
+        stamp_file(preparation).display()
     );
 
-    let error = nested_cargo::ensure_prepared_with(preparation, true, || {
+    let error = nested_cargo::ensure_prepared_building(preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("an evicted profile must fail the gate");
@@ -362,7 +213,7 @@ fn evicting_only_the_profile_invalidates_the_preparation(
 
 #[rstest::rstest]
 fn evicting_the_compiled_units_invalidates_the_preparation(
-    #[from(prepared_family)] prepared: std::io::Result<PreparedFamily>,
+    #[from(prepared_family)] prepared: std::io::Result<prepared::PreparedFamily>,
 ) {
     // The profile directory can survive while the work inside it does not.
     // This is the partial eviction a gate that only checked `is_dir()` would
@@ -379,12 +230,17 @@ fn evicting_the_compiled_units_invalidates_the_preparation(
         prepared.profile.is_dir(),
         "the profile directory must survive"
     );
+    // As above: the parent directory surviving proves only that the profile
+    // was partly evicted. The stamp is the thing being contradicted, so the
+    // gate can only be said to have refused *because of* the missing units if
+    // the stamp it read was there.
     assert!(
-        preparation.directory.is_dir(),
-        "the family's stamp must survive"
+        stamp_file(preparation).is_file(),
+        "the family's stamp must survive the unit eviction: {}",
+        stamp_file(preparation).display()
     );
 
-    let error = nested_cargo::ensure_prepared_with(preparation, true, || {
+    let error = nested_cargo::ensure_prepared_building(preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("an evicted dependency graph must fail the gate");

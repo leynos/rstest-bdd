@@ -10,9 +10,12 @@
 //! input hashing that decide when a prepared directory is stale,
 //! `cargo_config` covers Cargo's own configuration as one of those inputs,
 //! `target_profile` covers an eviction from the second profile a `--target`
-//! build writes, and `deadline_gate` covers what the gate does when it is
-//! handed a budget that is already spent. The fixtures they share live here.
+//! build writes, `deadline_gate` covers what the gate does when it is handed a
+//! budget that is already spent, and `admission` covers the read-only query:
+//! what it answers, and that it builds nothing, writes no stamp and takes no
+//! lock. The fixtures they share live here.
 
+mod admission;
 mod cargo_config;
 mod compile_counting;
 mod deadline_gate;

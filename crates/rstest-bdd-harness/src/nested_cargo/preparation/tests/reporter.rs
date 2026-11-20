@@ -4,7 +4,7 @@
 //! unreadable stamp under `cargo test` is *prepared over*, so the message is
 //! the only thing that distinguishes that recovery from a silent rebuild — and
 //! a message written straight to stderr cannot be seen by a test. The cases
-//! here drive [`ensure_prepared_reported`], [`prepare_now_reported`] and
+//! here drive [`ensure_prepared_building_reported`], [`prepare_now_reported`] and
 //! [`invalidate_reported`], the boundaries production's `note` passes through,
 //! so both halves of the promise are checked: that the message names what was
 //! wrong, and that the family is prepared again afterwards.
@@ -16,7 +16,7 @@ use crate::nested_cargo::{
     Instruments,
     Preparation,
     PreparationSummary,
-    ensure_prepared_reported,
+    ensure_prepared_building_reported,
     invalidate_reported,
     prepare_now_reported,
 };
@@ -45,7 +45,7 @@ fn the_cargo_test_recovery_names_the_unreadable_stamp_and_its_second_read() {
     write_unreadable_stamp(&preparation).expect("unreadable stamp");
     let mut messages = Vec::new();
 
-    ensure_prepared_reported(
+    ensure_prepared_building_reported(
         &preparation,
         false,
         Instruments::new(|| Ok("rustc 1.0\n".to_owned()), collecting(&mut messages)),
@@ -93,7 +93,7 @@ fn an_unreadable_stamp_before_the_expected_compile_is_not_reported_as_a_match() 
         scratch_preparation().expect("the scratch preparation fixture");
     let mut messages = Vec::new();
 
-    ensure_prepared_reported(
+    ensure_prepared_building_reported(
         &preparation,
         false,
         Instruments::new(|| Ok("rustc 1.0\n".to_owned()), collecting(&mut messages)),
@@ -130,7 +130,7 @@ fn a_warm_family_is_reported_as_prepared_without_running_the_build() {
     first.expect("the scratch family prepares");
 
     let mut messages = Vec::new();
-    ensure_prepared_reported(
+    ensure_prepared_building_reported(
         &preparation,
         false,
         Instruments::new(|| Ok("rustc 1.0\n".to_owned()), collecting(&mut messages)),

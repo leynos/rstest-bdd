@@ -10,7 +10,7 @@
 use std::{fs, io, path::PathBuf};
 
 use super::{super::stamp::stamp_path, eviction::stamped_preparation, prepared_profile};
-use crate::nested_cargo::ensure_prepared_with;
+use crate::nested_cargo::ensure_prepared_building;
 
 #[test]
 fn removing_one_units_fingerprint_records_invalidates_the_preparation() {
@@ -71,7 +71,7 @@ fn removing_one_units_fingerprint_records_invalidates_the_preparation() {
     );
     assert!(stamp_path(&preparation).is_file(), "the stamp must survive");
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("a unit whose records went must fail the gate");
@@ -147,7 +147,7 @@ fn removing_a_units_record_files_leaves_its_directory_and_is_still_an_eviction()
     );
     assert!(stamp_path(&preparation).is_file(), "the stamp must survive");
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("a unit whose record files went must fail the gate");

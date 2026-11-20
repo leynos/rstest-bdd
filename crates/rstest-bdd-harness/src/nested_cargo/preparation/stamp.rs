@@ -45,7 +45,12 @@ pub(in crate::nested_cargo::preparation) use diagnostics::{
     missing_stamp_message,
     unreadable_stamp_error,
 };
-pub(in crate::nested_cargo::preparation) use file::{matching_stamp, stamp_path};
+pub(in crate::nested_cargo::preparation) use file::{
+    StampDecision,
+    matching_stamp,
+    read_stamp,
+    stamp_path,
+};
 // The rest of the surface is reached only from a `#[cfg(test)]` module, so each
 // is behind the same gate as its user: a release build would otherwise carry
 // names nothing reaches. `compose` takes an already-resolved toolchain, which is

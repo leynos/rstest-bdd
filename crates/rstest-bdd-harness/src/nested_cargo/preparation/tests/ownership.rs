@@ -8,7 +8,7 @@
 use std::{fs, io};
 
 use super::{super::stamp::stamp_path, prepared_profile, scratch_preparation};
-use crate::nested_cargo::{PreparationSummary, ensure_prepared_with, prepare_now};
+use crate::nested_cargo::{PreparationSummary, ensure_prepared_building, prepare_now};
 
 /// The CLI fixture package, and one workspace crate its build also produces.
 ///
@@ -75,7 +75,7 @@ fn evicting_a_dependency_owned_through_the_fixture_invalidates_the_preparation()
         "the fixture's own records must survive, or this is not the ownership case"
     );
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("a dependency whose records went must fail the gate");
@@ -128,7 +128,7 @@ fn evicting_a_registry_packages_records_invalidates_the_preparation() {
         "the fixture's own records must survive, or this is not the registry case"
     );
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("a registry package whose records went must fail the gate");
@@ -257,7 +257,7 @@ fn evicting_a_target_named_output_invalidates_the_preparation() {
         "the records must survive, or the structural layer could refuse instead"
     );
 
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("a timed test must never prepare")
     })
     .expect_err("a target-named output that went must fail the gate");

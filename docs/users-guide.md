@@ -2836,14 +2836,14 @@ that reason: deriving an artefact path from an unresolvable target directory
 would record a relative path that the gate then checks against the wrong root.
 `Preparation::for_fixture` describes a family whose nested builds all run
 against the stamped directory. Build the artefacts in a named preparation test
-with `prepare_now`, and gate the timed test on `ensure_prepared`:
+with `prepare_now`, and gate the timed test on `ensure_prepared_building`:
 
 ```rust,no_run
 use std::{io, path::PathBuf};
 
 use rstest_bdd_harness::nested_cargo::{
-    NestedCargoEnv, Preparation, PreparationSummary, Sources, ensure_prepared,
-    prepare_now,
+    NestedCargoEnv, Preparation, PreparationSummary, Sources, admit,
+    ensure_prepared_building, prepare_now, running_under_nextest,
 };
 
 fn fixture(env: NestedCargoEnv, inputs: String) -> io::Result<Preparation> {
@@ -2862,10 +2862,18 @@ fn prepare(preparation: &Preparation) -> io::Result<()> {
 }
 
 fn timed_test(preparation: &Preparation) -> io::Result<()> {
-    ensure_prepared(preparation, || {
+    ensure_prepared_building(preparation, running_under_nextest(), || {
         // Reached only under plain `cargo test` with no stamp.
         Ok(PreparationSummary::default())
-    })
+    })?;
+    Ok(())
+}
+
+fn report_only(preparation: &Preparation) -> io::Result<()> {
+    // The read-only question: no build, no stamp write, no lock.
+    let admission = admit(preparation, running_under_nextest())?;
+    println!("{admission:?}");
+    Ok(())
 }
 ```
 
@@ -2901,11 +2909,19 @@ slow-timeout without captured output.
 
 `prepare_now` is idempotent: when the stamp and artefact checks both pass it
 does not run the build closure, so a warm target directory costs one stamp
-read. Under `cargo nextest`, `ensure_prepared` fails fast with the command that
-prepares the family, `make prepare-nested-fixtures` in this repository, because
-a timed test running in its own process cannot prepare without paying the cost
-it is meant to avoid. Under plain `cargo test` it prepares lazily behind a
-process-wide lock.
+read. Under `cargo nextest`, `ensure_prepared_building` fails fast with the
+command that prepares the family, `make prepare-nested-fixtures` in this
+repository, because a timed test running in its own process cannot prepare
+without paying the cost it is meant to avoid. Under plain `cargo test` it
+prepares lazily behind a process-wide lock. Its return value states which
+happened: `PreparationOutcome::Reused` means no build ran and no lock was
+taken, and `PreparationOutcome::Prepared` means the closure did.
+
+The gate's name and the runner decision are two separate things, on purpose.
+Nothing inside the gate reads the environment: `running_under_nextest` is
+called at the boundary that owns the test, and the answer is passed in. That
+keeps a gate's behaviour a property of its arguments rather than of the ambient
+process, which is what lets a test exercise both runners in one binary.
 
 The runner limits differ, and a suite that relies on preparing lazily should
 expect that. `.config/nextest.toml` gives the preparation tests a 30-minute

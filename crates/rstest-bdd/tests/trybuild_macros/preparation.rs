@@ -208,11 +208,13 @@ fn trybuild_preparation(target_directory: &Utf8Path) -> io::Result<nested_cargo:
 
 /// Prepare both families unconditionally, for the named preparation test.
 ///
-/// "Unconditionally" is about the stamp: [`nested_cargo::prepare_now`] rebuilds
-/// even when a current stamp is present, which is what
-/// `make prepare-nested-fixtures` needs. It still returns at a stamp the gate
-/// accepts, so both the trybuild-filter refusal and the rebuild are reached
-/// only when the family is actually prepared.
+/// "Unconditionally" is about refusing to fail fast, not about refusing the
+/// stamp: [`nested_cargo::prepare_now`] never declines because a family was
+/// never prepared, which is what `make prepare-nested-fixtures` needs under
+/// nextest. It is still idempotent, though — it returns at a stamp it accepts,
+/// so a warm target directory costs only the stamp read. That is why both the
+/// trybuild-filter refusal and the rebuild are reached only when the family is
+/// actually prepared, and why re-running the target is cheap.
 ///
 /// # Errors
 ///
@@ -235,10 +237,15 @@ pub(crate) fn prepare_all(target_directory: &Utf8Path) -> io::Result<()> {
 /// prepare-nested-fixtures` when a stamp is missing or stale under nextest, and
 /// the nested build's error when lazy preparation under `cargo test` fails.
 pub(crate) fn ensure_prepared(target_directory: &Utf8Path) -> io::Result<()> {
+    // Resolved once here, at the test's own boundary, and passed to both gates.
+    // The nested gate never reads the environment itself, so a caller can see
+    // from this function which decision its two calls were made under.
+    let under_nextest = nested_cargo::running_under_nextest();
     let trybuild = trybuild_preparation(target_directory)?;
-    nested_cargo::ensure_prepared(&trybuild, prepare_trybuild)?;
+    nested_cargo::ensure_prepared_building(&trybuild, under_nextest, prepare_trybuild)?;
     let ui_clippy = ui_clippy::ui_clippy_preparation()?;
-    nested_cargo::ensure_prepared(&ui_clippy, ui_clippy::prepare_ui_clippy)
+    nested_cargo::ensure_prepared_building(&ui_clippy, under_nextest, ui_clippy::prepare_ui_clippy)
+        .map(|_outcome| ())
 }
 
 /// Compile both nested build trees before the timed trybuild assertion.

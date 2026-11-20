@@ -917,10 +917,13 @@ the environment, so preparation and the timed case describe the same tree.
 crate's trybuild tree for the shared preparation policy in
 `rstest_bdd_harness::nested_cargo`. `prepare_now` runs a caller-supplied
 closure only when the stamp and the artefacts it vouches for do not already
-match, then stamps the shared directory; `ensure_prepared` fails fast under
-nextest when the stamp is missing or stale and prepares lazily behind a
-process-wide lock under plain `cargo test`. `generated_crate_root` returns the
-per-crate scratch directory the caller stages support files into.
+match, then stamps the shared directory; `ensure_prepared_building` fails fast
+under nextest when the stamp is missing or stale and prepares lazily behind a
+process-wide lock under plain `cargo test`. The runner decision is resolved at
+this boundary — `TrybuildTree::ensure_prepared` calls
+`nested_cargo::running_under_nextest()` and passes the answer in — because the
+gate itself reads no environment. `generated_crate_root` returns the per-crate
+scratch directory the caller stages support files into.
 
 The repository's targets for running this policy by hand are described under
 [the preparation Make targets and their roles](#the-preparation-make-targets-and-their-roles).
@@ -998,12 +1001,12 @@ the dependency graph lands in `<target>/debug`, so a `cargo clean`, a plain
 work while leaving the stamp intact.
 
 `Preparation::artefacts` records the directories a stamp vouches for, and
-`ensure_prepared` requires every one of them to hold the artefacts the stamp
-records before it admits a timed assertion. `Preparation::new` derives the list
-as `<resolved target>/debug` (`DEFAULT_PROFILE`). The trybuild and UI-lint
-families stamp the directory that *is* their child's `CARGO_TARGET_DIR`, so
-there the profile is a descendant of the stamp root rather than a sibling —
-either way, the gate names it.
+`ensure_prepared_building` requires every one of them to hold the artefacts the
+stamp records before it admits a timed assertion. `Preparation::new` derives
+the list as `<resolved target>/debug` (`DEFAULT_PROFILE`). The trybuild and
+UI-lint families stamp the directory that *is* their child's
+`CARGO_TARGET_DIR`, so there the profile is a descendant of the stamp root
+rather than a sibling — either way, the gate names it.
 
 The check does not stop at `is_dir()`. A profile directory can exist and be
 empty, or keep existing after `rm -rf <target>/debug`, and in both cases Cargo
@@ -1106,18 +1109,32 @@ to the first rather than drawing both independently: two independent values are
 almost never related as a value and one of its prefixes, so drawing them
 separately leaves the case unreachable however many cases run.
 
-Two rules, and only two, decide whether a recorded name is still there. Both
-run over the directories the discovery walk found, never over a literal `deps`
-path: a profile may lay a unit out under `deps` or under
-`build/<crate>/<hash>/out`, and both are supported. The first rule is that some
-discovered unit directory and some discovered fingerprint store must still be
-populated. The second is that every name recorded from a dep-info stem must
-still be present in the directory it was recorded from. That second rule pairs a
-`.d` record with the outputs rustc named for its stem, but the pairing only
-*discovers* which names belong together — it never decides that a tree is
-usable. `.fingerprint` is checked for being populated and nothing more: its
-per-unit records are Cargo's business, and re-deriving them here would
-duplicate Cargo's own format.
+Two rules decide whether a recorded name is still there, and they answer
+different questions. Both run over the directories the discovery walk found,
+never over a literal `deps` path: a profile may lay a unit out under `deps` or
+under `build/<crate>/<hash>/out`, and both are supported.
+
+The first is the **structural** rule, and it is what a gate call with no stamp
+can answer: some discovered unit directory and some discovered fingerprint
+store must still be populated. It says a profile has the right *shape*, not
+that any particular file survived.
+
+The second is the **recorded-name** rule, and it is what a stamp adds: every
+name recorded from a dep-info stem must still be present in the directory it
+was recorded from. That rule pairs a `.d` record with the outputs rustc named
+for its stem, but the pairing only *discovers* which names belong together — it
+never decides that a tree is usable.
+
+`.fingerprint` is covered by **both**, which is worth being precise about
+because it is easy to understate. It is checked for being populated, as part of
+the structural rule. It is also *recorded*: `record_names` walks every per-unit
+fingerprint directory a store contains and takes the name of every entry in it,
+flat files included — `lib-<crate>` and the other direct records Cargo writes
+beside the per-unit subdirectories. So a tree with a populated `.fingerprint`
+whose individual records have been removed is refused by the recorded-name
+rule, not waved through by the structural one. Re-deriving what those records
+*mean* would duplicate Cargo's own format; noting which of them existed is not
+the same thing, and it is what the stamp does.
 
 Consequently `cargo clean -p <package>` **does** make the gate refuse, and that
 is correct rather than something to work around. It removes that package's `.d`
@@ -1126,8 +1143,8 @@ genuinely gone. The rebuild harness relies on this: it consults the gate once
 per process, through `ensure_rebuild_prepared`, *before* its experiment runs,
 and the experiment's own `clean_fixture_units` then deliberately evicts the
 fixture's units to force the baseline rebuild it measures. A later process
-reaches `ensure_prepared` with a stamp that no longer describes the tree and is
-refused, which is why the named preparation test must run first.
+reaches `ensure_prepared_building` with a stamp that no longer describes the
+tree and is refused, which is why the named preparation test must run first.
 
 The failure message names at most five artefacts before summarizing the rest:
 one `cargo clean` can take hundreds at once, and an earlier version of this
@@ -1436,7 +1453,7 @@ The file sets the timeout policy for the test suite:
 - The second override raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
-- The third override raises the `slow-timeout` further, to 30 minutes, for the
+- The third override raises the `slow-timeout` to 20 minutes for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, `rstest-bdd::trybuild_macros`, and
@@ -1447,12 +1464,15 @@ The file sets the timeout policy for the test suite:
   allowance with nothing in `sccache`, took 386.8 s with a partial cache, and
   about 190 s against a full one. The allowance permits the full fixture set to
   rebuild on a cold cache without treating slow, healthy compiler work as a
-  hung test. It is 30 minutes rather than the 20 that covered the cache,
-  because a cache is not the slowest thing this test meets: on the development
-  host with the shared compile-admission pool saturated (capacity 4, all held),
-  `step_macros_compile` passed in 1119.268 s and crossed 20 minutes on two
-  full-suite runs the same day, compiling throughout rather than hanging. The
-  strict 60 s default remains in force elsewhere.
+  hung test. It stays at 20 minutes, because the cold dependency graph now
+  belongs to the `nested_fixture_preparation` tests above: what remains in
+  these bodies is a timed assertion against a graph the preparation test has
+  already warmed. The 1119.268 s figure that once argued for a 30-minute period
+  — measured on the development host with the shared compile-admission pool
+  saturated, capacity 4 and all held — was *cold compile* work, which is
+  exactly what moved. It sizes the preparation period rather than this one, and
+  widening this period would hide a timed body that had started compiling again
+  instead of reporting it. The strict 60 s default remains in force elsewhere.
 - A fourth override raises the `slow-timeout` to 600 s for
   `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition.
@@ -1511,7 +1531,7 @@ assertion budget. It is listed so that a reader who meets the 30 m period in
 
 | Tier                     | What it bounds                     | Where it is set                                                 | Current value                                          |
 | ------------------------ | ---------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------ |
-| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                          | 60 s default; 30 m, 600 s or 180 s under the overrides |
+| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                          | 60 s default; 20 m, 600 s or 180 s under the overrides |
 | Preparation budget       | one preparation test               | `.config/nextest.toml`                                          | 30 m                                                   |
 | nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 90 m                                                   |
 | Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                                        |
@@ -1744,9 +1764,12 @@ Mitigation:
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
   compile-test binaries (including both `macro_compile` binaries,
   `rstest-bdd::trybuild_macros`, and
-  `rstest-bdd-server::workspace_discovery_compile`) to 30 minutes as a
+  `rstest-bdd-server::workspace_discovery_compile`) to 20 minutes as a
   local-development safety net. This does not fix the deadlock; it only delays
-  termination to allow the build to complete on fast machines.
+  termination to allow the build to complete on fast machines. The cold
+  dependency graph those bodies used to compile is now built by the
+  `nested_fixture_preparation` tests, so this period no longer has to cover a
+  cold compile.
 - `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild
   binaries in a `cargo-spawning` test group with `max-threads = 1`, so these
   cargo-spawning tests run one at a time rather than contending for the

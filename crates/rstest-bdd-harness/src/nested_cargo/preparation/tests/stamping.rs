@@ -21,8 +21,8 @@ use crate::nested_cargo::{
     PreparationSummary,
     ProfileDestination,
     Sources,
-    ensure_prepared_reported,
-    ensure_prepared_with,
+    ensure_prepared_building,
+    ensure_prepared_building_reported,
     env_from_vars,
     input_hash,
     prepare_now,
@@ -48,18 +48,23 @@ impl EntryPoint {
     /// How the case names this entry point when it fails.
     const fn name(self) -> &'static str {
         match self {
-            Self::Lazy => "ensure_prepared_with",
+            Self::Lazy => "ensure_prepared_building",
             Self::PrepareNow => "prepare_now",
         }
     }
 
     /// Run this entry point once against `preparation`.
+    ///
+    /// The two return different types — the gate reports a
+    /// [`PreparationOutcome`], the unconditional form reports nothing — and
+    /// these cases assert on how many times the closure ran, so the outcome is
+    /// dropped here rather than constrained to one shape at the call site.
     fn call<F>(self, preparation: &Preparation, prepare: F) -> io::Result<()>
     where
         F: FnOnce() -> io::Result<PreparationSummary>,
     {
         match self {
-            Self::Lazy => ensure_prepared_with(preparation, false, prepare),
+            Self::Lazy => ensure_prepared_building(preparation, false, prepare).map(|_outcome| ()),
             Self::PrepareNow => prepare_now(preparation, prepare),
         }
     }
@@ -139,7 +144,7 @@ fn preparation_survives_the_build_output_it_creates() {
     let reopened = preparation(&source, &environment, "v", &after)
         .expect("the fixture preparation should describe its artefacts");
     let mut runs = 0_u32;
-    ensure_prepared_with(&reopened, true, || {
+    ensure_prepared_building(&reopened, true, || {
         runs += 1;
         Ok(PreparationSummary::default())
     })
@@ -151,7 +156,7 @@ fn preparation_survives_the_build_output_it_creates() {
 fn failed_preparation_leaves_no_stamp() {
     let (_directory, preparation, _environment) =
         scratch_preparation().expect("the scratch preparation fixture");
-    let error = ensure_prepared_with(&preparation, false, || {
+    let error = ensure_prepared_building(&preparation, false, || {
         Err(io::Error::other("nested build failed"))
     })
     .expect_err("preparation should fail");
@@ -163,7 +168,7 @@ fn failed_preparation_leaves_no_stamp() {
 fn nextest_refuses_to_prepare_and_names_the_command() {
     let (_directory, preparation, _environment) =
         scratch_preparation().expect("the scratch preparation fixture");
-    let error = ensure_prepared_with(&preparation, true, || {
+    let error = ensure_prepared_building(&preparation, true, || {
         panic!("nextest must not run preparation in a timed test")
     })
     .expect_err("a missing stamp under nextest must fail");
@@ -190,7 +195,7 @@ fn a_family_prepared_by_the_preparation_test_satisfies_the_nextest_gate() {
     let mut builds = 0_u32;
 
     // First: the timed test, which must refuse rather than build.
-    let refused = ensure_prepared_with(&family, true, || {
+    let refused = ensure_prepared_building(&family, true, || {
         panic!("a timed test must not prepare its own family")
     })
     .expect_err("an unprepared family must fail the nextest gate");
@@ -209,7 +214,7 @@ fn a_family_prepared_by_the_preparation_test_satisfies_the_nextest_gate() {
     // in-process state the failed attempt left behind.
     let reopened = preparation(directory.path(), &environment, "v", "hash")
         .expect("the fixture preparation should describe its artefacts");
-    ensure_prepared_with(&reopened, true, || {
+    ensure_prepared_building(&reopened, true, || {
         panic!("the gate must accept the family the preparation test stamped")
     })
     .expect("a family prepared by the preparation test must pass the nextest gate");
@@ -282,12 +287,12 @@ fn for_fixture_vouches_for_the_whole_target_directory_it_owns() {
 fn stale_fingerprint_forces_preparation() {
     let (directory, first, environment) =
         scratch_preparation().expect("the scratch preparation fixture");
-    ensure_prepared_with(&first, false, || Ok(PreparationSummary::default()))
+    ensure_prepared_building(&first, false, || Ok(PreparationSummary::default()))
         .expect("initial preparation");
 
     let changed = preparation(directory.path(), &environment, "v", "changed-hash")
         .expect("the fixture preparation should describe its artefacts");
-    let error = ensure_prepared_with(&changed, true, || {
+    let error = ensure_prepared_building(&changed, true, || {
         panic!("a stale stamp must not count as prepared")
     })
     .expect_err("stale inputs must fail under nextest");
@@ -309,7 +314,7 @@ fn a_changed_toolchain_invalidates_the_stamp_through_the_gate() {
     let mut builds = 0_u32;
     let stable = || Ok(String::from("release: 1.88.0 commit-hash: a host: x"));
 
-    ensure_prepared_reported(
+    ensure_prepared_building_reported(
         &family,
         false,
         Instruments::new(stable, |_: &str| {}),
@@ -322,7 +327,7 @@ fn a_changed_toolchain_invalidates_the_stamp_through_the_gate() {
     assert_eq!(builds, 1);
 
     let nightly = || Ok(String::from("release: 1.92.0 commit-hash: b host: x"));
-    ensure_prepared_reported(
+    ensure_prepared_building_reported(
         &family,
         false,
         Instruments::new(nightly, |_: &str| {}),
@@ -339,7 +344,7 @@ fn a_changed_toolchain_invalidates_the_stamp_through_the_gate() {
 
     // And the identity the second preparation stamped with is now honoured:
     // the gate must not rebuild merely because the probe was called again.
-    ensure_prepared_reported(
+    ensure_prepared_building_reported(
         &family,
         true,
         Instruments::new(nightly, |_: &str| {}),
@@ -359,7 +364,7 @@ fn an_uncertain_toolchain_refuses_to_stamp_or_reuse_a_stamp() {
     // stamp at all.
     let (_directory, family, _environment) =
         scratch_preparation().expect("the scratch preparation fixture");
-    let error = ensure_prepared_reported(
+    let error = ensure_prepared_building_reported(
         &family,
         false,
         Instruments::new(|| Err(io::Error::other("cargo -vV failed")), |_: &str| {}),

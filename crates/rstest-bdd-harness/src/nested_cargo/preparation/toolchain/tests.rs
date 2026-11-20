@@ -15,6 +15,8 @@ use std::{
     time::Duration,
 };
 
+use rstest::rstest;
+
 use super::{PROBE_TIMEOUT, compose_identity, identity_from, probe_bound, resolve_compiler_path};
 use crate::nested_cargo::Deadline;
 
@@ -94,31 +96,31 @@ fn the_two_probed_identities_stay_distinguishable() {
     );
 }
 
-#[test]
-fn a_toolchain_probe_that_exits_non_zero_is_an_error() {
-    // A fingerprint that could not name the toolchain would be the *same* text
-    // on a host where identification fails as on the run before, so a stamp
-    // would survive a toolchain change. Failing closed is the only answer that
-    // forces invalidation without re-preparing on every run.
-    let error = identity_from(CARGO, PROBE_FAILED, "release: 1.88.0\n")
+/// A probe that exits non-zero refuses the identity, and names the program it
+/// could not identify.
+///
+/// A fingerprint that could not name the toolchain would be the *same* text on
+/// a host where identification fails as on the run before, so a stamp would
+/// survive a toolchain change. Failing closed is the only answer that forces
+/// invalidation without re-preparing on every run.
+///
+/// Both programs are pinned as cases over the *same* stdout and the same failure
+/// status, so the only thing that varies is which program was probed. That
+/// isolates the exit-status handling from the output parser, and it makes the
+/// second half of the contract explicit: the message must name the program that
+/// actually failed. The compiler probe is the one that matters for an in-place
+/// compiler change, and a message naming Cargo there would report the wrong
+/// cause for the very case the second probe exists to catch.
+#[rstest]
+#[case::cargo(CARGO)]
+#[case::compiler(COMPILER)]
+fn a_probe_that_exits_non_zero_is_an_error_naming_its_program(#[case] program: &'static str) {
+    let error = identity_from(program, PROBE_FAILED, "release: 1.88.0\n")
         .expect_err("a failed probe must not yield an identity");
+    let expected = format!("{program} -vV");
     assert!(
-        error.to_string().contains("cargo -vV"),
-        "the failure must name the probe, got: {error}"
-    );
-}
-
-#[test]
-fn a_failing_compiler_probe_names_the_compiler() {
-    // The compiler probe is the one that matters for an in-place compiler
-    // change, so its own failure has to be attributable. A message naming Cargo
-    // would report the wrong cause for the very case the second probe exists
-    // to catch.
-    let error = identity_from(COMPILER, PROBE_FAILED, "release: 1.88.0\n")
-        .expect_err("a failed compiler probe must not yield an identity");
-    assert!(
-        error.to_string().contains("rustc -vV"),
-        "the compiler's failure must name the compiler, got: {error}"
+        error.to_string().contains(&expected),
+        "the failure must name the probe it ran as `{expected}`, got: {error}"
     );
 }
 

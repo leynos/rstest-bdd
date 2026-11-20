@@ -77,7 +77,12 @@ const PREPARE_ARGS: [&str; 5] = ["test", "--no-run", "--locked", "--offline", "-
 pub(crate) fn ensure_rebuild_prepared() -> std::io::Result<()> {
     let env = process::build_child_env()?;
     let preparation = rebuild_preparation(&env)?;
-    nested_cargo::ensure_prepared(&preparation, || prepare_rebuild(&env))
+    nested_cargo::ensure_prepared_building(
+        &preparation,
+        nested_cargo::running_under_nextest(),
+        || prepare_rebuild(&env),
+    )
+    .map(|_outcome| ())
 }
 
 /// Prepare both experiments unconditionally, for the named preparation test.
@@ -102,7 +107,12 @@ pub(crate) fn prepare_all() -> std::io::Result<()> {
 pub(crate) fn ensure_addition_prepared() -> std::io::Result<()> {
     let env = process::build_child_env()?;
     let preparation = addition_preparation(&env)?;
-    nested_cargo::ensure_prepared(&preparation, || prepare_addition(&env))
+    nested_cargo::ensure_prepared_building(
+        &preparation,
+        nested_cargo::running_under_nextest(),
+        || prepare_addition(&env),
+    )
+    .map(|_outcome| ())
 }
 
 /// The workspace root both fixtures build beneath.

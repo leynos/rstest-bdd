@@ -20,7 +20,7 @@ use super::{nested_cargo, witness::fixture_binaries_present};
 /// the stamp that admitted it.
 ///
 /// Both callers reach a preparation through a gate that returns early from a
-/// *matching* stamp: [`nested_cargo::ensure_prepared_with`] on the lazy path and
+/// *matching* stamp: [`nested_cargo::ensure_prepared_building`] on the lazy path and
 /// [`nested_cargo::prepare_now`] in the named test. The stamp is written by the
 /// preparation, before this witness can be read, so a preparation that exits
 /// zero while leaving the fixture's own units out leaves a stamp vouching for a

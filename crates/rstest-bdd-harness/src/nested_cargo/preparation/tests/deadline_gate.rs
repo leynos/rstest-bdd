@@ -18,7 +18,7 @@ use super::{environment_in, populate_profile, preparation};
 use crate::nested_cargo::{
     Deadline,
     PreparationSummary,
-    ensure_prepared_reported,
+    ensure_prepared_building_reported,
     instruments_within,
 };
 
@@ -32,7 +32,7 @@ fn a_spent_gate_budget_refuses_before_the_toolchain_probe_runs() {
     let family = preparation(directory.path(), &environment, "v", "hash")
         .expect("the fixture preparation should describe its artefacts");
 
-    let error = ensure_prepared_reported(
+    let error = ensure_prepared_building_reported(
         &family,
         // The lazy runner, so a gate that got as far as the stamp would run
         // the closure rather than fail fast with the nextest message. The
@@ -69,7 +69,7 @@ fn a_live_gate_budget_reaches_the_preparation_rather_than_the_deadline() {
         .expect("the fixture preparation should describe its artefacts");
 
     let mut prepared = false;
-    ensure_prepared_reported(
+    ensure_prepared_building_reported(
         &family,
         false,
         instruments_within(&family, Deadline::starting_now(Duration::from_secs(600))),

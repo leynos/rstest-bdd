@@ -314,7 +314,7 @@ fn evicting_each_required_crate_fails_the_gate() -> std::io::Result<()> {
         );
         fs::remove_dir_all(&records)?;
 
-        let error = nested_cargo::ensure_prepared_with(&preparation, true, || {
+        let error = nested_cargo::ensure_prepared_building(&preparation, true, || {
             panic!("a timed test must never prepare")
         })
         .expect_err("an evicted dependency must fail the gate");
