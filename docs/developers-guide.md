@@ -1156,6 +1156,18 @@ artefacts is an error naming the missing paths, not a stamp advertising a
 prepared family: Cargo can succeed while a concurrent `cargo clean` takes the
 tree away again.
 
+Both entry points identify the toolchain before the preparation callback runs,
+because the identity is part of the fingerprint the stamp is compared with. A
+family whose callback creates its own working directory therefore stages it
+first, through `prepare_now_staged` and `ensure_prepared_building_staged`: the
+rebuild-invalidation families copy their scratch fixture as `Family::stage`, so
+a relative `RUSTC` or a toolchain file in the copy is in place when the cold
+identity is taken. The staged gate does not stage under nextest, where it may
+not build either. A `trybuild` family cannot stage this way, because `trybuild`
+creates the generated crate itself; that crate holds no toolchain file and no
+compiler, so its cold identity is taken from the nearest existing ancestor as
+before.
+
 An empty `artefacts` list is treated as satisfied: a caller that described no
 artefact directories leaves the stamp as the whole gate.
 

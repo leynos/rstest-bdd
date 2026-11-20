@@ -75,7 +75,7 @@ const PREPARE_ARGS: [&str; 5] = ["test", "--no-run", "--locked", "--offline", "-
 /// copy, the metadata preflight or the compile fails, and the stamp I/O error
 /// when the stamp cannot be written.
 pub(crate) fn ensure_rebuild_prepared() -> std::io::Result<()> {
-    ensure_prepared(rebuild_preparation, prepare_rebuild)
+    ensure_prepared(REBUILD, prepare_rebuild)
 }
 
 /// Prepare one fixture family's dependency closure, unless a stamp covers it.
@@ -88,17 +88,31 @@ pub(crate) fn ensure_rebuild_prepared() -> std::io::Result<()> {
 /// family that resolved `running_under_nextest` differently would refuse a
 /// stamp the other had just written.
 fn ensure_prepared(
-    describe: fn(&process::ChildEnv) -> std::io::Result<nested_cargo::Preparation>,
+    family: Family,
     prepare: fn(&process::ChildEnv) -> std::io::Result<nested_cargo::PreparationSummary>,
 ) -> std::io::Result<()> {
     let env = process::build_child_env()?;
-    let preparation = describe(&env)?;
-    nested_cargo::ensure_prepared_building(
+    let preparation = fixture_preparation(&env, family)?;
+    nested_cargo::ensure_prepared_building_staged(
         &preparation,
         nested_cargo::running_under_nextest(),
+        || staged(family),
         || prepare(&env),
     )
     .map(|_outcome| ())
+}
+
+/// Copy `family`'s scratch tree, as the step that precedes its identification.
+///
+/// The nested builds run in the copy, so it is where a relative `RUSTC` and a
+/// toolchain file are resolved. Identifying the family before the copy exists
+/// reads the nearest ancestor instead, and the stamp then names a compiler the
+/// build does not run; see `nested_cargo::prepare_now_staged`. The copy is
+/// stamp-guarded and idempotent, so the preparation callbacks repeating it is
+/// harmless.
+fn staged(family: Family) -> std::io::Result<()> {
+    (family.stage)();
+    Ok(())
 }
 
 /// Prepare both experiments unconditionally, for the named preparation test.
@@ -109,10 +123,10 @@ fn ensure_prepared(
 /// addition fixture.
 pub(crate) fn prepare_all() -> std::io::Result<()> {
     let env = process::build_child_env()?;
-    let rebuild = rebuild_preparation(&env)?;
-    nested_cargo::prepare_now(&rebuild, || prepare_rebuild(&env))?;
-    let addition = addition_preparation(&env)?;
-    nested_cargo::prepare_now(&addition, || prepare_addition(&env))
+    let rebuild = fixture_preparation(&env, REBUILD)?;
+    nested_cargo::prepare_now_staged(&rebuild, || staged(REBUILD), || prepare_rebuild(&env))?;
+    let addition = fixture_preparation(&env, ADDITION)?;
+    nested_cargo::prepare_now_staged(&addition, || staged(ADDITION), || prepare_addition(&env))
 }
 
 /// Prepare the build-script addition scratch fixture's dependency closure.
@@ -121,7 +135,7 @@ pub(crate) fn prepare_all() -> std::io::Result<()> {
 ///
 /// As [`ensure_rebuild_prepared`].
 pub(crate) fn ensure_addition_prepared() -> std::io::Result<()> {
-    ensure_prepared(addition_preparation, prepare_addition)
+    ensure_prepared(ADDITION, prepare_addition)
 }
 
 /// The workspace root both fixtures build beneath.
@@ -211,6 +225,8 @@ struct Family {
     /// hashed, while this is the copy Cargo runs in, so it is the directory a
     /// relative `CARGO_HOME` or `RUSTC` resolves against.
     scratch: fn() -> std::path::PathBuf,
+    /// Copies the fixture into [`Family::scratch`]; run before identification.
+    stage: fn(),
     /// Cargo package the fixture's build produces and its experiment cleans.
     package: &'static str,
 }
@@ -221,6 +237,7 @@ const REBUILD: Family = Family {
     artefact_subdir: "rebuild-invalidation",
     source: fixtures::source_fixture_dir,
     scratch: fixtures::scratch_fixture_dir,
+    stage: fixtures::ensure_fixture_copied,
     package: REBUILD_PACKAGE,
 };
 
@@ -230,6 +247,7 @@ const ADDITION: Family = Family {
     artefact_subdir: "feature-addition",
     source: fixtures::source_addition_dir,
     scratch: fixtures::scratch_addition_dir,
+    stage: fixtures::ensure_addition_fixture_copied,
     package: ADDITION_PACKAGE,
 };
 
@@ -313,16 +331,6 @@ fn fixture_preparation(
     )?;
     preparation.owned_packages = owned_packages(family);
     Ok(preparation)
-}
-
-/// Describe the rebuild fixture's preparation family.
-fn rebuild_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo::Preparation> {
-    fixture_preparation(env, REBUILD)
-}
-
-/// Describe the addition fixture's preparation family.
-fn addition_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo::Preparation> {
-    fixture_preparation(env, ADDITION)
 }
 
 /// Copy the scratch trees and compile the rebuild fixture's test binaries.

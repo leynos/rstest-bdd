@@ -64,8 +64,10 @@ pub use lifecycle::{
     admit_with_probe,
     ensure_prepared_building,
     ensure_prepared_building_reported,
+    ensure_prepared_building_staged,
     prepare_now,
     prepare_now_reported,
+    prepare_now_staged,
 };
 pub use sources::{Directories, PreparationSummary, Sources};
 

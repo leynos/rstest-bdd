@@ -2918,6 +2918,18 @@ lock. Its return value states which happened: `PreparationOutcome::Reused`
 means the preparation callback did not run, and `PreparationOutcome::Prepared`
 means the closure did.
 
+A family whose preparation callback *creates* the directory its nested builds
+run in should use `prepare_now_staged` and `ensure_prepared_building_staged`
+instead. Both take a `stage` closure that copies that tree, and run it before
+the toolchain is identified. Without it the cold run identifies the compiler
+from the nearest existing ancestor: a relative `RUSTC` beneath the directory
+names a file that is not there yet, and a `rust-toolchain.toml` the callback
+copies in is not seen, so the stamp records a compiler the build does not run
+and the first warm gate refuses it. `stage` must be idempotent and must not
+build. `prepare_now_staged` always runs it; `ensure_prepared_building_staged`
+runs it only where the gate may build, so a timed test under `cargo nextest`
+never writes the tree it is about to judge.
+
 `Reused` is a statement about the callback, not about blocking. On the
 uncontended fast path the stamp and artefact checks are answered before the
 lock is requested, so a warm family pays those checks and no build. But under

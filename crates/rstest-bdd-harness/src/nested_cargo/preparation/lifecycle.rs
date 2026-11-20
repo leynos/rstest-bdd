@@ -65,11 +65,13 @@ use std::{io, path::Path, time::Instant};
 mod admission;
 mod instruments;
 mod prepared;
+mod staged;
 
 pub use admission::{Admission, UnreadableStamp, admit, admit_with_probe};
 pub use instruments::Instruments;
 pub(in crate::nested_cargo::preparation) use instruments::{instruments_of, reporter_of};
 pub use prepared::{prepare_now, prepare_now_reported};
+pub use staged::{ensure_prepared_building_staged, prepare_now_staged};
 
 use super::{
     Preparation,

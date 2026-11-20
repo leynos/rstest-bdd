@@ -63,6 +63,7 @@ pub use preparation::{
     cargo_config_inputs_from,
     ensure_prepared_building,
     ensure_prepared_building_reported,
+    ensure_prepared_building_staged,
     env_for_directory,
     input_hash,
     instruments_within,
@@ -70,6 +71,7 @@ pub use preparation::{
     invalidate_reported,
     prepare_now,
     prepare_now_reported,
+    prepare_now_staged,
 };
 pub use profile::ProfileDestination;
 

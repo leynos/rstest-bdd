@@ -23,8 +23,11 @@
   answers whether the tree is reusable without building, writing a stamp or
   taking the lock. `env_from_vars` resolves a relative `CARGO_TARGET_DIR` to an
   absolute path once, before the child inherits it, and `cargo_config_inputs`
-  folds the workspace Cargo configuration into the input hash. This is
-  additive: the existing `ProfileDestination` API is unchanged.
+  folds the workspace Cargo configuration into the input hash.
+  `prepare_now_staged` and `ensure_prepared_building_staged` run a caller's
+  staging step before the toolchain is identified, for a family whose
+  preparation creates the directory its nested builds run in. This is additive:
+  the existing `ProfileDestination` API is unchanged.
 
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and
