@@ -13,10 +13,11 @@
 //! preparation fails immediately naming the preparation command rather than
 //! spending its deadline on a cold build.
 //!
-//! This binary holds exactly two tests, and both reach the shared preparation
-//! lock before running `trybuild`, so it needs no `#[serial]` attribute of its
-//! own: `preparation::ensure_prepared` serializes the lazy path, and
-//! `trybuild` itself takes a file lock on the generated project directory.
+//! Two of this binary's tests run `trybuild`, and both reach the shared
+//! preparation lock first, so it needs no `#[serial]` attribute of its own:
+//! `preparation::ensure_prepared` serializes the lazy path, and `trybuild`
+//! itself takes a file lock on the generated project directory. The third
+//! asserts the queue plan and builds nothing.
 
 use std::{io, path::PathBuf};
 
@@ -55,6 +56,44 @@ const PROBE: &str = "tests/fixtures_workspace_discovery/find_feature_files_resul
 /// rather than warming nothing unnoticed.
 const COMPILE_FAIL_PROBE: &str = "tests/fixtures_workspace_discovery/find_feature_files_vec.rs";
 
+/// How `trybuild` treats a queued fixture, which decides the mode it selects.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Mode {
+    /// Built and expected to compile; selects build mode.
+    Pass,
+    /// Checked and expected to fail; alone in a queue, selects check mode.
+    CompileFail,
+}
+
+/// The probes preparation runs, each in a queue of its own.
+///
+/// Two entries, not one queue holding both: `trybuild` picks one mode per
+/// `TestCases`, so a single object holding both probes selects build mode for
+/// both and leaves check mode cold. The Tokio and GPUI trees warm both modes
+/// the same way.
+const PROBES: [(Mode, &str); 2] = [(Mode::Pass, PROBE), (Mode::CompileFail, COMPILE_FAIL_PROBE)];
+
+/// Hand each probe to `run`, one call per queue.
+///
+/// The runner is a parameter so the queue plan can be asserted without a
+/// nested build: `trybuild` offers no way to observe which mode it selected,
+/// and a real run costs the dependency graph.
+fn warm_with(mut run: impl FnMut(Mode, &str)) {
+    for (mode, fixture) in PROBES {
+        run(mode, fixture);
+    }
+}
+
+/// Run one probe in a `TestCases` of its own; dropping it runs the queue.
+fn run_probe(mode: Mode, fixture: &str) {
+    let tests = trybuild::TestCases::new();
+    match mode {
+        Mode::Pass => tests.pass(fixture),
+        Mode::CompileFail => tests.compile_fail(fixture),
+    }
+    drop(tests);
+}
+
 /// The crate root whose trybuild tree is prepared.
 fn crate_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")) }
 
@@ -92,15 +131,7 @@ fn variant() -> String {
 /// still write the complete stamp.
 pub(crate) fn prepare() -> io::Result<PreparationSummary> {
     reject_trybuild_filter()?;
-    // Two `TestCases`, not one: a single object holding both probes selects
-    // build mode for both and leaves check mode cold. The Tokio and GPUI trees
-    // warm both modes the same way.
-    let pass_probe = trybuild::TestCases::new();
-    pass_probe.pass(PROBE);
-    drop(pass_probe);
-    let compile_fail_probe = trybuild::TestCases::new();
-    compile_fail_probe.compile_fail(COMPILE_FAIL_PROBE);
-    drop(compile_fail_probe);
+    warm_with(run_probe);
     // `trybuild` streams its nested Cargo's output to this process's own
     // streams, so the unit count cannot be captured here. The preparation log
     // still records the elapsed time, which is the figure the timeout budget is
@@ -114,4 +145,25 @@ fn nested_fixture_preparation() {
     tree()
         .prepare_now(prepare)
         .expect("the server trybuild tree should prepare; both probes are committed fixtures");
+}
+
+/// Preparation queues the pass probe and the compile-fail probe separately.
+///
+/// The named preparation test cannot tell the two-queue plan from a one-queue
+/// plan: it passes either way, because the fixtures compile and fail as
+/// expected in both. What differs is which modes are left warm, so the plan
+/// itself is asserted here. Removing the compile-fail entry, or folding it
+/// into the pass queue, fails this case.
+#[test]
+fn preparation_queues_each_mode_on_its_own() {
+    let mut queues = Vec::new();
+    warm_with(|mode, fixture| queues.push((mode, fixture.to_owned())));
+    assert_eq!(
+        queues,
+        [
+            (Mode::Pass, PROBE.to_owned()),
+            (Mode::CompileFail, COMPILE_FAIL_PROBE.to_owned()),
+        ],
+        "each mode needs a queue of its own, or check mode is left cold"
+    );
 }
