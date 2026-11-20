@@ -356,6 +356,34 @@ impl TrybuildTree {
     ) -> io::Result<String> {
         nested_cargo::input_hash(&self.inputs_from(working_directory, cargo_home)?)
     }
+
+    /// A family over this tree's scratch directories, built for a test.
+    ///
+    /// [`Self::preparation`] resolves the real target root through
+    /// `cargo metadata`, which needs a manifest Cargo can load. A regression
+    /// about what the fingerprint covers does not need that — it needs the
+    /// same directories and the same discovery — so this names the generated
+    /// crate directly and builds the family around it.
+    ///
+    /// # Errors
+    ///
+    /// As [`nested_cargo::Preparation::for_fixture`], plus the probe's own
+    /// error when the fingerprint cannot be composed.
+    #[cfg(test)]
+    fn scratch_preparation(
+        &self,
+        working_directory: &Path,
+        cargo_home: Option<&OsStr>,
+    ) -> io::Result<nested_cargo::Preparation> {
+        let inputs = self.fingerprint_from(working_directory, cargo_home)?;
+        nested_cargo::Preparation::for_fixture(
+            nested_cargo::Sources::new(self.family.clone(), self.variant.clone(), inputs),
+            nested_cargo::Directories::new(
+                working_directory.to_path_buf(),
+                working_directory.to_path_buf(),
+            ),
+        )
+    }
 }
 
 #[cfg(test)]

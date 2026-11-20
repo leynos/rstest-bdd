@@ -93,9 +93,21 @@ pub fn cargo_config_inputs(workspace_root: &Path) -> io::Result<Vec<PathBuf>> {
 /// directory a relative `CARGO_HOME` resolves against, while the walk must
 /// still start at the workspace to find the configuration Cargo discovers by
 /// climbing. Naming only one of the two would either miss that configuration or
-/// resolve the home against a directory the build never uses — and the
-/// generated crate lives under `target/`, which [`input_hash`] skips, so the
-/// mistake cannot be caught indirectly.
+/// resolve the home against a directory the build never uses.
+///
+/// Both ancestries are walked, not just the stamped root's. Cargo climbs from
+/// the directory the command runs in, so everything between the generated crate
+/// and the workspace — `<target>/tests/trybuild/.cargo`,
+/// `<target>/tests/.cargo`, `<target>/.cargo` — is configuration it reads. None
+/// of it is reachable from a walk that starts at the workspace, and none of it
+/// is covered indirectly either: [`input_hash`] skips a `target` directory
+/// during a walk, so an edit to a configuration file under one would leave the
+/// stamp valid while the nested build picked up new rustflags.
+///
+/// The two walks overlap above the workspace, which is why the result is
+/// deduplicated. Order is Cargo's — nearest first — and a path reached by both
+/// walks keeps the position the generated crate's walk gave it, because that is
+/// the ancestry the command itself climbs.
 ///
 /// # Errors
 ///
@@ -127,7 +139,19 @@ pub(crate) fn cargo_config_inputs_from_with(
     cargo_home: Option<&OsStr>,
 ) -> io::Result<Vec<PathBuf>> {
     let cargo_home = resolve_cargo_home(working_directory, cargo_home, platform_home);
-    cargo_config_inputs_with(walk_root, cargo_home.as_deref())
+    let mut dirs = walk_dirs(working_directory);
+    for directory in walk_dirs(walk_root) {
+        if !dirs.contains(&directory) {
+            dirs.push(directory);
+        }
+    }
+    // The home is consulted after every walked directory rather than among
+    // them, which is Cargo's order: it reads `$CARGO_HOME/config.toml` in
+    // addition to the walk, and the walk wins a key both set.
+    if let Some(cargo_home) = cargo_home {
+        dirs.push(cargo_home);
+    }
+    present_configs(dirs)
 }
 
 /// [`cargo_config_inputs`] with the Cargo home supplied rather than resolved.
@@ -142,8 +166,23 @@ pub(crate) fn cargo_config_inputs_with(
     workspace_root: &Path,
     cargo_home: Option<&Path>,
 ) -> io::Result<Vec<PathBuf>> {
+    present_configs(config_search_dirs(workspace_root, cargo_home))
+}
+
+/// The configuration files present in `dirs`, in the order given.
+///
+/// Kept separate because two entry points search different directory lists —
+/// one walk or two — and both then ask the same question of each directory.
+/// Stating the presence rule twice would let one copy drift into treating an
+/// unreadable file as absent, which is the distinction the rest of this module
+/// depends on.
+///
+/// # Errors
+///
+/// As [`config_entry_is_present`].
+fn present_configs(dirs: Vec<PathBuf>) -> io::Result<Vec<PathBuf>> {
     let mut present = Vec::new();
-    for directory in config_search_dirs(workspace_root, cargo_home) {
+    for directory in dirs {
         for entry in CONFIG_ENTRIES {
             let path = directory.join(entry);
             if config_entry_is_present(&path)? {
@@ -200,14 +239,24 @@ fn config_entry_is_present(path: &Path) -> io::Result<bool> {
 /// not the tree exists yet. See [`search_root`]. The Cargo home is reported as
 /// the caller supplied it; see [`resolve_cargo_home`] for its spelling rule.
 fn config_search_dirs(workspace_root: &Path, cargo_home: Option<&Path>) -> Vec<PathBuf> {
-    let mut dirs: Vec<PathBuf> = search_root(workspace_root)
-        .ancestors()
-        .map(|ancestor| ancestor.join(".cargo"))
-        .collect();
+    let mut dirs = walk_dirs(workspace_root);
     if let Some(cargo_home) = cargo_home {
         dirs.push(cargo_home.to_path_buf());
     }
     dirs
+}
+
+/// The `.cargo` directories the upward walk from `root` visits, nearest first.
+///
+/// Split from [`config_search_dirs`] because the two-walk entry point merges
+/// two ancestries before appending the Cargo home once. Appending the home
+/// inside each walk would place it between them, which is neither walk's order
+/// and not Cargo's either.
+fn walk_dirs(root: &Path) -> Vec<PathBuf> {
+    search_root(root)
+        .ancestors()
+        .map(|ancestor| ancestor.join(".cargo"))
+        .collect()
 }
 
 /// The absolute directory whose ancestors Cargo's walk visits.
