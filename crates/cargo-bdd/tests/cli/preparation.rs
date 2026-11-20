@@ -190,13 +190,15 @@ fn cli_preparation_description(
     deadline: nested_cargo::Deadline,
     graph_query_timeout: Duration,
 ) -> Result<budget::Described> {
+    let inputs = cli_preparation()?;
+    let environment = inputs.0.clone();
     budget::described_from(
-        cli_preparation()?,
+        inputs,
         budget::Budget {
             deadline,
             query_limit: graph_query_timeout,
         },
-        closure::fixture_dependency_closure,
+        |bound| closure::fixture_dependency_closure(&environment, bound),
     )
 }
 
@@ -235,7 +237,6 @@ pub(super) fn ensure_cli_prepared() -> Result<()> {
     budget::gate_within(
         closure::TIMED_GRAPH_QUERY_TIMEOUT,
         nested_cargo::running_under_nextest(),
-        closure::fixture_dependency_closure,
     )
 }
 

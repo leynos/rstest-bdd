@@ -191,8 +191,10 @@ fn the_owned_packages_cover_the_whole_dependency_closure_and_reach_the_gate() {
     // `inventory`, `serial_test` and their trees, whose units are compiled
     // into the same profile and are evictable in exactly the same way even
     // though their sources cannot change.
-    let closure = fixture_dependency_closure(super::closure::TIMED_GRAPH_QUERY_TIMEOUT)
-        .expect("the fixture closure must resolve");
+    let (environment, ..) = super::cli_preparation().expect("the family's inputs resolve");
+    let closure =
+        fixture_dependency_closure(&environment, super::closure::TIMED_GRAPH_QUERY_TIMEOUT)
+            .expect("the fixture closure must resolve");
     let declared: std::collections::BTreeSet<&str> = std::iter::once(FIXTURE_PACKAGE)
         .chain(closure.iter().map(String::as_str))
         .collect();

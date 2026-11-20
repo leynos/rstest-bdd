@@ -15,6 +15,7 @@ use eyre::{Context, Result};
 
 use super::{
     cli_preparation,
+    closure,
     ensure_gated_with,
     fixture_dir,
     nested_build,
@@ -158,16 +159,18 @@ fn describe(
 /// The budget starts before the inputs are resolved, so the whole gate is
 /// inside it. The closure query and both identity probes are charged against
 /// it, so no later command starts with an allowance the earlier ones spent.
+/// The query is the production one, run in the fixture build's environment.
 ///
 /// # Errors
 ///
 /// As [`cli_preparation`] and [`gate_from`].
-pub(super) fn gate_within<Q>(period: Duration, under_nextest: bool, query: Q) -> Result<()>
-where
-    Q: FnOnce(Duration) -> Result<Vec<String>>,
-{
+pub(super) fn gate_within(period: Duration, under_nextest: bool) -> Result<()> {
     let budget = Budget::starting_now(period);
-    gate_from(cli_preparation()?, budget, under_nextest, query)
+    let inputs = cli_preparation()?;
+    let environment = inputs.0.clone();
+    gate_from(inputs, budget, under_nextest, |bound| {
+        closure::fixture_dependency_closure(&environment, bound)
+    })
 }
 
 /// [`gate_within`] from inputs already resolved and a budget already running.

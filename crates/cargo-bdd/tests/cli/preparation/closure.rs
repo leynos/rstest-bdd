@@ -79,13 +79,24 @@ pub(super) const TIMED_GRAPH_QUERY_TIMEOUT: Duration = Duration::from_secs(120);
 /// not returned: an empty `owned_packages` means "this family claims the whole
 /// profile", which is exactly what this family must not do.
 ///
+/// `environment` is the fixture build's, so the query and the build cannot
+/// disagree about which graph they resolve.
+///
 /// `timeout` is the caller's, because the two callers are not in the same
 /// position: the named preparation test owns its own period, while a timed
 /// assertion has 180 s and already spends part of it on the gate. See
 /// [`TIMED_GRAPH_QUERY_TIMEOUT`].
-pub(super) fn fixture_dependency_closure(timeout: Duration) -> Result<Vec<String>> {
+pub(super) fn fixture_dependency_closure(
+    environment: &nested_cargo::NestedCargoEnv,
+    timeout: Duration,
+) -> Result<Vec<String>> {
     let fixture = fixture_dir();
     let mut command = std::process::Command::new(env!("CARGO"));
+    // The fixture build's own environment, not this process's. The query has
+    // to resolve the graph the nested build resolves, and a `CARGO_HOME`,
+    // registry setting or toolchain override the build is given changes that
+    // graph without changing anything the test process can see.
+    environment.apply_to(&mut command);
     command
         .args(["tree", "--prefix", "none", "--locked", "--offline"])
         .current_dir(&fixture);

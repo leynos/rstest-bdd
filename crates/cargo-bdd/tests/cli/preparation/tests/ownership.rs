@@ -44,7 +44,10 @@ fn declared_packages(deadline: nested_cargo::Deadline) -> std::io::Result<Vec<St
         crate::preparation::closure::TIMED_GRAPH_QUERY_TIMEOUT,
         "the fixture dependency closure",
     )?;
-    fixture_dependency_closure(bound).map_err(|error| std::io::Error::other(error.to_string()))
+    let (environment, ..) =
+        super::cli_preparation().map_err(|error| std::io::Error::other(error.to_string()))?;
+    fixture_dependency_closure(&environment, bound)
+        .map_err(|error| std::io::Error::other(error.to_string()))
 }
 
 /// A scratch preparation carrying the real family's ownership list.
