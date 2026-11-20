@@ -2,16 +2,14 @@
 
 ``test_check_prepared_fixture_workflow`` covers the judgements: what each
 outcome must mean. This file covers the code around them, which otherwise runs
-only in a cold end-to-end job: the argv each step is given, the process-tree
-termination behind a step's timeout, the fixture edit and its restore, and the
-exit status the driver reports. None of the cases builds anything; each
-replaces the step runner or drives a small child process of its own.
+only in a cold end-to-end job: the argv each step is given, the fixture edit
+and its restore, the order of the steps, and the exit status the driver
+reports. None of the cases builds or spawns anything; each replaces the step
+runner. The process-tree termination behind a step's timeout is covered in
+``test_prepared_fixture_tree``.
 """
 
-import contextlib
-import os
-import signal
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - spawns a fixed interpreter argv; no shell.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - only constructs values and exceptions; spawns nothing.
 import sys
 import typing as typ
 from pathlib import Path
@@ -30,20 +28,6 @@ if typ.TYPE_CHECKING:
 
 Result = subprocess.CompletedProcess[str]
 
-#: A child that ignores ``SIGTERM``, says so, and then outlives any test.
-#:
-#: It announces itself only after the handler is installed, so a test that
-#: waits for the line cannot signal a child still able to die politely.
-STUBBORN_CHILD = (
-    "import signal, sys, time\n"
-    "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-    "print('ready', flush=True)\n"
-    "time.sleep(120)\n"
-)
-
-#: A child that keeps the default ``SIGTERM`` disposition.
-POLITE_CHILD = "import time\nprint('ready', flush=True)\ntime.sleep(120)\n"
-
 
 def a_result(returncode: int = 0, stderr: str = "") -> Result:
     """Return a completed step carrying *returncode* and *stderr*."""
@@ -53,39 +37,6 @@ def a_result(returncode: int = 0, stderr: str = "") -> Result:
 def a_refusal() -> Result:
     """Return the outcome of a timed run the stamp refused."""
     return a_result(returncode=100, stderr=f"run `{step.REMEDY}` first")
-
-
-@contextlib.contextmanager
-def spawned(program: str) -> cabc.Iterator[subprocess.Popen[str]]:
-    """Run *program* in a process group of its own for the length of a block.
-
-    The child has printed its ``ready`` line by the time the block starts, and
-    is killed and reaped when the block ends, whatever the case did to it.
-
-    Yields
-    ------
-    subprocess.Popen[str]
-        The running child.
-    """
-    with subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv, no shell.
-        [sys.executable, "-c", program],
-        stdout=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    ) as process:
-        try:
-            assert process.stdout is not None, "the child must have a stdout pipe"
-            ready = process.stdout.readline().strip()
-            assert ready == "ready", "the child must announce itself"
-            yield process
-        finally:
-            process.kill()
-
-
-@pytest.fixture
-def short_reap(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Shorten the grace period so a stubborn child costs a moment, not 10 s."""
-    monkeypatch.setattr(step, "TREE_REAP_SECONDS", 0.5)
 
 
 def test_the_timed_step_names_the_runner_target_and_the_exact_filter() -> None:
@@ -110,57 +61,6 @@ def test_the_preparation_step_is_the_documented_remedy() -> None:
     spelled = " ".join(step.preparation_argv())
     assert spelled == step.REMEDY, "the driver must run the remedy it names"
     assert recipe(TARGET), "the remedy must exist in the Makefile"
-
-
-@pytest.mark.usefixtures("short_reap")
-def test_a_tree_that_ignores_sigterm_is_killed_within_the_grace_period() -> None:
-    """``SIGKILL`` follows when the polite signal is ignored."""
-    with spawned(STUBBORN_CHILD) as process:
-        step.terminate_tree(process)
-        killed = process.returncode == -signal.SIGKILL
-        assert killed, f"expected SIGKILL, got status {process.returncode}"
-
-
-@pytest.mark.usefixtures("short_reap")
-def test_a_tree_that_honours_sigterm_is_not_escalated() -> None:
-    """A child that exits on ``SIGTERM`` is never sent ``SIGKILL``."""
-    with spawned(POLITE_CHILD) as process:
-        step.terminate_tree(process)
-        polite = process.returncode == -signal.SIGTERM
-        assert polite, f"expected SIGTERM, got status {process.returncode}"
-
-
-def test_a_finished_process_is_left_alone() -> None:
-    """A process that already exited is not signalled.
-
-    Its process group id may have been reused, so signalling it could reach an
-    unrelated tree.
-    """
-    with subprocess.Popen(
-        [sys.executable, "-c", "pass"], start_new_session=True, text=True
-    ) as process:
-        process.wait()
-        step.terminate_tree(process)
-        assert process.returncode == 0, "a finished process keeps its status"
-
-
-@pytest.mark.usefixtures("short_reap")
-def test_a_step_that_outlives_its_bound_is_killed_and_the_timeout_reraised(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The timeout reaches the caller only after the tree has gone."""
-    monkeypatch.setattr(step, "STEP_TIMEOUT_SECONDS", 0.5)
-    pid_file = tmp_path / "pid"
-    program = (
-        "import os, signal, time\n"
-        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-        f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
-        "time.sleep(120)\n"
-    )
-    with pytest.raises(subprocess.TimeoutExpired):
-        step.run_step([sys.executable, "-c", program], target_dir=tmp_path)
-    with pytest.raises(ProcessLookupError):
-        os.kill(int(pid_file.read_text(encoding="utf-8")), 0)
 
 
 @pytest.fixture

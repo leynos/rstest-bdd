@@ -15,10 +15,12 @@ file in the environment: a reader looking for that channel should find it beside
 the code that opens it.
 """
 
+import contextlib
 import os
 import re
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs fixed argvs; no shell.
+import time
 import typing as typ
 from pathlib import Path
 
@@ -118,6 +120,9 @@ STEP_TIMEOUT_SECONDS = 1800
 
 #: How long a terminated tree is given to exit before it is killed outright.
 TREE_REAP_SECONDS = 10.0
+
+#: How often the group is asked whether it has emptied.
+GROUP_POLL_SECONDS = 0.05
 
 
 class BuildReport(typ.NamedTuple):
@@ -219,24 +224,64 @@ def terminate_tree(process: subprocess.Popen[str]) -> None:
     compiler that can flush and exit does; `SIGKILL` only after a bounded
     wait, because a tree that ignores the polite signal must still be gone
     before the caller removes the directory it is writing to.
+
+    What is waited for is the *group*, not the step's own process. `make`
+    exiting says nothing about the compilers beneath it: it can exit on
+    `SIGTERM` while a descendant ignores the signal, and it can have exited
+    before the timeout while a descendant still holds a captured pipe. Either
+    way the tree is not gone, so the wait ends only when no process is left in
+    the group.
+
+    The group is identified by the step's process id, which [`run_step`]
+    makes the group's id. That id cannot be reused while the step's process
+    is unreaped or any member of its group survives, so signalling it is safe
+    for as long as this function has not been told otherwise. A process the
+    caller has *already reaped* gives no such assurance — the group may have
+    emptied and the id been handed to an unrelated process — so it is left
+    alone.
     """
-    if process.poll() is not None:
+    if process.returncode is not None:
         return
-    try:
-        group = os.getpgid(process.pid)
-    except ProcessLookupError:
-        return
+    group = process.pid
     for sig in (signal.SIGTERM, signal.SIGKILL):
         try:
             os.killpg(group, sig)
         except ProcessLookupError:
-            return
+            break
+        if group_exited(process, group):
+            break
+    # Reap the step's own process, which is certainly dead once its group has
+    # been sent `SIGKILL`; bounded so an unkillable process cannot hang this.
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        process.wait(timeout=TREE_REAP_SECONDS)
+
+
+def group_exited(process: subprocess.Popen[str], group: int) -> bool:
+    """Wait up to ``TREE_REAP_SECONDS`` for every process in *group* to exit.
+
+    Parameters
+    ----------
+    process : subprocess.Popen[str]
+        The group's leader. It is reaped as soon as it exits, because an
+        unreaped leader is still a member of the group and would keep the
+        group looking alive after its last real process had gone.
+    group : int
+        The process group to watch.
+
+    Returns
+    -------
+    bool
+        True once no process is left in the group, False if the wait ran out.
+    """
+    deadline = time.monotonic() + TREE_REAP_SECONDS
+    while time.monotonic() < deadline:
+        process.poll()
         try:
-            process.wait(timeout=TREE_REAP_SECONDS)
-        except subprocess.TimeoutExpired:
-            continue
-        else:
-            return
+            os.killpg(group, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(GROUP_POLL_SECONDS)
+    return False
 
 
 def run_step(
