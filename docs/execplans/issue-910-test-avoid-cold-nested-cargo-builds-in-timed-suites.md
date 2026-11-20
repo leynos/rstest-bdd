@@ -146,6 +146,32 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   nextest as a slow-timeout, which is precisely a hang detector doing its job —
   and that contract is unchanged. **No budget change.** Recorded as resolved
   with the CI evidence retained above.
+
+  **The same host artefact recurred, on a different test, and was settled the
+  same way.** The local `make test` on `129e8c99` — after this change — reported
+  `787/810 tests run: 786 passed, 1 timed out, 7 skipped`, the timeout being
+  `TIMEOUT [1200.002s] rstest-bdd::trybuild_macros runner::step_macros_compile`.
+  That is the trybuild binary's own 20-minute override, and the log shows the
+  cause directly:
+
+  ```text
+  [build-limits] trybuild006: the managed sccache server is not serving
+  compilations; compiling without the cache
+  ```
+
+  So the suite was compiling uncached *and* queueing behind foreign crates.
+  `build-limits-status` at that moment reported `capacity 4, held 4, healthy`,
+  `drain fault kind: live_work`, a `fallback recovery action:` line (automatic
+  recovery pending, no operator action required), and roughly 25 waiting
+  compilations from other agents' worktrees — femtologging, ortho-config,
+  netsuke and wireframe among them.
+
+  **CI again supplied the control.** Run `44694667108` on this exact commit
+  `129e8c99` passed the same test on the Linux lane in `PASS [29.503s]`, with
+  the lane finishing `2471 tests run: 2471 passed, 7 skipped` in 335.073 s. A
+  40× inflation between 29.5 s and 1200 s on identical code is the admission
+  pool, not the change. **No budget change**, and the gate was re-run rather
+  than widened.
 - [x] Add the first-position nextest override with its own 30-minute budget
       and highest scheduling priority, plus the top-level `nextest-version`
       that makes `priority` readable.
