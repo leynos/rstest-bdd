@@ -181,14 +181,16 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   `129e8c99` passed the same test on the Linux lane in `PASS [29.503s]`, with
   the lane finishing `2471 tests run: 2471 passed, 7 skipped` in 335.073 s. The
   same test therefore ran 40× slower here than on CI, on identical code. That
-  comparison establishes the *inflation* and rules out the change as its cause;
-  it does not by itself apportion the 40× between admission contention and
-  uncached compilation. Both were present — the `build-limits` lines show queue
+  comparison establishes the *inflation* between the two environments; it does
+  not by itself apportion the 40× between admission contention and uncached
+  compilation. Both were present — the `build-limits` lines show queue
   position, and the sccache-unavailable message shows the cache was not serving
-  — and this log cannot say how much each contributed. What it does rule out is
-  a compilation-cost regression in the change: the code is byte identical to
-  the commit that ran in 29.5 s. **No budget change**, and the gate was re-run
-  rather than widened.
+  — and this log cannot say how much each contributed. Nor does it rule out a
+  compilation-cost regression in the change: both runs used the same commit, so
+  neither compares it with the code before it, and a regression that appears
+  only under particular cache or load conditions would look the same. Deciding
+  that needs a before-and-after run under comparable conditions, which was not
+  taken. **No budget change**, and the gate was re-run rather than widened.
 - [x] Add the first-position nextest override with its own 30-minute budget
       and highest scheduling priority, plus the top-level `nextest-version`
       that makes `priority` readable.
