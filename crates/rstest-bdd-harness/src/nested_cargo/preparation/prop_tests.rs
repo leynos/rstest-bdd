@@ -248,34 +248,35 @@ fn setup<T>(result: std::io::Result<T>) -> Result<T, TestCaseError> {
 }
 
 proptest! {
-    /// Moving an input to a different directory changes the hash, and moving
-    /// it back restores it.
+    /// Renaming an input changes the hash, with its bytes and the rest of the
+    /// tree held fixed.
     ///
-    /// This is a round trip over the *structure* of the tree rather than its
-    /// file ordering: the same bytes under a different path are a different
-    /// input, because the path is what the family compiles. Flattening a
-    /// nested walk would pass a byte-only comparison, so the paths must
-    /// reach the hash.
+    /// The input sits alone in a directory of its own, so the two trees differ
+    /// only in that entry's name. Moving it into a new directory would change
+    /// the tree's shape too, so a hash that ignored names could still differ.
+    /// The bytes match under either name, so the path must reach the hash.
     #[test]
-    fn moving_an_input_changes_the_hash(tree in tree()) {
+    fn renaming_an_input_changes_the_hash(tree in tree()) {
         let leaf = tree
             .iter()
             .find(|(path, _)| !path.is_excluded())
             .map(|(path, contents)| (path.clone(), contents.clone()));
         if let Some((path, contents)) = leaf {
-            let mut moved = tree.clone();
-            moved.remove(&path);
-            // A sibling directory keeps the leaf's bytes and only changes
-            // where they live.
-            let destination = RelPath::new(format!("moved/{}", path.as_str()));
-            if !moved.keys().any(|kept| kept.conflicts_with(&destination)) {
-                moved.insert(destination, contents);
-                let before = setup(hash_of(&tree))?;
-                let after = setup(hash_of(&moved))?;
+            let directory = RelPath::new(String::from("dedicated"));
+            let mut rest = tree.clone();
+            rest.remove(&path);
+            if !rest.keys().any(|kept| kept.conflicts_with(&directory)) {
+                let name = path.as_str().rsplit('/').next().unwrap_or_default();
+                let mut before = rest.clone();
+                before.insert(RelPath::new(format!("dedicated/{name}")), contents.clone());
+                let mut after = rest;
+                after.insert(RelPath::new(format!("dedicated/{name}_")), contents);
+                let before = setup(hash_of(&before))?;
+                let after = setup(hash_of(&after))?;
                 prop_assert_ne!(
                     before,
                     after,
-                    "an input's path must reach the hash, not only its bytes"
+                    "an input's name must reach the hash, not only its bytes"
                 );
             }
         }

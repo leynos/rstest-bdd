@@ -39,15 +39,15 @@ fn write_unit(deps: &Path, stem: &str, hash: &str, output: Option<&str>) -> io::
     Ok(())
 }
 
-#[test]
-fn a_tree_of_unrelated_artefacts_is_not_a_prepared_fixture() {
+#[rstest]
+fn a_tree_of_unrelated_artefacts_is_not_a_prepared_fixture(
+    deps_directory: io::Result<(tempfile::TempDir, std::path::PathBuf)>,
+) {
     // The no-op case the preparation test must reject. Every directory the
     // stamp's structural layer looks for is present and populated, so a
     // check that answered "the profile is not empty" would accept it; only a
     // witness naming the fixture's own units can tell the two apart.
-    let scratch = tempfile::tempdir().expect("temp dir");
-    let deps = scratch.path().join("debug").join("deps");
-    fs::create_dir_all(&deps).expect("deps dir");
+    let (scratch, deps) = deps_directory.expect("the deps fixture should be built");
     fs::create_dir_all(scratch.path().join("debug").join(".fingerprint")).expect("fingerprint dir");
     fs::write(
         scratch
@@ -81,16 +81,16 @@ fn a_tree_of_unrelated_artefacts_is_not_a_prepared_fixture() {
     );
 }
 
-#[test]
-fn the_fixture_binaries_are_recognized_when_present() {
+#[rstest]
+fn the_fixture_binaries_are_recognized_when_present(
+    deps_directory: io::Result<(tempfile::TempDir, std::path::PathBuf)>,
+) {
     // The positive control. Without it the test above would pass for a
     // witness that always answered "no". The output is named the way Cargo
     // names a test binary — `<stem>-<hash>` — rather than as a bare stem,
     // because the bare stem is the shape the witness must *not* accept: a
     // dep-info record alone would otherwise witness a unit with no binary.
-    let scratch = tempfile::tempdir().expect("temp dir");
-    let deps = scratch.path().join("debug").join("deps");
-    fs::create_dir_all(&deps).expect("deps dir");
+    let (_scratch, deps) = deps_directory.expect("the deps fixture should be built");
     for stem in FIXTURE_TEST_BINARIES {
         let binary = format!("{stem}-0123456789abcdef");
         write_unit(&deps, stem, "0123456789abcdef", Some(&binary))
@@ -105,15 +105,15 @@ fn the_fixture_binaries_are_recognized_when_present() {
     );
 }
 
-#[test]
-fn a_dep_info_record_alone_does_not_witness_a_binary() {
+#[rstest]
+fn a_dep_info_record_alone_does_not_witness_a_binary(
+    deps_directory: io::Result<(tempfile::TempDir, std::path::PathBuf)>,
+) {
     // The narrowest no-op: the record is there, the binary it describes is
     // not. Reading the record as the witness would accept a tree Cargo
     // itself would recompile, which is the whole state the preparation
     // exists to exclude.
-    let scratch = tempfile::tempdir().expect("temp dir");
-    let deps = scratch.path().join("debug").join("deps");
-    fs::create_dir_all(&deps).expect("deps dir");
+    let (_scratch, deps) = deps_directory.expect("the deps fixture should be built");
     for stem in FIXTURE_TEST_BINARIES {
         write_unit(&deps, stem, "0123456789abcdef", None)
             .expect("the dep-info record should be written");
@@ -126,16 +126,16 @@ fn a_dep_info_record_alone_does_not_witness_a_binary() {
     );
 }
 
-#[test]
-fn a_directory_named_like_a_binary_does_not_witness_one() {
+#[rstest]
+fn a_directory_named_like_a_binary_does_not_witness_one(
+    deps_directory: io::Result<(tempfile::TempDir, std::path::PathBuf)>,
+) {
     // The name is the only thing a directory of this shape shares with a
     // test binary, and the walk visits directories as well as files, so a
     // witness that matched on name alone would accept a tree that holds no
     // executable at all. Both stems are given a directory, so the failure
     // cannot come from one of them merely being present.
-    let scratch = tempfile::tempdir().expect("temp dir");
-    let deps = scratch.path().join("debug").join("deps");
-    fs::create_dir_all(&deps).expect("deps dir");
+    let (_scratch, deps) = deps_directory.expect("the deps fixture should be built");
     for stem in FIXTURE_TEST_BINARIES {
         let impostor = deps.join(format!("{stem}-0123456789abcdef"));
         fs::create_dir_all(&impostor).expect("impostor dir");

@@ -80,21 +80,39 @@ fn a_refuted_stamp_is_withdrawn_so_the_next_run_can_prepare() {
     // reaches through the same `witness_or_withdraw`, rather than the
     // predicate it calls: asserting on the predicate alone would still pass
     // for a gate that had stopped consulting it, and the gate is what
-    // admits the timed assertions. The preparation closure runs (under
-    // `cargo test`), finds the profile already structurally usable and
-    // stamps it — so the tree it leaves behind is exactly the state under
-    // test: a *valid* stamp over units that are not the fixture's.
+    // admits the timed assertions. The seed below is the preparation that
+    // leaves the state under test: `prepare_now` runs under `cargo test`,
+    // finds the profile already structurally usable and stamps it, so the
+    // tree it leaves behind is a *valid* stamp over units that are not the
+    // fixture's.
     let scratch = tempfile::tempdir().expect("temp dir");
     let (preparation, profile, stamp) =
         scratch_family(scratch.path()).expect("the scratch family's tree should be written");
 
-    // A preparation that succeeds while doing no work at all: the point is
-    // that the stamp it then writes vouches for a tree holding none of the
-    // fixture's own units.
-    let error = ensure_gated_with(&preparation, false, an_ample_budget(), || {
+    // Seed a valid stamp over the dependency-only profile. The tree holds no
+    // fixture binaries, so the stamp vouches for units this family never
+    // built: exactly the state the witness exists to refuse.
+    nested_cargo::prepare_now(&preparation, || {
         Ok(nested_cargo::PreparationSummary::default())
     })
-    .expect_err("a preparation that leaves no fixture binaries must not satisfy the gate");
+    .expect("the dependency-only profile should be stamped");
+
+    // The stamp matches, so the gate must reuse it without preparing. The
+    // callback fails if it is invoked, so a gate that prepared again is
+    // caught here rather than passing over a tree it had just rebuilt.
+    let mut invoked = false;
+    let error = ensure_gated_with(&preparation, false, an_ample_budget(), || {
+        invoked = true;
+        Err(std::io::Error::other(
+            "a matching stamp must not run the preparation",
+        ))
+    })
+    .expect_err("a reused stamp over no fixture binaries must not satisfy the gate");
+    assert!(
+        !invoked,
+        "a matching stamp must be reused without running the preparation"
+    );
+
     // The gate's own context line comes first, and the witness's diagnosis and
     // the withdrawal's outcome are chained beneath it in the report's source
     // chain. Both are what the reader is meant to act on, so both are read from
