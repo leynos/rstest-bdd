@@ -2908,21 +2908,22 @@ That exception is deliberate: the alternative would be re-implementing
 slow-timeout without captured output.
 
 `prepare_now` is idempotent: when the stamp and artefact checks both pass it
-does not run the build closure, so a warm target directory costs one stamp
-read. Under `cargo nextest`, `ensure_prepared_building` fails fast with the
-command that prepares the family, `make prepare-nested-fixtures` in this
-repository, because a timed test running in its own process cannot prepare
-without paying the cost it is meant to avoid. Under plain `cargo test` it
-prepares lazily behind a process-wide lock. Its return value states which
-happened: `PreparationOutcome::Reused` means the preparation callback did not
-run, and `PreparationOutcome::Prepared` means the closure did.
+does not run the build closure, so a warm target directory costs the toolchain
+probes and those two checks, and no build. Under `cargo nextest`,
+`ensure_prepared_building` fails fast with the command that prepares the family,
+`make prepare-nested-fixtures` in this repository, because a timed test
+running in its own process cannot prepare without paying the cost it is meant
+to avoid. Under plain `cargo test` it prepares lazily behind a process-wide
+lock. Its return value states which happened: `PreparationOutcome::Reused`
+means the preparation callback did not run, and `PreparationOutcome::Prepared`
+means the closure did.
 
 `Reused` is a statement about the callback, not about blocking. On the
-uncontended fast path the stamp is read and answered before the lock is
-requested, so a warm family costs that read and no build. But under plain
-`cargo test` two callers can both observe a missing stamp, and the loser of
-that race then takes the lock, re-reads the stamp the winner wrote, and returns
-`Reused` from there.
+uncontended fast path the stamp and artefact checks are answered before the
+lock is requested, so a warm family pays those checks and no build. But under
+plain `cargo test` two callers can both observe a missing stamp, and the loser
+of that race then takes the lock, re-reads the stamp the winner wrote, and
+returns `Reused` from there.
 
 Neither path is free of work: judging a stamp means identifying the toolchain,
 which spawns `cargo -vV` and `rustc -vV`, and a matching stamp under `admit` is

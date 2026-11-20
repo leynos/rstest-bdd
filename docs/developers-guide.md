@@ -1160,12 +1160,13 @@ An empty `artefacts` list is treated as satisfied: a caller that described no
 artefact directories leaves the stamp as the whole gate.
 
 `prepare_now` is idempotent, and that is the point of the separate
-`make prepare-nested-fixtures` target: a warm tree costs one stamp read and one
-directory scan per named profile, however many times it runs. A preparation
-test therefore does not need to know whether CI gave it a cold or a warm cache;
-it prepares only when the fingerprint, the dependency artefacts or the paired
-outputs say the tree is not usable. The scan is bounded by the profile's `deps`
-entry count, which is a few thousand files for this workspace.
+`make prepare-nested-fixtures` target: a warm tree costs the toolchain probes,
+the stamp comparison and one directory scan per named profile, however many
+times it runs. A preparation test therefore does not need to know whether CI
+gave it a cold or a warm cache; it prepares only when the fingerprint, the
+dependency artefacts or the paired outputs say the tree is not usable. The scan
+is bounded by the profile's `deps` entry count, which is a few thousand files
+for this workspace.
 
 ### Cargo configuration as a preparation input
 

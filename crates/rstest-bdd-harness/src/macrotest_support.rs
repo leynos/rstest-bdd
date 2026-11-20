@@ -182,9 +182,10 @@ impl TrybuildTree {
 
     /// Prepare the tree unconditionally, for the named preparation test.
     ///
-    /// Still idempotent: a warm tree costs one stamp read. This is the entry
-    /// point `make prepare-nested-fixtures` reaches, which runs under nextest
-    /// where [`Self::ensure_prepared`] would otherwise fail fast.
+    /// Still idempotent: a warm tree costs the toolchain probes and the stamp
+    /// and artefact checks, and no build. This is the entry point
+    /// `make prepare-nested-fixtures` reaches, which runs under nextest where
+    /// [`Self::ensure_prepared`] would otherwise fail fast.
     ///
     /// The guard against a `trybuild=` fixture filter belongs in the closure,
     /// not here: a filtered assertion over an already-prepared tree must keep

@@ -159,7 +159,7 @@ named preparation test — run before the timed suite, and matched by
 `.config/nextest.toml` so it gets the longer `slow-timeout` — plus a
 `make prepare-nested-fixtures`-style target. `prepare_now` is the unconditional
 entry point that target reaches; it is idempotent, so a warm target directory
-costs one stamp read.
+costs the toolchain probes and the stamp and artefact checks, and no build.
 
 No assertion deadline needs to change. The point of the split is that the cold
 work leaves the timed test rather than that the timed test waits longer.

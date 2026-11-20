@@ -10,7 +10,9 @@
 //! reads no environment variable — and returns [`Admission`], which states
 //! *whether* the tree is reusable without acting on the answer. It performs no
 //! build, writes no stamp, and takes no lock: its whole body is one stamp read
-//! and one directory inspection.
+//! — which spawns `cargo -vV` and `rustc -vV` to identify the toolchain — and
+//! one directory inspection. "No lock" is the promise; it is not a promise to
+//! return without doing I/O.
 //!
 //! The decision it implements is the same one the gate makes, and it is shared
 //! rather than reimplemented: [`Admission`] is derived from the same

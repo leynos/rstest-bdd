@@ -25,7 +25,8 @@ use crate::nested_cargo::preparation::{
 /// This is the entry point `make prepare-nested-fixtures` reaches: it runs
 /// under nextest, where [`ensure_prepared_building`] would otherwise fail fast
 /// on a family that was never prepared. It is still idempotent, so a warm
-/// target directory costs only the stamp read.
+/// target directory costs the toolchain probes and the stamp and artefact
+/// checks under the lock, and no build.
 ///
 /// # Errors
 ///
