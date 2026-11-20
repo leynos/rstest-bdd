@@ -3100,6 +3100,32 @@ rather than by reading this branch's comments.
   directory, and a preparation stamp refusing a vanished tree is the designed
   behaviour either way.
 
+- [x] **Close the review findings still held open at `92369bc4`.** 2026-11-20.
+  Five were code or test gaps and are fixed on the branch:
+
+  - The CLI family declared packages only, so the fixture's two test binaries
+    (`diagnostics_fixture`, `unsupported_dump_steps`) were never recorded and
+    their removal passed the gate. They are now declared beside the closure
+    (`60faa67f`). The mutation was checked: with the declaration removed, the
+    new regression fails.
+  - The CLI witness accepted the binaries from any named profile. Under
+    `CARGO_BUILD_TARGET` it now reads the selected profile alone (`60faa67f`).
+  - The server trybuild preparation warmed build mode only; it now probes the
+    compile-fail fixture too, as the Tokio and GPUI trees do (`c8184abf`).
+  - The two-probe sequence and the CLI closure query each gained a regression
+    that drives a slow, successful command into the next one (`857a9e43`).
+  - A family whose callback creates its working directory was identified
+    before that directory existed. `prepare_now_staged` and
+    `ensure_prepared_building_staged` run a staging step first, and both
+    rebuild-invalidation families use them (`2689423f`). A `trybuild` family
+    cannot stage this way, because `trybuild` creates the generated crate
+    itself; that crate holds no toolchain file and no compiler.
+
+  The user-facing documentation for `binary_test_support` was added
+  (`d57d2230`). Reading the source against the request showed the lookup order
+  is unchanged from `main`: only `target_directory_of` is new, so the documents
+  state the behaviour and do not call it a change.
+
 ## Surprises & Discoveries
 
 - **A green lint run is a temporary observation, not a property of the tree.**
