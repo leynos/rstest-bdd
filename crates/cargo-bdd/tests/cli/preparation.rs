@@ -183,11 +183,35 @@ fn an_ample_budget() -> nested_cargo::Deadline {
 fn cli_preparation_description(
     deadline: nested_cargo::Deadline,
     graph_query_timeout: Duration,
-) -> Result<(
+) -> Result<Described> {
+    described_by(
+        deadline,
+        graph_query_timeout,
+        closure::fixture_dependency_closure,
+    )
+}
+
+/// A family description, its child environment, and the budget left for the
+/// probes.
+type Described = (
     nested_cargo::Preparation,
     nested_cargo::NestedCargoEnv,
     nested_cargo::Deadline,
-)> {
+);
+
+/// [`cli_preparation_description`] with the closure query supplied.
+///
+/// The query is a parameter so the hand-off of the budget can be driven with a
+/// query of known duration; production always passes
+/// [`closure::fixture_dependency_closure`].
+fn described_by<Q>(
+    deadline: nested_cargo::Deadline,
+    graph_query_timeout: Duration,
+    query: Q,
+) -> Result<Described>
+where
+    Q: FnOnce(Duration) -> Result<Vec<String>>,
+{
     let (child_env, target_root, inputs) = cli_preparation()?;
     let fixture = fixture_dir();
     let mut preparation = nested_cargo::Preparation::new(
@@ -209,7 +233,7 @@ fn cli_preparation_description(
     let bound = deadline
         .cap(graph_query_timeout, "the fixture dependency closure")
         .wrap_err("the timed CLI gate has no budget left for its graph query")?;
-    preparation.owned_packages = owned_units(closure::fixture_dependency_closure(bound)?);
+    preparation.owned_packages = owned_units(query(bound)?);
     Ok((preparation, child_env, deadline))
 }
 
@@ -245,18 +269,29 @@ fn owned_units(mut closure: Vec<String>) -> Vec<String> {
 /// matching stamp without running the preparation at all, so the preparation
 /// test's witness cannot run there either; this check does.
 pub(super) fn ensure_cli_prepared() -> Result<()> {
-    // One budget for the whole gate. The closure query and both identity
-    // probes are charged against it, so no later command starts with an
-    // allowance the earlier ones have already spent.
-    let deadline = nested_cargo::Deadline::starting_now(closure::TIMED_GRAPH_QUERY_TIMEOUT);
-    let (preparation, child_env, deadline) =
-        cli_preparation_description(deadline, closure::TIMED_GRAPH_QUERY_TIMEOUT)?;
-    ensure_gated_with(
-        &preparation,
+    gate_within(
+        closure::TIMED_GRAPH_QUERY_TIMEOUT,
         nested_cargo::running_under_nextest(),
-        deadline,
-        || nested_build::capture_preparation(&child_env),
+        closure::fixture_dependency_closure,
     )
+}
+
+/// The timed gate, from one `budget` through the query to the probes.
+///
+/// One budget for the whole gate. The closure query and both identity probes
+/// are charged against it, so no later command starts with an allowance the
+/// earlier ones have already spent. This function is where the deadline the
+/// query was charged against is handed to the gate, so it is the function the
+/// hand-off regression drives, with a query of its own.
+fn gate_within<Q>(budget: Duration, under_nextest: bool, query: Q) -> Result<()>
+where
+    Q: FnOnce(Duration) -> Result<Vec<String>>,
+{
+    let deadline = nested_cargo::Deadline::starting_now(budget);
+    let (preparation, child_env, deadline) = described_by(deadline, budget, query)?;
+    ensure_gated_with(&preparation, under_nextest, deadline, || {
+        nested_build::capture_preparation(&child_env)
+    })
 }
 
 /// The gate itself, with the family, the runner decision, the shared budget and
