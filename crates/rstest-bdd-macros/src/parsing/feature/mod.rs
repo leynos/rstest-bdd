@@ -15,6 +15,8 @@ use crate::{
     },
     utils::errors::error_to_tokens,
 };
+
+mod docstring;
 cfg_if::cfg_if! {
     if #[cfg(feature = "compile-time-validation")] {
         use crate::validation::examples::{validate_examples_in_feature_text, FeatureText};
@@ -90,7 +92,7 @@ impl TryFrom<&Step> for ParsedStep {
             )
         })?;
         let table = step.table.as_ref().map(|t| t.rows.clone());
-        let docstring = step.docstring.clone();
+        let docstring = step.docstring.as_deref().map(docstring::strip_media_type);
         Ok(Self {
             keyword,
             text: step.value.clone(),
