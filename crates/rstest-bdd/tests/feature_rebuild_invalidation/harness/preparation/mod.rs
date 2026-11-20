@@ -75,12 +75,28 @@ const PREPARE_ARGS: [&str; 5] = ["test", "--no-run", "--locked", "--offline", "-
 /// copy, the metadata preflight or the compile fails, and the stamp I/O error
 /// when the stamp cannot be written.
 pub(crate) fn ensure_rebuild_prepared() -> std::io::Result<()> {
+    ensure_prepared(rebuild_preparation, prepare_rebuild)
+}
+
+/// Prepare one fixture family's dependency closure, unless a stamp covers it.
+///
+/// Both `ensure_*_prepared` entry points differ only in which family they
+/// name, so the sequence — build the child environment, describe the family,
+/// and hand both to the shared admission-aware builder — lives here once.
+/// Keeping it in one place is also what keeps the two families on the same
+/// nextest path: a stamp is only reused under the runner that wrote it, and a
+/// family that resolved `running_under_nextest` differently would refuse a
+/// stamp the other had just written.
+fn ensure_prepared(
+    describe: fn(&process::ChildEnv) -> std::io::Result<nested_cargo::Preparation>,
+    prepare: fn(&process::ChildEnv) -> std::io::Result<nested_cargo::PreparationSummary>,
+) -> std::io::Result<()> {
     let env = process::build_child_env()?;
-    let preparation = rebuild_preparation(&env)?;
+    let preparation = describe(&env)?;
     nested_cargo::ensure_prepared_building(
         &preparation,
         nested_cargo::running_under_nextest(),
-        || prepare_rebuild(&env),
+        || prepare(&env),
     )
     .map(|_outcome| ())
 }
@@ -105,14 +121,7 @@ pub(crate) fn prepare_all() -> std::io::Result<()> {
 ///
 /// As [`ensure_rebuild_prepared`].
 pub(crate) fn ensure_addition_prepared() -> std::io::Result<()> {
-    let env = process::build_child_env()?;
-    let preparation = addition_preparation(&env)?;
-    nested_cargo::ensure_prepared_building(
-        &preparation,
-        nested_cargo::running_under_nextest(),
-        || prepare_addition(&env),
-    )
-    .map(|_outcome| ())
+    ensure_prepared(addition_preparation, prepare_addition)
 }
 
 /// The workspace root both fixtures build beneath.
