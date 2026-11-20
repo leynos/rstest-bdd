@@ -59,12 +59,24 @@ fn a_relative_root_resolves_to_an_absolute_walk() {
     // the process directory so the walk has an absolute ancestry to climb.
     // The subtree here deliberately does *not* exist, which is both the
     // state the rule exists for — the preparation creates the tree it
-    // stamps — and the only state this case can assert portably. A name
-    // that resolved would compare a canonicalized path against a lexically
-    // joined one, and those spellings differ on Windows, where resolution
-    // yields the `\\?\` verbatim prefix. Resolved spellings are covered by
-    // `checkout_with_nested_directory`, which canonicalizes before deriving
-    // every expected path for exactly that reason.
+    // stamps — and the state that keeps the *root* unresolvable.
+    //
+    // That is a statement about the root, not about its spelling. An absent
+    // leaf does not stop `search_root` canonicalizing the longest *existing*
+    // prefix above it, and on Windows `fs::canonicalize` returns the `\\?\`
+    // verbatim form for every path it resolves, existing prefix or not. So
+    // the walked root is verbatim-spelled on Windows while a lexical
+    // `current_dir().join(..)` is not, and comparing the two directly made
+    // this case fail against correct behaviour on both Windows lanes. The
+    // resolved spelling is `checkout_with_nested_directory`'s subject, and
+    // that case canonicalizes before deriving every expected path for the
+    // same reason.
+    //
+    // The portable claim is that the walked root is the *resolved* process
+    // directory joined to the same relative root, which is what
+    // `split_at_existing_prefix` and `reappend` rebuild. Deriving the expected
+    // value the same way compares the directory the root names, not the
+    // spelling each side happens to use.
     let relative = PathBuf::from("a-directory-this-case-does-not-create");
     assert!(relative.is_relative(), "the case needs a relative root");
     assert!(
@@ -77,12 +89,21 @@ fn a_relative_root_resolves_to_an_absolute_walk() {
         rooted.is_absolute(),
         "a walked root must be absolute, or its ancestry is not the tree's: {rooted:?}"
     );
+    // The expected value is derived from the *resolved* process directory,
+    // because that is the prefix `search_root` canonicalizes. Resolving the
+    // walked root itself is not an option: the leaf is absent, and on Windows
+    // `fs::canonicalize` opens the path, so it fails for anything that does
+    // not exist. Resolving the process directory alone keeps the assertion
+    // portable — it compares the directory the root names, not the spelling
+    // each side happens to use.
+    let resolved_process_directory =
+        std::fs::canonicalize(std::env::current_dir().expect("a process directory"))
+            .expect("the process directory resolves");
     assert_eq!(
         rooted,
-        std::env::current_dir()
-            .expect("a process directory")
-            .join(&relative),
-        "the fallback root is the absolute spelling of the same relative root"
+        resolved_process_directory.join(&relative),
+        "the fallback root is the process directory joined to the relative root, in the resolved \
+         spelling the walk reports"
     );
 }
 

@@ -108,6 +108,43 @@ filtered `cargo nextest run` passes the timed tests in seconds.
 - [x] Make the dep-info tracking assertion compare against the start of its
       own trybuild run, so a prepared tree cannot satisfy it with an earlier
       run's artefacts.
+- [x] **The preparation override's budget is stated for one family, but the
+  test runs two — investigated and resolved as a local-host artefact, not
+  a candidate defect.** `prepare_all` prepares `trybuild-macros` and then
+  `ui-clippy`; only the second is a `run_bounded_with_timeout` command.
+  `trybuild` spawns its own nested `cargo` and offers no hook to bound or
+  capture it, so for `trybuild-macros` the *only* bound is the override's
+  `slow-timeout` period. The contract test
+  `preparation_command_bound_fires_before_the_runner_kills_the_test`
+  checks `MAX_SEQUENTIAL_COMMANDS × PREPARATION_COMMAND_TIMEOUT < period`
+  — 27 min < 30 min — and passes, because it counts one family's commands
+  and never counts the second family at all.
+
+  The first local `make test` on `bc06a3d9` did fail
+  `TIMEOUT [1800.011s] rstest-bdd::trybuild_macros
+  preparation::nested_fixture_preparation`, with the log reading
+  `nested preparation: family=trybuild-macros prepared in 1642.7s
+  (0 Compiling lines)` — `trybuild-macros` finished with 157 s left of the
+  period, so `ui-clippy` never started. The `0 Compiling lines` was the
+  load signal: nothing compiled, and all 1642.7 s went to waiting for
+  compiler admission on this host (capacity 4, all held, ~80–115 foreign
+  crates queued throughout).
+
+  **CI settled it.** Run `44673737187` on the same `bc06a3d9` ran the
+  identical test green on the Linux lane:
+  `PASS [127.575s] rstest-bdd::trybuild_macros
+  preparation::nested_fixture_preparation`, and the lane finished
+  `2470 tests run: 2470 passed, 7 skipped` in 400 s. The same lane also
+  passed `bound_feature_file_is_tracked_dependency`, the coverage-lane
+  case that had refused a stamp on the earlier head. So the 30-minute
+  period has ample headroom against real work (127.6 s); the local figure
+  was 13× inflation from a pathologically saturated shared admission pool,
+  and widening the period would size the budget for that host rather than
+  for the job it protects. The override's own comment already states the
+  intended contract — an overrun spanning several commands is reported by
+  nextest as a slow-timeout, which is precisely a hang detector doing its
+  job — and that contract is unchanged. **No budget change.** Recorded as
+  resolved with the CI evidence retained above.
 - [x] Add the first-position nextest override with its own 30-minute budget
       and highest scheduling priority, plus the top-level `nextest-version`
       that makes `priority` readable.
@@ -2450,6 +2487,59 @@ rather than by reading this branch's comments.
   document's dominant 2-space style and nest its sub-lists at the 2-space indent
   `MD007` wants. Verified with the gate's own binary:
   `/home/leynos/.bun/bin/markdownlint-cli2` reports `Summary: 0 error(s)`.
+
+  **Recurred once more** while writing the budget entry above: 34 continuation
+  lines were at 6 spaces inside a 0-indent list item, which CommonMark read as
+  an indented code block, so `MD046` reported all four *fenced* blocks in the
+  file as `Expected: indented; Actual: fenced` — including three that had
+  linted clean at `HEAD`. The reported line numbers point at the fenced
+  blocks, not at the offending continuations, so the symptom misleads: it is
+  worth grepping for `^ {6,}` before touching any fence. Re-indenting the
+  continuations to 2 spaces restored `Summary: 0 error(s)` with the verbatim
+  CI evidence left intact. A first attempt "fixed" it by rewriting the pasted
+  log lines; that is falsifying evidence and was reverted.
+
+- [x] **The seventh copy of the path-spelling defect, and the one its own
+  comment claimed was immune.** Run `44673737187` on `bc06a3d9` failed *both*
+  Windows lanes — `build-test (windows, default features)` and
+  `build-test (windows, strict-compile-time-validation)` — on the same single
+  case, `242 passed; 1 failed`:
+
+  ```text
+  panicked at crates\rstest-bdd-harness\src\nested_cargo\preparation\input_hash\config\tests.rs:80:5:
+  assertion `left == right` failed: the fallback root is the absolute spelling of the same relative root
+    left: "\\\\?\\D:\\a\\rstest-bdd\\rstest-bdd\\crates\\rstest-bdd-harness\\a-directory-this-case-does-not-create"
+   right: "D:\\a\\rstest-bdd\\rstest-bdd\\crates\\rstest-bdd-harness\\a-directory-this-case-does-not-create"
+  ```
+
+  `a_relative_root_resolves_to_an_absolute_walk` asserted
+  `search_root(&relative) == current_dir().join(&relative)`. The implementation
+  is `absolute_root` (lexical join) → `split_at_existing_prefix` → `reappend`,
+  and `split_at_existing_prefix` calls `fs::canonicalize` on the longest
+  **existing** prefix. On Windows `fs::canonicalize` returns the `\\?\`
+  verbatim form for every path it resolves, so the walked root is verbatim while
+  the lexically joined expectation is not.
+
+  The case's own comment had asserted the opposite — that an absent leaf avoided
+  resolution, and that "a name that resolved would compare a canonicalized path
+  against a lexically joined one, and those spellings differ on Windows". The
+  absent leaf does not stop `search_root` canonicalizing the *prefix above it*,
+  which is precisely what the function exists to do. The sibling
+  `checkout_with_nested_directory` in the same file already documented the
+  correct rule ("on Windows that carries the `\\?\` verbatim prefix, and no path
+  built from the raw spelling equals it"), so the file held both the right
+  lesson and the assertion that contradicted it.
+
+  Fixed in the test, as every earlier copy was. The expectation is now derived
+  from the **resolved** process directory —
+  `fs::canonicalize(current_dir())?.join(&relative)` — which is exactly the
+  prefix `reappend` rebuilds, so both sides agree on every platform. Resolving
+  the *walked root* was rejected: its leaf is deliberately absent, and on
+  Windows `fs::canonicalize` opens the path, so it fails for anything that does
+  not exist. That failure mode is the reason `split_at_existing_prefix` exists.
+  The comment was rewritten to state the prefix rule and to record the observed
+  failure. Focused check:
+  `cargo test -p rstest-bdd-harness --lib input_hash::config` — 5 passed.
 
 - [x] **The fourth, fifth and sixth copies of the path-spelling defect.**
   The first Windows run of `4210656c` failed
