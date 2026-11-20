@@ -276,16 +276,22 @@ fn the_closure_query_is_charged_against_the_budget_the_gate_receives() {
 
 #[test]
 fn a_query_that_spends_the_budget_leaves_the_gate_none_for_its_probes() {
-    // The same hand-off, one call further on: `gate_within` is what passes the
-    // charged deadline from the query to the gate, and it is the function
-    // `ensure_cli_prepared` is. The query here is a controlled one that
-    // succeeds only after the whole budget has gone. If the gate were handed a
-    // fresh deadline, the Cargo probe would run and the refusal would be the
+    // The same hand-off, one call further on: `gate_from` is what passes the
+    // charged deadline from the query to the gate, and `ensure_cli_prepared`
+    // reaches it with the production query. The query here is a controlled
+    // one that succeeds only once the budget has gone. If the gate were handed
+    // a fresh deadline, the Cargo probe would run and the refusal would be the
     // stamp's `NotFound`; charged against the same budget, the probe is
     // declined by name before it starts.
-    let budget = std::time::Duration::from_millis(200);
-    let error = super::gate_within(budget, true, |_bound| {
-        std::thread::sleep(budget * 2);
+    //
+    // The inputs are resolved before the budget starts, and the query sleeps
+    // for the bound it is given rather than for a fixed time. So the budget is
+    // always live when the query starts and always spent when it returns,
+    // however long the hashing took on this host.
+    let inputs = super::cli_preparation().expect("the family's inputs should resolve");
+    let budget = super::budget::Budget::starting_now(std::time::Duration::from_millis(200));
+    let error = super::budget::gate_from(inputs, budget, true, |bound| {
+        std::thread::sleep(bound + std::time::Duration::from_millis(50));
         Ok(vec!["rstest-bdd".to_owned()])
     })
     .expect_err("a gate whose query spent the budget must not start a probe");
