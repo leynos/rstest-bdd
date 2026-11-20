@@ -15,7 +15,6 @@ file in the environment: a reader looking for that channel should find it beside
 the code that opens it.
 """
 
-import contextlib
 import os
 import re
 import signal
@@ -205,6 +204,15 @@ def preparation_argv() -> list[str]:
     return ["make", "prepare-nested-fixtures"]
 
 
+class TreeSurvivedError(Exception):
+    """A timed-out step's process group could not be confirmed gone.
+
+    Raised in place of the timeout, because it changes what the caller may do
+    next: a tree that may still be running is a tree that may still be writing
+    into the target directory, so that directory must not be removed.
+    """
+
+
 def terminate_tree(process: subprocess.Popen[str]) -> None:
     """Kill *process* and every descendant before returning.
 
@@ -220,53 +228,63 @@ def terminate_tree(process: subprocess.Popen[str]) -> None:
     is safe here only because [`run_step`] starts each step in a group of its
     own, so this signal cannot reach the driver or its parent.
 
-    The escalation is deliberate rather than impatient: `SIGTERM` first, so a
-    compiler that can flush and exit does; `SIGKILL` only after a bounded
-    wait, because a tree that ignores the polite signal must still be gone
-    before the caller removes the directory it is writing to.
+    `SIGTERM` goes first, so a process that can flush and exit does, and
+    `SIGKILL` follows once the step's own process has exited or the grace
+    period has run out. The second signal is not conditional on anything
+    being left: `make` exiting says nothing about the compilers beneath it,
+    which may ignore the first signal or simply outlive their parent.
 
-    What is waited for is the *group*, not the step's own process. `make`
-    exiting says nothing about the compilers beneath it: it can exit on
-    `SIGTERM` while a descendant ignores the signal, and it can have exited
-    before the timeout while a descendant still holds a captured pipe. Either
-    way the tree is not gone, so the wait ends only when no process is left in
-    the group.
+    Both signals are sent *before* the step's process is reaped, and that
+    order is what protects the group's identity. The group id is the step's
+    process id, and an unreaped process keeps its id, so until the reap below
+    the id cannot have been handed to an unrelated group. After the reap the
+    group is only ever asked whether it still exists, which cannot harm a
+    stranger. For the same reason a process the caller has already reaped is
+    left alone: nothing then ties its id to this step.
 
-    The group is identified by the step's process id, which [`run_step`]
-    makes the group's id. That id cannot be reused while the step's process
-    is unreaped or any member of its group survives, so signalling it is safe
-    for as long as this function has not been told otherwise. A process the
-    caller has *already reaped* gives no such assurance — the group may have
-    emptied and the id been handed to an unrelated process — so it is left
-    alone.
+    Raises
+    ------
+    TreeSurvivedError
+        When the step's process cannot be reaped, or its group still has a
+        member, after `SIGKILL` and a further grace period.
     """
     if process.returncode is not None:
         return
     group = process.pid
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            os.killpg(group, sig)
-        except ProcessLookupError:
-            break
-        if group_exited(process, group):
-            break
-    # Reap the step's own process, which is certainly dead once its group has
-    # been sent `SIGKILL`; bounded so an unkillable process cannot hang this.
-    with contextlib.suppress(subprocess.TimeoutExpired):
+    # An unreaped leader keeps the group alive, so neither call can miss.
+    os.killpg(group, signal.SIGTERM)
+    await_leader_exit(process.pid)
+    os.killpg(group, signal.SIGKILL)
+    try:
         process.wait(timeout=TREE_REAP_SECONDS)
+    except subprocess.TimeoutExpired as error:
+        msg = f"process {process.pid} did not exit after SIGKILL"
+        raise TreeSurvivedError(msg) from error
+    if not group_exited(group):
+        msg = f"process group {group} still has a member after SIGKILL"
+        raise TreeSurvivedError(msg)
 
 
-def group_exited(process: subprocess.Popen[str], group: int) -> bool:
+def await_leader_exit(pid: int) -> None:
+    """Wait up to ``TREE_REAP_SECONDS`` for *pid* to exit, without reaping it.
+
+    The exit is observed with ``WNOWAIT``, which leaves the process waitable.
+    Reaping it here would release its id while a signal is still to be sent
+    to the group that id names.
+    """
+    deadline = time.monotonic() + TREE_REAP_SECONDS
+    flags = os.WEXITED | os.WNOHANG | os.WNOWAIT
+    while time.monotonic() < deadline:
+        if os.waitid(os.P_PID, pid, flags) is not None:
+            return
+        time.sleep(GROUP_POLL_SECONDS)
+
+
+def group_exited(group: int) -> bool:
     """Wait up to ``TREE_REAP_SECONDS`` for every process in *group* to exit.
 
-    Parameters
-    ----------
-    process : subprocess.Popen[str]
-        The group's leader. It is reaped as soon as it exits, because an
-        unreaped leader is still a member of the group and would keep the
-        group looking alive after its last real process had gone.
-    group : int
-        The process group to watch.
+    Only signal zero is sent, which tests for the group's existence and
+    delivers nothing, so this is safe to ask after the leader has been reaped.
 
     Returns
     -------
@@ -275,7 +293,6 @@ def group_exited(process: subprocess.Popen[str], group: int) -> bool:
     """
     deadline = time.monotonic() + TREE_REAP_SECONDS
     while time.monotonic() < deadline:
-        process.poll()
         try:
             os.killpg(group, 0)
         except ProcessLookupError:
@@ -317,6 +334,12 @@ def run_step(
     subprocess.TimeoutExpired
         When the step outlives ``STEP_TIMEOUT_SECONDS``. The tree has already
         been terminated when this is raised.
+
+    Notes
+    -----
+    When the step timed out and its tree could not be confirmed gone,
+    [`terminate_tree`] raises `TreeSurvivedError` and that error replaces the
+    timeout, because the caller must then keep the target directory.
     """
     env = os.environ.copy()
     env["CARGO_TARGET_DIR"] = str(target_dir)

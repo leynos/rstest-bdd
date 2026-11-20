@@ -211,6 +211,27 @@ def test_the_exit_status_reports_the_workflows_outcome(
     assert not used[0].exists(), "the private target directory must be removed"
 
 
+def test_an_unconfirmed_cleanup_fails_and_preserves_the_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tree that may still be running keeps the directory it writes to."""
+    used: list[Path] = []
+
+    def run_workflow(target_dir: Path) -> None:
+        """Stand in for a workflow whose timed-out step left processes behind."""
+        used.append(target_dir)
+        message = "process group 1 still has a member after SIGKILL"
+        raise step.TreeSurvivedError(message)
+
+    monkeypatch.setattr(workflow, "run_workflow", run_workflow)
+    try:
+        assert workflow.main([]) == 1, "an unconfirmed cleanup is a failure"
+        assert used[0].is_dir(), "the directory must survive an unconfirmed cleanup"
+    finally:
+        for directory in used:
+            directory.rmdir()
+
+
 def test_keep_leaves_the_private_directory_for_inspection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

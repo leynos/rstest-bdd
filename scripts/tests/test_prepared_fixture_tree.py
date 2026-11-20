@@ -10,6 +10,7 @@ where the platform has none.
 """
 
 import contextlib
+import dataclasses
 import os
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - spawns a fixed interpreter argv; no shell.
@@ -136,12 +137,56 @@ def test_a_tree_that_honours_sigterm_is_not_escalated() -> None:
         assert polite, f"expected SIGTERM, got status {process.returncode}"
 
 
-@posix_only
-def test_a_finished_process_is_left_alone() -> None:
-    """A process that already exited is not signalled.
+@dataclasses.dataclass(slots=True)
+class SignalLog:
+    """Every signal sent to a process group while a case ran.
 
-    Its process group id may have been reused, so signalling it could reach an
-    unrelated tree.
+    Attributes
+    ----------
+    sent : list[tuple[int, bool]]
+        One ``(signal, unreaped)`` pair per call, in order. ``unreaped`` says
+        whether every watched leader still held its id when the signal was
+        sent. Signal zero is recorded too; it only asks whether a group exists.
+    watched : list[subprocess.Popen[str]]
+        The leaders whose reaping the log tracks.
+    """
+
+    sent: list[tuple[int, bool]] = dataclasses.field(default_factory=list)
+    watched: list[subprocess.Popen[str]] = dataclasses.field(default_factory=list)
+
+    def note(self, sig: int) -> None:
+        """Record *sig* and whether every watched leader is still unreaped."""
+        unreaped = all(leader.returncode is None for leader in self.watched)
+        self.sent.append((sig, unreaped))
+
+
+@pytest.fixture
+def signal_log(monkeypatch: pytest.MonkeyPatch) -> SignalLog:
+    """Record every signal the code under test sends to a process group.
+
+    Returns
+    -------
+    SignalLog
+        The log, which a case fills by running the code under test.
+    """
+    log = SignalLog()
+    real_killpg = os.killpg
+
+    def killpg(group: int, sig: int) -> None:
+        """Note the signal, then send it."""
+        log.note(sig)
+        real_killpg(group, sig)
+
+    monkeypatch.setattr(os, "killpg", killpg)
+    return log
+
+
+@posix_only
+def test_a_finished_process_is_left_alone(signal_log: SignalLog) -> None:
+    """A process the caller already reaped is sent nothing at all.
+
+    Its id is no longer tied to this step: the group may have emptied and the
+    id been handed to an unrelated process, which a signal would then reach.
     """
     with subprocess.Popen(
         [sys.executable, "-c", "pass"], start_new_session=True, text=True
@@ -149,6 +194,49 @@ def test_a_finished_process_is_left_alone() -> None:
         process.wait()
         step.terminate_tree(process)
         assert process.returncode == 0, "a finished process keeps its status"
+    assert signal_log.sent == [], "a reaped process's group must not be signalled"
+
+
+@posix_only
+@pytest.mark.usefixtures("short_reap")
+def test_every_delivered_signal_is_sent_before_the_leader_is_reaped(
+    signal_log: SignalLog,
+) -> None:
+    """The group id is only signalled while the leader still reserves it.
+
+    Once the leader is reaped its id can be reused, so from then on the group
+    may only be asked whether it exists. This is the boundary a reused id
+    would cross: a ``SIGKILL`` sent after the reap could land on a stranger.
+    """
+    with spawned(STUBBORN_TREE) as process:
+        signal_log.watched.append(process)
+        step.terminate_tree(process)
+        delivered = [live for sig, live in signal_log.sent if sig != 0]
+        probes = [live for sig, live in signal_log.sent if sig == 0]
+        assert delivered == [True, True], "SIGTERM and SIGKILL precede the reap"
+        assert probes, "the group must be asked whether it emptied"
+        assert not any(probes), "after the reap the group is only probed"
+
+
+@posix_only
+@pytest.mark.usefixtures("short_reap")
+def test_a_group_that_cannot_be_confirmed_gone_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unconfirmed cleanup replaces the timeout with its own error.
+
+    The caller removes the target directory after a timeout, which is only
+    safe once the tree has gone. When that cannot be established the step
+    says so, in a form the caller can tell apart from an ordinary timeout.
+    """
+    monkeypatch.setattr(step, "group_exited", lambda _group: False)
+    with spawned(POLITE_CHILD) as process, pytest.raises(step.TreeSurvivedError):
+        step.terminate_tree(process)
+
+    monkeypatch.setattr(step, "STEP_TIMEOUT_SECONDS", 0.5)
+    program = "import time\ntime.sleep(120)\n"
+    with pytest.raises(step.TreeSurvivedError):
+        step.run_step([sys.executable, "-c", program], target_dir=tmp_path)
 
 
 @posix_only

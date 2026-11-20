@@ -69,6 +69,8 @@ Usage: ``python3 scripts/check_prepared_fixture_workflow.py [--keep]``.
 
 Exit codes: 0 when all four steps hold, 1 when any step does not. ``--keep``
 leaves the private target directory in place for inspection.
+The directory is also kept when a timed-out step's processes cannot be
+confirmed gone, because they may still be writing into it.
 """
 
 import argparse
@@ -90,6 +92,7 @@ from prepared_fixture_step import (
     REMEDY,
     REPO_ROOT,
     STEP_TIMEOUT_SECONDS,
+    TreeSurvivedError,
     build_report_path,
     preparation_argv,
     read_build_reports,
@@ -226,6 +229,7 @@ def main(argv: list[str] | None = None) -> int:
 
     target_dir = Path(tempfile.mkdtemp(prefix="prepared-fixture-workflow-"))
     report(sys.stderr, f"private target directory: {target_dir}")
+    keep = args.keep
     try:
         run_workflow(target_dir)
     except StepFailureError as error:
@@ -237,8 +241,18 @@ def main(argv: list[str] | None = None) -> int:
             f"FAILED: a step exceeded {STEP_TIMEOUT_SECONDS} s: {error}",
         )
         return 1
+    except TreeSurvivedError as error:
+        # The step's processes may still be writing into the directory, so
+        # removing it would only move the failure somewhere harder to read.
+        keep = True
+        report(
+            sys.stderr,
+            f"FAILED: a step exceeded {STEP_TIMEOUT_SECONDS} s and its "
+            f"processes could not be confirmed gone: {error}",
+        )
+        return 1
     finally:
-        if not args.keep:
+        if not keep:
             shutil.rmtree(target_dir, ignore_errors=True)
         else:
             report(sys.stderr, f"kept {target_dir}")
