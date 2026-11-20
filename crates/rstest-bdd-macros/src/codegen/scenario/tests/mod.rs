@@ -35,6 +35,7 @@ mod adapter_sharing;
 mod gpui_policy;
 mod harness_defaults;
 mod runtime_split;
+mod table_tokens;
 mod trait_assertions;
 
 fn kw(ts: &TokenStream2) -> syn::Result<crate::StepKeyword> {

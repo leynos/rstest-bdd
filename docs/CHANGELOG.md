@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed Scenario Outlines whose steps (or whose feature's Background steps)
+  carry a data table failing to compile on stable Rust. The generated table
+  literals now use unsizing coercions instead of range indexing, which is not
+  allowed in the constant that holds every Examples row's steps.
+
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and
   `find_step_with_mode` in favour of `lookup_step_with_metadata` and
