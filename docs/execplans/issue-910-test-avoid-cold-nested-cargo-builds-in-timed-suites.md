@@ -2514,6 +2514,23 @@ rather than by reading this branch's comments.
   `mdtablefix` line, not a rustfmt one. Run `make check-fmt`, or at minimum
   `mdtablefix --check ...`, before pushing a Markdown-heavy change.
 
+- [x] **CodeScene Code Duplication in the preparation harness, fixed by
+  removing the duplication.** `CodeScene Code Health Review (main)` failed
+  `b182734c` under the advisory gate *Enforce advisory code health rules* —
+  `1 file with Code Duplication` — naming
+  `crates/rstest-bdd/tests/feature_rebuild_invalidation/harness/preparation/mod.rs`
+  at code health 9.39. `cs review` localized it exactly:
+  `ensure_rebuild_prepared` (77–86) and `ensure_addition_prepared` (107–116)
+  were byte-identical apart from which family they named.
+
+  Extracted the shared sequence into `ensure_prepared`, parameterized by the
+  family's `describe` and `prepare` functions. Both callbacks already had the
+  signature `fn(&process::ChildEnv) -> io::Result<...>`, so this is a plain
+  function-pointer parameter — no trait object, no generic builder. Re-measured
+  with the project's own tooling: `cs review` on the file now reports **score
+  10.0, no findings**. The rule was not suppressed and no allowlist entry was
+  added.
+
 - [x] **The seventh copy of the path-spelling defect, and the one its own
   comment claimed was immune.** Run `44673737187` on `bc06a3d9` failed *both*
   Windows lanes — `build-test (windows, default features)` and
