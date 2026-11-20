@@ -870,7 +870,7 @@ rather than by reading this branch's comments.
       see the sort — after separating the sort from the traversal. All three
       remaining properties were then mutation-tested: removing the sort, the
       path hash, and the build-output exclusion each fail a named test. The
-      surviving properties (`moving_an_input_changes_the_hash`,
+      surviving properties (`renaming_an_input_changes_the_hash`,
       `changing_an_input_changes_the_hash`,
       `excluded_entries_do_not_reach_the_hash`) still test real invariants, and
       the module documents what it cannot show rather than implying coverage
@@ -3160,6 +3160,30 @@ rather than by reading this branch's comments.
   not exist there. `make test` runs `scripts/tests` on every lane, so a
   POSIX-only case needs a skip.
 
+- [x] **Deliver the review items that were confirmed and queued but never
+  landed.** 2026-11-20. An audit of the unresolved threads before the final
+  approval request found six replies from 18 November that accepted a finding
+  and promised it "for the follow-up batch". Two had since been done. Four had
+  not, and are done now:
+
+  - The rebuild-invalidation families claimed their five workspace crates
+    and no registry package, so an evicted `inventory` passed the gate. They
+    now claim their lockfile's packages through the new
+    `Preparation::owned_if_built`, which checks a package that was built and
+    excuses one that was not. The lockfile was preferred to `cargo tree`
+    because the named preparation test already runs three bounded commands,
+    and `3 x 9 m` leaves no room in its 30-minute period for two more.
+  - The CLI closure query runs in the fixture build's environment, not the
+    test process's.
+  - The hash property renames a leaf in place, so it varies only the name.
+    Names reach the hash twice, in the directory listing and in the file
+    entry, so removing one alone does not fail it; removing both does.
+  - The withdrawal case starts from a seeded stamp, and four witness cases
+    share the `deps_directory` fixture.
+
+  The lesson is about the ledger, not the code: a reply that says "queued" is
+  an open item until a commit closes it, and it should be tracked as one.
+
 ## Surprises & Discoveries
 
 - **A green lint run is a temporary observation, not a property of the tree.**
@@ -4147,7 +4171,7 @@ An earlier revision of this section claimed that every recorded run passed
 every required lane, and named `3ffa7295` (run `42057352055`) as the latest.
 Both claims went stale, and the first became false. Run `43617094223` on head
 `34f29ce7` failed `build-test (windows, default features)`: 118 tests passed and
-`nested_cargo::preparation::prop_tests::moving_an_input_changes_the_hash`
+`nested_cargo::preparation::prop_tests::renaming_an_input_changes_the_hash`
 panicked at `prop_tests.rs:150` with
 `input file: Os { code: 3, kind: NotFound }` for the minimal input
 `tree = { "nul/a": [] }`. That is the Windows device-name defect recorded under
