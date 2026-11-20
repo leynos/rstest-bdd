@@ -103,31 +103,42 @@ fn the_two_probed_identities_stay_distinguishable() {
     );
 }
 
-/// A probe that exits non-zero refuses the identity, and names the program it
-/// could not identify.
+/// One complete `-vV` output, read under both exit statuses.
 ///
 /// A fingerprint that could not name the toolchain would be the *same* text on
 /// a host where identification fails as on the run before, so a stamp would
 /// survive a toolchain change. Failing closed is the only answer that forces
 /// invalidation without re-preparing on every run.
 ///
-/// Both programs are pinned as cases over the *same* stdout and the same failure
-/// status, so the only thing that varies is which program was probed. That
-/// isolates the exit-status handling from the output parser, and it makes the
-/// second half of the contract explicit: the message must name the program that
-/// actually failed. The compiler probe is the one that matters for an in-place
-/// compiler change, and a message naming Cargo there would report the wrong
-/// cause for the very case the second probe exists to catch.
+/// Both programs are cases over the *same* stdout, so the exit status is the
+/// only thing that decides the outcome and the program is the only thing that
+/// varies between cases. With success the output is an identity; with failure
+/// the very same output is refused, and the refusal says the probe failed and
+/// names the program that did. The compiler probe is the one that matters for
+/// an in-place compiler change, and a message naming Cargo there would report
+/// the wrong cause for the case the second probe exists to catch.
 #[rstest]
 #[case::cargo(CARGO)]
 #[case::compiler(COMPILER)]
-fn a_probe_that_exits_non_zero_is_an_error_naming_its_program(#[case] program: &'static str) {
-    let error = identity_from(program, PROBE_FAILED, "release: 1.88.0\n")
-        .expect_err("a failed probe must not yield an identity");
-    let expected = format!("{program} -vV");
+fn a_probes_exit_status_decides_between_an_identity_and_a_named_failure(
+    #[case] program: &'static str,
+) {
+    let complete = "tool 1.88.0 (1234abcd 2025-06-01)\nrelease: 1.88.0\ncommit-hash: \
+                    1234abcd\nhost: x86_64-unknown-linux-gnu\n";
+
+    let identity = identity_from(program, PROBE_OK, complete)
+        .expect("a complete probe that succeeded identifies the toolchain");
+    assert_eq!(
+        identity, "release: 1.88.0 commit-hash: 1234abcd host: x86_64-unknown-linux-gnu",
+        "a successful probe yields the three identity fields"
+    );
+
+    let error = identity_from(program, PROBE_FAILED, complete)
+        .expect_err("the same output from a failed probe must not yield an identity");
+    let expected = format!("`{program} -vV` failed");
     assert!(
         error.to_string().contains(&expected),
-        "the failure must name the probe it ran as `{expected}`, got: {error}"
+        "the failure must say that `{program} -vV` failed, got: {error}"
     );
 }
 

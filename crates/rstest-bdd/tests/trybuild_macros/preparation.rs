@@ -76,9 +76,12 @@ const TRYBUILD_PROBE: &str = "step_macros.rs";
 /// fixture fails while parsing the macro arguments, so it opens no file and its
 /// diagnostic is the same under any target root.
 ///
-/// The probe's own diagnostics are never asserted on: `trybuild` writes them
-/// to `wip/` and the file is removed below, because a stale `wip` entry makes
-/// `trybuild` report a newly created `.stderr` as a failure.
+/// The probe's diagnostics *are* compared: `compile_fail` requires the fixture
+/// to fail and checks its committed `.stderr` snapshot, so a drifted snapshot
+/// fails the preparation. That is why the probe has to be one whose diagnostic
+/// is the same under any target root. Whatever `trybuild` then leaves in
+/// `wip/` is removed below, because a stale `wip` entry makes `trybuild` report
+/// a newly created `.stderr` as a failure.
 const TRYBUILD_CHECK_PROBE: &str = "scenario_missing_path.rs";
 
 /// The workspace root, two levels above this crate's manifest directory.

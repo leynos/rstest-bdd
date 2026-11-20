@@ -329,3 +329,44 @@ fn evicting_each_required_crate_fails_the_gate() -> std::io::Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn the_closure_query_runs_in_the_environment_it_is_given() -> std::io::Result<()> {
+    // The query has to resolve the graph the fixture build resolves, so it
+    // runs in the build's environment and not this process's. An empty Cargo
+    // home is what shows which one it used: resolved offline, the fixture's
+    // registry dependencies cannot be found there, so the query fails. A query
+    // that ignored the environment it was handed would read this process's
+    // Cargo home and succeed.
+    let (environment, ..) =
+        super::cli_preparation().map_err(|error| std::io::Error::other(error.to_string()))?;
+    let empty_home = tempfile::tempdir()?;
+    let isolated = nested_cargo::env_from_vars(
+        environment
+            .iter()
+            .filter(|(key, _)| key.as_os_str() != "CARGO_HOME")
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .chain([("CARGO_HOME".into(), empty_home.path().into())])
+            .collect(),
+        None,
+        nested_cargo::ProfileDestination::Caller,
+    )?;
+    assert_eq!(
+        isolated.get("CARGO_HOME"),
+        Some(empty_home.path().as_os_str()),
+        "the isolated environment must carry the empty Cargo home"
+    );
+
+    let error = fixture_dependency_closure(&isolated, TIMED_GRAPH_QUERY_TIMEOUT)
+        .expect_err("a query run in an empty Cargo home cannot resolve registry packages");
+    let text = format!("{error:#}");
+    assert!(
+        text.contains("`cargo tree` failed"),
+        "the failure must be the query's own, got: {text}"
+    );
+
+    // The control: the same query in the family's environment resolves.
+    fixture_dependency_closure(&environment, TIMED_GRAPH_QUERY_TIMEOUT)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    Ok(())
+}
