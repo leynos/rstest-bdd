@@ -161,6 +161,16 @@ named preparation test — run before the timed suite, and matched by
 entry point that target reaches; it is idempotent, so a warm target directory
 costs the toolchain probes and the stamp and artefact checks, and no build.
 
+A family whose preparation closure *creates* the directory its nested builds
+run in needs the staged entry points instead: `prepare_now_staged` for the
+named preparation test and `ensure_prepared_building_staged` for the gate. Both
+take a `stage` closure and run it before the toolchain is identified, so a
+relative `RUSTC` beneath that directory, or a `rust-toolchain.toml` copied into
+it, is in place when the cold identity is taken. `stage` must be idempotent and
+must not build. `prepare_now_staged` always runs it. The staged gate runs it
+only where it may build: under `cargo nextest` it does not stage, and a family
+whose working directory is absent is refused with the preparation command.
+
 No assertion deadline needs to change. The point of the split is that the cold
 work leaves the timed test rather than that the timed test waits longer.
 
@@ -262,6 +272,9 @@ from a caller of the supported crates.
       test boundary; use `admit` where the suite only needs to know whether the
       tree is reusable. Run that preparation pass under Nextest before the
       timed suite.
+- [ ] If that preparation creates the directory its nested builds run in,
+      use `prepare_now_staged` and `ensure_prepared_building_staged` and move
+      the copy into an idempotent `stage` closure that does not build.
 - [ ] Add `?` to every `nested_cargo` environment, target-directory and
       `Preparation` constructor call that now returns `io::Result`.
 - [ ] Re-check any code that parses a bounded run's captured output: it holds

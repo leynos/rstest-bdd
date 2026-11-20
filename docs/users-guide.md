@@ -2989,25 +2989,31 @@ test support and is not part of the supported public API, so use it only from
 test helpers.
 
 `locate_or_build_binary` returns a `std::process::Command` for the binary. It
-tries these steps in order and stops at the first that succeeds:
+first settles on one candidate path, and falls back to metadata when that path
+is not a file:
 
-1. **`CARGO_BIN_EXE_<name>`.** If this variable is set, its value is used as
-   the binary path. The name is used exactly as given, so `todo-cli` reads
-   `CARGO_BIN_EXE_todo-cli`.
-2. **The profile directory.** Otherwise the helper starts from the running test
-   executable and takes its profile directory: the parent of `deps`, or, under
-   Cargo's `build/<package>/<hash>/out` layout, the directory above `build`. An
-   executable in neither layout uses its own parent directory. The helper then
-   checks once whether `<profile>/<name>` (with the platform executable suffix)
-   is a file. If the executable path cannot be read, it checks `./<name>`.
-3. **Metadata and build.** Otherwise `cargo metadata --no-deps` for the manifest
+1. **The candidate path.** Exactly one of these supplies it:
+   - If `CARGO_BIN_EXE_<name>` is set, its value is the candidate. The name is
+     used exactly as given, so `todo-cli` reads `CARGO_BIN_EXE_todo-cli`. The
+     profile directory is not probed in this case, even when the value does
+     not name a file.
+   - If the variable is unset, the helper starts from the running test
+     executable and takes its profile directory: the parent of `deps`, or,
+     under Cargo's `build/<package>/<hash>/out` layout, the directory above
+     `build`. An executable in neither layout uses its own parent directory.
+     The candidate is `<profile>/<name>` with the platform executable suffix.
+     If the executable path cannot be read, the candidate is `./<name>`.
+
+   The candidate is used if it is a file.
+2. **Metadata and build.** Otherwise `cargo metadata --no-deps` for the manifest
    gives the target directory, and `<target>/debug/<name>` is used if it is a
    file. If it is not, `cargo build --bin <name>` runs in the workspace root. A
    failed build returns `BinaryLocateError::BuildFailed` with the captured
    output. If the binary is still absent, the result is
    `BinaryLocateError::MissingBinary`.
 
-Step 2 does not consult the target root and does not search other directories.
+The profile probe is a single check: it does not consult the target root and
+does not search other directories.
 
 `target_directory_of(executable: &Path) -> Option<PathBuf>` is a separate
 helper that the steps above do not call. It walks up from the executable,
