@@ -72,8 +72,26 @@ pub(super) fn described_from<Q>(inputs: Inputs, budget: Budget, query: Q) -> Res
 where
     Q: FnOnce(Duration) -> Result<Vec<String>>,
 {
+    described_with(budget, query, |owned| describe(inputs, owned))
+}
+
+/// [`described_from`] with the description builder supplied.
+///
+/// This is the composition itself: the query is charged and run, and only
+/// then is `build` handed what it returned. The builder is a parameter so a
+/// regression can record the order the two halves run in; production passes
+/// [`describe`] over the family's inputs.
+///
+/// # Errors
+///
+/// As [`charged`], and the builder's own error.
+pub(super) fn described_with<Q, B>(budget: Budget, query: Q, build: B) -> Result<Described>
+where
+    Q: FnOnce(Duration) -> Result<Vec<String>>,
+    B: FnOnce(Vec<String>) -> Result<(nested_cargo::Preparation, nested_cargo::NestedCargoEnv)>,
+{
     let owned = charged(budget, query)?;
-    let (preparation, child_env) = describe(inputs, owned)?;
+    let (preparation, child_env) = build(owned)?;
     Ok((preparation, child_env, budget.deadline))
 }
 

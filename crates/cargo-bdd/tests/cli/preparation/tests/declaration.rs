@@ -335,3 +335,36 @@ fn the_query_is_given_its_bound_with_no_description_to_wait_for() {
         );
     }
 }
+
+#[test]
+fn the_query_runs_before_the_description_is_built() {
+    // The composition every production caller reaches: `described_from` is
+    // `described_with` over the family's inputs. Both halves record when they
+    // run, so building the description ahead of the query — where slow
+    // canonicalization would make the query's bound stale — fails here.
+    let order = std::cell::RefCell::new(Vec::new());
+    let budget = super::budget::Budget::starting_now(std::time::Duration::from_secs(3600));
+    let error = super::budget::described_with(
+        budget,
+        |_bound| {
+            order.borrow_mut().push("query");
+            Ok(vec!["rstest-bdd".to_owned()])
+        },
+        |owned| {
+            order.borrow_mut().push("description");
+            // The builder is handed the query's answer, which is the other
+            // half of the ordering: it has nothing to build from until then.
+            Err(eyre::eyre!("stopped after receiving {} units", owned.len()))
+        },
+    )
+    .expect_err("the recording builder stops the description");
+    assert_eq!(
+        *order.borrow(),
+        ["query", "description"],
+        "the query must run before the description is built"
+    );
+    assert!(
+        format!("{error:#}").contains("stopped after receiving 3 units"),
+        "the builder must receive the query's unit and both test targets: {error:#}"
+    );
+}
