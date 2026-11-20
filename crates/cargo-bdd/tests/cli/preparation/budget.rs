@@ -59,30 +59,64 @@ impl Budget {
 
 /// Describe the family from resolved `inputs`, charging `query` to `budget`.
 ///
+/// The query runs first and the description is built from its answer. The
+/// order is fixed by what each half takes: [`charged`] is given no inputs, so
+/// it cannot build a description, and [`describe`] takes the units the query
+/// returned, so it cannot run before the query has.
+///
 /// # Errors
 ///
-/// Returns the target-directory error from the description, the deadline's
-/// refusal when no budget is left for the query, and the query's own error.
+/// Returns the deadline's refusal when no budget is left for the query, the
+/// query's own error, and the target-directory error from the description.
 pub(super) fn described_from<Q>(inputs: Inputs, budget: Budget, query: Q) -> Result<Described>
 where
     Q: FnOnce(Duration) -> Result<Vec<String>>,
 {
-    // The query's own limit and the budget are both respected: the deadline
-    // decides whether there is time to start, and the per-query bound keeps one
-    // contended query from consuming the probes' share.
-    //
-    // Taken first, before the description is built. Building it can touch the
-    // filesystem — a path-valued `CARGO_BUILD_TARGET` is canonicalized — and
-    // work placed between a caller starting its budget and this check is work
-    // that can spend the budget before the query is ever offered it.
+    let owned = charged(budget, query)?;
+    let (preparation, child_env) = describe(inputs, owned)?;
+    Ok((preparation, child_env, budget.deadline))
+}
+
+/// Run `query` against what `budget` has left, and return the owned units.
+///
+/// The bound is taken and handed to the query in one step, with nothing
+/// between them. A bound that waited behind other work would be stale by
+/// however long that work took, and the query could then start after the
+/// deadline it was sized from. Building the description is such work — a
+/// path-valued `CARGO_BUILD_TARGET` is canonicalized — which is why this
+/// function is given nothing to build one from.
+///
+/// The query's own limit and the budget are both respected: the deadline
+/// decides whether there is time to start, and the per-query bound keeps one
+/// contended query from consuming the probes' share.
+///
+/// # Errors
+///
+/// Returns the deadline's refusal when no budget is left, and the query's own
+/// error.
+pub(super) fn charged<Q>(budget: Budget, query: Q) -> Result<Vec<String>>
+where
+    Q: FnOnce(Duration) -> Result<Vec<String>>,
+{
     let bound = budget
         .deadline
         .cap(budget.query_limit, "the fixture dependency closure")
         .wrap_err("the timed CLI gate has no budget left for its graph query")?;
-    // And the query runs at once, before anything else is done. A bound that
-    // waited behind the description would be stale by however long that took,
-    // and the query could then start after the deadline it was sized from.
-    let owned = owned_units(query(bound)?);
+    Ok(owned_units(query(bound)?))
+}
+
+/// Build the family's description around the units it `owned`.
+///
+/// Whatever time this takes falls after the query and before the probes, so
+/// it is charged to the probes through the deadline the gate receives.
+///
+/// # Errors
+///
+/// Returns the target-directory error from the description.
+fn describe(
+    inputs: Inputs,
+    owned: Vec<String>,
+) -> Result<(nested_cargo::Preparation, nested_cargo::NestedCargoEnv)> {
     let (child_env, target_root, hash) = inputs;
     let mut preparation = nested_cargo::Preparation::new(
         nested_cargo::Sources::new("cargo-bdd-cli", env!("CARGO_PKG_VERSION"), hash),
@@ -98,7 +132,7 @@ where
         child_env.clone(),
     )?;
     preparation.owned_packages = owned;
-    Ok((preparation, child_env, budget.deadline))
+    Ok((preparation, child_env))
 }
 
 /// The timed gate, from one `period` through the query to the probes.

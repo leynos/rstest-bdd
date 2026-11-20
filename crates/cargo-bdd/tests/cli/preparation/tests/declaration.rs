@@ -301,3 +301,37 @@ fn a_query_that_spends_the_budget_leaves_the_gate_none_for_its_probes() {
         "the refusal must be the spent budget's, naming the probe it declined: {text}"
     );
 }
+
+#[test]
+fn the_query_is_given_its_bound_with_no_description_to_wait_for() {
+    // `charged` takes the budget and the query and nothing else, so no
+    // description can be built between taking the bound and running the
+    // query: there is nothing here to build one from. Moving that work back
+    // in front of the query means giving this function the family's inputs,
+    // and this call then stops compiling. What is left to assert is that the
+    // query runs, once, under the bound the budget allows, and that its
+    // units reach the caller with the test targets beside them.
+    let limit = std::time::Duration::from_secs(30);
+    let budget = super::budget::Budget {
+        deadline: nested_cargo::Deadline::starting_now(std::time::Duration::from_secs(3600)),
+        query_limit: limit,
+    };
+    let mut bounds = Vec::new();
+    let owned = super::budget::charged(budget, |bound| {
+        bounds.push(bound);
+        Ok(vec!["rstest-bdd".to_owned()])
+    })
+    .expect("a live budget must run the query");
+    assert_eq!(bounds, [limit], "the query runs once, under its own limit");
+    assert_eq!(
+        owned.first().map(String::as_str),
+        Some("rstest-bdd"),
+        "the query's units must reach the description"
+    );
+    for target in super::witness::FIXTURE_TEST_BINARIES {
+        assert!(
+            owned.iter().any(|name| name == target),
+            "the test target {target} must be owned beside the closure"
+        );
+    }
+}
