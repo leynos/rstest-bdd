@@ -7,6 +7,7 @@
 //! This file stitches those pieces together, applying any compile-time tag
 //! filters and generating the rstest-backed test functions.
 
+mod empty_results;
 mod feature_discovery;
 mod macro_args;
 mod module_emission;
@@ -27,6 +28,7 @@ pub(crate) use self::macro_args::{
     TestAttributeHint as ScenariosTestAttributeHint,
 };
 use self::{
+    empty_results::{ExpansionOutput, check_empty_results},
     feature_discovery::collect_feature_files,
     macro_args::{
         FixtureSpec,
@@ -215,22 +217,6 @@ fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, T
     )
 }
 
-/// Provides the internal `check_empty_results` operation.
-fn check_empty_results(
-    tests: &[TokenStream2],
-    errors: &mut Vec<TokenStream2>,
-    tag_filter: Option<&TagFilter>,
-) {
-    let is_nothing_emitted = tests.is_empty() && errors.is_empty();
-    if is_nothing_emitted && let Some(filter) = tag_filter {
-        let err = syn::Error::new(
-            filter.span,
-            format!("no scenarios matched tag expression `{}`", filter.raw),
-        );
-        errors.push(error_to_tokens(&err));
-    }
-}
-
 /// Provides the internal `emit_runtime_deprecation_warning` operation.
 fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::Path>) {
     if runtime != RuntimeMode::TokioCurrentThread {
@@ -347,7 +333,11 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
     };
     let (tests, mut errors) = generate_tests_from_features(&feature_paths, &ctx);
 
-    check_empty_results(&tests, &mut errors, tag_filter.as_ref());
+    let output = ExpansionOutput {
+        tests: &tests,
+        fallback_diagnostics: &fallback_diagnostics,
+    };
+    check_empty_results(output, &mut errors, tag_filter.as_ref(), &dir_lit);
 
     generate_scenarios_module(GeneratedScenariosModule {
         dir,

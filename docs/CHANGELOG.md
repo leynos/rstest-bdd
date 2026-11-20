@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `scenarios!` now fails to compile when an expansion generates no tests,
+  reporting ``no scenarios found in `<dir>` `` at the path literal. Previously
+  a directory whose features declared no scenarios (for example after a path
+  typo) expanded to an empty module without any warning. An unmatched `tags`
+  filter keeps its existing message. A directory whose only scenarios sit under
+  `Rule:` blocks is now an error, because rule scenarios are not yet generated.
+
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and
   `find_step_with_mode` in favour of `lookup_step_with_metadata` and
