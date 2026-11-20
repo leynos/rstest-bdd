@@ -1183,6 +1183,29 @@ dependency artefacts or the paired outputs say the tree is not usable. The scan
 is bounded by the profile's `deps` entry count, which is a few thousand files
 for this workspace.
 
+### What a stamp may speak for in a shared profile
+
+A family that builds into a profile other families write to must say which
+units are its own, or its stamp vouches for work it never did. It names them in
+two lists on `Preparation`, and the gate treats a recorded name as the family's
+when it matches either.
+
+- `owned_packages` is a claim the preparation is held to. Every name must have
+  contributed a recorded artefact, so a misspelled or stale name fails the
+  preparation and cannot leave units silently unowned. Use it for a list that
+  is true on every host: the workspace crates a fixture depends on, or a
+  closure resolved with `cargo tree`, which filters by the host's target.
+- `owned_if_built` owns a name's units when the build produced them and excuses
+  it when the build did not. Use it for a list that names more than one host
+  builds. The rebuild-invalidation families read theirs from the fixture's
+  committed lockfile, which lists every package for every platform; resolving
+  the host's subset would need a subprocess before every timed gate.
+
+A name is a Cargo target name as well as a package name, because a unit's
+output is named for its target. The CLI family lists its fixture's two test
+targets beside its closure for that reason. Leave both lists empty only for a
+family that owns its whole target directory.
+
 ### Cargo configuration as a preparation input
 
 Cargo discovers configuration by walking from a command's working directory up

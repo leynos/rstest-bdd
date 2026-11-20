@@ -191,7 +191,48 @@ const ADAPTER_PACKAGE: &str = "adapter";
 const ENGINE_TARGET: &str = "engine";
 
 /// Removing a target-named output invalidates the stamp that recorded it.
-///
+#[test]
+fn a_package_owned_if_built_is_checked_when_built_and_excused_when_not() {
+    // A lockfile names every package for every platform, and no one host
+    // builds them all. Declared in `owned_packages`, the ones this host skips
+    // would refuse the preparation, as the case above shows. Declared in
+    // `owned_if_built`, they are excused — while the ones this host *did*
+    // build are owned in full, so evicting one still fails the gate.
+    let (_directory, mut preparation, _environment) =
+        scratch_preparation().expect("the scratch preparation fixture");
+    preparation.owned_packages = vec![FIXTURE_PACKAGE.to_owned()];
+    preparation.owned_if_built = [REGISTRY_PACKAGE, "never-built-package"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let store = prepared_profile(&preparation)
+        .expect("the preparation describes the profile directory it reuses")
+        .join(".fingerprint");
+    let fixture_unit = store.join(format!("{FIXTURE_PACKAGE}-0123456789abcdef"));
+    let registry_unit = store.join(format!("{REGISTRY_PACKAGE}-0123456789abcdef"));
+    for unit in [&fixture_unit, &registry_unit] {
+        fs::create_dir_all(unit).expect("create a unit's record directory");
+        fs::write(unit.join("record"), b"fingerprint record").expect("write a record");
+    }
+
+    prepare_now(&preparation, || Ok(PreparationSummary::default()))
+        .expect("a package that was never built must not refuse the preparation");
+    ensure_prepared_building(&preparation, true, || {
+        panic!("a just-prepared family must be reused")
+    })
+    .expect("the stamp must be accepted while every built unit is present");
+
+    fs::remove_dir_all(&registry_unit).expect("evict the built package's fingerprint records");
+    let error = ensure_prepared_building(&preparation, true, || {
+        panic!("a timed test must never prepare")
+    })
+    .expect_err("a built package's eviction must fail the gate, required or not");
+    assert!(
+        error.to_string().contains(REGISTRY_PACKAGE),
+        "the refusal must name the evicted package: {error}"
+    );
+}
+
 /// The regression the predicate's own tests cannot reach: they ask whether a
 /// name is owned, while this asks whether a *removal* is seen. It is the case
 /// that fails if a caller declares a package and assumes that covers the unit,

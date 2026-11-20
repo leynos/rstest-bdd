@@ -26,8 +26,11 @@
   folds the workspace Cargo configuration into the input hash.
   `prepare_now_staged` and `ensure_prepared_building_staged` run a caller's
   staging step before the toolchain is identified, for a family whose
-  preparation creates the directory its nested builds run in. This is additive:
-  the existing `ProfileDestination` API is unchanged.
+  preparation creates the directory its nested builds run in.
+  `Preparation::owned_if_built` names packages whose units a stamp speaks for
+  when the build produced them, beside `owned_packages`, which requires each
+  name to have been built. This is additive: the existing `ProfileDestination`
+  API is unchanged.
 
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and

@@ -151,15 +151,10 @@ pub(super) fn record_names(profile: &Path, stores: &[PathBuf]) -> io::Result<Vec
 pub(in crate::nested_cargo::preparation) fn record(
     preparation: &Preparation,
 ) -> io::Result<Vec<Vec<String>>> {
+    let claimed = ownership::claimed(preparation);
     preparation
         .artefacts
         .iter()
-        .map(|profile| {
-            recorded_names(
-                profile,
-                &layout::discover(profile)?,
-                &preparation.owned_packages,
-            )
-        })
+        .map(|profile| recorded_names(profile, &layout::discover(profile)?, &claimed))
         .collect()
 }

@@ -6,9 +6,16 @@
 //! run of that family's preparation commands actually did, for the log line.
 //! All three live beside [`Preparation`](super::Preparation) rather than inside
 //! it because they are the ends of the same exchange and are never used
-//! together by the same code.
+//! together by the same code. [`env_for_directory`] is here too: it is how a
+//! caller turns the directory it stamps into the environment its child gets.
 
-use std::path::PathBuf;
+use std::{
+    env,
+    io,
+    path::{Path, PathBuf},
+};
+
+use crate::nested_cargo::{NestedCargoEnv, ProfileDestination, env_from_vars};
 
 /// What a preparation builds, as the caller describes it.
 ///
@@ -96,4 +103,43 @@ impl Directories {
 pub struct PreparationSummary {
     /// Number of `Compiling` lines the nested builds emitted.
     pub compiled_units: usize,
+}
+
+/// Filter the inherited environment for a child that builds in `directory`.
+///
+/// `CARGO_TARGET_DIR` is dropped from the inherited values because the
+/// directory being stamped is the authority: a stale inherited value would
+/// point the build somewhere the stamp does not describe. Callers that only
+/// need an environment for a nested build should reach for
+/// [`build_child_env`](crate::nested_cargo::build_child_env) or [`env_from_vars`] instead: this
+/// helper serves [`Preparation::for_fixture`](super::Preparation::for_fixture), because dropping
+/// the inherited value is a decision about what a *stamp* describes rather than a general filtering
+/// rule.
+///
+/// # Parameters
+/// - `directory`: The directory being stamped, which supplies the `CARGO_TARGET_DIR` that replaces
+///   the dropped value.
+/// - `profile_destination`: Where the child's profile output goes, passed to [`env_from_vars`]
+///   unchanged.
+///
+/// # Returns
+/// The inherited environment less `CARGO_TARGET_DIR`, plus the resolved target
+/// directory: what the nested build receives, not what this process holds.
+///
+/// # Errors
+///
+/// As [`env_from_vars`]. The dropped variable is re-supplied from `directory`,
+/// so this reports only when `directory` itself is relative and the working
+/// directory cannot be read.
+pub fn env_for_directory(
+    directory: &Path,
+    profile_destination: ProfileDestination,
+) -> io::Result<NestedCargoEnv> {
+    env_from_vars(
+        env::vars_os()
+            .filter(|(key, _)| key != "CARGO_TARGET_DIR")
+            .collect(),
+        Some(directory),
+        profile_destination,
+    )
 }

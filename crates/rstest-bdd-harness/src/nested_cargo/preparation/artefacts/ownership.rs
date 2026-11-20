@@ -24,6 +24,21 @@
 //!
 //! [`Preparation::owned_packages`]: super::super::Preparation::owned_packages
 
+/// Every name the family's stamp speaks for, required or not.
+///
+/// The two lists differ only in what the preparation is *held to*:
+/// `owned_packages` must each have contributed a recorded artefact, and
+/// `owned_if_built` need not. For deciding whether a recorded name is the
+/// family's, they are one list.
+pub(super) fn claimed(preparation: &super::super::Preparation) -> Vec<String> {
+    preparation
+        .owned_packages
+        .iter()
+        .chain(&preparation.owned_if_built)
+        .cloned()
+        .collect()
+}
+
 /// Whether `name` names a unit this family built.
 ///
 /// `owned` is empty for a family that owns its whole target directory, and

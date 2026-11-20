@@ -69,7 +69,7 @@ pub use lifecycle::{
     prepare_now_reported,
     prepare_now_staged,
 };
-pub use sources::{Directories, PreparationSummary, Sources};
+pub use sources::{Directories, PreparationSummary, Sources, env_for_directory};
 
 #[cfg(test)]
 mod fingerprint_props;
@@ -79,14 +79,13 @@ mod prop_tests;
 mod tests;
 
 use std::{
-    env,
     io,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
 
-use super::{NestedCargoEnv, ProfileDestination, env_from_vars};
+use super::{NestedCargoEnv, ProfileDestination};
 
 /// Wall-clock bound for one nested preparation command.
 ///
@@ -226,6 +225,20 @@ pub struct Preparation {
     /// [`Preparation::for_fixture`]: such a family sets `CARGO_TARGET_DIR` to
     /// the directory it stamps, so no other family writes there.
     pub owned_packages: Vec<String>,
+    /// Packages whose units the stamp speaks for *if the build produced them*.
+    ///
+    /// [`Preparation::owned_packages`] is a claim the preparation is held to:
+    /// every name there must have contributed a recorded artefact. That is the
+    /// wrong rule for a list read from a lockfile, which names every package
+    /// for every platform, most of which no one host builds. A name here is
+    /// owned exactly as those are — its recorded units are checked for
+    /// eviction — but one that contributed nothing is not an error. It suits
+    /// a family's registry dependencies, which are as evictable as its path
+    /// dependencies and whose set differs by target triple.
+    ///
+    /// Like `owned_packages`, a non-empty list narrows the claim: the family
+    /// then speaks only for the names in either list.
+    pub owned_if_built: Vec<String>,
     /// Directory the nested build commands run in.
     ///
     /// Cargo resolves a relative `CARGO_HOME` and a relative `RUSTC` against
@@ -293,6 +306,7 @@ impl Preparation {
             inputs: sources.inputs,
             artefacts,
             owned_packages: Vec::new(),
+            owned_if_built: Vec::new(),
         })
     }
 
@@ -347,45 +361,6 @@ impl Preparation {
         preparation.artefacts = vec![preparation.directory.clone()];
         Ok(preparation)
     }
-}
-
-/// Filter the inherited environment for a child that builds in `directory`.
-///
-/// `CARGO_TARGET_DIR` is dropped from the inherited values because the
-/// directory being stamped is the authority: a stale inherited value would
-/// point the build somewhere the stamp does not describe. Callers that only
-/// need an environment for a nested build should reach for
-/// [`super::build_child_env`] or [`env_from_vars`] instead: this helper serves
-/// [`Preparation::for_fixture`], because dropping the inherited value is a
-/// decision about what a *stamp* describes rather than a general filtering
-/// rule.
-///
-/// # Parameters
-/// - `directory`: The directory being stamped, which supplies the `CARGO_TARGET_DIR` that replaces
-///   the dropped value.
-/// - `profile_destination`: Where the child's profile output goes, passed to [`env_from_vars`]
-///   unchanged.
-///
-/// # Returns
-/// The inherited environment less `CARGO_TARGET_DIR`, plus the resolved target
-/// directory: what the nested build receives, not what this process holds.
-///
-/// # Errors
-///
-/// As [`env_from_vars`]. The dropped variable is re-supplied from `directory`,
-/// so this reports only when `directory` itself is relative and the working
-/// directory cannot be read.
-pub fn env_for_directory(
-    directory: &Path,
-    profile_destination: ProfileDestination,
-) -> io::Result<NestedCargoEnv> {
-    env_from_vars(
-        env::vars_os()
-            .filter(|(key, _)| key != "CARGO_TARGET_DIR")
-            .collect(),
-        Some(directory),
-        profile_destination,
-    )
 }
 
 /// Take the preparation lock.

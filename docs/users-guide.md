@@ -2933,6 +2933,14 @@ whose working directory is absent is refused with the preparation command. Both
 run `stage` under the same process-wide lock the preparation takes, so a
 staging step never overlaps another staging step or another caller's build.
 
+A family that builds into a profile shared with other builds names the units
+its stamp speaks for. `Preparation::owned_packages` lists package or target
+names that the preparation must each have produced an artefact for.
+`Preparation::owned_if_built` lists names that are owned when built and excused
+when not, which suits a list read from a lockfile: it names packages for every
+platform, and no one host builds them all. A family that owns its whole target
+directory leaves both empty.
+
 `Reused` is a statement about the callback, not about blocking. On the
 uncontended fast path the stamp and artefact checks are answered before the
 lock is requested, so a warm family pays those checks and no build. But under

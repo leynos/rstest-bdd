@@ -282,6 +282,7 @@ pub(super) fn evicted(
     // Zipped rather than indexed: one state was pushed per directory above, so
     // the two run in step, and the pairing is what the zip states rather than
     // an invariant a reader has to recover from the earlier loop.
+    let claimed = ownership::claimed(preparation);
     for ((index, directory), directory_state) in
         preparation.artefacts.iter().enumerate().zip(&states)
     {
@@ -292,7 +293,7 @@ pub(super) fn evicted(
             recorded: recorded.map(Vec::as_slice),
             waive_empty,
         };
-        if let Some(eviction) = eviction_of(&profile, &preparation.owned_packages)? {
+        if let Some(eviction) = eviction_of(&profile, &claimed)? {
             evictions.push(eviction);
         }
     }
