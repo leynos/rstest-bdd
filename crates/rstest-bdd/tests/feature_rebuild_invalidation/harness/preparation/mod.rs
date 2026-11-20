@@ -96,23 +96,21 @@ fn ensure_prepared(
     nested_cargo::ensure_prepared_building_staged(
         &preparation,
         nested_cargo::running_under_nextest(),
-        || staged(family),
+        staging(family),
         || prepare(&env),
     )
     .map(|_outcome| ())
 }
 
-/// Copy `family`'s scratch tree, as the step that precedes its identification.
+/// Run `family`'s staging step in the shape the staged entry points take.
 ///
-/// The nested builds run in the copy, so it is where a relative `RUSTC` and a
-/// toolchain file are resolved. Identifying the family before the copy exists
-/// reads the nearest ancestor instead, and the stamp then names a compiler the
-/// build does not run; see `nested_cargo::prepare_now_staged`. The copy is
-/// stamp-guarded and idempotent, so the preparation callbacks repeating it is
-/// harmless.
-fn staged(family: Family) -> std::io::Result<()> {
-    (family.stage)();
-    Ok(())
+/// The copy itself cannot fail recoverably: it panics with the path it could
+/// not write, as it does when the preparation callbacks repeat it.
+fn staging(family: Family) -> impl FnOnce() -> std::io::Result<()> {
+    move || {
+        (family.stage)();
+        Ok(())
+    }
 }
 
 /// Prepare both experiments unconditionally, for the named preparation test.
@@ -124,9 +122,9 @@ fn staged(family: Family) -> std::io::Result<()> {
 pub(crate) fn prepare_all() -> std::io::Result<()> {
     let env = process::build_child_env()?;
     let rebuild = fixture_preparation(&env, REBUILD)?;
-    nested_cargo::prepare_now_staged(&rebuild, || staged(REBUILD), || prepare_rebuild(&env))?;
+    nested_cargo::prepare_now_staged(&rebuild, staging(REBUILD), || prepare_rebuild(&env))?;
     let addition = fixture_preparation(&env, ADDITION)?;
-    nested_cargo::prepare_now_staged(&addition, || staged(ADDITION), || prepare_addition(&env))
+    nested_cargo::prepare_now_staged(&addition, staging(ADDITION), || prepare_addition(&env))
 }
 
 /// Prepare the build-script addition scratch fixture's dependency closure.
@@ -226,6 +224,13 @@ struct Family {
     /// relative `CARGO_HOME` or `RUSTC` resolves against.
     scratch: fn() -> std::path::PathBuf,
     /// Copies the fixture into [`Family::scratch`]; run before identification.
+    ///
+    /// The nested builds run in the copy, so it is where a relative `RUSTC`
+    /// and a toolchain file are resolved. Identifying the family before the
+    /// copy exists reads the nearest ancestor instead, and the stamp then
+    /// names a compiler the build does not run; see
+    /// `nested_cargo::prepare_now_staged`. The copy is stamp-guarded and
+    /// idempotent, so the preparation callbacks repeating it is harmless.
     stage: fn(),
     /// Cargo package the fixture's build produces and its experiment cleans.
     package: &'static str,

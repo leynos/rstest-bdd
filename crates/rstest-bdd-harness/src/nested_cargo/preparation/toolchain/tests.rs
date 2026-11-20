@@ -301,15 +301,16 @@ fn a_probe_under_a_spent_deadline_is_refused_by_name() {
     );
 }
 
-/// The hand-off between the two probes, driven with programs that take time.
-///
-/// The cases above state the bound's arithmetic, and the gate cases start from
-/// a budget that is either spent or ample. Neither drives a *slow, successful*
-/// first probe into the second, which is the path a fresh allowance substituted
-/// between them would leave green. The shims are shell scripts, so this is
-/// Unix-only; the rule it pins is not.
 #[cfg(unix)]
 mod hand_off {
+    //! The hand-off between the two probes, driven with programs that take time.
+    //!
+    //! The cases above state the bound's arithmetic, and the gate cases start from
+    //! a budget that is either spent or ample. Neither drives a *slow, successful*
+    //! first probe into the second, which is the path a fresh allowance substituted
+    //! between them would leave green. The shims are shell scripts, so this is
+    //! Unix-only; the rule it pins is not.
+
     use std::{fs, io, os::unix::fs::PermissionsExt as _, path::Path, time::Duration};
 
     use super::super::{Scene, identity_with};
