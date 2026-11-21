@@ -40,7 +40,11 @@ const INCREMENTAL: &str = "incremental";
 /// A profile-level store is `.fingerprint`; the per-unit store inside
 /// `build/<pkg>/<hash>` is `fingerprint`. Both hold the records Cargo reads to
 /// decide a unit is current, so either satisfies the structural check.
-const FINGERPRINT_STORE_DIRS: [&str; 2] = ["fingerprint", ".fingerprint"];
+const FINGERPRINT_STORE_DIRS: [&str; 2] = [PER_UNIT_STORE, ".fingerprint"];
+
+/// The name of the store Cargo 1.100.0 gives each unit inside its own
+/// `build/<pkg>/<hash>` directory.
+const PER_UNIT_STORE: &str = "fingerprint";
 
 /// How far below the profile the discovery walk descends.
 ///
@@ -233,6 +237,34 @@ pub(super) fn entries_of(directory: &Path) -> io::Result<Vec<String>> {
     Ok(names)
 }
 
+/// The records a per-unit store holds directly, sorted.
+///
+/// Cargo 1.100.0 gives each unit a store of its own,
+/// `build/<pkg>/<hash>/fingerprint`, and writes that unit's records straight
+/// into it, with no directory per unit beneath. Reading only
+/// [`record_directories`] recorded nothing for such a store, so a record
+/// removed from it left the stamp matching while Cargo rebuilt the unit. A
+/// profile-level `.fingerprint` yields nothing here; see that function.
+///
+/// # Errors
+///
+/// Returns the read error when the store cannot be listed or an entry's type
+/// cannot be read.
+pub(super) fn loose_records(store: &Path) -> io::Result<Vec<String>> {
+    if store.file_name() != Some(OsStr::new(PER_UNIT_STORE)) {
+        return Ok(Vec::new());
+    }
+    let mut names = Vec::new();
+    for entry in fs::read_dir(store)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() {
+            names.push(entry.file_name().to_string_lossy().into_owned());
+        }
+    }
+    names.sort();
+    Ok(names)
+}
+
 /// The per-unit record directories `store` holds, sorted.
 ///
 /// Cargo files each unit's records under `<store>/<unit>-<hash>/` and reads only
@@ -241,9 +273,10 @@ pub(super) fn entries_of(directory: &Path) -> io::Result<Vec<String>> {
 /// removed looks populated from above while holding nothing Cargo can read, and
 /// every unit whose record went is one Cargo rebuilds.
 ///
-/// A store's own loose entries are not records: Cargo writes those beside the
-/// unit directories for its own bookkeeping, and requiring them would refuse a
-/// tree Cargo considers warm.
+/// A profile-level store's own loose entries are not records: Cargo writes
+/// those beside the unit directories for its own bookkeeping, and requiring
+/// them would refuse a tree Cargo considers warm. A per-unit store is the
+/// opposite case, and is read by [`loose_records`].
 ///
 /// # Errors
 ///

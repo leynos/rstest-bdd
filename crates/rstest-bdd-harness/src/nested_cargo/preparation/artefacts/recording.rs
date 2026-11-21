@@ -112,7 +112,9 @@ pub(super) fn unit_names(profile: &Path, units: &[PathBuf]) -> io::Result<Vec<St
 ///
 /// A record is filed under the unit it belongs to, so the name carries both
 /// components' worth of path; see [`recorded_names`] for why the record is
-/// required at all.
+/// required at all. Both of Cargo's shapes are read: a profile-level store
+/// holding a directory per unit, and a per-unit store holding the records
+/// themselves.
 ///
 /// # Errors
 ///
@@ -120,6 +122,11 @@ pub(super) fn unit_names(profile: &Path, units: &[PathBuf]) -> io::Result<Vec<St
 pub(super) fn record_names(profile: &Path, stores: &[PathBuf]) -> io::Result<Vec<String>> {
     let mut names = Vec::new();
     for store in stores {
+        // A per-unit store holds its unit's records directly; a profile-level
+        // one holds a directory per unit. Each store is one or the other.
+        for file in layout::loose_records(store)? {
+            names.push(recorded_name(profile, store, &file));
+        }
         for unit in layout::record_directories(store)? {
             for file in layout::entries_of(&unit)? {
                 names.push(recorded_name(profile, &unit, &file));

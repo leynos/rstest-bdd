@@ -47,24 +47,43 @@ pub(super) fn write_units(
 /// put them, so they share this scaffolding and pass the layout in.
 fn preparation_in(
     unit_dir: &str,
-    store: &str,
+    store: (&str, StoreWriter),
     units: &[(&str, &str)],
 ) -> std::io::Result<(tempfile::TempDir, Preparation)> {
     let directory = tempfile::tempdir()?;
     let target = directory.path().join("target");
     let profile = target.join("debug");
     write_units(&profile.join(unit_dir), units)?;
-    write_store(&profile.join(store), "unit")?;
+    let (store, write) = store;
+    write(&profile.join(store), "unit")?;
     let preparation = preparation_for(directory.path(), &target)?;
     Ok((directory, preparation))
 }
 
-/// Write a fingerprint store holding one unit's record directory.
+/// How a fixture fills a store for one unit.
+type StoreWriter = fn(&std::path::Path, &str) -> std::io::Result<()>;
+
+/// Write a per-unit store as Cargo 1.100.0 does: the records directly inside.
 ///
-/// Cargo files a unit's records under `<store>/<unit>/`, so a fixture that put
-/// them loose in the store would model a layout Cargo never writes and would
-/// leave the record layer untested. The unit name carries the hash the compiled
-/// unit carries, because that is what pairs the two.
+/// `build/<pkg>/<hash>/fingerprint` belongs to one unit, so Cargo puts that
+/// unit's records straight into it, with no directory per unit beneath. A
+/// fixture that added one would model a layout Cargo does not write there, and
+/// would hide a reader that looked only inside such directories.
+pub(super) fn write_per_unit_store(store: &std::path::Path, unit: &str) -> std::io::Result<()> {
+    fs::create_dir_all(store)?;
+    fs::write(store.join(format!("lib-{unit}")), b"record")?;
+    fs::write(store.join(format!("lib-{unit}.json")), b"{}")?;
+    fs::write(store.join(format!("dep-lib-{unit}")), b"dep-info")?;
+    fs::write(store.join("invoked.timestamp"), b"timestamp")
+}
+
+/// Write a profile-level store holding one unit's record directory.
+///
+/// In `.fingerprint`, Cargo files a unit's records under `<store>/<unit>/`, so
+/// a fixture that put them loose in that store would model a layout Cargo
+/// never writes there and would leave the record layer untested. The unit name
+/// carries the hash the compiled unit carries, because that is what pairs the
+/// two.
 pub(super) fn write_store(store: &std::path::Path, unit: &str) -> std::io::Result<()> {
     let records = store.join(format!("{unit}-0123456789abcdef"));
     fs::create_dir_all(&records)?;
@@ -77,7 +96,7 @@ pub(super) fn write_store(store: &std::path::Path, unit: &str) -> std::io::Resul
 pub(super) fn preparation_with(
     units: &[(&str, &str)],
 ) -> std::io::Result<(tempfile::TempDir, Preparation)> {
-    preparation_in("deps", ".fingerprint", units)
+    preparation_in("deps", (".fingerprint", write_store), units)
 }
 
 /// A profile in Cargo 1.100.0's `<profile>/build/<pkg>/<hash>/out` shape.
@@ -86,7 +105,10 @@ fn preparation_with_new_layout(
 ) -> std::io::Result<(tempfile::TempDir, Preparation)> {
     preparation_in(
         "build/unit/0123456789abcdef/out",
-        "build/unit/0123456789abcdef/fingerprint",
+        (
+            "build/unit/0123456789abcdef/fingerprint",
+            write_per_unit_store,
+        ),
         units,
     )
 }
@@ -231,3 +253,6 @@ mod siblings;
 // The replacement cases are a fourth: what the *caller* must exclude from the
 // set the predicate is given, which no test of the predicate alone can reach.
 mod replacements;
+// And a fifth: the records a per-unit store holds directly, which the
+// directory-per-unit cases above cannot reach.
+mod per_unit_records;
