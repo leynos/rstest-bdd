@@ -9,7 +9,14 @@ use std::{
     panic::{self, AssertUnwindSafe},
 };
 
-use super::{SeedRun, TestDispatcher, calculate_seeds, parse_env_u64_value, run_seed, run_test};
+use super::{
+    RunSeedContext,
+    TestDispatcher,
+    calculate_seeds,
+    parse_env_u64_value,
+    run_seed,
+    run_test,
+};
 
 thread_local! {
     /// Counts failure callbacks invoked on the current test thread.
@@ -49,16 +56,6 @@ fn reset_probes() {
     SEED_LOG.with(|log| log.borrow_mut().clear());
 }
 
-/// Builds the initial state of a single-seed run.
-const fn first_attempt(seed: u64, max_retries: usize) -> SeedRun {
-    SeedRun {
-        seed,
-        is_multiple_runs: false,
-        max_retries,
-        attempt: 0,
-    }
-}
-
 /// Returns the seeds [`run_test`] visits for one iteration and no explicit seed.
 ///
 /// The expectation is derived rather than hard-coded because an ambient `SEED`
@@ -76,7 +73,11 @@ fn fail_once_per_seed(seeds: &[u64]) -> Vec<u64> {
 ///
 /// Returns the panic payload when the seed exhausts its retries, or `None`
 /// when it recovers or succeeds.
-fn run_seed_with_failures(seed_run: SeedRun, failures: usize) -> Option<Box<dyn Any + Send>> {
+fn run_seed_with_failures(
+    seed: u64,
+    max_retries: usize,
+    failures: usize,
+) -> Option<Box<dyn Any + Send>> {
     let mut test_fn = |dispatcher: TestDispatcher, seed: u64| {
         let attempt = record_seed(seed);
         assert_eq!(
@@ -87,10 +88,14 @@ fn run_seed_with_failures(seed_run: SeedRun, failures: usize) -> Option<Box<dyn 
         assert!(attempt >= failures, "simulated attempt {attempt} failure");
     };
 
-    panic::catch_unwind(AssertUnwindSafe(|| {
-        run_seed(seed_run, &mut test_fn, Some(record_on_fail));
-    }))
-    .err()
+    let mut ctx = RunSeedContext {
+        max_retries,
+        test_fn: &mut test_fn,
+        on_fail_fn: Some(record_on_fail),
+        is_multiple_runs: false,
+    };
+
+    panic::catch_unwind(AssertUnwindSafe(|| run_seed(seed, &mut ctx))).err()
 }
 
 /// A seed that succeeds on its first attempt does not retry or report failure.
@@ -98,7 +103,7 @@ fn run_seed_with_failures(seed_run: SeedRun, failures: usize) -> Option<Box<dyn 
 fn succeeds_without_retrying_or_reporting_failure() {
     reset_probes();
 
-    let payload = run_seed_with_failures(first_attempt(7, 3), 0);
+    let payload = run_seed_with_failures(7, 3, 0);
 
     assert!(payload.is_none(), "a passing seed must not unwind");
     assert_eq!(
@@ -118,7 +123,7 @@ fn succeeds_without_retrying_or_reporting_failure() {
 fn retries_a_transient_failure() {
     reset_probes();
 
-    let payload = run_seed_with_failures(first_attempt(11, 2), 1);
+    let payload = run_seed_with_failures(11, 2, 1);
 
     assert!(payload.is_none(), "a recovering seed must not unwind");
     assert_eq!(
@@ -141,10 +146,14 @@ fn exhausts_retries_and_resumes_the_final_panic() {
         let attempt = record_seed(seed);
         panic!("attempt {attempt} failed");
     };
+    let mut ctx = RunSeedContext {
+        max_retries: 2,
+        test_fn: &mut test_fn,
+        on_fail_fn: Some(record_on_fail),
+        is_multiple_runs: false,
+    };
 
-    let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        run_seed(first_attempt(13, 2), &mut test_fn, Some(record_on_fail));
-    }));
+    let result = panic::catch_unwind(AssertUnwindSafe(|| run_seed(13, &mut ctx)));
 
     let Err(payload) = result else {
         panic!("an exhausted seed must resume its panic");
@@ -174,10 +183,14 @@ fn zero_retry_budget_attempts_once_and_reports_the_failure() {
         let attempt = record_seed(seed);
         panic!("attempt {attempt} failed");
     };
+    let mut ctx = RunSeedContext {
+        max_retries: 0,
+        test_fn: &mut test_fn,
+        on_fail_fn: Some(record_on_fail),
+        is_multiple_runs: false,
+    };
 
-    let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        run_seed(first_attempt(17, 0), &mut test_fn, Some(record_on_fail));
-    }));
+    let result = panic::catch_unwind(AssertUnwindSafe(|| run_seed(17, &mut ctx)));
 
     let Err(payload) = result else {
         panic!("a seed with no retry budget must resume its panic");

@@ -238,8 +238,9 @@ fn format_binary_ids(binary_ids: &BTreeSet<&str>) -> String {
 mod tests {
     //! Coverage for the shared lookup's error paths.
 
-    use super::nextest_value_at_path;
     use toml::Value;
+
+    use super::nextest_value_at_path;
 
     /// A missing leaf and a wrongly typed one both name the dotted path.
     ///

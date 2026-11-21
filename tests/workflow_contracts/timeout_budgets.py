@@ -385,7 +385,7 @@ def watchdog_shortfall(watchdog_seconds: float, required_seconds: float) -> floa
     --------
     >>> watchdog_shortfall(5400.0, 5460.0)
     60.0
-    >>> watchdog_shortfall(9900.0, 9665.0)
+    >>> watchdog_shortfall(9900.0, 6365.0)
     0.0
     """
     return max(required_seconds - watchdog_seconds, 0.0)

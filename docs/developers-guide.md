@@ -1458,12 +1458,12 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 90 m
-  `global-timeout` to the whole run. This gives the cargo-spawning group room
-  for nested builds without relaxing any per-test limit. The global timeout
-  must stay above the largest per-test budget below, or the run is killed
-  before a test with that budget can finish;
-  `trybuild_nextest_override_preserves_timeout_contract` enforces the ordering.
+  (`terminate-after = 1`, 5 s grace period) and applies a 90 m `global-timeout`
+  to the whole run. This gives the cargo-spawning group room for nested builds
+  without relaxing any per-test limit. The global timeout must stay above the
+  largest per-test budget below, or the run is killed before a test with that
+  budget can finish; `trybuild_nextest_override_preserves_timeout_contract`
+  enforces the ordering.
 - The first `[[profile.default.overrides]]` entry gives the named
   `nested_fixture_preparation` tests a 30 m `slow-timeout` and the highest
   scheduling `priority`, `100`. Those tests compile the dependency graphs the
@@ -1637,8 +1637,7 @@ allowance, plus a cold-build allowance: 90 m + 65 s + 15 m = 6,365 s. Both
 coverage workflows declare 9,900 s (165 m) instead, because the shared
 compile-admission pool can stretch a cold instrumented build far beyond the
 measured 15 minutes and the watchdog is the tier that must never fire first.
-The
-termination allowance is derived, not fixed: the largest configured grace
+The termination allowance is derived, not fixed: the largest configured grace
 period, five seconds here, or nextest's ten-second default when none is named,
 plus a sixty-second margin for the teardown and report writing that follow. The
 build phase inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly
