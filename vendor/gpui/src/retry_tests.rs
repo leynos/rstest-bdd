@@ -166,6 +166,39 @@ fn exhausts_retries_and_resumes_the_final_panic() {
     );
 }
 
+/// A zero retry budget allows one attempt and still reports the failure.
+#[test]
+fn zero_retry_budget_attempts_once_and_reports_the_failure() {
+    reset_probes();
+    let mut test_fn = |_dispatcher: TestDispatcher, seed: u64| {
+        let attempt = record_seed(seed);
+        panic!("attempt {attempt} failed");
+    };
+
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
+        run_seed(first_attempt(17, 0), &mut test_fn, Some(record_on_fail));
+    }));
+
+    let Err(payload) = result else {
+        panic!("a seed with no retry budget must resume its panic");
+    };
+    assert_eq!(
+        recorded_seeds(),
+        vec![17],
+        "a budget of zero retries must allow exactly one attempt"
+    );
+    assert_eq!(
+        on_fail_call_count(),
+        1,
+        "a budget of zero retries must still report the terminal failure once"
+    );
+    assert_eq!(
+        payload.downcast_ref::<String>().map(String::as_str),
+        Some("attempt 0 failed"),
+        "the only attempt's payload must reach the caller unchanged"
+    );
+}
+
 /// `run_test` forwards the retry budget to every seed it visits.
 #[test]
 fn run_test_retries_each_seed_within_the_forwarded_budget() {
