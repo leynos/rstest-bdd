@@ -1704,6 +1704,49 @@ Hard invariants. Violation requires escalation, not a workaround.
   runner that run is the suite's authoritative verdict for this head; the local
   timeouts are capacity, not correctness.
 
+- [x] (2026-11-21) PR #916 landed as the squashed `ef69c4fb`, and this pull
+      request was retargeted to `main`, so the candidate was replayed a third
+      time before publication. `ed31d87d` is the exclusive boundary and all 98
+      commits of `ed31d87d..7cb005dc` were replayed onto `ef69c4fb`; none
+      became empty and none was skipped. `git range-diff` reports 82 of the 89
+      replayed commits identical. The seven differences are conflict
+      resolutions, and each keeps work from both sides.
+
+  In `docs/contents.md`, the target introduced ADR 025 for the nested-Cargo
+  preparation gate. Both decisions keep their own number, so this branch's ADR
+  became 026 and every reference to it was updated.
+
+  In `docs/developers-guide.md`, the target reworded the trybuild preparation
+  note and the `cargo-spawning` group membership. The replay keeps the target's
+  warmer-graph rationale for the 20-minute period and this branch's
+  `cargo-bdd::invocation` membership.
+
+  In `docs/v0-7-0-migration-guide.md`, the target added a "Test-support binary
+  lookup" section where this branch adds "`cargo bdd` configuration and Cargo
+  invocation". Both sections are kept.
+
+  In `crates/cargo-bdd/tests/cli.rs`, the target moved `workspace_root` into
+  `nested_target`, where it canonicalizes the path so the Windows prefix filter
+  compares one spelling. The replay keeps that definition and deletes this
+  branch's lexical copy.
+
+  In `crates/rstest-bdd/tests/nextest_config.rs`, the target split its
+  contracts into `nextest_config/support.rs` and `nextest_config/overrides.rs`;
+  this branch split them into `support` and `preparation` and parameterised the
+  filtered cases with `#[rstest]`. The replay keeps this branch's layout,
+  because the parameterised cases already cover the target's separate
+  feature-rebuild test, and drops `overrides.rs` as dead once its contracts
+  moved. No assertion was lost: the filter, period, termination, grace-period
+  and group checks all survive.
+
+  `cargo check -p rstest-bdd --tests --locked` exits zero at the replayed head,
+  which is what proves the two module layouts reconcile rather than merely
+  applying.
+
+  The recovery refs `refs/backup/pr912-7cb005dc` and
+  `refs/backup/pr912-ed31d87d` preserve the pre-restack head and the previous
+  boundary.
+
 ## Surprises & discoveries
 
 - Observation: this repository's nested-Cargo tests carry three wall-clock
@@ -2424,7 +2467,7 @@ Upstream artefacts:
   `leynos/ortho-config` commit `38812c563e3953a490e3efc202609f37e21a0517` and
   recorded in `docs/ortho-config-v0-10-0-provenance.md`.
 - [design §3.6a](../rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-025)
-  and [ADR 025](../adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md), both
+  and [ADR 026](../adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md), both
   authored by this plan.
 - `docs/roadmap.md` §6.1 "Diagnostic tooling".
 
@@ -2587,7 +2630,7 @@ in the plan and captured logs until then.
 
 ## Concrete steps
 
-1. Write `docs/adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md` following
+1. Write `docs/adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md` following
    the house style of ADR 023: status, date, context, drivers, options with
    `Accepted.`/`Rejected.`, decision outcome, known risks, architectural
    rationale.
