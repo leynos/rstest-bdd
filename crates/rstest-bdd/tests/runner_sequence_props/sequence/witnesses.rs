@@ -150,8 +150,7 @@ impl Witnesses {
         ] {
             assert!(
                 self.statuses.contains(&expected),
-                "the generator never produced a run ending {expected:?}; it produced {:?}. A \
-                 non-vacuity claim about termination needs every terminal status reachable.",
+                "the generator never produced a run ending {expected:?}; it produced {:?}. A non-vacuity claim about termination needs every terminal status reachable.",
                 self.statuses
             );
         }
@@ -173,8 +172,10 @@ impl Witnesses {
         );
         assert!(
             self.stopped_early,
-            "no case's run stopped before its last invocation, so INV-1 and INV-2's \
-             bypassed-trailing-invocation clauses were never exercised",
+            concat!(
+                "no case's run stopped before its last invocation, so INV-1 and INV-2's ",
+                "bypassed-trailing-invocation clauses were never exercised",
+            ),
         );
     }
 
@@ -187,9 +188,7 @@ impl Witnesses {
         ] {
             assert!(
                 self.fates.contains(&expected),
-                "the generator never recorded a {expected:?} fate; it recorded {:?}. `NoMatch` \
-                 emits no warning anywhere in the runtime, so a generator that stopped reaching \
-                 it would leave INV-12 discharging nothing while the suite stayed green.",
+                "the generator never recorded a {expected:?} fate; it recorded {:?}. `NoMatch` emits no warning anywhere in the runtime, so a generator that stopped reaching it would leave INV-12 discharging nothing while the suite stayed green.",
                 self.fates
             );
         }
@@ -216,14 +215,18 @@ impl Witnesses {
     pub(crate) fn assert_visibility_complete(&self) {
         assert!(
             self.observer_before_producer,
-            "no case placed an observer before the first producer, so INV-3's \"and to no \
-             invocation `j <= i`\" clause was never exercised. The sentinel is what makes it \
-             falsifiable, and this assertion is the evidence it was tried.",
+            concat!(
+                "no case placed an observer before the first producer, so INV-3's \"and to no ",
+                "invocation `j <= i`\" clause was never exercised. The sentinel is what makes it ",
+                "falsifiable, and this assertion is the evidence it was tried.",
+            ),
         );
         assert!(
             self.observer_saw_producer,
-            "no observer ever read a producer's value, so the positive half of INV-3 was never \
-             exercised and every case would pass against a driver that inserted nothing at all.",
+            concat!(
+                "no observer ever read a producer's value, so the positive half of INV-3 was never ",
+                "exercised and every case would pass against a driver that inserted nothing at all.",
+            ),
         );
     }
 }

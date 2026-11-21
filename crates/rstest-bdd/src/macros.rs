@@ -153,10 +153,10 @@ macro_rules! assert_step_skipped {
         $crate::__rstest_bdd_assert_step_skipped_message_absent($expr, $value)
     };
     ($expr:expr, $($rest:tt)+) => {
-        compile_error!(
-            "unsupported assert_step_skipped! arguments; expected `message = ...` or \
-             `message_absent = ...`",
-        );
+        compile_error!(concat!(
+            "unsupported assert_step_skipped! arguments; expected `message = ...` or ",
+            "`message_absent = ...`",
+        ),);
     };
 }
 

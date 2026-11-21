@@ -207,8 +207,7 @@ fn ambiguous_scenario_error(
         .collect::<Vec<_>>()
         .join(", ");
     let message = format!(
-        "found multiple scenarios named \"{name}\"; use the `index` selector to disambiguate \
-         (matching indexes: {indexes}; lines: {lines})",
+        "found multiple scenarios named \"{name}\"; use the `index` selector to disambiguate (matching indexes: {indexes}; lines: {lines})",
     );
     syn::Error::new(span, message)
 }

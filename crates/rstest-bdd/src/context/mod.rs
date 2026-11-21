@@ -142,8 +142,7 @@ impl<'a> StepContext<'a> {
         let actual = guard.as_ref().type_id();
         assert!(
             actual == TypeId::of::<T>(),
-            "insert_owned: stored value type ({actual:?}) does not match requested {:?} for \
-             fixture '{name}'",
+            "insert_owned: stored value type ({actual:?}) does not match requested {:?} for fixture '{name}'",
             TypeId::of::<T>()
         );
         self.fixtures.insert(name, FixtureEntry::owned::<T>(cell));

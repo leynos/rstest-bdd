@@ -71,8 +71,7 @@ fn the_async_driver_attributes_its_events_to_the_scenario_span() {
     assert_eq!(scenario.name, "scenario");
     assert!(
         !scenario.carries(CURRENT_SPAN_FIELD),
-        "the `scenario` span is the outermost span the run opens, so nothing encloses it; \
-         captured {scenario:?}",
+        "the `scenario` span is the outermost span the run opens, so nothing encloses it; captured {scenario:?}",
     );
 
     // The assertion that carries the `Instrument` decision. The policy event is

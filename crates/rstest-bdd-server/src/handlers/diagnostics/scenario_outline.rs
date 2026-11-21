@@ -270,8 +270,7 @@ fn build_missing_column_diagnostic(
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: format!(
-            "Placeholder '<{placeholder}>' has no matching column in Examples table. Available \
-             columns: [{available_str}]"
+            "Placeholder '<{placeholder}>' has no matching column in Examples table. Available columns: [{available_str}]"
         ),
         related_information: None,
         tags: None,
@@ -297,8 +296,10 @@ fn build_surplus_column_diagnostic(
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: format!(
-            "Examples column '{}' is not referenced by any step placeholder in the scenario \
-             outline",
+            concat!(
+                "Examples column '{}' is not referenced by any step placeholder in the scenario ",
+                "outline",
+            ),
             column.name
         ),
         related_information: None,

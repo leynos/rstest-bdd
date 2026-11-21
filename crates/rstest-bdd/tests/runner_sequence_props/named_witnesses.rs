@@ -193,15 +193,13 @@ fn each_witness_terminates_the_run() {
         assert_eq!(
             run.executed.len(),
             expected_executed(kind),
-            "({label}) the log must hold exactly the invocations that reached a handler ({} of \
-             them), or INV-1's evidence has a hole in it; {describe}",
+            "({label}) the log must hold exactly the invocations that reached a handler ({} of them), or INV-1's evidence has a hole in it; {describe}",
             expected_executed(kind),
         );
         if !kind.logs_its_position() {
             assert!(
                 !run.executed.contains(&1),
-                "({label}) this kind never reaches a handler, so the terminal invocation must not \
-                 be in the log; {describe}",
+                "({label}) this kind never reaches a handler, so the terminal invocation must not be in the log; {describe}",
             );
         }
 
@@ -218,8 +216,7 @@ fn each_witness_terminates_the_run() {
         if kind.terminal_status().is_some() {
             assert!(
                 !run.executed.contains(&2),
-                "({label}) the invocation after the terminal must not have reached a handler; \
-                 {describe}",
+                "({label}) the invocation after the terminal must not have reached a handler; {describe}",
             );
             assert_eq!(
                 run.terminal_index(),
@@ -323,8 +320,7 @@ fn the_generator_reaches_each_class_often_enough() {
         let count = tally.status(expected);
         assert!(
             count >= 20,
-            "only {count} of {} runs ended {expected:?}; a class this rare is one the generator \
-             has stopped reaching rather than one it sometimes misses",
+            "only {count} of {} runs ended {expected:?}; a class this rare is one the generator has stopped reaching rather than one it sometimes misses",
             tally.cases,
         );
     }
@@ -359,8 +355,7 @@ fn every_classification_the_plan_names_has_a_kind() {
             .filter(|kind| kind.failure_kind() == Some(expected));
         let Some(source) = rows.next() else {
             panic!(
-                "no kind in {KIND_ALL:?} classifies as {expected:?}, so the plan's INV-1 \
-                 non-vacuity list cannot be satisfied by any generated case",
+                "no kind in {KIND_ALL:?} classifies as {expected:?}, so the plan's INV-1 non-vacuity list cannot be satisfied by any generated case",
                 KIND_ALL = Kind::ALL
             )
         };

@@ -60,8 +60,7 @@ fn a_failure_renders_its_variant(#[case] failure: ScenarioFailure, #[case] expec
     );
     assert!(
         rendered.starts_with("scenario failed"),
-        "and it must read as the outcome's own failure line, so a caller can {rendered:?} \
-         interchangeably with `ScenarioOutcome`'s rendering",
+        "and it must read as the outcome's own failure line, so a caller can {rendered:?} interchangeably with `ScenarioOutcome`'s rendering",
     );
 }
 

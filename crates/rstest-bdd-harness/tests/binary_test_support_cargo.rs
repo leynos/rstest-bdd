@@ -85,8 +85,7 @@ fn build_binary_returns_err_for_nonexistent_workspace() {
     let result = build_binary(&workspace, BinaryName::new("nonexistent-binary"));
     assert!(
         result.is_err(),
-        "expected build_binary to fail when the workspace directory does not exist, got: \
-         {result:?}"
+        "expected build_binary to fail when the workspace directory does not exist, got: {result:?}"
     );
 }
 
