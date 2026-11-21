@@ -321,10 +321,12 @@ whose higher floor applies to that consumer. See
 - [ ] Review the `cargo_bdd` configuration files and `CARGO_BDD_` variables on
   any machine that runs `cargo bdd`, then remove local wrappers that emulated
   the Cargo-dispatched form.
-- [ ] Pair `cmds.steps.json = true` with `cmds.steps.skipped = true` in every
-  `cargo_bdd` configuration file and `CARGO_BDD_CMDS_STEPS_SKIPPED` setting;
-  the merged `skipped` value now satisfies `steps --json` without the flag, and
-  a `json` setting without it stops the command.
+- [ ] Check that every invocation with `steps --json` enabled ends up with a
+  merged `skipped` value of true. The pairing is decided after the layers
+  merge, so one layer may supply `json` and another `skipped`; what matters is
+  the effective result, not that each file repeats both. A merged `json` of
+  true with a merged `skipped` of false stops `steps` before it runs, and
+  ordinary `steps` output is unaffected either way.
 
 ## Common errors
 
