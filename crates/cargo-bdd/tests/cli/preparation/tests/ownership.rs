@@ -37,21 +37,23 @@ fn declared_packages(deadline: nested_cargo::Deadline) -> std::io::Result<Vec<St
     // One case here resolves the closure *and* runs `cargo metadata`, and both
     // take the same package-cache lock; a per-call limit let the two run for
     // their sum and reach the runner's kill, which is the failure the shared
-    // budget exists to prevent. `cap` also refuses outright when the earlier
-    // command spent the budget, so the second is declined rather than started
-    // with no time to finish.
+    // budget exists to prevent.
     //
-    // The bound is taken after the inputs are resolved and hashed, immediately
-    // before the query. Taken first, it would not account for that work, and
-    // the query could start with an allowance the deadline no longer has.
+    // The charging itself is the family's own `charged`, not a copy of it: it
+    // takes the bound and runs the query in one step, and refuses outright
+    // when the budget is spent. So this helper has no ordering of its own to
+    // get wrong, and what it returns is what the gate is handed, test targets
+    // included.
     let (environment, ..) =
         super::cli_preparation().map_err(|error| std::io::Error::other(error.to_string()))?;
-    let bound = deadline.cap(
-        crate::preparation::closure::TIMED_GRAPH_QUERY_TIMEOUT,
-        "the fixture dependency closure",
-    )?;
-    fixture_dependency_closure(&environment, bound)
-        .map_err(|error| std::io::Error::other(error.to_string()))
+    let budget = crate::preparation::budget::Budget {
+        deadline,
+        query_limit: TIMED_GRAPH_QUERY_TIMEOUT,
+    };
+    crate::preparation::budget::charged(budget, |bound| {
+        fixture_dependency_closure(&environment, bound)
+    })
+    .map_err(|error| std::io::Error::other(format!("{error:#}")))
 }
 
 /// A scratch preparation carrying the real family's ownership list.
