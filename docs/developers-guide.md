@@ -1201,6 +1201,15 @@ when it matches either.
   committed lockfile, which lists every package for every platform; resolving
   the host's subset would need a subprocess before every timed gate.
 
+Ownership is by name, not by which build produced a unit. In a shared profile a
+family therefore records every present unit that carries one of its names,
+including units another family or the workspace build wrote there. Removing
+those units later makes this family's gate refuse its stamp, although its own
+work is intact. That is the safe direction, and it costs a preparation. Keep it
+rare by listing only names the family's own build produces, and give families
+that share a lockfile but must not disturb each other separate target
+directories.
+
 A name is a Cargo target name as well as a package name, because a unit's
 output is named for its target. The CLI family lists its fixture's two test
 targets beside its closure for that reason. Leave both lists empty only for a

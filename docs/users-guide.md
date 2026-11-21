@@ -2938,8 +2938,11 @@ its stamp speaks for. `Preparation::owned_packages` lists package or target
 names that the preparation must each have produced an artefact for.
 `Preparation::owned_if_built` lists names that are owned when built and excused
 when not, which suits a list read from a lockfile: it names packages for every
-platform, and no one host builds them all. A family that owns its whole target
-directory leaves both empty.
+platform, and no one host builds them all. In both lists a name may be a
+package or a Cargo target. A unit's output is named for its target, so a target
+whose name differs from its package, such as `[lib] name = "engine"` in a
+package called `adapter`, must be listed as well, or its output is not covered.
+A family that owns its whole target directory leaves both empty.
 
 `Reused` is a statement about the callback, not about blocking. On the
 uncontended fast path the stamp and artefact checks are answered before the
