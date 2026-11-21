@@ -122,16 +122,33 @@ pub(super) fn unit_names(profile: &Path, units: &[PathBuf]) -> io::Result<Vec<St
 pub(super) fn record_names(profile: &Path, stores: &[PathBuf]) -> io::Result<Vec<String>> {
     let mut names = Vec::new();
     for store in stores {
-        // A per-unit store holds its unit's records directly; a profile-level
-        // one holds a directory per unit. Each store is one or the other.
-        for file in layout::loose_records(store)? {
-            names.push(recorded_name(profile, store, &file));
-        }
-        for unit in layout::record_directories(store)? {
-            for file in layout::entries_of(&unit)? {
-                names.push(recorded_name(profile, &unit, &file));
-            }
-        }
+        names.extend(store_records(profile, store)?);
+    }
+    Ok(names)
+}
+
+/// The records one store holds, in whichever of Cargo's two shapes it has.
+///
+/// A per-unit store holds its unit's records directly; a profile-level one
+/// holds a directory per unit. Each store is one or the other, so one of the
+/// two halves below contributes nothing.
+///
+/// # Errors
+///
+/// Returns the read error when the store or a record directory cannot be
+/// listed.
+fn store_records(profile: &Path, store: &Path) -> io::Result<Vec<String>> {
+    let mut names: Vec<String> = layout::loose_records(store)?
+        .iter()
+        .map(|file| recorded_name(profile, store, file))
+        .collect();
+    for unit in layout::record_directories(store)? {
+        let entries = layout::entries_of(&unit)?;
+        names.extend(
+            entries
+                .iter()
+                .map(|file| recorded_name(profile, &unit, file)),
+        );
     }
     Ok(names)
 }
