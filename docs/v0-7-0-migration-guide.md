@@ -325,8 +325,10 @@ whose higher floor applies to that consumer. See
   merged `skipped` value of true. The pairing is decided after the layers
   merge, so one layer may supply `json` and another `skipped`; what matters is
   the effective result, not that each file repeats both. A merged `json` of
-  true with a merged `skipped` of false stops `steps` before it runs, and
-  ordinary `steps` output is unaffected either way.
+  true with a merged `skipped` of false stops `steps` before it runs. A merged
+  `skipped` of true is not free either: plain `steps` then lists the steps
+  bypassed by skipped scenarios rather than every registered step, so set it
+  only where that listing is what you want.
 
 ## Common errors
 
