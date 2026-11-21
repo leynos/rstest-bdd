@@ -1732,9 +1732,9 @@ Hard invariants. Violation requires escalation, not a workaround.
 
   In `crates/rstest-bdd/tests/nextest_config.rs`, the target split its
   contracts into `nextest_config/support.rs` and `nextest_config/overrides.rs`;
-  this branch split them into `support` and `preparation` and parameterised the
+  this branch split them into `support` and `preparation` and parameterized the
   filtered cases with `#[rstest]`. The replay keeps this branch's layout,
-  because the parameterised cases already cover the target's separate
+  because the parameterized cases already cover the target's separate
   feature-rebuild test, and drops `overrides.rs` as dead once its contracts
   moved. No assertion was lost: the filter, period, termination, grace-period
   and group checks all survive.
