@@ -195,9 +195,9 @@ Hard invariants. Violation requires escalation, not a workaround.
       implementation validation; classify any repeat using the test child and
       admission logs.
 - [x] §3: write this plan.
-- [x] §3: write ADR 025 recording the configuration decision.
+- [x] §3: write ADR 026 recording the configuration decision.
 - [x] §3: add the configuration and integration-boundary sections to
-      `docs/rstest-bdd-design.md`; add the ADR 025 entry and reference
+      `docs/rstest-bdd-design.md`; add the ADR 026 entry and reference
       definition to `docs/contents.md`; add the decision to roadmap §6.1.
 - [x] (2026-11-01) Review the recorded design with CodeRabbit after the
       documentation gates. The finalized design candidate at
@@ -881,7 +881,7 @@ Hard invariants. Violation requires escalation, not a workaround.
       Windows native configuration directory comes from the Windows API, not
       `APPDATA`, so it is unredirectable by any variable; the module
       documentation now states that as the one residual rather than implying
-      full isolation. Second, ADR 025 and the developers' guide claimed the
+      full isolation. Second, ADR 026 and the developers' guide claimed the
       `cargo-platform` v0.3.2 lock resolution preserved the Rust 1.88 library
       MSRV without qualification. That is true only for builds resolving
       through this repository's lockfile: a downstream resolver-2 consumer
@@ -1573,7 +1573,7 @@ Hard invariants. Violation requires escalation, not a workaround.
       entry is v0.3.3, and the four fixture lockfiles had already been aligned
       to it, so the delivered tree selected a release that requires Rust 1.91.
       Review caught the mismatch between that lockfile and the v0.3.2 claims in
-      ADR 025, the design document, the developers' guide and the v0.7.0
+      ADR 026, the design document, the developers' guide and the v0.7.0
       migration guide. The claim was restored rather than rewritten: rewriting
       it would raise the advertised library floor from 1.88 to 1.91 without
       changing any manifest, which the workspace `rust-version` and the users'
@@ -2244,7 +2244,7 @@ Hard invariants. Violation requires escalation, not a workaround.
 Delivered as specified. `cargo-bdd` resolves settings from `.cargo_bdd.toml`,
 the XDG `cargo_bdd/config.toml`, environment variables and command-line flags
 in that precedence order through `OrthoConfig`, and both invocation forms
-dispatch to the same behaviour. ADR 025 records the decision, and the
+dispatch to the same behaviour. ADR 026 records the decision, and the
 developers' guide points at it.
 
 Gate evidence at revision `3e94e1b6`, the rebased candidate this section
@@ -2479,7 +2479,7 @@ part of §3 rather than inheriting one. Trace links:
 issue-901 -> EP-M1 (baseline freeze)   -> tests/cli.rs unchanged, baseline fixture
 issue-901 -> EP-M2 (configuration)     -> src/config/tests.rs per-subcommand tiers
 issue-901 -> EP-M3 (cargo entry)       -> tests/invocation.rs both forms
-issue-901 -> EP-M4 (documentation)     -> users' guide, developers' guide, ADR 025
+issue-901 -> EP-M4 (documentation)     -> users' guide, developers' guide, ADR 026
 ```
 
 ## Verification plan
@@ -2584,7 +2584,7 @@ table. This conclusion is recorded rather than omitting the section.
 
 ## Plan of work
 
-Stage A — design record (no behaviour change). Write ADR 025 and the design
+Stage A — design record (no behaviour change). Write ADR 026 and the design
 document section; add them to `docs/contents.md`; add the roadmap note. Settle
 the two open decisions in the Decision log. Validate with `make markdownlint`,
 `make nixie`, and `make check-fmt`.
@@ -2640,7 +2640,7 @@ in the plan and captured logs until then.
    `CARGO_BDD_` prefix and the absence of legacy variables or files; precedence
    with `cli_default_as_absent`; per-subcommand namespaces; English help and
    parse failures; no profiles; and the Cargo entry shape.
-3. Add the ADR 025 bullet and the `[adr-025]` reference definition to
+3. Add the ADR 026 bullet and the `[adr-025]` reference definition to
    `docs/contents.md`.
 4. Add the decision to `docs/roadmap.md` §6.1 as a new unchecked sub-item under
    the diagnostic tooling heading, naming OrthoConfig v0.10.0. Mark it checked

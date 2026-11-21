@@ -2855,7 +2855,7 @@ now include:
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.
 
-### 3.6a `cargo-bdd` configuration boundary (ADR-025)
+### 3.6a `cargo-bdd` configuration boundary (ADR-026)
 
 `crates/cargo-bdd` is a driving adapter. It is the only workspace member with a
 command line, and therefore the only member that layers settings from a
