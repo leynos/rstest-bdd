@@ -40,12 +40,16 @@ fn declared_packages(deadline: nested_cargo::Deadline) -> std::io::Result<Vec<St
     // budget exists to prevent. `cap` also refuses outright when the earlier
     // command spent the budget, so the second is declined rather than started
     // with no time to finish.
+    //
+    // The bound is taken after the inputs are resolved and hashed, immediately
+    // before the query. Taken first, it would not account for that work, and
+    // the query could start with an allowance the deadline no longer has.
+    let (environment, ..) =
+        super::cli_preparation().map_err(|error| std::io::Error::other(error.to_string()))?;
     let bound = deadline.cap(
         crate::preparation::closure::TIMED_GRAPH_QUERY_TIMEOUT,
         "the fixture dependency closure",
     )?;
-    let (environment, ..) =
-        super::cli_preparation().map_err(|error| std::io::Error::other(error.to_string()))?;
     fixture_dependency_closure(&environment, bound)
         .map_err(|error| std::io::Error::other(error.to_string()))
 }
