@@ -1,0 +1,156 @@
+name: Namespace probe
+
+# TEMPORARY: ExecPlan EP-M0 for issue 911. Proves whether an unprivileged
+# network namespace is usable on each Linux runner type so decision D7 can be
+# settled from evidence. `continue-on-error` means it reports and never gates.
+# Delete this workflow once the result is recorded in the ExecPlan.
+#
+# The first run (42258902324) aborted at the stock `unshare` because the step
+# ran under `set -e`. Both runners report
+# `kernel.apparmor_restrict_unprivileged_userns = 1` and
+# `unshare: write failed /proc/self/uid_map: Operation not permitted`. This
+# revision records every status instead of aborting, and tests the documented
+# relaxation of that sysctl.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: namespace-probe-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  probe:
+    name: probe (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubicloud-standard-2
+            platform: ubicloud
+          - os: ubuntu-latest
+            platform: hosted
+    steps:
+      - name: Probe unprivileged network namespaces
+        shell: bash
+        # No `-e`: every branch below has to be reported, including the ones
+        # that fail, and a failing branch must not skip the remaining probes.
+        run: |
+          set -uox pipefail
+          : > probe-userns.txt
+          report() { printf '%s\n' "$*" | tee -a probe-userns.txt; }
+          heading() { printf '\n=== %s ===\n' "$*" | tee -a probe-userns.txt; }
+
+          heading 'runner'
+          uname -a | tee -a probe-userns.txt
+          { . /etc/os-release && report "${PRETTY_NAME}"; }
+
+          heading 'user-namespace sysctls'
+          sysctl kernel.unprivileged_userns_clone \
+            kernel.apparmor_restrict_unprivileged_userns \
+            user.max_user_namespaces 2>&1 | tee -a probe-userns.txt
+
+          heading 'unshare, stock image'
+          stock_rc=0
+          unshare --net --map-current-user \
+            sh -c "echo INSIDE uid=\$(id -u); ip -brief addr" \
+            2>&1 | tee -a probe-userns.txt || stock_rc=$?
+          report "STOCK_RC=${stock_rc}"
+
+          heading 'relax the apparmor restriction, then retry'
+          relax_rc=0
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 \
+            || relax_rc=$?
+          report "RELAX_RC=${relax_rc}"
+          relaxed_rc=0
+          unshare --net --map-current-user \
+            sh -c "echo INSIDE uid=\$(id -u); ip -brief addr" \
+            2>&1 | tee -a probe-userns.txt || relaxed_rc=$?
+          report "RELAXED_RC=${relaxed_rc}"
+
+          heading 'egress from inside a namespace'
+          egress_rc=0
+          unshare --net --map-current-user getent hosts static.crates.io \
+            2>&1 | tee -a probe-userns.txt || egress_rc=$?
+          report "EGRESS_RC=${egress_rc}"
+
+          summary="stock=${stock_rc} relax=${relax_rc}"
+          summary="${summary} relaxed=${relaxed_rc} egress=${egress_rc}"
+          report "SUMMARY ${summary}"
+
+      - name: Probe a filesystem socket across a namespace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -uxo pipefail
+          python3 - <<'PY'
+          import os
+          import socket
+          import subprocess
+          import sys
+
+          path = "/tmp/issue-911-probe.sock"
+          if os.path.exists(path):
+              os.unlink(path)
+          server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+          server.bind(path)
+          server.listen(1)
+          client = (
+              "import socket,sys;"
+              "c=socket.socket(socket.AF_UNIX);"
+              "c.connect(sys.argv[1]);"
+              "c.sendall(b'ping');"
+              "c.close()"
+          )
+          completed = subprocess.run(
+              ["unshare", "--net", "--map-current-user",
+               sys.executable, "-c", client, path],
+              check=False,
+          )
+          print("UDS_ACROSS_NAMESPACE_RC", completed.returncode)
+          server.settimeout(5)
+          try:
+              connection, _ = server.accept()
+              print("SERVER_RECEIVED", connection.recv(4))
+          except TimeoutError:
+              print("SERVER_RECEIVED none")
+          PY
+
+      - name: Probe sccache inside a namespace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -uxo pipefail
+          command -v rustc && rustc --version
+          version=0.12.0
+          url="https://github.com/mozilla/sccache/releases/download"
+          curl -sSfL \
+            "${url}/v${version}/sccache-v${version}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar -xz -C /tmp --strip-components=1 \
+                "sccache-v${version}-x86_64-unknown-linux-musl/sccache"
+          mkdir -p /tmp/bin
+          install -m 0755 /tmp/sccache /tmp/bin/sccache
+          export PATH="/tmp/bin:${PATH}"
+          sccache --version
+          export SCCACHE_SERVER_UDS=/tmp/issue-911-sccache.sock
+          export SCCACHE_DIR=/tmp/issue-911-sccache
+          mkdir -p "$SCCACHE_DIR"
+          sccache --start-server || true
+          sccache --show-stats | head -5
+          echo '--- show-stats inside the namespace ---'
+          unshare --net --map-current-user sccache --show-stats | head -5
+          echo "SHOW_STATS_RC=${PIPESTATUS[0]}"
+          echo '--- rustc through sccache inside the namespace ---'
+          printf 'pub fn probe() {}\n' > /tmp/probe.rs
+          unshare --net --map-current-user env RUSTC_WRAPPER=sccache \
+            rustc --crate-name probe --crate-type lib --emit=metadata \
+            -o /tmp/probe.rmeta /tmp/probe.rs
+          echo "INSIDE_WRAPPED_RUSTC_RC=$?"
+          sccache --show-stats | head -12
