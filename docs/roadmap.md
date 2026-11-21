@@ -334,7 +334,7 @@ at improving maintainability and IDE integration.
     when nothing is configured.
 
   The decision and its boundary are recorded in
-  [ADR 025](adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md) and
+  [ADR 026](adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md) and
   [design §3.6a](rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-025).
 
 ### 6.2. IDE integration

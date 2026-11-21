@@ -246,6 +246,7 @@ from a caller of the supported crates.
 - The fallback that `locate_or_build_binary` uses when `CARGO_BIN_EXE_<name>` is
   unset probes the test executable's profile directory, not the target root.
   The lookup is private, so there is no public signature to update.
+
 ## `cargo bdd` configuration and Cargo invocation
 
 `cargo bdd <subcommand>` now works from inside a Cargo workspace. The existing
@@ -278,7 +279,7 @@ holds for a dependency resolution that keeps the libraries' own requirements
 satisfied — in this repository, a lockfile pinning `cargo-platform` v0.3.2. An
 independent consumer lockfile may instead resolve a newer `cargo-platform`,
 whose higher floor applies to that consumer. See
-[ADR 025](adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md).
+[ADR 026](adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md).
 
 ## Migration checklist
 

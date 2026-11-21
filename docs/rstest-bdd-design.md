@@ -2861,7 +2861,7 @@ configuration and lints at the workspace level.
 command line, and therefore the only member that layers settings from a
 command-line configuration source. The library crates describe behaviour and
 never learn where a setting came from. This section records the shape of that
-boundary; [ADR 025](adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md)
+boundary; [ADR 026](adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md)
 records why OrthoConfig was chosen over the alternatives.
 
 The adopted dependency is `ortho_config` v0.10.0, taken with default features
