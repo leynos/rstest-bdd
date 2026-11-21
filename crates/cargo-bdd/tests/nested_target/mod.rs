@@ -24,12 +24,7 @@ use rstest_bdd_harness::nested_cargo;
 use serde::Deserialize;
 use serial_test::serial;
 
-use super::{
-    cli_child_environment,
-    fixture_dir,
-    locate_or_build_cargo_bdd_command,
-    workspace_root,
-};
+use super::{cli_child_environment, fixture_dir, locate_or_build_cargo_bdd_command};
 
 /// Run `cargo-bdd steps` for the fixture with *snapshot* as the starting
 /// environment.
@@ -43,7 +38,7 @@ use super::{
 /// to find `cargo` — and this function strips `CARGO_TARGET_DIR` from them, so
 /// the helper's own precedence rule is what the test observes.
 fn run_fixture_with(snapshot: Vec<(OsString, OsString)>) -> Result<std::process::Output> {
-    let env = cli_child_environment(snapshot);
+    let env = cli_child_environment(snapshot)?;
     let program = locate_or_build_cargo_bdd_command()?;
     let mut cmd =
         nested_cargo::filtered_command(Path::new(program.get_program()), &env, &fixture_dir());
@@ -71,7 +66,7 @@ struct MetadataTargets {
 /// environment map the fixture build receives, so what it resolves is the
 /// environment decision under test rather than a re-derivation of it.
 fn resolved_target_directory(snapshot: Vec<(OsString, OsString)>) -> Result<PathBuf> {
-    let env = cli_child_environment(snapshot);
+    let env = cli_child_environment(snapshot)?;
     let mut cmd = nested_cargo::cargo_command(&env, &fixture_dir());
     cmd.args(["metadata", "--format-version", "1", "--no-deps"]);
     let output = cmd.output()?;
@@ -106,6 +101,24 @@ fn names_same_directory(left: &Path, right: &Path) -> bool {
     }
 }
 
+/// The workspace root this test process was compiled in.
+///
+/// Resolved once here rather than at each comparison, and kept in this module
+/// because path spelling is what it decides for the rest of the suite.
+/// `cargo_config_inputs` canonicalizes the root it is given and reports the
+/// workspace configuration through that resolved form, so a caller holding the
+/// lexical spelling (`crates/cargo-bdd/../..`) beside an input reported through
+/// the resolved one would be comparing two spellings of a single directory. On
+/// Windows the difference is visible: resolution returns the `\\?\` verbatim
+/// form, which no plain-spelled prefix can match. Resolving at the definition
+/// means every caller compares in one form and no caller has to remember to.
+pub(super) fn workspace_root() -> PathBuf {
+    let lexical = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    // A missing root is left lexical: the callers that use it to locate a
+    // manifest report that absence themselves, with the path they tried.
+    fs::canonicalize(&lexical).unwrap_or(lexical)
+}
+
 /// The directory the workspace fallback names.
 fn workspace_target() -> std::path::PathBuf { workspace_root().join("target") }
 
@@ -120,7 +133,7 @@ fn workspace_target() -> std::path::PathBuf { workspace_root().join("target") }
 /// The applied value, or `None` when the command would carry no target
 /// directory at all.
 fn cli_target_dir(snapshot: Vec<(OsString, OsString)>) -> Result<Option<OsString>> {
-    let env = cli_child_environment(snapshot);
+    let env = cli_child_environment(snapshot)?;
     let program = locate_or_build_cargo_bdd_command()?;
     let cmd =
         nested_cargo::filtered_command(Path::new(program.get_program()), &env, &fixture_dir());

@@ -206,6 +206,77 @@ against it with a controlled child environment. The following guarantees apply:
 See `crates/rstest-bdd/tests/feature_rebuild_invalidation/` for the worked
 harness and `docs/developers-guide.md` for the conventions.
 
+### Cold fixture builds belong to preparation, not to an assertion
+
+A nested build's first run compiles its fixture's dependency graph. That work
+is real, it is unavoidable on a cold target or a cold compiler cache, and it
+says nothing about the behaviour the test asserts. Left inside a timed test
+body it turns the test's deadline into a measure of cache warmth, which is how
+`cargo-bdd::cli::list_steps_runs`,
+`trybuild_macros::runner::step_macros_compile` and
+`feature_addition_triggers_rebuild` each exhausted their configured limits
+while passing in under a second once the graph was warm.
+
+Each affected binary therefore names a preparation test alongside the timed
+ones. `nested_fixture_preparation` compiles the fixture graphs and writes a
+stamp inside the artefact directory; the timed tests gate on
+`ensure_prepared_building`, and anything that only needs to know _whether_ the
+tree is reusable calls the read-only `admit`, which builds nothing, writes no
+stamp and takes no lock. Three properties make this a fix rather than a
+deferral:
+
+- **The stamp records what a cached build would have to match.** Two different
+  things sit side by side in it, and they are recorded in different forms. The
+  **fixture inputs** — the source roots the family derives from, plus the Cargo
+  configuration files that apply to them — reach the stamp only as a hash: the
+  caller supplies the roots, and what is stored is the digest over them. The
+  rest is stored **in the clear**, escaped one field per line: the
+  build-relevant environment variables, the toolchain identity (both Cargo's
+  and the compiler's own `-vV`), and a variant label. That split is deliberate.
+  A mismatch on a hashed input says only "the inputs changed"; a mismatch on a
+  named field says _which_ variable or which toolchain changed, and that is the
+  message a developer needs. Either way — changed compiler, changed feature
+  set, changed fixture source, or a changed Cargo configuration file — the
+  fingerprint moves, so preparation runs again rather than reusing artefacts
+  that no longer correspond. The stamp lives inside the directory it describes,
+  so evicting that directory evicts the claim of preparedness with it.
+- **The preparation has a budget of its own, and the assertion keeps the one it
+  had.** Under nextest the preparation test's `slow-timeout` is set in
+  `.config/nextest.toml` to a figure sized for a cold compile; no timed
+  assertion's budget was widened. A run that skips the preparation fails the
+  timed test immediately, naming the command that prepares it, instead of
+  spending its deadline on the build.
+- **The assertions are unchanged.** The rebuild-invalidation tests still perform
+  their own targeted rebuild and count what it recompiles, the trybuild suites
+  still compile every fixture and compare diagnostics, and the CLI suites still
+  assert on `cargo bdd`'s own output. Only the prerequisite compilation moved.
+
+Preparation also runs under plain `cargo test`, lazily and behind a
+process-wide lock, because `cargo-mutants` and a developer's single-test run do
+not use nextest. `make prepare-nested-fixtures` names the same preparation
+tests, in the configuration `make test` uses, for a filtered nextest run that
+would otherwise skip them.
+
+The filtered run must go through `make nextest-run`, which is the other half of
+that policy. The preparation stamps the build-relevant environment, `RUSTFLAGS`
+among it, and every timed test refuses a stamp composed under a different one.
+A hand-typed `cargo nextest run` inherits `RUSTFLAGS` from the caller — unset
+in an ordinary shell — so it computes a different fingerprint and refuses the
+stamp the preparation has just written. Both commands are individually correct
+and still fail to compose, which is a failure the stamp can report but not
+explain: it names the environment as the cause without naming the value it
+wants.
+
+`make check-prepared-fixture-workflow` runs that pair end to end, as three
+separate commands rather than one nextest inside another: the timed test
+refuses an empty private target directory and names the remedy, the remedy
+succeeds against that same directory, and the test then passes without
+reporting a `Compiling` line. Requiring zero compiles is what separates a
+prepared tree from a warm shared cache, which is how a bare pass could
+otherwise be mistaken for one. It is a checker in the same sense as
+`check-fixture-lockfiles`, not a leg of `make test`: it begins from an empty
+target directory by design, so it pays a cold build every run.
+
 ## Tested living documentation
 
 A second new class of test executes fenced examples extracted from user-facing

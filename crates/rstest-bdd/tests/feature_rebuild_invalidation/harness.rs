@@ -35,6 +35,8 @@ mod addition;
 mod fixtures;
 #[path = "harness/outcome.rs"]
 mod outcome;
+#[path = "harness/preparation/mod.rs"]
+pub(crate) mod preparation;
 #[path = "harness/process.rs"]
 mod process;
 
@@ -64,12 +66,10 @@ pub(crate) fn dep_info_outcome() -> &'static DepInfoOutcome {
 }
 
 fn build_dep_info_outcome() -> DepInfoOutcome {
-    fixtures::ensure_fixture_copied();
-    fixtures::restore_feature_file();
-    let env = process::build_child_env();
-    // Drop any fixture units compiled by an earlier (pre-tracking) era so the
-    // dep-info read describes the current build, not a stale binary.
-    clean_fixture_units(&env);
+    let env = match prepared_child_env() {
+        Ok(env) => env,
+        Err(reason) => return outcome::DepInfoOutcome::abandoned(reason, String::new()),
+    };
     let output = run_cargo(
         &env,
         &[
@@ -85,13 +85,9 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
         Err(err) => (String::new(), Some(err)),
     };
     if let Some(baseline_error) = baseline_error {
-        return outcome::DepInfoOutcome {
-            dep_info_entry_count: 0,
-            scenarios_no_match_tracked: false,
-            dep_info_sample: stdout,
-            child_env_detail: process::describe_env(&env),
-            baseline_error: Some(baseline_error),
-        };
+        let mut abandoned = outcome::DepInfoOutcome::abandoned(baseline_error, stdout);
+        abandoned.child_env_detail = process::describe_env(&env);
+        return abandoned;
     }
 
     // Cargo's `target/debug/.fingerprint/<pkg>-<hash>/dep-test-<name>` is the
@@ -102,13 +98,9 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
             "no `compiler-artifact` with a test-binary `executable` was reported by `cargo test \
              --no-run --message-format=json`; child output:\n{stdout}"
         );
-        return outcome::DepInfoOutcome {
-            dep_info_entry_count: 0,
-            scenarios_no_match_tracked: false,
-            dep_info_sample: stdout,
-            child_env_detail: process::describe_env(&env),
-            baseline_error: Some(error),
-        };
+        let mut abandoned = outcome::DepInfoOutcome::abandoned(error, stdout);
+        abandoned.child_env_detail = process::describe_env(&env);
+        return abandoned;
     };
     let dot_d = executable.with_extension("d");
     let dep_content = match std::fs::read_to_string(&dot_d) {
@@ -160,26 +152,81 @@ pub(crate) fn rebuild_outcome() -> &'static RebuildOutcome {
 }
 
 fn build_rebuild_outcome() -> RebuildOutcome {
-    fixtures::ensure_fixture_copied();
-    // A previous run may have left the scratch feature file edited (and, while
-    // the tracking mechanism is absent, a stale fixture binary compiled from
-    // that edit lingers in the shared target). Reset the file to the
-    // checked-in source and drop the fixture's compiled units so the baseline
-    // always starts from the pristine feature text.
-    fixtures::restore_feature_file();
-    let env = process::build_child_env();
-    clean_fixture_units(&env);
-
-    // Baseline full run must pass.
-    let baseline = run_cargo(&env, &["test", "--locked", "--offline"]);
-    let (baseline_passed, baseline_output) = match baseline {
-        Ok(captured) => (captured.status, captured.stdout),
-        Err(err) => (false, format!("baseline cargo test failed to run: {err}")),
+    let env = match prepared_child_env() {
+        Ok(env) => env,
+        Err(reason) => return outcome::RebuildOutcome::abandoned(reason),
     };
 
-    // Rewrite ONLY the captured value on the `Then` step, then push its mtime
-    // two seconds into the future so the change is never masked by filesystem
-    // timestamp granularity.
+    // Baseline full run must pass.
+    let (baseline_passed, baseline_output) = baseline_run(&env);
+
+    edit_captured_expectation();
+
+    let second_captured = match run_cargo(&env, &["test", "--locked", "--offline"]) {
+        Ok(captured) => captured,
+        Err(err) => panic!("second cargo test failed to run: {err}"),
+    };
+    let failed = !second_captured.status;
+    let recompiled = second_captured
+        .stdout
+        .contains("Compiling rstest-bdd-rebuild-invalidation-fixture");
+    // The assertion renderer emits this right-hand value only for the edited
+    // Gherkin expectation. A bare `101` can appear in unrelated Cargo output.
+    let names_new_expectation = second_captured.stdout.contains("right: 101");
+
+    outcome::RebuildOutcome {
+        baseline_passed,
+        baseline_output,
+        second: outcome::SecondRun {
+            failed,
+            recompiled,
+            names_new_expectation,
+            output: second_captured.stdout,
+        },
+    }
+}
+
+/// Gate on preparation, restore the fixture, and build the child environment.
+///
+/// Preparation owns the cold dependency build; what follows keeps its own
+/// 300-second bound for the fixture's single-unit rebuild. A previous run may
+/// have left the scratch feature file edited (and, while the tracking
+/// mechanism is absent, a stale fixture binary compiled from that edit lingers
+/// in the shared target). Resetting the file to the checked-in source and
+/// dropping the fixture's compiled units is what makes the baseline start from
+/// the pristine feature text.
+///
+/// Both experiments need exactly this prefix, so it is one function rather
+/// than two copies: a divergence between them would mean the two outcomes
+/// disagree about which tree they measured.
+fn prepared_child_env() -> Result<process::ChildEnv, String> {
+    if let Err(err) = preparation::ensure_rebuild_prepared() {
+        return Err(format!("rebuild fixture is not prepared: {err}"));
+    }
+    fixtures::ensure_fixture_copied();
+    fixtures::restore_feature_file();
+    let env = process::build_child_env()
+        .map_err(|err| format!("the child environment could not be built: {err}"))?;
+    clean_fixture_units(&env);
+    Ok(env)
+}
+
+/// Run the baseline `cargo test`, reporting a spawn failure as a failed run.
+fn baseline_run(env: &process::ChildEnv) -> (bool, String) {
+    match run_cargo(env, &["test", "--locked", "--offline"]) {
+        Ok(captured) => (captured.status, captured.stdout),
+        Err(err) => (false, format!("baseline cargo test failed to run: {err}")),
+    }
+}
+
+/// Rewrite ONLY the captured value on the `Then` step of the scratch feature.
+///
+/// The mtime is pushed two seconds into the future so the change is never
+/// masked by filesystem timestamp granularity. The step line is asserted to be
+/// present first: if the fixture has drifted from the contract the experiment
+/// relies on, a silent no-op replacement would make the second run pass for a
+/// reason that has nothing to do with rebuild tracking.
+fn edit_captured_expectation() {
     let feature_path = fixtures::scratch_feature_file();
     let original = match std::fs::read_to_string(&feature_path) {
         Ok(text) => text,
@@ -212,30 +259,6 @@ fn build_rebuild_outcome() -> RebuildOutcome {
         panic!("cannot set the scratch feature mtime into the future: {err}");
     }
     drop(file);
-
-    let second_captured = run_cargo(&env, &["test", "--locked", "--offline"]);
-    let second_captured = match second_captured {
-        Ok(captured) => captured,
-        Err(err) => panic!("second cargo test failed to run: {err}"),
-    };
-    let failed = !second_captured.status;
-    let recompiled = second_captured
-        .stdout
-        .contains("Compiling rstest-bdd-rebuild-invalidation-fixture");
-    // The assertion renderer emits this right-hand value only for the edited
-    // Gherkin expectation. A bare `101` can appear in unrelated Cargo output.
-    let names_new_expectation = second_captured.stdout.contains("right: 101");
-
-    outcome::RebuildOutcome {
-        baseline_passed,
-        baseline_output,
-        second: outcome::SecondRun {
-            failed,
-            recompiled,
-            names_new_expectation,
-            output: second_captured.stdout,
-        },
-    }
 }
 
 /// Run a nested `cargo` invocation with the shared environment from the

@@ -87,8 +87,11 @@ impl TryFrom<Vec<Vec<String>>> for StatusEntries {
                 "no" | "n" | "false" => false,
                 _ => {
                     return Err(format!(
-                        "datatable row {}: second column must be one of yes/y/true or no/n/false; \
-                         got: {:?}",
+                        concat!(
+                            "datatable row {}: second column must be one of yes/y/true or \
+                             no/n/false; ",
+                            "got: {:?}"
+                        ),
                         index + 1,
                         done_cell
                     ));

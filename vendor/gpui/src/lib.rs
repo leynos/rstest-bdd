@@ -170,14 +170,6 @@ where
 ///
 /// The retry diagnostics deliberately go directly to the test process because
 /// this minimal shim does not install a global tracing subscriber.
-#[expect(
-    clippy::print_stdout,
-    reason = "retry progress must remain visible without a global tracing subscriber"
-)]
-#[expect(
-    clippy::print_stderr,
-    reason = "seed diagnostics must remain visible when a test eventually panics"
-)]
 pub fn run_test(
     num_iterations: usize,
     explicit_seeds: &[u64],
@@ -187,32 +179,82 @@ pub fn run_test(
 ) {
     let (seeds, is_multiple_runs) = calculate_seeds(num_iterations as u64, explicit_seeds);
 
+    let mut ctx = RunSeedContext {
+        max_retries,
+        test_fn,
+        on_fail_fn,
+        is_multiple_runs,
+    };
     for seed in seeds {
-        let mut attempt = 0;
-        loop {
-            if is_multiple_runs {
-                eprintln!("seed = {seed}");
-            }
-
-            let action = classify_attempt(seed, attempt, max_retries, test_fn);
-            if action.is_success() {
-                break;
-            }
-            if action.is_retry() {
-                println!("attempt {attempt} failed, retrying");
-                attempt += 1;
-                continue;
-            }
-
-            if is_multiple_runs {
-                eprintln!("failing seed: {seed}");
-            }
-            if let Some(on_fail_fn) = on_fail_fn {
-                on_fail_fn();
-            }
-            panic::resume_unwind(action.into_panic());
-        }
+        run_seed(seed, &mut ctx);
     }
+}
+
+/// The per-run settings shared by every seed a single test drives.
+struct RunSeedContext<'a> {
+    /// How many times one seed may be retried before it fails terminally.
+    max_retries: usize,
+    /// The closure under test, invoked once per attempt.
+    test_fn: &'a mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
+    /// Optional hook invoked when a seed fails terminally.
+    on_fail_fn: Option<fn()>,
+    /// Whether the run spans several seeds, which enables progress output.
+    is_multiple_runs: bool,
+}
+
+/// Drives one seed through its attempts until it succeeds or fails terminally.
+#[expect(
+    clippy::print_stdout,
+    reason = "retry progress must remain visible without a global tracing subscriber"
+)]
+fn run_seed(seed: u64, ctx: &mut RunSeedContext<'_>) {
+    let mut attempt = 0;
+    loop {
+        announce_seed(seed, ctx.is_multiple_runs);
+
+        let action = classify_attempt(seed, attempt, ctx.max_retries, ctx.test_fn);
+        if action.is_success() {
+            break;
+        }
+        if action.is_retry() {
+            println!("attempt {attempt} failed, retrying");
+            attempt += 1;
+            continue;
+        }
+
+        announce_failing_seed(seed, ctx.is_multiple_runs);
+        handle_terminal_failure(action, ctx.on_fail_fn);
+    }
+}
+
+/// Announces the seed about to be attempted when the run spans several seeds.
+#[expect(
+    clippy::print_stderr,
+    reason = "seed diagnostics must remain visible when a test eventually panics"
+)]
+fn announce_seed(seed: u64, is_multiple_runs: bool) {
+    if is_multiple_runs {
+        eprintln!("seed = {seed}");
+    }
+}
+
+/// Announces the seed whose attempts were exhausted when the run spans several.
+#[expect(
+    clippy::print_stderr,
+    reason = "seed diagnostics must remain visible when a test eventually panics"
+)]
+fn announce_failing_seed(seed: u64, is_multiple_runs: bool) {
+    if is_multiple_runs {
+        eprintln!("failing seed: {seed}");
+    }
+}
+
+/// Runs the failure callback, then resumes the panic that ended the seed.
+fn handle_terminal_failure(action: AttemptAction, on_fail_fn: Option<fn()>) {
+    if let Some(on_fail_fn) = on_fail_fn {
+        on_fail_fn();
+    }
+    panic::resume_unwind(action.into_panic());
 }
 
 /// Run one attempt under unwind capture and classify the retry decision.

@@ -35,3 +35,11 @@ memories/
 # documented local mutation run dirty the working tree.
 mutants.out/
 mutants.out.old/
+
+# Coverage profiles. `-Cinstrument-coverage` makes every instrumented test
+# binary write a `<name>_<hash>_<pid>.profraw` in the directory it ran in,
+# which for a crate's own tests is that crate's source directory — so a
+# `cargo llvm-cov` run leaves dozens of them inside `crates/`. The name
+# carries a process id, so they accumulate rather than overwrite. They are
+# merged by the coverage driver and never need to be committed.
+*.profraw

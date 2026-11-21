@@ -79,6 +79,19 @@ def run_lint_whitaker(manifest_path: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def read_lint_whitaker_recipe() -> str:
+    """Return the recipe line the `lint-whitaker` target runs."""
+    makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+    _, separator, tail = makefile.partition("\nlint-whitaker:")
+    assert separator, "Makefile declares a lint-whitaker target"
+    recipe = next(
+        (line for line in tail.splitlines() if line.startswith("\t")),
+        None,
+    )
+    assert recipe is not None, "lint-whitaker target has a recipe"
+    return recipe
+
+
 def test_lint_whitaker_target_accepts_clean_fixture(tmp_path: Path) -> None:
     """A clean fixture proves the Makefile target invokes the Whitaker suite."""
     manifest_path = write_lint_fixture(
@@ -98,6 +111,23 @@ def test_lint_whitaker_target_accepts_clean_fixture(tmp_path: Path) -> None:
     result = run_lint_whitaker(manifest_path)
 
     assert result.returncode == 0, result.stdout
+
+
+def test_lint_whitaker_selects_the_suite_by_name() -> None:
+    """The gate must not use `--all`, which loads whatever the tree holds.
+
+    `--all` loads every library present in the installed tree. That tree is
+    written by a pinned installer against a rolling release, so an installer
+    older than a lint cannot prune that lint's standalone library; both it and
+    the suite then register the same lint name and rustc panics with
+    "duplicate specification of lint" before this repository is checked. Naming
+    the aggregated suite keeps the lint set fixed by this repository instead of
+    by installer bookkeeping.
+    """
+    recipe = read_lint_whitaker_recipe()
+
+    assert "--lib whitaker_suite" in recipe, recipe
+    assert "--all" not in recipe, recipe
 
 
 def test_lint_whitaker_target_rejects_panicking_unwrap_or_else(

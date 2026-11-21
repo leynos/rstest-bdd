@@ -24,6 +24,7 @@ written in exactly one place, so a test cannot drift into a shape discovery
 would reject.
 """
 
+import os
 import sys
 import typing as typ
 from pathlib import Path
@@ -36,6 +37,22 @@ if typ.TYPE_CHECKING:
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+
+#: Test modules that drive real process groups, which only POSIX has.
+#:
+#: They are left uncollected elsewhere, not merely skipped. A skipped module
+#: is still imported, so every line of every test it holds is reported as
+#: unexecuted, and the platform's coverage figure then falls with each case
+#: added for a platform that can run it. The termination *logic* is covered
+#: on every platform by ``test_prepared_fixture_tree_logic``, which replaces
+#: the operating-system calls; these modules add the proof against real
+#: processes where that proof can be had.
+POSIX_ONLY_MODULES = [
+    "test_prepared_fixture_abandon.py",
+    "test_prepared_fixture_tree.py",
+]
+
+collect_ignore = [] if os.name == "posix" else POSIX_ONLY_MODULES
 
 
 def write_fixture_manifest(root: Path, package: str) -> Path:

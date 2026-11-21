@@ -70,7 +70,9 @@ fn a_nested_scenario_span_records_its_enclosing_span() {
     assert_eq!(
         value(&scenario.values, CURRENT_SPAN_FIELD),
         "outer",
-        "the recorded enclosing span must be the one that was current, and the parent test's \
-         empty-field assertion is only meaningful once this branch is known to be live",
+        concat!(
+            "the recorded enclosing span must be the one that was current, and the parent test's ",
+            "empty-field assertion is only meaningful once this branch is known to be live"
+        ),
     );
 }

@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- `rstest-bdd-harness::binary_test_support`, a `#[doc(hidden)]` test-support
+  module, gained `target_directory_of`. It returns the target root of a test
+  executable by finding Cargo's `CACHEDIR.TAG`, or `None` when no ancestor
+  carries it. The `CARGO_BIN_EXE_<name>` fallback in `locate_or_build_binary`
+  probes the executable's profile directory, including Cargo's
+  `build/<package>/<hash>/out` layout, and does not use the target root. No
+  supported API changed.
+
+- `rstest-bdd-harness::nested_cargo` gained the preparation API that keeps a
+  nested Cargo build out of a timed assertion's deadline. A caller describes a
+  `Preparation` (family, variant, artefact directories and input hash), and
+  `ensure_prepared_building` gates a test on a stamp recording the
+  build-relevant environment, the toolchain identity and the fixture inputs.
+  Under `nextest` the gate fails fast and names the command that prepares the
+  family, because a test in its own process cannot prepare without paying the
+  cost it is meant to avoid; under `cargo test` it prepares lazily. Its return
+  value states whether a build ran, and the runner decision is passed in by the
+  caller rather than read inside the gate. `admit` is the read-only form: it
+  answers whether the tree is reusable without building, writing a stamp or
+  taking the lock. `env_from_vars` resolves a relative `CARGO_TARGET_DIR` to an
+  absolute path once, before the child inherits it, and `cargo_config_inputs`
+  folds the workspace Cargo configuration into the input hash.
+  `prepare_now_staged` and `ensure_prepared_building_staged` run a caller's
+  staging step before the toolchain is identified, for a family whose
+  preparation creates the directory its nested builds run in.
+  `Preparation::owned_if_built` names packages whose units a stamp speaks for
+  when the build produced them, beside `owned_packages`, which requires each
+  name to have been built. This is additive: the existing `ProfileDestination`
+  API is unchanged.
+
 - Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
   `lookup_step_async_with_mode`, `find_step_async_with_mode`, and
   `find_step_with_mode` in favour of `lookup_step_with_metadata` and

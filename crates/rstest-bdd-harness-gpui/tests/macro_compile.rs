@@ -11,11 +11,15 @@ use rstest_bdd_harness::{
         assert_snapshot_contains,
         assert_snapshot_omits,
         snapshot_refresh_is_enabled,
-        trybuild_crate_root,
     },
     trybuild_staging::{copy_dir_tree, copy_file},
 };
 use serial_test::serial;
+
+// Preparation of the trybuild build tree, in its own file so the timed
+// assertions and their setup stay separately readable.
+#[path = "macro_compile/preparation.rs"]
+mod preparation;
 
 fn crate_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")) }
 
@@ -24,6 +28,11 @@ fn fixture_path(relative: &str) -> PathBuf { crate_root().join(relative) }
 #[test]
 #[serial]
 fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
+    // Under nextest a missing or stale preparation stamp fails here with the
+    // command that prepares it, rather than making this deadline pay for a
+    // cold dependency build; under plain `cargo test` the gate prepares
+    // lazily under its own lock.
+    preparation::tree().ensure_prepared(preparation::prepare)?;
     stage_trybuild_support_files()?;
     let tests = trybuild::TestCases::new();
     for case in [
@@ -56,6 +65,9 @@ fn compile_fail_stable_fallback_warning(_: &trybuild::TestCases) {}
 #[test]
 #[serial]
 fn nightly_gpui_fallback_emits_one_proc_macro_warning() -> Result<(), Box<dyn std::error::Error>> {
+    // Same tree, same gate: a filtered nightly run that selects only this case
+    // must not compile the dependency graph inside its own deadline either.
+    preparation::tree().ensure_prepared(preparation::prepare)?;
     stage_trybuild_support_files()?;
     let tests = trybuild::TestCases::new();
     tests.compile_fail("tests/fixtures_macros/nightly_gpui_adapter_fallback_warning.rs");
@@ -111,5 +123,5 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn gpui_trybuild_crate_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    trybuild_crate_root(&crate_root().join("Cargo.toml"), "rstest-bdd-harness-gpui")
+    preparation::generated_crate_root()
 }

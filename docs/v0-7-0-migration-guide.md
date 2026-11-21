@@ -131,6 +131,122 @@ Choose the exact lookup, `lookup_step_with_metadata`, when the call already
 holds a registered pattern. Choose the fuzzy lookup, `find_step_with_metadata`,
 when the call holds step text and placeholder matching is wanted.
 
+## Nested fixture preparation is a separate pass
+
+`rstest_bdd_harness::nested_cargo` gained a preparation gate for suites that
+shell out to a nested `cargo`. The gate is opt-in: a suite that does not call
+it keeps its old behaviour, and nothing is built that was not built before. Two
+changes are nonetheless source-breaking for existing callers. Seven functions
+return `io::Result` where they returned a value directly, so an existing call
+site needs `?` or an unwrap. And the bounded runners cap their captured output,
+so code that treated `Output::stderr` as the child's complete text must read it
+as a prefix. Both are described below.
+
+### Timed tests no longer prepare their own nested builds
+
+`ensure_prepared_building` reports `PreparationOutcome::Reused` when the
+family's stamp matches and every directory in `Preparation::artefacts` still
+holds its outputs; `PreparationOutcome::Prepared` means a build ran. Otherwise
+it behaves differently per runner:
+
+- under `cargo nextest`, whose every test runs in its own process, it returns
+  `io::ErrorKind::NotFound` naming the command that prepares the family;
+- under plain `cargo test` it runs the closure lazily behind a process-wide
+  lock.
+
+A suite that used to build its fixture inside a timed test therefore needs a
+named preparation test — run before the timed suite, and matched by
+`.config/nextest.toml` so it gets the longer `slow-timeout` — plus a
+`make prepare-nested-fixtures`-style target. `prepare_now` is the unconditional
+entry point that target reaches; it is idempotent, so a warm target directory
+costs the toolchain probes and the stamp and artefact checks, and no build.
+
+A family whose preparation closure *creates* the directory its nested builds
+run in needs the staged entry points instead: `prepare_now_staged` for the
+named preparation test and `ensure_prepared_building_staged` for the gate. Both
+take a `stage` closure and run it before the toolchain is identified, so a
+relative `RUSTC` beneath that directory, or a `rust-toolchain.toml` copied into
+it, is in place when the cold identity is taken. `stage` must be idempotent and
+must not build. `prepare_now_staged` always runs it. The staged gate runs it
+only where it may build: under `cargo nextest` it does not stage, and a family
+whose working directory is absent is refused with the preparation command.
+
+No assertion deadline needs to change. The point of the split is that the cold
+work leaves the timed test rather than that the timed test waits longer.
+
+### `CARGO_TARGET_DIR` is resolved once, before the child sees it
+
+Both constructors resolve a relative `CARGO_TARGET_DIR` to an absolute path
+against the current directory, because a nested build does not run in this
+process's directory and Cargo would otherwise resolve the same value somewhere
+else. They differ in what they do with an inherited value:
+
+- `env_from_vars` **preserves** an inherited `CARGO_TARGET_DIR`, so nested
+  builds keep reusing the outer build cache, and falls back to the directory
+  the caller supplies only when the parent named none.
+- `env_for_directory` **drops** the inherited value and uses its own
+  `directory` instead, because that directory is the one being stamped and a
+  stale inherited value would point the build somewhere the stamp does not
+  describe. It is **internal**: it exists for `Preparation::for_fixture`, and a
+  nested build that should keep the outer cache wants `build_child_env`.
+
+This resolution is fallible. `build_child_env`, `env_from_vars`,
+`absolute_target_directory`, `NestedCargoEnv::target_directory`,
+`Preparation::new`, `Preparation::for_fixture` and `env_for_directory` now
+return `io::Result` where they previously returned the value directly. The
+error is the one case that used to be silent: a *relative* `CARGO_TARGET_DIR`
+whose working directory cannot be read. The previous behaviour was to return
+the value unresolved, which handed the child a path naming the fixture
+directory rather than the caller's — a stamp guarding a tree the build never
+writes. Absolute values never consult the working directory and never fail. Add
+`?` at each call site; no other signature changed.
+
+A caller that previously passed a relative `CARGO_TARGET_DIR` through its own
+environment now has an absolute path in the child. `Preparation::new` derives
+its `artefacts` list from the target directory resolved in the child
+environment rather than from the stamp directory, so the stamp and the compiled
+units it vouches for stay in step when the target directory moves.
+
+### A bounded run's captured output stops at a deadline
+
+`run_bounded` and `run_bounded_with_timeout` cap output collection a short
+grace period after the direct child exits. Without the cap, a successful child
+that leaves a descendant holding the inherited pipe write ends would block the
+call for that descendant's whole lifetime; with it, the call returns promptly.
+
+The cap bounds when collection *stops*, not where within the stream it stops,
+so what is captured is neither exactly the direct child's text nor the whole
+tree's. Collection continues until the deadline, so a descendant that writes
+during the grace period **is** captured. But the deadline can also fall while
+the direct child's own output is still arriving, so the captured text may end
+mid-stream even for the direct child. Treat `Output::stdout` and
+`Output::stderr` as a prefix of what the writes produced by the deadline, and
+do not rely on a complete final line or a trailing terminator. The exit status
+is unaffected.
+
+If a nested build hands its diagnostics to a helper that outlives it, or the
+captured text is truncated, do not rely on waiting longer: the cap applies to
+the drainers' *own* reading, so the direct child's text can still be cut short
+after the child exits. Where complete output is required — a parser that needs
+the final line, an exit summary, a `.stderr` comparison — capture with a
+mechanism that drains the pipes to completion instead, such as reading them to
+EOF on threads you join, or letting the child inherit the parent's streams and
+collecting them outside this helper.
+
+## Test-support binary lookup
+
+`rstest_bdd_harness::binary_test_support` is `#[doc(hidden)]` test support and
+is not part of the supported public API. The following additions need no action
+from a caller of the supported crates.
+
+- `binary_test_support::target_directory_of` is new. It takes a `&Path` to a
+  test executable and returns `Option<PathBuf>`: the nearest ancestor that
+  holds Cargo's `CACHEDIR.TAG`, or `None` when there is none.
+  `locate_or_build_binary` does not call it.
+- The fallback that `locate_or_build_binary` uses when `CARGO_BIN_EXE_<name>` is
+  unset probes the test executable's profile directory, not the target root.
+  The lookup is private, so there is no public signature to update.
+
 ## Migration checklist
 
 - [ ] Add ambiguity handling wherever a lookup result is consumed:
@@ -150,6 +266,22 @@ when the call holds step text and placeholder matching is wanted.
   field whose Rust name does not equal its pattern placeholder.
 - [ ] Use `trim` and `parse_with` only for capture-specific normalization and
   conversion; retain `#[datatable(...)]` policies for table fields.
+- [ ] If a suite shells out to a nested `cargo`, move the cold build into a
+      named preparation test reached by `prepare_now` and gate the timed tests
+      on `ensure_prepared_building`, passing `running_under_nextest()` from the
+      test boundary; use `admit` where the suite only needs to know whether the
+      tree is reusable. Run that preparation pass under Nextest before the
+      timed suite.
+- [ ] If that preparation creates the directory its nested builds run in,
+      use `prepare_now_staged` and `ensure_prepared_building_staged` and move
+      the copy into an idempotent `stage` closure that does not build.
+- [ ] Add `?` to every `nested_cargo` environment, target-directory and
+      `Preparation` constructor call that now returns `io::Result`.
+- [ ] Re-check any code that parses a bounded run's captured output: it holds
+      what was read by the drain deadline, which may include descendant output
+      written during the grace period and may stop before the direct child's
+      output ended. A parser that requires a complete final line or terminator
+      needs to handle a truncated capture.
 
 ## Common errors
 
@@ -162,6 +294,11 @@ when the call holds step text and placeholder matching is wanted.
 - **Error:** a derived `StepArgs` field requires a placeholder.
   - **Fix:** align the field and placeholder names or add
     `#[step_args(placeholder = "...")]`.
+- **Error:** under Nextest a timed test reports that a nested fixture family is
+  not prepared and names `make prepare-nested-fixtures`.
+  - **Fix:** run the preparation pass first. The stamp also covers `RUSTFLAGS`
+    and the feature selection, so prepare under the same environment as the run
+    that reads it.
 
 ## Further reading
 

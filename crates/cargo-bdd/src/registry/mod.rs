@@ -250,7 +250,13 @@ fn build_test_target(
     let env = nested_cargo::build_child_env(
         &fallback_target_dir,
         nested_cargo::ProfileDestination::ChildScratch,
-    );
+    )
+    .with_context(|| {
+        format!(
+            "failed to resolve the child environment for building test target {} in package {}",
+            target.name, package.name
+        )
+    })?;
     let mut cmd = nested_cargo::cargo_command(&env, Path::new("."));
     cmd.args([
         "test",

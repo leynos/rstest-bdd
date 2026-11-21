@@ -7,7 +7,7 @@
 
 use std::fmt::{self, Write};
 
-use super::{ScenarioRecord, ScenarioStatus, snapshot};
+use super::{ScenarioRecord, ScenarioStatus, SkippedScenario, snapshot};
 
 /// Failure text emitted when skip policy turns a skip into a failure.
 const FAIL_ON_SKIPPED_MESSAGE: &str = "Scenario skipped with fail_on_skipped enabled";
@@ -52,34 +52,58 @@ pub fn write<W: Write>(writer: &mut W, records: &[ScenarioRecord]) -> fmt::Resul
          skipped=\"{skipped}\">",
     )?;
     for record in records {
-        writer.write_str("  <testcase name=\"")?;
-        write_escaped(writer, record.scenario_name())?;
-        writer.write_str("\" classname=\"")?;
-        write_escaped(writer, record.feature_path())?;
-        writer.write_char('"')?;
-        match record.status() {
-            ScenarioStatus::Passed => {
-                writer.write_str(" />\n")?;
-            }
-            ScenarioStatus::Skipped(details) => {
-                writer.write_str(">\n")?;
-                writer.write_str("    <skipped")?;
-                if let Some(message) = details.message() {
-                    writer.write_str(" message=\"")?;
-                    write_escaped(writer, message)?;
-                    writer.write_char('"')?;
-                }
-                writer.write_str(" />\n")?;
-                if details.forced_failure() {
-                    writer.write_str("    <failure type=\"fail_on_skipped\">")?;
-                    writer.write_str(FAIL_ON_SKIPPED_MESSAGE)?;
-                    writer.write_str("</failure>\n")?;
-                }
-                writer.write_str("  </testcase>\n")?;
-            }
-        }
+        write_testcase(writer, record)?;
     }
     writer.write_str("</testsuite>\n")
+}
+
+/// Write one `<testcase>` element for `record`.
+fn write_testcase<W: Write>(writer: &mut W, record: &ScenarioRecord) -> fmt::Result {
+    writer.write_str("  <testcase name=\"")?;
+    write_escaped(writer, record.scenario_name())?;
+    writer.write_str("\" classname=\"")?;
+    write_escaped(writer, record.feature_path())?;
+    writer.write_char('"')?;
+    match record.status() {
+        ScenarioStatus::Passed => writer.write_str(" />\n"),
+        ScenarioStatus::Skipped(details) => write_skipped_testcase(writer, details),
+    }
+}
+
+/// Write the body of a `<testcase>` whose scenario was skipped.
+///
+/// The two optional parts are each written by their own function so this one
+/// stays a straight sequence of writes: the message attribute and the
+/// fail-on-skipped `<failure>` element are independent decisions, and keeping
+/// both branches here would give the function two separate clusters of
+/// conditional logic.
+fn write_skipped_testcase<W: Write>(writer: &mut W, details: &SkippedScenario) -> fmt::Result {
+    writer.write_str(">\n")?;
+    writer.write_str("    <skipped")?;
+    write_skip_message(writer, details.message())?;
+    writer.write_str(" />\n")?;
+    write_forced_failure(writer, details.forced_failure())?;
+    writer.write_str("  </testcase>\n")
+}
+
+/// Write the `message` attribute of a `<skipped>` element, when there is one.
+fn write_skip_message<W: Write>(writer: &mut W, message: Option<&str>) -> fmt::Result {
+    let Some(message) = message else {
+        return Ok(());
+    };
+    writer.write_str(" message=\"")?;
+    write_escaped(writer, message)?;
+    writer.write_char('"')
+}
+
+/// Write the `<failure>` element for a skip the policy turned into a failure.
+fn write_forced_failure<W: Write>(writer: &mut W, forced: bool) -> fmt::Result {
+    if !forced {
+        return Ok(());
+    }
+    writer.write_str("    <failure type=\"fail_on_skipped\">")?;
+    writer.write_str(FAIL_ON_SKIPPED_MESSAGE)?;
+    writer.write_str("</failure>\n")
 }
 
 /// Render the collector snapshot as a `JUnit` XML document.
@@ -107,22 +131,27 @@ pub fn write_snapshot<W: Write>(writer: &mut W) -> fmt::Result {
 
 /// Write a string with XML-sensitive characters escaped.
 fn write_escaped<W: Write>(writer: &mut W, value: &str) -> fmt::Result {
-    const INVALID_REPLACEMENT: &str = "&#xFFFD;";
     for character in value.chars() {
-        if !is_valid_xml_character(character) {
-            writer.write_str(INVALID_REPLACEMENT)?;
-            continue;
-        }
-        match character {
-            '&' => writer.write_str("&amp;")?,
-            '<' => writer.write_str("&lt;")?,
-            '>' => writer.write_str("&gt;")?,
-            '"' => writer.write_str("&quot;")?,
-            '\'' => writer.write_str("&apos;")?,
-            other => writer.write_char(other)?,
-        }
+        write_escaped_character(writer, character)?;
     }
     Ok(())
+}
+
+/// Write one character, escaped if XML requires it.
+fn write_escaped_character<W: Write>(writer: &mut W, character: char) -> fmt::Result {
+    const INVALID_REPLACEMENT: &str = "&#xFFFD;";
+    if !is_valid_xml_character(character) {
+        return writer.write_str(INVALID_REPLACEMENT);
+    }
+    let escaped = match character {
+        '&' => "&amp;",
+        '<' => "&lt;",
+        '>' => "&gt;",
+        '"' => "&quot;",
+        '\'' => "&apos;",
+        other => return writer.write_char(other),
+    };
+    writer.write_str(escaped)
 }
 
 /// Report whether a character is permitted in XML 1.0 text.

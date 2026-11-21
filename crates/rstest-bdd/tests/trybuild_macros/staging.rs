@@ -2,24 +2,22 @@
 //!
 //! Handles discovery and copying of feature files to the trybuild test
 //! environment, ensuring fixtures can locate their dependencies at compile time.
-use std::{env, io, path::Path as StdPath, sync::OnceLock};
+use std::{env, io, path::Path as StdPath};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
-use cargo_metadata::MetadataCommand;
 
-#[path = "staging/executable_layout.rs"]
-mod executable_layout;
-use executable_layout::target_directory_from_running_test_executable;
-#[cfg(test)]
-use executable_layout::target_directory_from_test_executable;
 #[path = "staging/snapshot_io.rs"]
 mod snapshot_io;
-
 use snapshot_io::{read_snapshot_originals, workspace_root_of};
+
+#[path = "staging/target_root.rs"]
+mod target_root;
+pub(crate) use target_root::trybuild_target_directory;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
+
 const FEATURES_AUTO_DIR: &str = "tests/features/auto";
 
 const TARGET_ROOT_SNAPSHOTS: &[&str] = &[
@@ -28,8 +26,10 @@ const TARGET_ROOT_SNAPSHOTS: &[&str] = &[
     "tests/fixtures_macros/scenarios_missing_dir.stderr",
     "tests/fixtures_macros/scenario_unrelatable_path.stderr",
 ];
+
 #[cfg(windows)]
 const UNRELATABLE_FEATURE_PATH: &str = r"C:\Users\Public\rstest-bdd-unrelatable\x.feature";
+
 /// A staged feature file on Windows' `C:` root.
 ///
 /// Keeping the file alive through the compile-fail invocation ensures the macro
@@ -48,6 +48,7 @@ impl Drop for AlternateFeatureRoot {
         }
     }
 }
+
 /// Returns the path to a macro fixture file, staging support files first.
 ///
 /// Ensures that feature files are staged to the trybuild test environment
@@ -114,6 +115,7 @@ pub(crate) fn stage_unrelatable_feature_root() -> io::Result<Option<AlternateFea
     std::fs::copy(&source, destination)?;
     Ok(Some(AlternateFeatureRoot))
 }
+
 #[expect(clippy::expect_used, reason = "test setup failure should panic")]
 fn ensure_trybuild_support_files() {
     use std::sync::OnceLock;
@@ -188,39 +190,6 @@ fn stage_trybuild_support_files() -> io::Result<()> {
     }
 
     Ok(())
-}
-
-/// Resolve the Cargo target directory shared by trybuild staging and inspection.
-///
-/// The running integration-test executable is compiled beneath Cargo's
-/// effective target root, including a `--target-dir` selected by `cargo
-/// llvm-cov`. Prefer that path over `cargo metadata`: metadata does not receive
-/// a caller's command-line target-directory override.
-pub(super) fn trybuild_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
-    static TARGET_DIRECTORY: OnceLock<Utf8PathBuf> = OnceLock::new();
-    TARGET_DIRECTORY
-        .get_or_init(|| {
-            target_directory_from_running_test_executable()
-                .unwrap_or_else(|| metadata_target_directory(workspace_root))
-        })
-        .clone()
-}
-
-fn metadata_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
-    match MetadataCommand::new().current_dir(workspace_root).exec() {
-        Ok(metadata) => metadata.target_directory,
-        Err(error) => {
-            // This fallback is only for environments where neither the test
-            // executable layout nor Cargo metadata is available, such as a
-            // sandbox without a reachable manifest.
-            let fallback = workspace_root.join("target");
-            tracing::warn!(
-                workspace_root = %workspace_root, error = %error,
-                "trybuild target-directory fallback to `{fallback}` because cargo metadata failed: {error}"
-            );
-            fallback
-        }
-    }
 }
 
 /// Restores snapshots whose diagnostics include Cargo's target directory.

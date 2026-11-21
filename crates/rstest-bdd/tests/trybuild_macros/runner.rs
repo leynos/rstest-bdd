@@ -55,8 +55,15 @@ fn step_macros_compile() -> io::Result<()> {
     // Trybuild asks Cargo metadata for its target root. Cargo does not expose
     // an outer `--target-dir` flag to this test process, so explicitly pass
     // the running test's root to trybuild's nested Cargo invocations.
+    //
+    // The two cold dependency graphs are compiled by the
+    // `nested_fixture_preparation` test before this one is scheduled. Under
+    // nextest a missing or stale stamp fails here with the command that
+    // prepares it, rather than making this deadline pay for a cold build;
+    // under plain `cargo test` the gate prepares lazily under its own lock.
     temp_env::with_var("CARGO_TARGET_DIR", Some(target_directory.as_str()), || {
         temp_env::with_var_unset("RUST_BACKTRACE", || {
+            super::preparation::ensure_prepared(&target_directory)?;
             let _target_root_snapshots = staging::stage_target_root_snapshots()?;
             let t = trybuild::TestCases::new();
 
@@ -83,8 +90,11 @@ fn step_macros_compile() -> io::Result<()> {
             run_feature_tracking_test(&t);
             // `TestCases` runs its queued fixtures from `Drop`; inspect dep-info
             // only after the tracking fixture's dep-info is the final artefact.
+            // The instant is captured first so the inspection can tell this
+            // run's dep-info from one an earlier run left behind.
+            let run_started = std::time::SystemTime::now();
             drop(t);
-            tracking::assert_trybuild_tracking_registered_in_dep_info();
+            tracking::assert_trybuild_tracking_registered_in_dep_info(run_started);
             Ok(())
         })
     })

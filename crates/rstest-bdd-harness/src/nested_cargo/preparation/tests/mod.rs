@@ -1,0 +1,184 @@
+//! Behavioural coverage for the stamp protocol and runner policy.
+//!
+//! The cases are split by what they exercise: `stamping` covers the
+//! preparation lifecycle and the gate that admits a timed test against it,
+//! `eviction` covers the states a stamp cannot see because only the profile
+//! beneath it was removed or gutted, `fingerprint_records` covers the ones a
+//! directory listing also accepts — one unit's records gone while every
+//! directory survives — `ownership` covers which of those evictions a family
+//! that shares a profile must still refuse, `inputs` covers the environment and
+//! input hashing that decide when a prepared directory is stale,
+//! `cargo_config` covers Cargo's own configuration as one of those inputs,
+//! `target_profile` covers an eviction from the second profile a `--target`
+//! build writes, `deadline_gate` covers what the gate does when it is handed a
+//! budget that is already spent, and `admission` covers the read-only query:
+//! what it answers, and that it builds nothing, writes no stamp and takes no
+//! lock. The fixtures they share live here.
+
+mod admission;
+mod cargo_config;
+mod compile_counting;
+mod deadline_gate;
+mod eviction;
+mod fingerprint_records;
+mod inputs;
+mod ownership;
+mod reporter;
+mod staging;
+mod staging_lock;
+mod stamp_file;
+mod stamping;
+mod target_profile;
+mod unreadable;
+
+use std::path::{Path, PathBuf};
+
+use super::Preparation;
+use crate::nested_cargo::{NestedCargoEnv, ProfileDestination};
+
+/// A fixed environment for tests that only exercise fingerprint composition.
+///
+/// The target directory is synthetic: these cases never consult the stamp, so
+/// it need not exist. It is expressed through [`std::env::temp_dir`] rather than
+/// as a Unix literal so that it is absolute on every platform: a literal such
+/// as `/tmp/target` has no drive letter on Windows, making it a *relative*
+/// path, and a fixture whose meaning changes with the host cannot describe one
+/// rule.
+fn environment() -> std::io::Result<NestedCargoEnv> {
+    environment_in(&std::env::temp_dir().join("target"))
+}
+
+/// Populate a profile directory the way a real Cargo build leaves it.
+///
+/// The gate requires more than an existing `<target>/debug`: it requires a
+/// directory holding compiled units, a non-empty fingerprint store Cargo reads
+/// to decide those units are current, and that every dep-info record still has
+/// the output it describes. A fixture that created only the profile, or only a
+/// bare directory, would be accepted by a weaker check and would prove nothing
+/// about the one under test.
+///
+/// The unit directory is filled by [`write_unit`], not by a placeholder: any
+/// file whose name equals a dep-info stem would be indistinguishable from that
+/// unit's linked binary, so a fixture that wrote one would make the pairing
+/// predicate look satisfied for the wrong reason.
+fn populate_profile(target: &Path) -> std::io::Result<()> {
+    let profile = target.join(super::DEFAULT_PROFILE);
+    std::fs::create_dir_all(profile.join("deps"))?;
+    std::fs::create_dir_all(profile.join(".fingerprint/unit-hash"))?;
+    std::fs::write(
+        profile.join(".fingerprint/unit-hash/unit"),
+        b"fingerprint record",
+    )?;
+    std::fs::create_dir_all(profile.join(".fingerprint/checked-hash"))?;
+    std::fs::write(
+        profile.join(".fingerprint/checked-hash/checked"),
+        b"fingerprint record",
+    )?;
+    write_unit(target, "unit", "rlib")?;
+    // A unit built for `cargo check`, or one only ever asked for metadata,
+    // leaves no `rlib` at all — only this. It is the commonest shape in a real
+    // unit directory, so the fixture must carry it or the gate would pass here
+    // and refuse a genuine tree.
+    write_unit(target, "checked", "rmeta")?;
+    Ok(())
+}
+
+/// Write one compiled unit the way rustc does: a `.d` record and its output.
+///
+/// `stem` is the unit's identity and `extension` is the form rustc left —
+/// `rlib` for a linked library, `rmeta` for a metadata-only unit. Writing both
+/// halves is what a real build leaves behind, and the gate pairs them, so a
+/// fixture that wrote only the record would describe a tree Cargo cannot
+/// reuse.
+///
+/// The classic `<profile>/deps` shape is used because it is the one this
+/// suite's other fixtures already assume. The discovery walk is exercised
+/// against the newer `build/<pkg>/<hash>/out` shape by
+/// `layout::tests::both_cargo_layouts_are_discovered` and, end to end, by the
+/// CLI preparation test against a real build.
+fn write_unit(target: &Path, stem: &str, extension: &str) -> std::io::Result<()> {
+    let deps = target.join(super::DEFAULT_PROFILE).join("deps");
+    std::fs::create_dir_all(&deps)?;
+    std::fs::write(deps.join(format!("{stem}.d")), b"dep-info")?;
+    std::fs::write(deps.join(format!("lib{stem}.{extension}")), b"unit")?;
+    Ok(())
+}
+
+/// A filtered environment whose target directory is `target`.
+///
+/// The target directory must exist for the gate to accept a matching stamp:
+/// the profile directory it derives must be present and hold the dependency
+/// artefacts, so a scratch preparation creates both.
+fn environment_in(target: &Path) -> std::io::Result<NestedCargoEnv> {
+    crate::nested_cargo::env_from_vars(
+        vec![
+            ("RUSTFLAGS".into(), "-Dwarnings".into()),
+            ("NEXTEST_RUN_ID".into(), "run-1".into()),
+            (
+                "LLVM_PROFILE_FILE".into(),
+                std::env::temp_dir().join("parent.profraw").into_os_string(),
+            ),
+            ("PATH".into(), "/usr/bin".into()),
+        ],
+        Some(target),
+        ProfileDestination::Caller,
+    )
+}
+
+/// A preparation rooted at `directory`.
+fn preparation(
+    directory: &Path,
+    environment: &NestedCargoEnv,
+    variant: &str,
+    inputs: &str,
+) -> std::io::Result<Preparation> {
+    Preparation::new(
+        super::Sources::new("unit", variant, inputs),
+        super::Directories::new(directory.to_path_buf(), directory.to_path_buf()),
+        environment.clone(),
+    )
+}
+
+/// A scratch preparation with variant `"v"` and input hash `"hash"`.
+///
+/// The `TempDir` is returned alongside so the caller keeps it alive; the
+/// preparation's directory is the temporary directory itself, and its target
+/// directory is a `target/` child that this helper creates along with the
+/// profile directory the gate requires.
+fn scratch_preparation() -> std::io::Result<(tempfile::TempDir, Preparation, NestedCargoEnv)> {
+    let directory = tempfile::tempdir()?;
+    let target = directory.path().join("target");
+    populate_profile(&target)?;
+    let environment = environment_in(&target)?;
+    let preparation = preparation(directory.path(), &environment, "v", "hash")?;
+    Ok((directory, preparation, environment))
+}
+
+/// The profile directory a preparation vouches for.
+///
+/// A fixture that vouched for no directory at all would leave a case unable to
+/// name what it evicted, so the absence is reported as `NotFound` rather than
+/// panicking inside the shared helper. Shared because two modules evict from it
+/// and a private copy in each would be one rule stated twice.
+fn prepared_profile(preparation: &Preparation) -> std::io::Result<PathBuf> {
+    preparation.artefacts.first().cloned().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "the preparation describes the profile directory it reuses",
+        )
+    })
+}
+
+/// A scratch root holding a minimal fixture package.
+///
+/// Every behavioural case needs the same starting point: a temporary
+/// directory with a `fixture/` package inside it. The `TempDir` is returned so
+/// the caller keeps it alive for the duration of the test; dropping it removes
+/// the tree.
+fn fixture_package() -> std::io::Result<(tempfile::TempDir, PathBuf)> {
+    let directory = tempfile::tempdir()?;
+    let source = directory.path().join("fixture");
+    std::fs::create_dir_all(&source)?;
+    std::fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n")?;
+    Ok((directory, source))
+}
