@@ -14,6 +14,7 @@ Run with:
 import ast
 import typing as typ
 
+import pytest
 from lockfile_refresh_support import (
     EXAMPLE_DIR_PREFIX,
     INVOCATION_LOG_NAME,
@@ -25,8 +26,6 @@ from workflow_support import repository_file
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 
 def test_each_example_gets_its_own_empty_directory(
@@ -82,15 +81,30 @@ def test_scratch_directories_live_under_the_pytest_base_directory(
         )
 
 
+#: How a non-interactive Bash startup file can reach the push fragment.
+BASH_ENV_ROUTES: typ.Final[tuple[str, ...]] = ("ambient", "step environment")
+
+
+@pytest.mark.parametrize("route", BASH_ENV_ROUTES)
 def test_run_fragment_ignores_bash_env_path_rewrites(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, route: str
 ) -> None:
-    """Keep host Bash startup hooks from bypassing the recording Git stub."""
+    """Keep host Bash startup hooks from bypassing the recording Git stub.
+
+    The startup file reaches the fragment either ambiently, as the harness's
+    own shell inherits it, or through the environment the runner resolves for
+    the step. Both routes need neutralising: handling only the ambient copy
+    leaves the runner's own supply path open.
+    """
     bash_env = tmp_path / "bash-env"
     bash_env.write_text("PATH=/usr/bin:/bin\n", encoding="utf-8")
-    monkeypatch.setenv("BASH_ENV", str(bash_env))
+    environment: dict[str, str] = {}
+    if route == "ambient":
+        monkeypatch.setenv("BASH_ENV", str(bash_env))
+    else:
+        environment["BASH_ENV"] = str(bash_env)
 
-    result = run_fragment("git push origin 'HEAD:branch'", {}, tmp_path)
+    result = run_fragment("git push origin 'HEAD:branch'", environment, tmp_path)
 
     assert read_invocation_log(tmp_path / INVOCATION_LOG_NAME) == [
         ["push", "origin", "HEAD:branch"]
