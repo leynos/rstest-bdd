@@ -3194,9 +3194,9 @@ rather than by reading this branch's comments.
   writes a unit's fingerprint records as files directly inside
   `build/<pkg>/<hash>/fingerprint/`, and that `record_names` walked only the
   directories inside a store. Two replies on this branch refuted it by reading
-  `entries_of`, which does list every entry, without checking *which
-  directory it was given*. The final approval request brought the dispute
-  back, and a real build settled it in one command:
+  `entries_of`, which does list every entry, without checking *which directory
+  it was given*. The final approval request brought the dispute back, and a
+  real build settled it in one command:
 
   ```text
   target/debug/build/rstest-bdd-policy/cf2a21382eb73954/fingerprint/
@@ -3204,20 +3204,20 @@ rather than by reading this branch's comments.
     lib-rstest_bdd_policy.json  output-lib-rstest_bdd_policy
   ```
 
-  No directory per unit, so nothing was recorded for any unit under the
-  layout every CI lane now uses, and removing a record left the stamp
-  matching. `layout::loose_records` now reads a per-unit store's own files.
-  The test fixture had modelled the new layout with a directory beneath
-  `fingerprint/`, which is why every test passed; it now writes what Cargo
-  writes. With the fix removed, three cases fail.
+  No directory per unit, so nothing was recorded for any unit under the layout
+  every CI lane now uses, and removing a record left the stamp matching.
+  `layout::loose_records` now reads a per-unit store's own files. The test
+  fixture had modelled the new layout with a directory beneath `fingerprint/`,
+  which is why every test passed; it now writes what Cargo writes. With the fix
+  removed, three cases fail.
 
-  Lesson: a refutation built from reading code is a hypothesis about the
-  tree. When the claim is about what a tool writes to disk, look at the disk.
+  Lesson: a refutation built from reading code is a hypothesis about the tree.
+  When the claim is about what a tool writes to disk, look at the disk.
 
 - [x] **The worktree's `target/` vanished a second time.** 2026-11-21, between
   a passing gate run at 00:17 and the next command at about 02:30. As before,
-  nothing in this change removes it and no command of mine did. It cost a
-  cold rebuild and nothing else.
+  nothing in this change removes it and no command of mine did. It cost a cold
+  rebuild and nothing else.
 
 ## Surprises & Discoveries
 
