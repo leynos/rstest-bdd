@@ -69,8 +69,10 @@ fn filters_keyword_lookup_to_selected_libraries() {
 #[test]
 fn invalidates_entries_for_a_single_file_incrementally() {
     let path = PathBuf::from("/tmp/steps.rs");
-    let first = "use rstest_bdd_macros::{given, when};\n#[given(\"a\")] fn step_a() \
-                 {}\n#[when(\"b\")] fn step_b() {}\n";
+    let first = concat!(
+        "use rstest_bdd_macros::{given, when};\n#[given(\"a\")] fn step_a() ",
+        "{}\n#[when(\"b\")] fn step_b() {}\n",
+    );
     let second = "use rstest_bdd_macros::given;\n#[given(\"a\")] fn step_a() {}\n";
     let index_first = index_rust_source(path.clone(), first).expect("index first source");
     let index_second = index_rust_source(path.clone(), second).expect("index second source");

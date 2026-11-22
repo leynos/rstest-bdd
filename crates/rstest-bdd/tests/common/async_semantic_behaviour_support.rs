@@ -260,7 +260,6 @@ pub(crate) fn assert_bypassed_step_recorded(query: BypassedStepQuery<'_>) {
                     .and_then(Value::as_str)
                     .is_some_and(|message| message.contains(reason))
         }),
-        "expected a bypassed-step record for scenario '{scenario_name}' and pattern \
-         '{step_pattern}'",
+        "expected a bypassed-step record for scenario '{scenario_name}' and pattern '{step_pattern}'",
     );
 }

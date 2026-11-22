@@ -90,8 +90,7 @@ pub(crate) fn classify_harness_context(
             return Err(syn::Error::new(
                 proc_macro2::Span::call_site(),
                 format!(
-                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., \
-                     `arg: T`)"
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
                 ),
             ));
         }

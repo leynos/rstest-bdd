@@ -1,7 +1,56 @@
 //! Unit tests for command-line argument parsing.
 
+use std::ffi::OsString;
+
 use super::*;
 
+/// Both invocation forms select the same `steps` subcommand.
+#[test]
+fn flat_and_cargo_dispatched_forms_select_steps() {
+    for arguments in [
+        vec!["cargo-bdd", "steps"],
+        vec!["cargo-bdd", "bdd", "steps"],
+    ] {
+        let arguments = arguments.into_iter().map(OsString::from);
+        let (cli, matches, _) =
+            parse_command_line(arguments).expect("supported invocation should parse");
+
+        assert!(matches!(cli.command, Commands::Steps(_)));
+        assert!(selected_matches(&matches, "steps").is_ok());
+    }
+}
+
+/// The missing `--skipped` failure is a Clap error, not a process exit.
+#[test]
+fn missing_skipped_is_returned_as_a_clap_failure() {
+    let error = missing_required_skipped_error(InvocationForm::Direct);
+    let CliError::Clap(error) = error else {
+        panic!("the missing `--skipped` failure should be a Clap error");
+    };
+
+    assert_eq!(
+        error.kind(),
+        clap::error::ErrorKind::MissingRequiredArgument
+    );
+    assert_eq!(error.exit_code(), 2);
+    assert!(
+        error.render().to_string().contains("--skipped"),
+        "the rendered failure should name the missing argument"
+    );
+}
+
+/// An unknown subcommand is returned so the caller can render it.
+#[test]
+fn unknown_subcommands_are_returned_instead_of_exiting() {
+    let result = parse_command_line(["cargo-bdd", "unknown-command"].map(OsString::from));
+    let Err(CliError::Clap(error)) = result else {
+        panic!("an unknown subcommand should be a Clap error");
+    };
+
+    assert_eq!(error.kind(), clap::error::ErrorKind::InvalidSubcommand);
+}
+
+/// Serialized skip reports carry every documented JSON field.
 #[test]
 fn write_skip_reports_json_emits_fields() {
     let report = SkipReport {
@@ -64,6 +113,7 @@ fn write_skip_reports_json_emits_fields() {
     );
 }
 
+/// Identical patterns in different libraries are not duplicates.
 #[test]
 fn duplicate_groups_do_not_cross_library_boundaries() {
     let steps = [
@@ -88,6 +138,7 @@ fn duplicate_groups_do_not_cross_library_boundaries() {
     assert!(group_duplicate_steps(steps).is_empty());
 }
 
+/// Duplicate groups are returned in deterministic key order.
 #[test]
 fn duplicate_groups_are_ordered_by_library_keyword_and_pattern() {
     let step = |library: &str, keyword: &str, pattern: &str| Step {
@@ -123,5 +174,202 @@ fn duplicate_groups_are_ordered_by_library_keyword_and_pattern() {
             ("accounts".into(), "Given".into(), "a".into()),
             ("filesystem".into(), "Then".into(), "z".into()),
         ]
+    );
+}
+
+/// Build a `Step` in the `accounts` library at `line`.
+fn accounts_step(pattern: &str, line: u32, used: bool) -> Step {
+    Step {
+        library: "accounts".to_owned(),
+        keyword: "Given".to_owned(),
+        pattern: pattern.to_owned(),
+        file: "steps.rs".to_owned(),
+        line,
+        used,
+    }
+}
+
+/// Render `steps` through `listing` and return the text it wrote.
+///
+/// Returns `Result` rather than panicking, because this is a shared helper
+/// called from two test cases: the guide scopes `.expect()` to the test
+/// boundary, so the callers use it and this body propagates instead. A
+/// rendering error keeping its own type also reads better than a panic whose
+/// fixed message cannot say which of the two steps failed.
+fn render_listing(
+    listing: fn(&mut dyn std::io::Write, &[Step]) -> eyre::Result<()>,
+    steps: &[Step],
+) -> eyre::Result<String> {
+    let mut rendered = Vec::new();
+    listing(&mut rendered, steps)?;
+    String::from_utf8(rendered).map_err(|error| eyre::eyre!(error))
+}
+
+/// The unused listing keeps only steps no scenario executed.
+#[test]
+fn unused_listing_keeps_only_unexecuted_steps() {
+    let steps = [
+        accounts_step("executed", 1, true),
+        accounts_step("dormant", 2, false),
+    ];
+
+    let rendered = render_listing(write_unused_steps, &steps).expect("the listing should render");
+
+    assert!(
+        rendered.contains("'dormant' [accounts]"),
+        "the unexecuted step should be listed as a rendered step line"
+    );
+    // Anchor on `write_step`'s own shape, `'{pattern}' [{library}]`: a
+    // bare `executed` substring would be missing from an empty listing too,
+    // so only the rendered shape fails when the filter starts letting
+    // executed steps through.
+    assert!(
+        !rendered.contains("'executed' [accounts]"),
+        "an executed step must not be listed"
+    );
+}
+
+/// The duplicate listing separates each group with the documented marker.
+#[test]
+fn duplicate_listing_writes_a_separator_after_each_group() {
+    let steps = [
+        accounts_step("repeated", 1, false),
+        accounts_step("repeated", 2, false),
+        accounts_step("unique", 3, false),
+    ];
+
+    let rendered =
+        render_listing(write_duplicate_groups, &steps).expect("the listing should render");
+
+    assert_eq!(
+        rendered.matches("---\n").count(),
+        1,
+        "only the duplicated group should be separated"
+    );
+    assert!(
+        !rendered.contains("unique"),
+        "a step with no duplicate must not be listed"
+    );
+}
+
+/// The bypassed-step listing switches between JSON and text rendering.
+#[test]
+fn bypassed_listing_honours_the_json_switch() {
+    let steps = [BypassedStep {
+        library: "accounts".to_owned(),
+        keyword: "Given".to_owned(),
+        pattern: "x".to_owned(),
+        file: "steps.rs".to_owned(),
+        line: 4,
+        feature_path: "features/a.feature".to_owned(),
+        scenario_name: "scenario".to_owned(),
+        scenario_line: 2,
+        tags: Vec::new(),
+        libraries: Vec::new(),
+        reason: Some("why".to_owned()),
+    }];
+
+    let mut json = Vec::new();
+    write_bypassed_steps_listing(&mut json, &steps, true).expect("JSON rendering should succeed");
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&json).expect("the JSON listing should parse");
+    assert_eq!(
+        parsed
+            .as_array()
+            .and_then(|array| array.first())
+            .and_then(|entry| entry.get("scenario")),
+        Some(&serde_json::Value::String("scenario".into()))
+    );
+
+    let mut text = Vec::new();
+    write_bypassed_steps_listing(&mut text, &steps, false).expect("text rendering should succeed");
+    let text = String::from_utf8(text).expect("the listing is UTF-8");
+    assert!(
+        text.starts_with("Given 'x'"),
+        "text rendering starts with the step"
+    );
+    assert!(
+        !text.starts_with('['),
+        "text rendering must not be a JSON array"
+    );
+}
+
+/// The skipped listing reports only skipped scenarios, in JSON or text.
+#[test]
+fn skipped_listing_reports_only_skipped_scenarios() {
+    let scenario = |name: &str, status: ScenarioOutcome| Scenario {
+        feature_path: "features/a.feature".to_owned(),
+        name: name.to_owned(),
+        status,
+        message: None,
+        allow_skipped: true,
+        forced_failure: false,
+        line: 1,
+        tags: Vec::new(),
+        libraries: Vec::new(),
+    };
+    let scenarios = [
+        scenario("skipped one", ScenarioOutcome::Skipped),
+        scenario("passed one", ScenarioOutcome::Passed),
+    ];
+
+    let mut json = Vec::new();
+    write_skipped_listing(
+        &mut json,
+        &scenarios,
+        &SkippedSettings {
+            reasons: false,
+            json: true,
+        },
+    )
+    .expect("JSON rendering should succeed");
+    let rendered = String::from_utf8(json).expect("the listing is UTF-8");
+    assert!(
+        rendered.contains("skipped one"),
+        "the skipped scenario should be reported"
+    );
+    assert!(
+        !rendered.contains("passed one"),
+        "a passing scenario must not be reported"
+    );
+
+    let mut verbose = Vec::new();
+    write_skipped_listing(
+        &mut verbose,
+        &scenarios,
+        &SkippedSettings {
+            reasons: true,
+            json: false,
+        },
+    )
+    .expect("text rendering should succeed");
+    let verbose = String::from_utf8(verbose).expect("the listing is UTF-8");
+    assert!(
+        verbose.contains("skipped one") && !verbose.contains("passed one"),
+        "text rendering must apply the same filter"
+    );
+}
+
+/// The Cargo-dispatched form reports the frozen `--skipped` requirement.
+///
+/// Clap measured this message before `OrthoConfig` was adopted; the checked-in
+/// baseline fixture pins the direct form, and this covers the wrapper form
+/// that shares the wording.
+#[test]
+fn cargo_dispatched_missing_skipped_matches_the_frozen_message() {
+    let error = missing_required_skipped_error(InvocationForm::CargoDispatched);
+    let CliError::Clap(error) = error else {
+        panic!("the missing `--skipped` failure should be a Clap error");
+    };
+
+    assert_eq!(
+        error.kind(),
+        clap::error::ErrorKind::MissingRequiredArgument
+    );
+    assert_eq!(error.exit_code(), 2);
+    let rendered = error.render().to_string();
+    assert!(
+        rendered.contains("the following required arguments were not provided:\n  --skipped"),
+        "the wrapper form should keep Clap's wording, got: {rendered}"
     );
 }

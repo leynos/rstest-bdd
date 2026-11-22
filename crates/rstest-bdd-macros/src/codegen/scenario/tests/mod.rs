@@ -295,7 +295,6 @@ fn generate_test_attrs_dedupes_tokio_policy_and_user_attribute() {
     let tokio_count = output.match_indices("tokio :: test").count();
     assert_eq!(
         tokio_count, 1,
-        "expected exactly one tokio::test when both user attribute and policy are present, got \
-         {tokio_count}: {output}"
+        "expected exactly one tokio::test when both user attribute and policy are present, got {tokio_count}: {output}"
     );
 }

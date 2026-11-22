@@ -126,6 +126,35 @@ fn assemble_wrapper_for_test(
     }
 }
 
+/// The expect reason must read as prose in the Rust source a user can see.
+///
+/// The wrapper attribute is emitted into the user's own crate, so the reason
+/// is documentation they may read. Comparing the emitted value against
+/// `WRAPPER_EXPECT_REASON` alone cannot catch a corrupted *constant*: both
+/// sides carry the same damage. This asserts the shape instead, which fails
+/// when an argument is split across source lines with a trailing `\` — Rust
+/// reads that as an escaped backslash, so the backslash and the source
+/// indentation land in the emitted text.
+#[test]
+fn wrapper_expect_reason_is_single_line_prose() {
+    assert!(
+        !WRAPPER_EXPECT_REASON.contains('\\'),
+        "the expect reason must not carry an escaped backslash: {WRAPPER_EXPECT_REASON:?}"
+    );
+    assert!(
+        !WRAPPER_EXPECT_REASON.contains('\n'),
+        "the expect reason must not carry a source newline: {WRAPPER_EXPECT_REASON:?}"
+    );
+    assert!(
+        !WRAPPER_EXPECT_REASON.contains("  "),
+        "the expect reason must not carry source indentation: {WRAPPER_EXPECT_REASON:?}"
+    );
+    assert!(
+        WRAPPER_EXPECT_REASON.ends_with("error handling"),
+        "the expect reason must read through to its closing words: {WRAPPER_EXPECT_REASON:?}"
+    );
+}
+
 /// Configuration for wrapper assembly test scenarios.
 struct WrapperTestConfig {
     step_struct_decl: Option<proc_macro2::TokenStream>,

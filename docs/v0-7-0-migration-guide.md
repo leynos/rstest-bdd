@@ -247,6 +247,40 @@ from a caller of the supported crates.
   unset probes the test executable's profile directory, not the target root.
   The lookup is private, so there is no public signature to update.
 
+## `cargo bdd` configuration and Cargo invocation
+
+`cargo bdd <subcommand>` now works from inside a Cargo workspace. The existing
+flat `cargo-bdd <subcommand>` spelling is unchanged: it keeps its original
+parser, so help, usage and parse failures print exactly as they did in v0.6.0.
+
+The `steps` and `skipped` options can also come from a TOML configuration file
+or from `CARGO_BDD_` environment variables. Values merge in the order defaults,
+configuration files, environment, then explicitly supplied command-line flags,
+so a flag the user typed always wins. For example,
+`CARGO_BDD_CMDS_STEPS_SKIPPED=true` supplies `steps --skipped`, and
+`cmds.skipped.json = true` supplies `skipped --json`. Discovery reads
+`~/.cargo_bdd.toml`, the XDG `cargo_bdd/config.toml`, and `./.cargo_bdd.toml`;
+the [users' guide](users-guide.md#configuration-files-and-environment) names
+every location, variable and precedence rule.
+
+`steps --json` now follows the merged setting rather than the flag alone. In
+v0.6.0 the pairing was enforced by the argument parser, so the run failed unless
+`--skipped` was typed on the same command line; a later invocation now
+succeeds when a configuration file or `CARGO_BDD_CMDS_STEPS_SKIPPED=true`
+supplies `cmds.steps.skipped = true`. The reverse mistake is reported while the
+settings load: `cmds.steps.json = true` without `cmds.steps.skipped = true`
+stops `steps` before it runs. The
+[users' guide](users-guide.md#diagnostic-tooling) states the merged rule.
+
+Building `cargo-bdd` now requires Rust 1.89 because its configuration
+dependency raises the floor. The reusable library crates keep the 1.88 minimum,
+so a workspace build needs 1.89 only when it builds the binary. That 1.88 floor
+holds for a dependency resolution that keeps the libraries' own requirements
+satisfied — in this repository, a lockfile pinning `cargo-platform` v0.3.2. An
+independent consumer lockfile may instead resolve a newer `cargo-platform`,
+whose higher floor applies to that consumer. See
+[ADR 026](adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md).
+
 ## Migration checklist
 
 - [ ] Add ambiguity handling wherever a lookup result is consumed:
@@ -282,6 +316,19 @@ from a caller of the supported crates.
       written during the grace period and may stop before the direct child's
       output ended. A parser that requires a complete final line or terminator
       needs to handle a truncated capture.
+- [ ] Install Rust 1.89 or newer to build `cargo-bdd`; the library crates still
+  build with Rust 1.88 under a resolution that honours their own floors.
+- [ ] Review the `cargo_bdd` configuration files and `CARGO_BDD_` variables on
+  any machine that runs `cargo bdd`, then remove local wrappers that emulated
+  the Cargo-dispatched form.
+- [ ] Check that every invocation with `steps --json` enabled ends up with a
+  merged `skipped` value of true. The pairing is decided after the layers
+  merge, so one layer may supply `json` and another `skipped`; what matters is
+  the effective result, not that each file repeats both. A merged `json` of
+  true with a merged `skipped` of false stops `steps` before it runs. A merged
+  `skipped` of true is not free either: plain `steps` then lists the steps
+  bypassed by skipped scenarios rather than every registered step, so set it
+  only where that listing is what you want.
 
 ## Common errors
 
@@ -294,6 +341,25 @@ from a caller of the supported crates.
 - **Error:** a derived `StepArgs` field requires a placeholder.
   - **Fix:** align the field and placeholder names or add
     `#[step_args(placeholder = "...")]`.
+- **Error:** `steps` will not start, reporting "invalid configuration
+  `cmds.steps.json = true`: set `cmds.steps.skipped = true` or pass
+  `--skipped`".
+  - **Fix:** enable `skipped` in the layer that enables `json`, or add
+    `--skipped` on the command line. Only the merged settings decide it, so
+    whichever layer enables `json` must be joined by a layer that enables
+    `skipped` — the same file, or `CARGO_BDD_CMDS_STEPS_SKIPPED=true`. The
+    environment outranks the file, so a `CARGO_BDD_CMDS_STEPS_SKIPPED=false`
+    in the environment also beats `cmds.steps.skipped = true` in a file:
+    remove or change that variable, or pass `--skipped` to override both.
+- **Error:** `steps --json` reports
+  `the following required arguments were not provided: --skipped`.
+  - **Fix:** the merged `skipped` value is false, so no layer enables
+    skipped-step reporting. Pass `--skipped`, or set
+    `cmds.steps.skipped = true` in the settings file, or
+    `CARGO_BDD_CMDS_STEPS_SKIPPED=true` in the environment. The environment
+    outranks every file, so a `CARGO_BDD_CMDS_STEPS_SKIPPED=false` set there
+    overrides a file that enables it: remove or change that variable, or pass
+    `--skipped` to override both.
 - **Error:** under Nextest a timed test reports that a nested fixture family is
   not prepared and names `make prepare-nested-fixtures`.
   - **Fix:** run the preparation pass first. The stamp also covers `RUSTFLAGS`
@@ -303,6 +369,7 @@ from a caller of the supported crates.
 ## Further reading
 
 - [Users' guide: registry lookups][users-guide-lookups]
+- [Users' guide: configuration files and environment][users-guide-configuration]
 - [RFC 0001: explicit step library scopes](rfcs/0001-explicit-step-library-scopes.md)
 - [RFC 0002: named step argument binding](rfcs/0002-named-step-argument-binding.md)
 - [Developer's guide](developers-guide.md)
@@ -310,4 +377,5 @@ from a caller of the supported crates.
 - [ADR 024: structural usage tracking in registry lookups][adr-024]
 
 [users-guide-lookups]: users-guide.md#registry-lookups
+[users-guide-configuration]: users-guide.md#configuration-files-and-environment
 [adr-024]: adr-024-structural-usage-tracking-in-registry-lookups.md

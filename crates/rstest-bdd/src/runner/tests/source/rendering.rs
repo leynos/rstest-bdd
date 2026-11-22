@@ -265,8 +265,10 @@ fn the_rendered_failure_takes_its_path_from_the_plan_not_the_error() {
     assert_eq!(
         outcome.failure().map(ScenarioFailure::site),
         Some(FailureSite::Step(0)),
-        "the control: the failure is present and sited, so the rendering below is of a real \
-         failure rather than of an outcome that lost one",
+        concat!(
+            "the control: the failure is present and sited, so the rendering below is of a real ",
+            "failure rather than of an outcome that lost one",
+        ),
     );
     assert_eq!(
         outcome.terminal_source().map(SourceLocation::path),
@@ -281,7 +283,6 @@ fn the_rendered_failure_takes_its_path_from_the_plan_not_the_error() {
     );
     assert!(
         !rendered.contains(DECOY_PATH),
-        "and it does not carry the error's own copy, which is the source INV-7 forbids reading \
-         back — `{rendered}`",
+        "and it does not carry the error's own copy, which is the source INV-7 forbids reading back — `{rendered}`",
     );
 }

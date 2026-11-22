@@ -25,8 +25,7 @@ pub(crate) static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// Error returned when a placeholder references a non-existent column.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error(
-    "Placeholder '<{placeholder}>' not found in Examples table. Available columns: \
-     [{available_columns_display}]"
+    "Placeholder '<{placeholder}>' not found in Examples table. Available columns: [{available_columns_display}]"
 )]
 pub struct PlaceholderError {
     /// The placeholder name that was not found.

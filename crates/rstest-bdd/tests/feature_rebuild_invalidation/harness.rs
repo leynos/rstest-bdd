@@ -95,8 +95,7 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
     // stable proxy for it with the same hash suffix.
     let Some(executable) = process::locate_test_executable(&stdout).map(PathBuf::from) else {
         let error = format!(
-            "no `compiler-artifact` with a test-binary `executable` was reported by `cargo test \
-             --no-run --message-format=json`; child output:\n{stdout}"
+            "no `compiler-artifact` with a test-binary `executable` was reported by `cargo test --no-run --message-format=json`; child output:\n{stdout}"
         );
         let mut abandoned = outcome::DepInfoOutcome::abandoned(error, stdout);
         abandoned.child_env_detail = process::describe_env(&env);
@@ -237,8 +236,7 @@ fn edit_captured_expectation() {
     let replaced = original.replace(&then_line_original, &then_line_edited);
     assert_ne!(
         replaced, original,
-        "expected to find the `Then` step line `{then_line_original}` in the fixture's feature \
-         file; the file has drifted from the contract the experiment relies on"
+        "expected to find the `Then` step line `{then_line_original}` in the fixture's feature file; the file has drifted from the contract the experiment relies on"
     );
     if let Err(err) = std::fs::write(&feature_path, &replaced) {
         panic!(

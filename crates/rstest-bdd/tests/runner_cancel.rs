@@ -393,7 +393,6 @@ where
         }
     }
     panic!(
-        "the gate was never entered within {MAX_POLLS} polls, so nothing was in flight to cancel \
-         and every assertion about the drop would be vacuous"
+        "the gate was never entered within {MAX_POLLS} polls, so nothing was in flight to cancel and every assertion about the drop would be vacuous"
     );
 }

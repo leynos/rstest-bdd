@@ -88,8 +88,10 @@ pub(crate) fn classify_step_return_type(
             if is_definitely_non_result_type(ty) {
                 Err(syn::Error::new_spanned(
                     ty,
-                    "return override `result` requires a return type shaped like `Result<T, E>` \
-                     or `StepResult<T, E>`",
+                    concat!(
+                        "return override `result` requires a return type shaped like `Result<T, E>` ",
+                        "or `StepResult<T, E>`",
+                    ),
                 ))
             } else {
                 Ok(StepReturnStrategy::ForcedResult)
@@ -101,8 +103,10 @@ pub(crate) fn classify_step_return_type(
         )),
         None if matches!(ty, Type::ImplTrait(_)) => Err(syn::Error::new_spanned(
             ty,
-            "unhinted step returns may not use `impl Trait`; use an explicit `value` or `result` \
-             hint",
+            concat!(
+                "unhinted step returns may not use `impl Trait`; use an explicit `value` or `result` ",
+                "hint",
+            ),
         )),
         None => Ok(StepReturnStrategy::Dispatch),
     }
@@ -129,8 +133,10 @@ pub(crate) fn classify_return_type(
                 if is_definitely_non_result_type(ty) {
                     Err(syn::Error::new_spanned(
                         ty,
-                        "return override `result` requires a return type shaped like `Result<T, \
-                         E>` or `StepResult<T, E>`",
+                        concat!(
+                            "return override `result` requires a return type shaped like `Result<T, ",
+                            "E>` or `StepResult<T, E>`",
+                        ),
                     ))
                 } else {
                     // We cannot resolve type aliases during macro expansion.

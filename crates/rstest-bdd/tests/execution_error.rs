@@ -123,20 +123,15 @@ fn handler_failed() -> ExecutionError {
 )]
 #[case::step_not_found(
     step_not_found(),
-    "Step not found at index 3: Given a user named Alice (feature: features/auth.feature, \
-     scenario: User login)"
+    "Step not found at index 3: Given a user named Alice (feature: features/auth.feature, scenario: User login)"
 )]
 #[case::missing_fixtures(
     missing_fixtures(),
-    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but \
-     the following are missing: db. Requested fixture information: db: DbPool. Available fixtures \
-     from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
+    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but the following are missing: db. Requested fixture information: db: DbPool. Available fixtures from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
 )]
 #[case::handler_failed(
     handler_failed(),
-    "Step failed at index 1: When the user clicks submit - Error executing step 'the user clicks \
-     submit' via function 'click_submit': button not found (feature: features/form.feature, \
-     scenario: Form submission)"
+    "Step failed at index 1: When the user clicks submit - Error executing step 'the user clicks submit' via function 'click_submit': button not found (feature: features/form.feature, scenario: Form submission)"
 )]
 fn execution_error_display_uses_localized_messages_and_context(
     #[case] error: ExecutionError,

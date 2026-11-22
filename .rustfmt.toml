@@ -7,8 +7,13 @@ wrap_comments = true
 group_imports = "StdExternalCrate"
 use_try_shorthand = true
 hex_literal_case = "Lower"
-format_strings = true
 format_macro_matchers = true
 fn_single_line = true
 condense_wildcard_suffixes = true
 use_field_init_shorthand = true
+
+# `format_strings` is deliberately unset. It rewraps a long string literal
+# with a trailing backslash, which the Whitaker suite's
+# `string_continuation_style` lint rejects, so enabling it makes `make fmt`
+# produce code that `make lint` refuses. Long literals stay on one line; split
+# them with `concat!` where a short line matters.
