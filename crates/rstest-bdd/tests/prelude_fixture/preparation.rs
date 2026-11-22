@@ -18,6 +18,7 @@ use std::{
 
 use rstest_bdd_harness::nested_cargo::{
     self,
+    Directories,
     NestedCargoEnv,
     Preparation,
     PreparationSummary,
@@ -86,7 +87,7 @@ fn input_roots() -> io::Result<Vec<PathBuf>> {
 /// input hash cannot be computed.
 pub(crate) fn describe() -> io::Result<Preparation> {
     let environment = support::child_environment()?;
-    let directory = environment
+    let root = environment
         .target_directory()?
         .ok_or_else(|| {
             io::Error::other("the nested Cargo environment resolves no target directory")
@@ -94,7 +95,7 @@ pub(crate) fn describe() -> io::Result<Preparation> {
         .join("tests/prelude-fixture");
     Preparation::new(
         Sources::new(FAMILY, VARIANT, nested_cargo::input_hash(&input_roots()?)?),
-        directory,
+        Directories::new(&root, support::fixtures_root()),
         environment,
     )
 }
@@ -139,9 +140,18 @@ fn build_fixture(environment: &NestedCargoEnv, fixture: support::Fixture) -> io:
 ///
 /// Under nextest a missing or stale stamp fails fast, naming the make target
 /// that prepares it; under plain `cargo test` the same call prepares lazily
-/// behind a process-wide lock.
+/// behind a process-wide lock. The runner decision is resolved here, as the
+/// shared helper requires, so the gate's behaviour is stated by its call site
+/// rather than read from the ambient process.
 ///
 /// # Errors
 ///
-/// As [`nested_cargo::ensure_prepared`].
-pub(crate) fn ensure() -> io::Result<()> { nested_cargo::ensure_prepared(&describe()?, prepare) }
+/// As [`nested_cargo::ensure_prepared_building`].
+pub(crate) fn ensure() -> io::Result<()> {
+    nested_cargo::ensure_prepared_building(
+        &describe()?,
+        nested_cargo::running_under_nextest(),
+        prepare,
+    )
+    .map(|_outcome| ())
+}

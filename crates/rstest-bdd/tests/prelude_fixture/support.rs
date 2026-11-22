@@ -60,9 +60,15 @@ pub(crate) const RUN_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// The source directory of one fixture crate.
 pub(crate) fn fixture_directory(fixture: Fixture) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures")
-        .join(fixture.as_str())
+    fixtures_root().join(fixture.as_str())
+}
+
+/// The directory holding both consumer fixtures.
+///
+/// The preparation family covers both fixtures but can record one working
+/// directory, so it names their common parent rather than either fixture.
+pub(crate) fn fixtures_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
 
 /// The workspace's shared build-output directory.
