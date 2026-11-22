@@ -2478,9 +2478,9 @@ Recorded during planning and execution as evidence was confirmed.
   was drafted. **Evidence:** the rebased main branch already contained ADR-023.
   **Impact:** all proposed ADR references in this plan used ADR-024 at drafting
   time. That reservation expired twice on the moving base: ADR-024 and ADR-025
-  landed before this branch was rebased onto `main`, then the stacked base's own
-  merge took 025 and moved OrthoConfig to 026, so the shipped record is ADR-027.
-  The later observation recording the change carries the evidence.
+  landed before this branch was rebased onto `main`, then the stacked base's
+  own merge took 025 and moved OrthoConfig to 026, so the shipped record is
+  ADR-027. The later observation recording the change carries the evidence.
 
 - **Observation:** three READMEs document an import that has never compiled.
   **Evidence:** `README.md:116`, `crates/rstest-bdd/README.md:106`, and
