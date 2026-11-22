@@ -337,7 +337,7 @@ defaults from arbitrary crates.
 
 ## References
 
-- [ADR 0027: harness adapter crates][adr-0027-harness] records the harness abstraction
-  whose first-party adapters supply these defaults.
+- [ADR 0027: harness adapter crates][adr-0027-harness] records the harness
+  abstraction whose first-party adapters supply these defaults.
 
 [adr-0027-harness]: adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md

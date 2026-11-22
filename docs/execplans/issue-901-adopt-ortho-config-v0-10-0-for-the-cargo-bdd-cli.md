@@ -2467,8 +2467,8 @@ Upstream artefacts:
   `leynos/ortho-config` commit `38812c563e3953a490e3efc202609f37e21a0517` and
   recorded in `docs/ortho-config-v0-10-0-provenance.md`.
 - [design §3.6a](../rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-0026)
-  and [ADR 0026](../adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md), both
-  authored by this plan.
+  and [ADR 0026](../adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md),
+  both authored by this plan.
 - `docs/roadmap.md` §6.1 "Diagnostic tooling".
 
 No pre-existing Terms of Reference or technical-design identifiers cover the
@@ -2630,10 +2630,10 @@ in the plan and captured logs until then.
 
 ## Concrete steps
 
-1. Write `docs/adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md` following
-   the house style of ADR 023: status, date, context, drivers, options with
-   `Accepted.`/`Rejected.`, decision outcome, known risks, architectural
-   rationale.
+1. Write `docs/adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md`
+   following the house style of ADR 023: status, date, context, drivers,
+   options with `Accepted.`/`Rejected.`, decision outcome, known risks,
+   architectural rationale.
 2. Add the configuration section to `docs/rstest-bdd-design.md` after §3.6
    ("Workspace layout decisions"), covering: configurable versus CLI-only
    settings; file name, discovery locations, and TOML-only formats; the

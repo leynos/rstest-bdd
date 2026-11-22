@@ -8,14 +8,7 @@ use std::{
     panic::{self, AssertUnwindSafe},
 };
 
-use super::{
-    RunSeedContext,
-    TestDispatcher,
-    calculate_seeds,
-    parse_env_u64_value,
-    run_seed,
-    run_test,
-};
+use super::{RunSeedContext, TestDispatcher, run_seed, run_test_with, seeds::parse_env_u64_value};
 
 thread_local! {
     /// Counts failure callbacks invoked on the current test thread.
@@ -53,19 +46,6 @@ fn recorded_seeds() -> Vec<u64> { SEED_LOG.with(|log| log.borrow().clone()) }
 fn reset_probes() {
     ON_FAIL_CALLS.with(|calls| calls.set(0));
     SEED_LOG.with(|log| log.borrow_mut().clear());
-}
-
-/// Returns the seeds [`run_test`] visits for one iteration and no explicit seed.
-///
-/// The expectation is derived rather than hard-coded because an ambient `SEED`
-/// or `ITERATIONS` override changes the seed set. These tests must not mutate
-/// the process environment to pin it, and a hard-coded seed count would fail
-/// under such an override for reasons unrelated to the retry controller.
-fn expected_seeds() -> Vec<u64> { calculate_seeds(1, &[]).0.collect() }
-
-/// Returns the attempt sequence where every seed fails once and then succeeds.
-fn fail_once_per_seed(seeds: &[u64]) -> Vec<u64> {
-    seeds.iter().flat_map(|seed| [*seed; 2]).collect()
 }
 
 /// One expected single-seed outcome for a given budget and failure count.
@@ -194,10 +174,12 @@ fn reports_the_expected_outcome_for_each_retry_budget() {
 }
 
 /// `run_test` forwards the retry budget to every seed it visits.
+///
+/// Two iterations give two distinct seeds and, with the injected lookup
+/// answering nothing, no ambient `SEED` or `ITERATIONS` value can change them.
 #[test]
 fn run_test_retries_each_seed_within_the_forwarded_budget() {
     reset_probes();
-    let seeds = expected_seeds();
     let mut test_fn = |dispatcher: TestDispatcher, seed: u64| {
         let attempt = record_seed(seed);
         assert_eq!(
@@ -208,13 +190,12 @@ fn run_test_retries_each_seed_within_the_forwarded_budget() {
         assert!(attempt >= 1, "simulated transient failure");
     };
 
-    run_test(1, &[], 1, &mut test_fn, Some(record_on_fail));
+    run_test_with(2, &[], 1, &mut test_fn, Some(record_on_fail), |_key| None);
 
-    assert!(!seeds.is_empty(), "run_test must visit at least one seed");
     assert_eq!(
         recorded_seeds(),
-        fail_once_per_seed(&seeds),
-        "a budget of one retry must give every seed exactly two consecutive attempts"
+        vec![0, 0, 1, 1],
+        "a budget of one retry must give each of the two seeds two consecutive attempts"
     );
     assert_eq!(
         on_fail_call_count(),
@@ -227,17 +208,13 @@ fn run_test_retries_each_seed_within_the_forwarded_budget() {
 #[test]
 fn run_test_reports_one_failure_and_resumes_the_final_payload() {
     reset_probes();
-    let seeds = expected_seeds();
-    let Some(first_seed) = seeds.first().copied() else {
-        panic!("run_test must visit at least one seed");
-    };
     let mut test_fn = |_dispatcher: TestDispatcher, seed: u64| {
         let attempt = record_seed(seed);
         panic!("attempt {attempt} failed");
     };
 
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        run_test(1, &[], 2, &mut test_fn, Some(record_on_fail));
+        run_test_with(2, &[], 2, &mut test_fn, Some(record_on_fail), |_key| None);
     }));
 
     let Err(payload) = result else {
@@ -245,7 +222,7 @@ fn run_test_reports_one_failure_and_resumes_the_final_payload() {
     };
     assert_eq!(
         recorded_seeds(),
-        vec![first_seed; 3],
+        vec![0, 0, 0],
         "the first failing seed must run three times before the run unwinds"
     );
     assert_eq!(

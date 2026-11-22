@@ -917,7 +917,8 @@ test executable because `cargo metadata` cannot see a `cargo llvm-cov`
 `--target-dir` override. It recognizes Cargo's usual `debug/deps` layout and
 the Windows coverage layout `debug/build/<package>/<hash>/out`. The
 `derives_target_root_from_test_executable` contract covers both; keep this
-layout handling private to `crates/rstest-bdd/tests/trybuild_macros/staging.rs`.
+layout handling private to
+`crates/rstest-bdd/tests/trybuild_macros/staging/target_root.rs`.
 
 ### Trybuild tree preparation
 
@@ -1539,15 +1540,9 @@ The file sets the timeout policy for the test suite:
   other. The 90 m `global-timeout` is an operational ceiling sized for the
   nested-fixture lane. R-6 uses `180 + 600 × 4 + 600 × 3 = 4,380 s` as its
   reference scenario; the projected cold-cache increase is about 19 s for each
-  of roughly ten nested invocations, or 4,570 s total. An 8,700 s ceiling
-  therefore leaves 4,130 s above that projection, exceeding the required 600 s
-  reserve.
-
-The Rust contract in `crates/rstest-bdd/tests/nextest_config.rs` checks these
-exact filters and periods. Its private `ExpectedCargoSpawningOverride` value
-pairs a binary ID with its period for the three shared assertions; keep that
-value within the test module rather than using it as a general configuration
-model.
+  of roughly ten nested invocations, or 4,570 s total. The configured 90 m
+  ceiling is 5,400 s, which leaves 830 s above that projection, exceeding the
+  required 600 s reserve.
 
   Milestone 1 of that risk measured a cold nested-fixture build before and
   after the alignment work. The "before" figure is a fixture resolving 30
@@ -1578,12 +1573,11 @@ Windows; use a TOML serializer for any broader configuration-writing need.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
 
-The `nextest_config` integration contract owns a private
-`nextest_value_at_path` helper for typed nested reads from
-`.config/nextest.toml`. Its permitted call sites are the profile global-timeout
-and test-group concurrency checks; callers provide the leaf decoder, and the
-helper builds the dotted-path error. Keep this helper within that test module
-rather than reusing it for unrelated configuration or production code.
+The `nextest_config` integration contract reads profiles through one generalized
+`profile_global_timeout` reader in its support module, which serves the
+default and long profiles and builds the dotted-path error a missing or
+mistyped key needs. Keep that reader within the test module rather than reusing
+it for unrelated configuration or production code.
 
 When adding a test binary that shells out to `cargo`, extend the relevant
 override's `filter` expression rather than raising the default `slow-timeout`:
@@ -3563,9 +3557,9 @@ of the dependency and retain the workspace Rust 1.88 MSRV; only the binary
 crate requires Rust 1.89. When adding a configurable option, first record its
 scope, file and environment names, precedence, and domain validation in
 [design §3.6a](rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-0026)
-and [ADR 0026](adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md). Keep
-configuration types in the application crate and pass validated values into
-existing handlers.
+and [ADR 0026](adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md).
+Keep configuration types in the application crate and pass validated values
+into existing handlers.
 
 The workspace lockfile keeps `cargo-platform` at v0.3.2 because v0.3.3 raises
 the MSRV of library crates that reach it through `cargo_metadata`. This holds
