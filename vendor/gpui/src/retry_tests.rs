@@ -3,12 +3,10 @@
 
 use std::{
     cell::{Cell, RefCell},
-    env::VarError,
-    ffi::OsString,
     panic::{self, AssertUnwindSafe},
 };
 
-use super::{RunSeedContext, TestDispatcher, run_seed, run_test_with, seeds::parse_env_u64_value};
+use super::{RunSeedContext, TestDispatcher, run_seed, run_test_with};
 
 thread_local! {
     /// Counts failure callbacks invoked on the current test thread.
@@ -234,17 +232,5 @@ fn run_test_reports_one_failure_and_resumes_the_final_payload() {
         payload.downcast_ref::<String>().map(String::as_str),
         Some("attempt 2 failed"),
         "the final attempt's payload, not an earlier attempt's, must reach the caller"
-    );
-}
-
-/// Treats an injected non-Unicode lookup failure as an invalid override.
-#[test]
-fn discards_non_unicode_environment_override() {
-    let value = VarError::NotUnicode(OsString::from("invalid-byte-sequence"));
-
-    assert_eq!(
-        parse_env_u64_value("SEED", Err(value)),
-        None,
-        "a non-Unicode override must be discarded"
     );
 }

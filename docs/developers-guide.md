@@ -2132,6 +2132,38 @@ refresh sets. A dependency bump that stales the fixture fails
 `cargo metadata --locked` in the check target before any behavioural suite can
 mask it.
 
+## Vendored GPUI test shim (`vendor/gpui`)
+
+`vendor/gpui` is a small, publish-excluded stand-in for the parts of GPUI the
+harness needs at runtime, so the workspace stays on stable Rust while the
+published end-to-end scenario exercises the real crate. It is organized by
+concern:
+
+- `lib.rs` holds the public boundary. `run_test` is what the generated GPUI
+  test wrapper and `rstest_bdd_harness_gpui` call; it delegates to
+  `run_test_with`, which takes the environment lookup as a parameter.
+  `run_test` passes the process environment, and the tests pass a lookup that
+  answers nothing, so a seed expectation never depends on an ambient `SEED` or
+  `ITERATIONS` value and no test mutates process state.
+- `seeds.rs` owns seed resolution. An `ITERATIONS` override replaces the
+  caller's default with a floor of one, a `SEED` override takes precedence over
+  explicit seeds, and explicit seeds are appended to the generated range. A
+  generated range that would overflow `u64` truncates and reports why, and an
+  exhausted range still runs once.
+- The retry controller in `lib.rs` runs each seed through `RunSeedContext`,
+  retrying up to `max_retries` times, reporting one terminal failure through
+  `on_fail_fn`, and resuming the final attempt's payload unchanged.
+- `retry_tests.rs` covers the retry and seed boundaries. Its probes are
+  thread-local counters and logs rather than process-wide state, so the tests
+  stay parallel-safe, and the single-seed cases are one table whose rows state
+  each boundary explicitly.
+
+Seed selection is a range invariant over a small input space, so the tests
+enumerate the boundaries directly (`iterations` 0 to 8 against several start
+seeds, including one that truncates) rather than sampling them; the vendored
+crate carries no dev-dependencies by design, so a property-test crate is not
+added for it.
+
 ## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
 
 The runner matrix for `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest

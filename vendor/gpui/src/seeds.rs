@@ -102,3 +102,126 @@ fn build_seed_range(start: u64, iterations: u64) -> Vec<u64> {
 
     seeds
 }
+
+#[cfg(test)]
+mod tests {
+    //! Coverage for seed resolution through the injected lookup.
+
+    use std::{env::VarError, ffi::OsString};
+
+    use super::{calculate_seeds_with, parse_env_u64_value};
+
+    /// A lookup that answers the given pairs, as the process environment would.
+    fn lookup<'a>(entries: &'a [(&'a str, u64)]) -> impl Fn(&str) -> Option<u64> + 'a {
+        move |key| {
+            entries
+                .iter()
+                .find(|(name, _)| *name == key)
+                .map(|(_, value)| *value)
+        }
+    }
+
+    /// Resolve the seeds and the multi-seed flag for one injected environment.
+    fn resolve(iterations: u64, explicit: &[u64], entries: &[(&str, u64)]) -> (Vec<u64>, bool) {
+        let (seeds, is_multiple_runs) = calculate_seeds_with(iterations, explicit, lookup(entries));
+        (seeds.collect(), is_multiple_runs)
+    }
+
+    /// Generated, explicit, iteration-override and seed-override inputs each
+    /// resolve to the sequence GPUI's reproducible runs depend on.
+    #[test]
+    fn resolves_generated_explicit_and_environment_seeds() {
+        assert_eq!(
+            resolve(1, &[], &[]),
+            (vec![0], false),
+            "one iteration with nothing else set must run the generated seed once"
+        );
+        assert_eq!(
+            resolve(3, &[], &[]),
+            (vec![0, 1, 2], true),
+            "three iterations must generate three consecutive seeds and flag the run as multiple"
+        );
+        assert_eq!(
+            resolve(1, &[7, 9], &[]),
+            (vec![0, 7, 9], true),
+            "explicit seeds must be appended to the generated range and flag the run as multiple"
+        );
+        assert_eq!(
+            resolve(1, &[], &[("ITERATIONS", 2)]),
+            (vec![0, 1], true),
+            "an iterations override must replace the caller's default"
+        );
+        assert_eq!(
+            resolve(3, &[], &[("ITERATIONS", 0)]),
+            (vec![0], false),
+            "an iterations override of zero must still run once"
+        );
+        assert_eq!(
+            resolve(1, &[7], &[("SEED", 5)]),
+            (vec![5], false),
+            "a seed override must take precedence over explicit seeds"
+        );
+        assert_eq!(
+            resolve(2, &[7], &[("SEED", 5)]),
+            (vec![5, 6], true),
+            "a seed override must still generate the requested number of seeds"
+        );
+    }
+
+    /// A range that would overflow truncates instead of wrapping, and an
+    /// exhausted range still runs once.
+    #[test]
+    fn truncated_ranges_stay_ordered_and_non_empty() {
+        assert_eq!(
+            resolve(3, &[], &[("SEED", u64::MAX)]),
+            (vec![u64::MAX], false),
+            "a range starting at the maximum seed must truncate to the seeds that exist"
+        );
+
+        for iterations in 0..=8 {
+            for start in [0, 17, u64::MAX - 3] {
+                let (range, _) = resolve(iterations, &[], &[("SEED", start)]);
+                assert!(
+                    !range.is_empty(),
+                    "iterations={iterations} start={start} must still run at least one seed"
+                );
+                assert!(
+                    range.iter().all(|seed| *seed >= start),
+                    "iterations={iterations} start={start} must never wrap below its start"
+                );
+                assert!(
+                    range
+                        .iter()
+                        .zip(range.iter().skip(1))
+                        .all(|(current, next)| current.checked_add(1) == Some(*next)),
+                    "iterations={iterations} start={start} must stay consecutive"
+                );
+            }
+        }
+    }
+
+    /// Environment parsing keeps valid numbers and discards everything else.
+    #[test]
+    fn parses_only_valid_environment_values() {
+        assert_eq!(
+            parse_env_u64_value("SEED", Ok("42".to_owned())),
+            Some(42),
+            "a numeric override must be accepted"
+        );
+        assert_eq!(
+            parse_env_u64_value("SEED", Ok("not-a-number".to_owned())),
+            None,
+            "a non-numeric override must be discarded"
+        );
+        assert_eq!(
+            parse_env_u64_value("SEED", Err(VarError::NotPresent)),
+            None,
+            "a missing override must read as absent rather than as zero"
+        );
+        assert_eq!(
+            parse_env_u64_value("SEED", Err(VarError::NotUnicode(OsString::from("invalid")))),
+            None,
+            "a non-Unicode override must be discarded"
+        );
+    }
+}
