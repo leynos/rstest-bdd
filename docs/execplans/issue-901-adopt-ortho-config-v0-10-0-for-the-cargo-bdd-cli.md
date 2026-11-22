@@ -2466,7 +2466,7 @@ Upstream artefacts:
   `docs/ortho-config-v0-10-0-migration-guide.md`, imported verbatim at
   `leynos/ortho-config` commit `38812c563e3953a490e3efc202609f37e21a0517` and
   recorded in `docs/ortho-config-v0-10-0-provenance.md`.
-- [design §3.6a](../rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-025)
+- [design §3.6a](../rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-026)
   and [ADR 026](../adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md), both
   authored by this plan.
 - `docs/roadmap.md` §6.1 "Diagnostic tooling".
@@ -2640,7 +2640,7 @@ in the plan and captured logs until then.
    `CARGO_BDD_` prefix and the absence of legacy variables or files; precedence
    with `cli_default_as_absent`; per-subcommand namespaces; English help and
    parse failures; no profiles; and the Cargo entry shape.
-3. Add the ADR 026 bullet and the `[adr-025]` reference definition to
+3. Add the ADR 026 bullet and the `[adr-026]` reference definition to
    `docs/contents.md`.
 4. Add the decision to `docs/roadmap.md` §6.1 as a new unchecked sub-item under
    the diagnostic tooling heading, naming OrthoConfig v0.10.0. Mark it checked

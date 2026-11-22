@@ -3531,7 +3531,7 @@ Keep OrthoConfig within `crates/cargo-bdd`. Reusable library crates stay free
 of the dependency and retain the workspace Rust 1.88 MSRV; only the binary
 crate requires Rust 1.89. When adding a configurable option, first record its
 scope, file and environment names, precedence, and domain validation in
-[design §3.6a](rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-025)
+[design §3.6a](rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-026)
 and [ADR 026](adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md). Keep
 configuration types in the application crate and pass validated values into
 existing handlers.
