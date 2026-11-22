@@ -2,7 +2,6 @@
 //! process state.
 
 use std::{
-    any::Any,
     cell::{Cell, RefCell},
     env::VarError,
     ffi::OsString,
@@ -50,7 +49,7 @@ fn recorded_seeds() -> Vec<u64> { SEED_LOG.with(|log| log.borrow().clone()) }
 /// Clears the per-thread attempt record before a test body.
 ///
 /// The counters are thread-local rather than process-wide, so tests stay
-/// parallel-safe without serialising or mutating the environment.
+/// parallel-safe without serializing or mutating the environment.
 fn reset_probes() {
     ON_FAIL_CALLS.with(|calls| calls.set(0));
     SEED_LOG.with(|log| log.borrow_mut().clear());
@@ -69,15 +68,36 @@ fn fail_once_per_seed(seeds: &[u64]) -> Vec<u64> {
     seeds.iter().flat_map(|seed| [*seed; 2]).collect()
 }
 
-/// Runs one seed, panicking on the first `failures` attempts.
-///
-/// Returns the panic payload when the seed exhausts its retries, or `None`
-/// when it recovers or succeeds.
-fn run_seed_with_failures(
+/// One expected single-seed outcome for a given budget and failure count.
+struct SeedCase {
+    /// The seed every attempt of the case carries.
     seed: u64,
+    /// How many retries the budget allows.
     max_retries: usize,
+    /// How many attempts fail before the closure returns.
     failures: usize,
-) -> Option<Box<dyn Any + Send>> {
+    /// The payload expected when the seed fails terminally.
+    payload: Option<&'static str>,
+    /// The seeds expected in attempt order.
+    seeds: &'static [u64],
+    /// How many failure callbacks the case expects.
+    on_fail_calls: usize,
+}
+
+/// What one single-seed run left behind for a test to assert on.
+struct SeedOutcome {
+    /// The resumed panic payload, rendered, when the seed failed terminally.
+    payload: Option<String>,
+    /// Every attempt's seed, in order.
+    seeds: Vec<u64>,
+    /// How many failure callbacks ran.
+    on_fail_calls: usize,
+}
+
+/// Runs one seed, panicking on its first `failures` attempts, and records the
+/// observable result.
+fn observe_seed(seed: u64, max_retries: usize, failures: usize) -> SeedOutcome {
+    reset_probes();
     let mut test_fn = |dispatcher: TestDispatcher, seed: u64| {
         let attempt = record_seed(seed);
         assert_eq!(
@@ -85,9 +105,8 @@ fn run_seed_with_failures(
             seed,
             "the dispatcher seed must match the seed passed to the closure"
         );
-        assert!(attempt >= failures, "simulated attempt {attempt} failure");
+        assert!(attempt >= failures, "attempt {attempt} failed");
     };
-
     let mut ctx = RunSeedContext {
         max_retries,
         test_fn: &mut test_fn,
@@ -95,121 +114,83 @@ fn run_seed_with_failures(
         is_multiple_runs: false,
     };
 
-    panic::catch_unwind(AssertUnwindSafe(|| run_seed(seed, &mut ctx))).err()
+    let payload = panic::catch_unwind(AssertUnwindSafe(|| run_seed(seed, &mut ctx)))
+        .err()
+        .map(|payload| {
+            payload
+                .downcast_ref::<String>()
+                .cloned()
+                .unwrap_or_else(|| "<non-string payload>".to_owned())
+        });
+    SeedOutcome {
+        payload,
+        seeds: recorded_seeds(),
+        on_fail_calls: on_fail_call_count(),
+    }
 }
 
-/// A seed that succeeds on its first attempt does not retry or report failure.
+/// The retry controller's per-seed outcomes across budgets and failure counts.
+///
+/// The rows are the boundaries the controller distinguishes: a first-attempt
+/// pass, a transient failure that recovers, an exhausted budget that resumes
+/// its final payload, and a zero budget that must still attempt once.
 #[test]
-fn succeeds_without_retrying_or_reporting_failure() {
-    reset_probes();
+fn reports_the_expected_outcome_for_each_retry_budget() {
+    let cases = [
+        SeedCase {
+            seed: 7,
+            max_retries: 3,
+            failures: 0,
+            payload: None,
+            seeds: &[7],
+            on_fail_calls: 0,
+        },
+        SeedCase {
+            seed: 11,
+            max_retries: 2,
+            failures: 1,
+            payload: None,
+            seeds: &[11, 11],
+            on_fail_calls: 0,
+        },
+        SeedCase {
+            seed: 13,
+            max_retries: 2,
+            failures: usize::MAX,
+            payload: Some("attempt 2 failed"),
+            seeds: &[13, 13, 13],
+            on_fail_calls: 1,
+        },
+        SeedCase {
+            seed: 17,
+            max_retries: 0,
+            failures: usize::MAX,
+            payload: Some("attempt 0 failed"),
+            seeds: &[17],
+            on_fail_calls: 1,
+        },
+    ];
 
-    let payload = run_seed_with_failures(7, 3, 0);
-
-    assert!(payload.is_none(), "a passing seed must not unwind");
-    assert_eq!(
-        recorded_seeds(),
-        vec![7],
-        "a passing seed must run exactly once"
-    );
-    assert_eq!(
-        on_fail_call_count(),
-        0,
-        "a passing seed must not call on_fail_fn"
-    );
-}
-
-/// A seed that fails once and then succeeds retries exactly once.
-#[test]
-fn retries_a_transient_failure() {
-    reset_probes();
-
-    let payload = run_seed_with_failures(11, 2, 1);
-
-    assert!(payload.is_none(), "a recovering seed must not unwind");
-    assert_eq!(
-        recorded_seeds(),
-        vec![11, 11],
-        "one transient failure must add exactly one retry of the same seed"
-    );
-    assert_eq!(
-        on_fail_call_count(),
-        0,
-        "a recovering seed must not call on_fail_fn"
-    );
-}
-
-/// An exhausted seed reports failure once and resumes its final panic.
-#[test]
-fn exhausts_retries_and_resumes_the_final_panic() {
-    reset_probes();
-    let mut test_fn = |_dispatcher: TestDispatcher, seed: u64| {
-        let attempt = record_seed(seed);
-        panic!("attempt {attempt} failed");
-    };
-    let mut ctx = RunSeedContext {
-        max_retries: 2,
-        test_fn: &mut test_fn,
-        on_fail_fn: Some(record_on_fail),
-        is_multiple_runs: false,
-    };
-
-    let result = panic::catch_unwind(AssertUnwindSafe(|| run_seed(13, &mut ctx)));
-
-    let Err(payload) = result else {
-        panic!("an exhausted seed must resume its panic");
-    };
-    assert_eq!(
-        recorded_seeds(),
-        vec![13, 13, 13],
-        "two retries must allow three attempts, all of the seed under test"
-    );
-    assert_eq!(
-        on_fail_call_count(),
-        1,
-        "a terminal failure must call on_fail_fn exactly once"
-    );
-    assert_eq!(
-        payload.downcast_ref::<String>().map(String::as_str),
-        Some("attempt 2 failed"),
-        "the final attempt's payload, not an earlier attempt's, must reach the caller"
-    );
-}
-
-/// A zero retry budget allows one attempt and still reports the failure.
-#[test]
-fn zero_retry_budget_attempts_once_and_reports_the_failure() {
-    reset_probes();
-    let mut test_fn = |_dispatcher: TestDispatcher, seed: u64| {
-        let attempt = record_seed(seed);
-        panic!("attempt {attempt} failed");
-    };
-    let mut ctx = RunSeedContext {
-        max_retries: 0,
-        test_fn: &mut test_fn,
-        on_fail_fn: Some(record_on_fail),
-        is_multiple_runs: false,
-    };
-
-    let result = panic::catch_unwind(AssertUnwindSafe(|| run_seed(17, &mut ctx)));
-
-    let Err(payload) = result else {
-        panic!("a seed with no retry budget must resume its panic");
-    };
-    assert_eq!(
-        recorded_seeds(),
-        vec![17],
-        "a budget of zero retries must allow exactly one attempt"
-    );
-    assert_eq!(
-        on_fail_call_count(),
-        1,
-        "a budget of zero retries must still report the terminal failure once"
-    );
-    assert_eq!(
-        payload.downcast_ref::<String>().map(String::as_str),
-        Some("attempt 0 failed"),
-        "the only attempt's payload must reach the caller unchanged"
-    );
+    for case in cases {
+        let outcome = observe_seed(case.seed, case.max_retries, case.failures);
+        assert_eq!(
+            outcome.payload.as_deref(),
+            case.payload,
+            "seed {} with {} retries must resume the final attempt's payload",
+            case.seed,
+            case.max_retries
+        );
+        assert_eq!(
+            outcome.seeds, case.seeds,
+            "seed {} with {} retries must attempt exactly the listed seeds",
+            case.seed, case.max_retries
+        );
+        assert_eq!(
+            outcome.on_fail_calls, case.on_fail_calls,
+            "seed {} with {} retries must report failure the listed number of times",
+            case.seed, case.max_retries
+        );
+    }
 }
 
 /// `run_test` forwards the retry budget to every seed it visits.

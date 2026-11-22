@@ -93,7 +93,7 @@ def test_run_fragment_ignores_bash_env_path_rewrites(
 
     The startup file reaches the fragment either ambiently, as the harness's
     own shell inherits it, or through the environment the runner resolves for
-    the step. Both routes need neutralising: handling only the ambient copy
+    the step. Both routes need neutralizing: handling only the ambient copy
     leaves the runner's own supply path open.
     """
     bash_env = tmp_path / "bash-env"

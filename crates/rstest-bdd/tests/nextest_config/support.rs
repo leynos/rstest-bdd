@@ -46,35 +46,32 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-/// Read a typed leaf from `.config/nextest.toml` by dotted path.
-///
-/// The permitted call sites are the profile `global-timeout` and test-group
-/// concurrency readers in this module. The caller supplies the leaf decoder,
-/// and the helper builds the dotted-path error, so a missing or mistyped key
-/// names the path rather than the key that happened to be looked up last.
-fn nextest_value_at_path<'a, T>(
-    configuration: &'a Value,
-    path: &[&str],
-    decode: impl FnOnce(&'a Value) -> Option<T>,
-) -> Result<T, io::Error> {
-    path.iter()
-        .try_fold(configuration, |value, key| value.get(*key))
-        .and_then(decode)
-        .ok_or_else(|| {
-            io::Error::other(format!("nextest configuration must set {}", path.join(".")))
-        })
+/// The value of `key` in the named profile, if that profile sets it.
+fn profile_key<'a>(configuration: &'a Value, profile_name: &str, key: &str) -> Option<&'a Value> {
+    configuration
+        .get("profile")
+        .and_then(Value::as_table)
+        .and_then(|profiles| profiles.get(profile_name))
+        .and_then(Value::as_table)
+        .and_then(|profile| profile.get(key))
 }
 
 /// The named profile's run-level `global-timeout`.
+///
+/// Generalizing the default-profile reader is what lets the long profile be
+/// checked against the same ordering, rather than duplicating the lookup and
+/// its dotted-path error for a second profile name.
 pub(super) fn profile_global_timeout<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a str, io::Error> {
-    nextest_value_at_path(
-        configuration,
-        &["profile", profile_name, "global-timeout"],
-        Value::as_str,
-    )
+    profile_key(configuration, profile_name, "global-timeout")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "nextest configuration must set profile.{profile_name}.global-timeout"
+            ))
+        })
 }
 
 /// The default profile's run-level `global-timeout`.
@@ -88,11 +85,18 @@ pub(super) fn test_group_max_threads(
     configuration: &Value,
     group_name: &str,
 ) -> Result<i64, io::Error> {
-    nextest_value_at_path(
-        configuration,
-        &["test-groups", group_name, "max-threads"],
-        Value::as_integer,
-    )
+    configuration
+        .get("test-groups")
+        .and_then(Value::as_table)
+        .and_then(|groups| groups.get(group_name))
+        .and_then(Value::as_table)
+        .and_then(|group| group.get("max-threads"))
+        .and_then(Value::as_integer)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "nextest configuration must set test-groups.{group_name}.max-threads"
+            ))
+        })
 }
 
 /// The top-level `nextest-version` the configuration requires.
@@ -236,43 +240,32 @@ fn format_binary_ids(binary_ids: &BTreeSet<&str>) -> String {
 
 #[cfg(test)]
 mod tests {
-    //! Coverage for the shared lookup's error paths.
+    //! Coverage for the profile reader's error paths.
 
     use toml::Value;
 
-    use super::nextest_value_at_path;
+    use super::profile_global_timeout;
 
     /// A missing leaf and a wrongly typed one both name the dotted path.
     ///
-    /// The Windows strict coverage ratchet reads this path, so the two
+    /// The Windows strict coverage ratchet reads this path, so both
     /// rejections are exercised rather than left to a real misconfiguration.
     #[test]
-    fn nextest_value_at_path_reports_missing_and_wrongly_typed_leaves() {
-        let missing: Value = toml::from_str("[profile.default]\n").expect("valid TOML");
-        let missing_error = nextest_value_at_path(
-            &missing,
-            &["profile", "default", "global-timeout"],
-            Value::as_str,
-        )
-        .expect_err("a missing leaf must be reported");
-        assert_eq!(
-            missing_error.to_string(),
-            "nextest configuration must set profile.default.global-timeout",
-            "the error must name the dotted path that could not be read"
-        );
+    fn profile_global_timeout_reports_missing_and_wrongly_typed_leaves() {
+        let cases = [
+            ("[profile.default]\n", "missing"),
+            ("[profile.default]\nglobal-timeout = 10\n", "wrongly typed"),
+        ];
 
-        let wrong_type: Value =
-            toml::from_str("[profile.default]\nglobal-timeout = 10").expect("valid TOML");
-        let type_error = nextest_value_at_path(
-            &wrong_type,
-            &["profile", "default", "global-timeout"],
-            Value::as_str,
-        )
-        .expect_err("a leaf with the wrong type must be reported");
-        assert_eq!(
-            type_error.to_string(),
-            missing_error.to_string(),
-            "a wrongly typed leaf must report the same dotted path as a missing one"
-        );
+        for (document, label) in cases {
+            let configuration: Value = toml::from_str(document).expect("valid TOML");
+            let error = profile_global_timeout(&configuration, "default")
+                .expect_err("an unreadable global-timeout must be reported");
+            assert_eq!(
+                error.to_string(),
+                "nextest configuration must set profile.default.global-timeout",
+                "a {label} leaf must name the dotted path that could not be read"
+            );
+        }
     }
 }
