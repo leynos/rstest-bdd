@@ -16,3 +16,6 @@ test-support = []
 [dependencies]
 futures = "0.3"
 gpui-macros = { path = "../gpui-macros", version = "0.2.2" }
+
+[dev-dependencies]
+proptest.workspace = true

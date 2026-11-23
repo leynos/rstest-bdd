@@ -12,7 +12,7 @@ ExecPlan is the governing plan for roadmap items 9.4.2, 9.4.3, and 9.4.4.
 ## Purpose / big picture
 
 Roadmap phase 9.4 requires the first Graphical Processing User Interface (GPUI)
-harness plugin crate, built on top of ADR-0026 and ADR-0007. The core objective
+harness plugin crate, built on top of ADR-0027 and ADR-0007. The core objective
 is to keep GPUI integration out of core crates while allowing scenarios to run
 inside the GPUI test harness and inject GPUI-owned fixtures (for example
 `TestAppContext`) into step execution.
@@ -39,7 +39,7 @@ fixture injection, and the required gates all pass: `make check-fmt`,
 ## Constraints
 
 - Implement only roadmap items 9.4.2, 9.4.3, and 9.4.4 in this change.
-- Preserve ADR-0026 boundaries: GPUI dependencies must stay in the new
+- Preserve ADR-0027 boundaries: GPUI dependencies must stay in the new
   `rstest-bdd-harness-gpui` crate and not leak into core runtime crates.
 - Preserve ADR-0007 contract: harness context must flow through
   `ScenarioRunRequest<'_, C, T>` and be passed via `request.run(context)`.
@@ -97,7 +97,7 @@ fixture injection, and the required gates all pass: `make check-fmt`,
 ## Progress
 
 - [x] (2026-03-04 00:00Z) Reviewed roadmap item 9.4 scope and prerequisites.
-- [x] (2026-03-04 00:00Z) Reviewed ADR-0026 and ADR-0007 for boundary and
+- [x] (2026-03-04 00:00Z) Reviewed ADR-0027 and ADR-0007 for boundary and
       context
       constraints.
 - [x] (2026-03-04 00:00Z) Drafted this ExecPlan.
@@ -186,7 +186,7 @@ Implemented outcomes:
 
 Retrospective:
 
-- The harness/plugin boundaries from ADR-0026 and context handoff from ADR-0007
+- The harness/plugin boundaries from ADR-0027 and context handoff from ADR-0007
   held without requiring API changes.
 - Future harness adapters should verify their transitive dependency graphs
   against the stable-only policy before landing framework-specific crates.

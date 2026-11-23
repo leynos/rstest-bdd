@@ -12,7 +12,7 @@ ExecPlan is the governing plan for roadmap item 9.6.3.
 ## Purpose / big picture
 
 Roadmap item 9.6.3 closes the author-facing documentation gap for third-party
-harness adapters. Architecture Decision Record 005a (ADR-0026) introduced a
+harness adapters. Architecture Decision Record 005a (ADR-0027) introduced a
 small harness adapter layer so Tokio, Graphical Processing User Interface
 (GPUI), Bevy, and other framework-specific integrations can live in opt-in
 crates rather than the core runtime or macros. ADR-0007 then added
@@ -52,7 +52,7 @@ within the tolerances in this plan.
 - Keep the roadmap item unchecked while this plan is only a draft. Mark
   `docs/roadmap.md` item 9.6.3 done only after the cookbook implementation,
   validation, and final plan updates have landed.
-- Preserve ADR-0026 crate boundaries: third-party harness guidance must keep
+- Preserve ADR-0027 crate boundaries: third-party harness guidance must keep
   framework dependencies in adapter crates, not in `rstest-bdd`,
   `rstest-bdd-macros`, or `rstest-bdd-harness`.
 - Preserve ADR-0007's typed context contract: cookbook examples must use
@@ -98,7 +98,7 @@ within the tolerances in this plan.
   doctest before proceeding.
 - Iterations: if the same gate fails three consecutive fix attempts, stop and
   record the failure, log path, and options in `Decision Log`.
-- Ambiguity: if `docs/users-guide.md`, `docs/rstest-bdd-design.md`, ADR-0026,
+- Ambiguity: if `docs/users-guide.md`, `docs/rstest-bdd-design.md`, ADR-0027,
   ADR-0007, and the implementation disagree on a custom harness contract, stop
   and list the conflict before editing user-facing guidance.
 
@@ -162,7 +162,7 @@ within the tolerances in this plan.
       behaviour with `RUSTFLAGS="-D warnings" cargo test -p rstest-bdd --test
       scenario_harness`.
 - [x] (2026-05-08) Stage D: confirmed no design-document update was required
-      because the implementation documents existing ADR-0026 and ADR-0007
+      because the implementation documents existing ADR-0027 and ADR-0007
       contracts without changing them.
 - [x] (2026-05-08) Stage E: ran focused validation plus repository gates.
 - [x] (2026-05-08) Stage F: marked roadmap item 9.6.3 done and recorded
@@ -252,7 +252,7 @@ within the tolerances in this plan.
   trybuild compile-pass fixture rather than a new workspace adapter crate.
   Rationale: the roadmap asks for third-party adapter documentation, not a
   published Bevy integration, and a fixture can prove the macro contract while
-  preserving ADR-0026's dependency boundary. Date/Author: 2026-05-08 / Codex.
+  preserving ADR-0027's dependency boundary. Date/Author: 2026-05-08 / Codex.
 
 ## Outcomes & Retrospective
 
@@ -306,7 +306,7 @@ Primary user-facing documentation:
 - `docs/users-guide.md` also has `Harness adapter core APIs`, which should
   remain the deeper API reference for `HarnessAdapter`, `ScenarioRunRequest`,
   and `AttributePolicy`.
-- `docs/rstest-bdd-design.md` section 2.7 records ADR-0026 and ADR-0007
+- `docs/rstest-bdd-design.md` section 2.7 records ADR-0027 and ADR-0007
   architecture, the path-based attribute-policy trust model, first-party Tokio
   and GPUI adapters, and validation layers.
 
@@ -374,7 +374,7 @@ Implementation details:
   through `Harness adapter core APIs`.
 - Re-read `docs/rstest-bdd-design.md` section 2.7 and the summary around
   section 3.12 to confirm the current architecture narrative.
-- Re-read ADR-0026 and ADR-0007 to keep the cookbook aligned with the accepted
+- Re-read ADR-0027 and ADR-0007 to keep the cookbook aligned with the accepted
   crate-boundary and context-injection decisions.
 - Inspect existing custom harness tests in
   `crates/rstest-bdd/tests/scenario_harness.rs` and trybuild fixtures under

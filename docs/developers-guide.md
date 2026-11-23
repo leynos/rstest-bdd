@@ -2158,11 +2158,16 @@ concern:
   stay parallel-safe, and the single-seed cases are one table whose rows state
   each boundary explicitly.
 
-Seed selection is a range invariant over a small input space, so the tests
-enumerate the boundaries directly (`iterations` 0 to 8 against several start
-seeds, including one that truncates) rather than sampling them; the vendored
-crate carries no dev-dependencies by design, so a property-test crate is not
-added for it.
+Seed selection is a range invariant over an unbounded start seed, so the tests
+check it with `proptest`: both the start seed and the iteration count are
+unconstrained, and the generated range is lazy, so the test consumes a bounded
+prefix and compares the iterator's own length hint rather than materializing
+it. Lengths are computed in `u128` because a range starting at zero holds
+`u64::MAX + 1` seeds. Explicit-seed appending and the multi-seed flag are
+property-checked the same way, and the overflow boundaries stay explicit as
+named cases. A separate test drives the public `run_test` entry point and
+asserts the retry policy for whichever seeds the environment selects, without
+depending on which those are.
 
 ## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
 

@@ -51,7 +51,7 @@ validation.
   this change.
 - Treat 9.4.3 and 9.4.4 as delivered foundations. This task strengthens
   validation and documentation around GPUI policy resolution; it is not a
-  redesign of ADR-0026 or ADR-0007.
+  redesign of ADR-0027 or ADR-0007.
 - Preserve the current trust model documented in `docs/users-guide.md` and
   `docs/rstest-bdd-design.md`: GPUI attribute-policy resolution during macro
   expansion is path-based for first-party policy types.
@@ -121,7 +121,7 @@ validation.
 ## Progress
 
 - [x] (2026-03-26) Reviewed roadmap item 9.6.2 and prerequisite 9.4.3.
-- [x] (2026-03-26) Reviewed ADR-0026, the harness chapter added in 9.6.1, and
+- [x] (2026-03-26) Reviewed ADR-0027, the harness chapter added in 9.6.1, and
       current GPUI policy-resolution code paths.
 - [x] (2026-03-26) Reviewed current GPUI unit, trybuild, and integration
       coverage to identify the remaining validation gap.

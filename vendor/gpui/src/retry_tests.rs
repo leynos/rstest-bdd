@@ -6,13 +6,27 @@ use std::{
     panic::{self, AssertUnwindSafe},
 };
 
-use super::{RunSeedContext, TestDispatcher, run_seed, run_test_with};
+use super::{
+    RunSeedContext,
+    TestDispatcher,
+    calculate_seeds_with,
+    parse_env_u64,
+    run_seed,
+    run_test,
+    run_test_with,
+};
 
 thread_local! {
     /// Counts failure callbacks invoked on the current test thread.
     static ON_FAIL_CALLS: Cell<usize> = const { Cell::new(0) };
     /// Records every attempt's seed on the current test thread, in order.
     static SEED_LOG: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+    /// Tracks one seed at a time for the public all-seed retry test.
+    static PUBLIC_CURRENT_SEED: Cell<Option<u64>> = const { Cell::new(None) };
+    /// Counts attempts for the current seed in the public retry test.
+    static PUBLIC_SEED_ATTEMPTS: Cell<usize> = const { Cell::new(0) };
+    /// Counts selected seeds without retaining a log of the full run.
+    static PUBLIC_SELECTED_SEEDS: Cell<usize> = const { Cell::new(0) };
 }
 
 /// Records one failure callback for the current test to count.
@@ -34,6 +48,35 @@ fn record_seed(seed: u64) -> usize {
     })
 }
 
+/// Records one public-entry attempt using constant space.
+fn record_public_seed_attempt(seed: u64) -> usize {
+    let previous_seed = PUBLIC_CURRENT_SEED.with(Cell::get);
+    if previous_seed != Some(seed) {
+        if previous_seed.is_some() {
+            assert_eq!(
+                PUBLIC_SEED_ATTEMPTS.with(Cell::get),
+                2,
+                "each completed public seed must have exactly one retry"
+            );
+        }
+        PUBLIC_CURRENT_SEED.with(|current_seed| current_seed.set(Some(seed)));
+        PUBLIC_SEED_ATTEMPTS.with(|attempts| attempts.set(0));
+        PUBLIC_SELECTED_SEEDS.with(|count| count.set(count.get().saturating_add(1)));
+    }
+    let attempts =
+        PUBLIC_SEED_ATTEMPTS.with(|current_attempts| current_attempts.get().saturating_add(1));
+    PUBLIC_SEED_ATTEMPTS.with(|current_attempts| current_attempts.set(attempts));
+    attempts
+}
+
+/// Returns the selected-seed count and final seed's attempt count.
+fn public_seed_summary() -> (usize, usize) {
+    (
+        PUBLIC_SELECTED_SEEDS.with(Cell::get),
+        PUBLIC_SEED_ATTEMPTS.with(Cell::get),
+    )
+}
+
 /// Returns the seeds of every attempt on this test thread, in order.
 fn recorded_seeds() -> Vec<u64> { SEED_LOG.with(|log| log.borrow().clone()) }
 
@@ -44,6 +87,9 @@ fn recorded_seeds() -> Vec<u64> { SEED_LOG.with(|log| log.borrow().clone()) }
 fn reset_probes() {
     ON_FAIL_CALLS.with(|calls| calls.set(0));
     SEED_LOG.with(|log| log.borrow_mut().clear());
+    PUBLIC_CURRENT_SEED.with(|seed| seed.set(None));
+    PUBLIC_SEED_ATTEMPTS.with(|attempts| attempts.set(0));
+    PUBLIC_SELECTED_SEEDS.with(|count| count.set(0));
 }
 
 /// One expected single-seed outcome for a given budget and failure count.
@@ -171,7 +217,7 @@ fn reports_the_expected_outcome_for_each_retry_budget() {
     }
 }
 
-/// `run_test` forwards the retry budget to every seed it visits.
+/// The injected entry point forwards the retry budget to every seed it visits.
 ///
 /// Two iterations give two distinct seeds and, with the injected lookup
 /// answering nothing, no ambient `SEED` or `ITERATIONS` value can change them.
@@ -202,7 +248,100 @@ fn run_test_retries_each_seed_within_the_forwarded_budget() {
     );
 }
 
-/// `run_test` reports one terminal failure and resumes the last attempt's panic.
+/// The public entry point forwards the requested iteration and retry counts.
+///
+/// The expectation comes from the same lazy resolver the entry point uses, so
+/// ambient overrides change both sides together. Thread-local counters keep
+/// the per-seed checks constant-space while the closure remains `Fn`.
+#[test]
+fn public_run_test_retries_each_selected_seed() {
+    reset_probes();
+    let requested_iterations = 2;
+    let expected_seed_count = calculate_seeds_with(
+        u64::try_from(requested_iterations).expect("two iterations must fit in u64"),
+        &[],
+        parse_env_u64,
+    )
+    .0
+    .size_hint()
+    .0;
+    let mut test_fn = |_dispatcher: TestDispatcher, seed: u64| {
+        let attempt = record_public_seed_attempt(seed);
+        assert!(attempt != 1, "simulated transient failure for seed {seed}");
+        assert_eq!(
+            attempt, 2,
+            "every selected seed must succeed on its single retry"
+        );
+    };
+
+    run_test(
+        requested_iterations,
+        &[],
+        1,
+        &mut test_fn,
+        Some(record_on_fail),
+    );
+
+    let (selected_seed_count, final_seed_attempts) = public_seed_summary();
+    assert_eq!(
+        selected_seed_count, expected_seed_count,
+        "the public entry point must visit each selected seed twice under a budget of one"
+    );
+    assert_eq!(
+        final_seed_attempts, 2,
+        "the final selected seed must also receive exactly one retry"
+    );
+    assert_eq!(
+        on_fail_call_count(),
+        0,
+        "a recovering run must not call on_fail_fn through the public entry point"
+    );
+}
+
+/// The public entry point calls the failure hook and resumes the final payload.
+#[test]
+fn public_run_test_reports_terminal_failure_and_resumes_final_payload() {
+    reset_probes();
+    let mut test_fn = |_dispatcher: TestDispatcher, seed: u64| {
+        let attempt = record_seed(seed);
+        panic!("attempt {attempt} failed for seed {seed}");
+    };
+
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
+        run_test(2, &[], 1, &mut test_fn, Some(record_on_fail));
+    }));
+
+    let Err(payload) = result else {
+        panic!("an exhausted public run must resume its panic");
+    };
+    let seeds = recorded_seeds();
+    assert_eq!(
+        seeds.len(),
+        2,
+        "one retry must make exactly two attempts before a terminal failure"
+    );
+    let [first_seed, second_seed] = seeds.as_slice() else {
+        panic!("two attempts must be recorded before the terminal failure");
+    };
+    assert_eq!(
+        first_seed, second_seed,
+        "both terminal attempts must use the same selected seed"
+    );
+    assert_eq!(
+        on_fail_call_count(),
+        1,
+        "the public entry point must call on_fail_fn exactly once"
+    );
+    let expected_payload = format!("attempt 1 failed for seed {first_seed}");
+    assert_eq!(
+        payload.downcast_ref::<String>().map(String::as_str),
+        Some(expected_payload.as_str()),
+        "the public entry point must resume the final attempt's panic payload"
+    );
+}
+
+/// The injected entry point reports one terminal failure and resumes the final
+/// attempt's panic.
 #[test]
 fn run_test_reports_one_failure_and_resumes_the_final_payload() {
     reset_probes();

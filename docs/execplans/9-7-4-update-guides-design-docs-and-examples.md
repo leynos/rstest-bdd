@@ -55,7 +55,7 @@ repository gates.
   `AttributePolicy::test_attributes()` implementations are not evaluated during
   procedural macro expansion, so unknown third-party harnesses must document
   explicit `attributes = ...` use where custom test attributes are required.
-- Preserve ADR-0026 crate boundaries. Tokio and GPUI dependencies must remain
+- Preserve ADR-0027 crate boundaries. Tokio and GPUI dependencies must remain
   in opt-in adapter crates, not in `rstest-bdd`, `rstest-bdd-macros`, or
   `rstest-bdd-harness`.
 - Update `docs/v0-6-0-migration-guide.md` for every stage 9.7 change that
@@ -352,7 +352,7 @@ findings. Roadmap item 9.7.4 is marked done.
 
 ## Context and orientation
 
-The harness adapter architecture comes from [ADR-0026][adr-0025] and is
+The harness adapter architecture comes from [ADR-0027][adr-0027-harness] and is
 documented in the linked decision record. It keeps framework-specific runtime
 integration out of the core runtime and macro crates. The shared
 `rstest-bdd-harness` crate defines `HarnessAdapter`, `ScenarioRunRequest`,
@@ -651,4 +651,4 @@ ADR-0008 contingency, Wyvern reconnaissance, Firecrawl tooling check, expected
 documentation surfaces, validation commands, CodeRabbit review points, and the
 pull request requirements for the pre-implementation plan branch.
 
-[adr-0025]: ../adrs/adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md
+[adr-0027-harness]: ../adrs/adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md

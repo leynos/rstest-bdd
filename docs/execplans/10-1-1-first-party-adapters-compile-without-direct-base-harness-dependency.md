@@ -36,7 +36,7 @@ item 10.1.1 done.
 - Keep the scope to roadmap item 10.1.1. Do not implement 10.1.2 missing
   fixture diagnostics or 10.1.3 GPUI stateful regression coverage in this
   branch.
-- Preserve ADR-0026's crate boundary: Tokio and GPUI remain outside the default
+- Preserve ADR-0027's crate boundary: Tokio and GPUI remain outside the default
   `rstest-bdd` dependency graph.
 - Preserve ADR-0007 harness context injection. Steps still request harness
   context with `#[from(rstest_bdd_harness_context)]`.
@@ -131,7 +131,7 @@ Use these repository documents as source material:
   roadmap status update.
 - `docs/rstest-bdd-design.md`, especially sections 2.7.5 and 2.7.6.3, for
   first-party adapter roles and v0.6.0-beta2 quick-win scope.
-- [ADR-0026][adr-0025] for adapter crate boundaries.
+- [ADR-0027][adr-0027-harness] for adapter crate boundaries.
 - `docs/adrs/adr-0007-harness-context-injection.md` for context handoff rules.
 - `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md` for attribute
   default precedence.
@@ -461,4 +461,4 @@ adapter-only compile proof. Validation logs are available under
 and
 `/tmp/nixie-rstest-bdd-10-1-1-first-party-adapters-compile-without-direct-base-harness-dependency-impl.out`.
 
-[adr-0025]: ../adrs/adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md
+[adr-0027-harness]: ../adrs/adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md

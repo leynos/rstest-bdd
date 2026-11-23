@@ -48,7 +48,7 @@ uncovers an actual mismatch that would mislead an implementer.
   2. known first-party `harness = ...` mapping
   3. deprecated `runtime = "tokio-current-thread"` compatibility alias
   4. existing runtime-mode or synchronous fallback
-- Preserve ADR-0026's crate boundary. Tokio and Graphical Processing User
+- Preserve ADR-0027's crate boundary. Tokio and Graphical Processing User
   Interface (GPUI) test dependencies must remain in their first-party harness
   adapter crates, not in the core runtime or macro crates.
 - Preserve `attributes`-only configuration. A caller that supplies
@@ -201,7 +201,7 @@ uncovers an actual mismatch that would mislead an implementer.
   constants, and harness-path hint resolution. The first implementation step
   should therefore be a coverage reconciliation rather than a rewrite.
 - Existing Tokio and GPUI adapter crates already own their trybuild and
-  behavioural integration suites. This matches ADR-0026's boundary and gives
+  behavioural integration suites. This matches ADR-0027's boundary and gives
   9.7.3 a natural place to add first-party coverage without pulling heavy
   dependencies into `rstest-bdd`.
 - Firecrawl confirmed trybuild's documented role as a compiler diagnostics test

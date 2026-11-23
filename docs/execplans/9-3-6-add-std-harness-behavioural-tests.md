@@ -115,7 +115,7 @@ pass in `make test`, including one panic-propagation case.
 
 - Decision: document `StdHarness` guarantees explicitly in design and user
   docs (runs closure directly, forwards request metadata unchanged to harness
-  boundary, and propagates runner panics). Rationale: aligns ADR-0026 intent
+  boundary, and propagates runner panics). Rationale: aligns ADR-0027 intent
   with concrete, test-backed behaviour. Date/Author: 2026-02-24 / Codex.
 
 ## Outcomes & Retrospective

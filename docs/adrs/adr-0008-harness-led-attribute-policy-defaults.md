@@ -46,7 +46,7 @@ profile-level selector.
 
 - Reduce repetition in the common first-party harness configuration path.
 - Keep runtime behaviour and generated test attributes aligned by default.
-- Preserve the architectural separation introduced by ADR-0026.
+- Preserve the architectural separation introduced by ADR-0027.
 - Retain support for valid `attributes`-only and `harness`-only use cases.
 - Avoid relying on compile-time reflection that Rust procedural macros do not
   provide.
@@ -323,7 +323,7 @@ profile type rather than a bare crate name.
 
 ## Architectural rationale
 
-This direction keeps the clean boundary introduced by ADR-0026: runtime
+This direction keeps the clean boundary introduced by ADR-0027: runtime
 delegation and emitted test attributes remain separate responsibilities. It
 improves ergonomics by defaulting the secondary concern from the primary one,
 which is usually what users mean when they choose a harness.

@@ -32,7 +32,7 @@ function will:
    `<HarnessType as HarnessAdapter>::run(&h, request)`.
 
 This completes the "delegation" pattern from Architectural Decision Record 005a
-(ADR-0026) and enables third-party harness adapters (Tokio, GPUI
+(ADR-0027) and enables third-party harness adapters (Tokio, GPUI
 (GPU-accelerated UI framework), and Bevy) to intercept scenario execution,
 inject framework-specific fixtures, set up runtimes, and perform cleanup around
 the scenario closure.
@@ -63,7 +63,7 @@ Success is observable when:
   generated code must be identical to the current output. Delegation is an
   additive code path, not a replacement.
 - Keep Tokio and GPUI dependencies out of core crates (`rstest-bdd`,
-  `rstest-bdd-macros`, `rstest-bdd-harness`) per ADR-0026.
+  `rstest-bdd-macros`, `rstest-bdd-harness`) per ADR-0027.
 - Do not alter any public API surface in `rstest-bdd-harness`. The existing
   types (`HarnessAdapter`, `ScenarioRunner`, `ScenarioRunRequest`,
   `ScenarioMetadata`, `StdHarness`) are used as-is.
@@ -89,7 +89,7 @@ Success is observable when:
   weakening tests.
 - Iterations: if the same failing gate (`check-fmt`, `lint`, or `test`) fails
   three times after attempted fixes, stop and escalate with logs.
-- Ambiguity: if ADR-0026 and current roadmap text conflict on interface shape,
+- Ambiguity: if ADR-0027 and current roadmap text conflict on interface shape,
   stop and request direction.
 - File length: if any file exceeds 400 lines, split before proceeding.
 
@@ -171,7 +171,7 @@ Success is observable when:
   Date/Author: 2026-02-15 / ExecPlan draft.
 
 - Decision: emit `compile_error!` when `harness` is combined with `async fn`
-  scenario signatures. Rationale: ADR-0026 phases async harness support into
+  scenario signatures. Rationale: ADR-0027 phases async harness support into
   9.3 with `rstest-bdd-harness-tokio`. Allowing async + harness now would
   produce code that compiles but behaves incorrectly (calling synchronous
   `HarnessAdapter::run` from an async context). A clear compile error is better
@@ -573,5 +573,5 @@ No changes to public APIs in `rstest-bdd-harness`.
 
 ## Revision note
 
-Initial draft created from roadmap phase 9.2.2, ADR-0026 harness decision,
+Initial draft created from roadmap phase 9.2.2, ADR-0027 harness decision,
 ExecPlan 9.2.1 (completed), and thorough codebase exploration.

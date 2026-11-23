@@ -279,5 +279,5 @@ ADR-0004 introduces a shared `rstest-bdd-policy` crate to centralize
 This ADR does not change the async execution direction above; it only removes
 policy duplication between crates.
 
-ADR-0026 records the harness-adapter crates, which took over runtime selection.
+ADR-0027 records the harness-adapter crates, which took over runtime selection.
 ADR-0005 records the native async step-function decision.

@@ -44,7 +44,7 @@ pass: `make check-fmt`, `make lint`, and `make test`.
   change, except to note future work where the docs need to point forward.
 - Treat 9.5.3 as delivered and document the current `HarnessAdapter::Context`
   contract, not speculative alternatives.
-- Keep ADR-0026 boundaries intact: framework-specific details belong in opt-in
+- Keep ADR-0027 boundaries intact: framework-specific details belong in opt-in
   crates and documentation must not imply that Tokio or GPUI are built into the
   core runtime.
 - Preserve the documented 9.3.4 trust model: attribute-policy resolution is
@@ -53,7 +53,7 @@ pass: `make check-fmt`, `make lint`, and `make test`.
 - Update `docs/users-guide.md` with concrete usage guidance for both first-
   party harnesses and third-party harness authors.
 - Update `docs/rstest-bdd-design.md` with any design decisions taken while
-  reconciling ADR-0026, ADR-0007, and the delivered implementation.
+  reconciling ADR-0027, ADR-0007, and the delivered implementation.
 - Mark roadmap entry 9.6.1 done only after documentation, tests, and gates all
   pass.
 - Because this change edits Markdown, run the documentation gates as well:
@@ -289,7 +289,7 @@ Implementation details:
 Go/no-go validation:
 
 - The design doc can be read as an accurate architectural reference without
-  contradicting ADR-0026, ADR-0007, or the current implementation.
+  contradicting ADR-0027, ADR-0007, or the current implementation.
 
 ### Stage C: rewrite the user-guide harness chapter and examples
 

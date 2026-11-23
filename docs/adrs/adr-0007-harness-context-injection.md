@@ -22,7 +22,7 @@ harness boundary, such as GPUI's `TestAppContext` or Bevy's `bevy::ecs::World`.
 ## Decision drivers
 
 - Enable typed context handoff from harness to scenario runner.
-- Keep framework-specific crates opt-in (ADR-0026).
+- Keep framework-specific crates opt-in (ADR-0027).
 - Avoid hidden global state and improve deterministic behaviour.
 - Keep migration cost manageable for existing `StdHarness` and `TokioHarness`.
 - Preserve a small, stable core trait surface for third-party harnesses.
@@ -83,7 +83,7 @@ Pros:
 Cons:
 
 - Couples harness abstraction to runtime storage internals.
-- Complicates crate boundaries introduced by ADR-0026.
+- Complicates crate boundaries introduced by ADR-0027.
 - Reduces flexibility for harnesses that do not map 1:1 to `StepContext`
   semantics.
 
@@ -91,7 +91,7 @@ Cons:
 | ------------------------- | ------------- | -------- | -------------- |
 | Type safety               | Low           | High     | Medium         |
 | Hidden global state       | High          | None     | None           |
-| ADR-0026 layering fit     | Medium        | High     | Low            |
+| ADR-0027 layering fit     | Medium        | High     | Low            |
 | GPUI + Bevy portability   | Medium        | High     | Medium         |
 | Migration complexity      | Low           | Medium   | Medium to high |
 | Long-term maintainability | Low to medium | High     | Medium         |
@@ -222,7 +222,7 @@ step-authoring path needs it, and record the addition here.
 ## Architectural rationale
 
 Associated context keeps the contract explicit and local, avoids global state,
-and preserves ADR-0026's crate boundary strategy. It provides a minimal core
+and preserves ADR-0027's crate boundary strategy. It provides a minimal core
 API that can host multiple framework integrations without hard-coding framework
 semantics into the runtime or macro crates.
 
