@@ -8,6 +8,7 @@ use std::{
 
 use super::{
     RunSeedContext,
+    RunTestConfig,
     TestDispatcher,
     calculate_seeds_with,
     parse_env_u64,
@@ -234,7 +235,16 @@ fn run_test_retries_each_seed_within_the_forwarded_budget() {
         assert!(attempt >= 1, "simulated transient failure");
     };
 
-    run_test_with(2, &[], 1, &mut test_fn, Some(record_on_fail), |_key| None);
+    run_test_with(
+        RunTestConfig {
+            num_iterations: 2,
+            explicit_seeds: &[],
+            max_retries: 1,
+            test_fn: &mut test_fn,
+            on_fail_fn: Some(record_on_fail),
+        },
+        |_key| None,
+    );
 
     assert_eq!(
         recorded_seeds(),
@@ -351,7 +361,16 @@ fn run_test_reports_one_failure_and_resumes_the_final_payload() {
     };
 
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        run_test_with(2, &[], 2, &mut test_fn, Some(record_on_fail), |_key| None);
+        run_test_with(
+            RunTestConfig {
+                num_iterations: 2,
+                explicit_seeds: &[],
+                max_retries: 2,
+                test_fn: &mut test_fn,
+                on_fail_fn: Some(record_on_fail),
+            },
+            |_key| None,
+        );
     }));
 
     let Err(payload) = result else {

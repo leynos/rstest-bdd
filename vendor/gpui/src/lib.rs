@@ -180,11 +180,13 @@ pub fn run_test(
     on_fail_fn: Option<fn()>,
 ) {
     run_test_with(
-        num_iterations,
-        explicit_seeds,
-        max_retries,
-        test_fn,
-        on_fail_fn,
+        RunTestConfig {
+            num_iterations,
+            explicit_seeds,
+            max_retries,
+            test_fn,
+            on_fail_fn,
+        },
         parse_env_u64,
     );
 }
@@ -194,14 +196,14 @@ pub fn run_test(
 /// The public entry point passes the process environment; tests pass a lookup
 /// that answers nothing, so a seed expectation never depends on an ambient
 /// `SEED` or `ITERATIONS` value.
-fn run_test_with(
-    num_iterations: usize,
-    explicit_seeds: &[u64],
-    max_retries: usize,
-    test_fn: &mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
-    on_fail_fn: Option<fn()>,
-    lookup: impl Fn(&str) -> Option<u64>,
-) {
+fn run_test_with(config: RunTestConfig<'_>, lookup: impl Fn(&str) -> Option<u64>) {
+    let RunTestConfig {
+        num_iterations,
+        explicit_seeds,
+        max_retries,
+        test_fn,
+        on_fail_fn,
+    } = config;
     let (seeds, is_multiple_runs) =
         calculate_seeds_with(num_iterations as u64, explicit_seeds, lookup);
 
@@ -214,6 +216,20 @@ fn run_test_with(
     for seed in seeds {
         run_seed(seed, &mut ctx);
     }
+}
+
+/// Inputs for one test run, grouped so the environment seam stays narrow.
+struct RunTestConfig<'a> {
+    /// Number of generated seeds to try when no explicit seeds are provided.
+    num_iterations: usize,
+    /// Seeds supplied by the test harness instead of generating a range.
+    explicit_seeds: &'a [u64],
+    /// Maximum number of attempts for each seed before it fails terminally.
+    max_retries: usize,
+    /// Test closure invoked for each selected seed.
+    test_fn: &'a mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
+    /// Optional hook invoked after a seed fails terminally.
+    on_fail_fn: Option<fn()>,
 }
 
 /// The per-run settings shared by every seed a single test drives.
