@@ -2898,4 +2898,14 @@ New tests:
   roughly 300 requests from other repositories, so 2,385 of 2,574 nextest cases
   passed and the run stopped at the first preparation timeout. The hosted
   `build-test (linux, default features)` lane runs the same suite on a trusted
-  runner and is the verdict being taken instead.
+  runner and is the verdict being taken instead. That lane also ran for the
+  first time on this branch: while it was stacked on a non-default base, no
+  `pull_request` workflow fired at all, so nothing had ever exercised the
+  Windows matrix. Its first run found a real defect in this plan's own gate —
+  `read_sources` formatted a repository-relative `Path`, so Windows rendered
+  `crates\rstest-bdd\src\prelude.rs` in a message whose test, documentation and
+  every committed path use `/`. `bca7367c` renders those four diagnostic sites
+  with `as_posix()`, which is what the other scripts already do, and the
+  already-failing test pins the form on every platform. The restack is
+  therefore the first revision at which the Windows lanes could report, and
+  their verdict counts from `bca7367c` onward.
