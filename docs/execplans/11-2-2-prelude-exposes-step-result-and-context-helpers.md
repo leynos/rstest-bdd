@@ -2932,6 +2932,14 @@ New tests:
   lane builds `with-default-features: false`, and the trybuild family passes
   there.
 
+- 2026-11-23, full publish preflight at `f234b554`. The hosted publish step
+  runs with `LADING_SKIP_PREFLIGHT=true`, which drops the auxiliary builds and
+  the Cargo check and test pair, so it is not the whole of
+  `make publish-check`. Running the target on this host with that variable
+  unset executed the preflight (`publish.preflight mode=executed`): eight of
+  eight crates packaged and dry-run published, nine lockfiles validated fresh,
+  exit 0. That is the publication evidence the hosted lane does not supply.
+
 - 2026-11-23, scope decision recorded. The repository owner directed this
   candidate to be delivered through merge with the overage recorded rather than
   waived. DL-16 already states the measurement and the escalation; this entry
