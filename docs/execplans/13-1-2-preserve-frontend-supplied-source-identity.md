@@ -7,8 +7,8 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 proceeds.
 
 Status: DRAFT — revised after the expert-panel review (D12) and rebased onto
-`origin/main` at `4c21753d` (D14), awaiting approval. No implementation may
-begin until the plan is explicitly approved.
+`origin/main` at `0669195f` (D14, D15), awaiting approval. No implementation
+may begin until the plan is explicitly approved.
 
 ## Purpose / big picture
 
@@ -123,8 +123,10 @@ pretty_assertions, insta), `proptest` (the source-fidelity property),
 5. No edits to any Fluent `.ftl` file and no new message identifiers. The
    source-neutral message wording is carried by 13.3.1 (13.1.1 D15).
 6. No new dependencies. `rstest`, `rstest-bdd`, `googletest`,
-   `pretty_assertions`, `insta`, `proptest`, `serial_test`, `temp-env`, and
-   `tokio` are already available to `rstest-bdd`'s tests.
+   `pretty_assertions`, `insta`, `proptest`, `serial_test`, and `tokio` are
+   already available to `rstest-bdd`'s tests. `temp-env` is also a
+   dev-dependency, but its entry points are disallowed in `clippy.toml`, so no
+   new test uses it (Constraint 12).
 7. Runner public types stay frontend-free: `crates/rstest-bdd/src/runner/`
    must keep passing the INV-11 token scan in
    `crates/rstest-bdd/src/runner/tests/surface.rs`, which forbids frontend
@@ -141,6 +143,11 @@ pretty_assertions, insta), `proptest` (the source-fidelity property),
     commit touching Markdown also passes `make markdownlint` and `make nixie`.
     No commit contains a failing or `#[ignore]`d test. The red stage of
     Red-Green-Refactor is run and recorded, never committed (D10).
+12. No test changes the process-wide environment or working directory.
+    `std::env::set_var`, `remove_var`, `set_current_dir`, and `temp_env`'s
+    entry points are disallowed in `clippy.toml` (#969), and this plan adds
+    no `#[expect(clippy::disallowed_methods)]` exemption. Skip policy is
+    injected through `ScenarioScope::with_skip_policy` instead (D15).
 
 If satisfying the objective requires violating a constraint, stop, record the
 conflict in `Decision log`, and escalate.
@@ -210,7 +217,8 @@ conflict in `Decision log`, and escalate.
 - Risk: tests that exercise `fail_on_skipped` race the process-wide override.
   Severity: medium. Likelihood: low. Mitigation: pass the policy explicitly with
   `ScenarioScope::with_skip_policy` (`runner/scope.rs` line 160), as
-  `tests/skip_parity.rs` does; no new test reads the environment.
+  `tests/skip_parity.rs` does; no new test reads or writes the environment
+  (Constraint 12).
 - Risk: the `Display` snapshot
   `crates/rstest-bdd/src/runner/tests/source/snapshots/rstest_bdd__runner__tests__source__rendering__the_display_projection_renders_every_variant.snap`
   churns. Severity: low. Likelihood: low. Mitigation: the snapshot is built
@@ -246,6 +254,10 @@ conflict in `Decision log`, and escalate.
 - [x] (2026-11-23) Rebased onto `origin/main` at `4c21753d` (24 commits);
   both plan commits replayed without conflict. Plan re-audited against the new
   base; corrections recorded in D14.
+- [x] (2026-11-23) Rebased again onto `origin/main` at `0669195f` (one
+  commit, #969); three plan commits replayed without conflict. #969 touches no
+  file this plan cites, so the citations measured at `4c21753d` stand; its
+  test-environment rule is adopted as Constraint 12 (D15).
 - [ ] Approval of the plan by the user.
 - [ ] EP-M1: characterization tests and the error-shape tripwire (green).
 - [ ] EP-M2: opaque failure, step and scenario identity (red recorded, then
@@ -497,6 +509,21 @@ conflict in `Decision log`, and escalate.
   repin recorded in `Risks`, were the plan-relevant changes among the 24
   commits; ADR-018, the 13.1.1 ExecPlan, roadmap item 13.1.2, and design §2.6.4
   are unchanged.
+
+- D15. Rebase onto `0669195f` (2026-11-23): main's test-environment rule
+  (#969) is adopted. `clippy.toml` now disallows `std::env::set_var`,
+  `remove_var`, `set_current_dir`, and `temp_env`'s four entry points, so that
+  tests never force the runner to serialize them. Decision: no test this plan
+  adds may mutate the process environment or working directory, or carry a
+  `disallowed_methods` exemption (Constraint 12); `temp-env` is no longer
+  counted as an available tool (Constraint 6). The plan already injects skip
+  policy through `ScenarioScope::with_skip_policy` rather than the
+  `RSTEST_BDD_FAIL_ON_SKIPPED` environment variable, so no test design changes.
+  The process-wide `fail_on_skipped` override in `config.rs` is an atomic, not
+  the environment, and the rule does not cover it; the plan still avoids it for
+  the reason in `Risks`. Rationale: #969 is the only commit between `4c21753d`
+  and `0669195f`, and it touches `clippy.toml`, harness, macro, and trybuild
+  tests only, none of which the plan cites or reuses.
 
 ## Outcomes & retrospective
 
@@ -1250,3 +1277,9 @@ field (D14); D5's rendering claim is narrowed for that variant; the Whitaker
 risk records the bumpy-road rule; line citations, file sizes, and the locked
 `proptest` version are refreshed. Effect on remaining work: EP-M1 gains one
 registered ambiguous pair and its rows; no milestone has started.
+
+2026-11-23, revision 4: rebased onto `origin/main` at `0669195f`. Changed:
+Constraint 6 drops `temp-env` from the usable tools, Constraint 12 adopts
+main's ban on process-wide environment and working-directory changes in tests,
+and the skip-policy risk cites it (D15). Effect on remaining work: none beyond
+the constraint; no milestone has started.
