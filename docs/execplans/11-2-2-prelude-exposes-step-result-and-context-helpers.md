@@ -13,13 +13,14 @@ items across eleven spellings, the step attributes document
 `#[harness_context]`, a compile-fail fixture pins the diagnostic for the marker
 written without a step attribute, the examples reach the facade through the
 prelude alone, the fixture crates prove a downstream manifest, the drift gate
-holds the documentation to the code, ADR-026 records the decision, and
+holds the documentation to the code, ADR-027 records the decision, and
 `docs/roadmap.md` carries the amended finish line. Pull request 773 is in
-review against the `issue-901` branch. The corrected package-identity count is
-129 normal packages, within the approved ceiling of 135; see DL-14. DL-11
-records the revised file-count tolerance; DL-12 adapts EP-M0 to the shared
-build environment. The follow-up items the plan deliberately left out are filed
-as issues #952-#959.
+review against `main`; the branch was restacked onto `main` on 2026-11-23 after
+the stacked base merged, and the record below states what moved. The corrected
+package-identity count is 129 normal packages, within the approved ceiling of
+135; see DL-14. DL-11 records the revised file-count tolerance; DL-12 adapts
+EP-M0 to the shared build environment. The follow-up items the plan
+deliberately left out are filed as issues #952-#959.
 
 ## Purpose / big picture
 
@@ -1582,7 +1583,7 @@ should be filed rather than forgotten:
 
   The migration checklist told users to replace macro-crate imports with the
   prelude, which breaks the datatable derives: the prelude deliberately excludes
-  `DataTable` and `DataTableRow` under ADR-026's entry rule. The guide now
+  `DataTable` and `DataTableRow` under ADR-027's entry rule. The guide now
   names three exclusions, lists the prelude's eleven names instead of linking
   to them, and routes the datatable derives to the crate root. The users' guide
   carried the same defect fifteen times: at the base it named
@@ -1646,7 +1647,7 @@ should be filed rather than forgotten:
   implementation agent.
 
 - **DL-17 — The facade re-export is completed at the crate root, not the
-  prelude.** Resolved on 2026-11-16 while answering the review. ADR-026
+  prelude.** Resolved on 2026-11-16 while answering the review. ADR-027
   requires the facade's re-export to be "total and flat", and the review showed
   it was not: `step_library` remained reachable only from `rstest-bdd-macros`,
   so every consumer declaring a scoped vocabulary still named the
@@ -1654,7 +1655,7 @@ should be filed rather than forgotten:
   `tests/prelude_surface.rs` names it so the compiler holds that. It does not
   enter the prelude: the ADR's entry rule admits an item only when a step
   signature, a `#[derive]`, or an attribute in the examples needs it, and no
-  example declares a library. ADR-026 records the completion as an amendment
+  example declares a library. ADR-027 records the completion as an amendment
   rather than by editing the decision outcome, so the accepted decision and its
   later correction stay distinguishable. Date/Author: 2026-11-16,
   implementation agent.
@@ -2253,7 +2254,7 @@ and DL-18 plus the documentation they imply: the crate root re-exports
 drift gate's item kinds, and the facade doc; the guide's two prelude fences are
 pinned to compiled copies; `check_example_imports.py` enforces the prelude
 alone and sees renamed and target-specific macro-crate dependencies; the
-`rstest` requirement equality is asserted; and the migration guide and ADR-026
+`rstest` requirement equality is asserted; and the migration guide and ADR-027
 carry the signposts the review asked for. The seven commit gates then ran once
 each, sequentially, on that exact revision: `make check-fmt` (2 s), `make lint`
 (626 s, all eleven recipe steps so no step is left without a verdict),
@@ -2704,7 +2705,7 @@ examples build and pass with no path to the macro crate (V-5). The users' guide
 lists the exports under a gate that bites: EP-M5's two deliberate
 desynchronizations each made the check exit non-zero, and both recordings are in
 `Artefacts and notes`. The downstream fixture crate compiles and runs a
-scenario. ADR-026 records the decision and the admission bar; the roadmap entry
+scenario. ADR-027 records the decision and the admission bar; the roadmap entry
 carries the amended finish line.
 
 Two requirements from the original entry could not be met as written, and the

@@ -1072,7 +1072,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   crate root mirrors every one of them, so the prelude stays a strict subset
   with no names of its own. The crate root also re-exports `step_library`, so a
   consumer declaring a scoped vocabulary never names the macro crate either; it
-  stays outside the prelude because no example declares a library, and ADR-026
+  stays outside the prelude because no example declares a library, and ADR-027
   records the completion as an amendment. Every example reaches its
   `rstest-bdd` surface through the prelude, no example manifest declares
   `rstest-bdd-macros`, and the compiler and `scripts/check_example_imports.py`
@@ -1089,7 +1089,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   root `step_library` re-export are signposted in
   `docs/v0-7-0-migration-guide.md`. See ExecPlan
   `docs/execplans/11-2-2-prelude-exposes-step-result-and-context-helpers.md` and
-  `docs/adr-026-publish-a-facade-prelude.md`.
+  `docs/adr-027-publish-a-facade-prelude.md`.
 - [ ] 11.2.3. Diagnostics detect non-canonical harness paths and missing or
   ambiguous attribute-policy annotations, with actionable guidance such as
   adding `attributes = ...` explicitly or using the canonical path. Finish
