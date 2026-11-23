@@ -6,8 +6,9 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Conformance basis`, and `Verification plan` must be kept up to date as work
 proceeds.
 
-Status: DRAFT — revised after the expert-panel review (D12), awaiting approval.
-No implementation may begin until the plan is explicitly approved.
+Status: DRAFT — revised after the expert-panel review (D12) and rebased onto
+`origin/main` at `4c21753d` (D14), awaiting approval. No implementation may
+begin until the plan is explicitly approved.
 
 ## Purpose / big picture
 
@@ -57,7 +58,10 @@ coordinates.
   per-step records.
 - **Runtime error**: `rstest_bdd::execution::ExecutionError`, `StepError`,
   `MissingFixturesDetails`, and `StepExecutionRequest`. They were released in
-  v0.6.0 and are not runner types.
+  v0.6.0 and are not runner types. Since that release, main has added the
+  `ExecutionError::StepAmbiguous { message }` variant and the
+  `StepExecutionRequest::scope` field (step-library scopes, #686); neither
+  carries a frontend coordinate (D14).
 - **Opaque type**: a public type whose fields and variants are private, read
   only through accessor methods, so its representation can change without
   breaking callers.
@@ -85,7 +89,7 @@ Read these before starting:
 - `docs/complexity-antipatterns-and-refactoring-strategies.md`; the
   cognitive-complexity threshold is 12 and the drivers must stay decision-free.
 - `docs/gherkin-syntax.md` for the behavioural feature file added here.
-- `docs/rstest-bdd-language-server-design.md` lines 868-884, only to note that
+- `docs/rstest-bdd-language-server-design.md` lines 929-945, only to note that
   the language server uses zero-based positions; this plan does not touch it.
 - `docs/execplans/13-1-1-add-parser-neutral-types.md`, by search rather than
   linear reading: INV-5, INV-7, INV-11, D3, D14, D15, D21, D27, D46, and the
@@ -102,10 +106,12 @@ pretty_assertions, insta), `proptest` (the source-fidelity property),
 ## Constraints
 
 1. `ExecutionError`, `StepError`, `MissingFixturesDetails`,
-   `StepExecutionRequest`, and every other type released in v0.6.0 keep their
-   exact variants, field sets, and signatures. No line, column,
-   `SourceLocation`, or other frontend coordinate may be added to them. This is
-   the roadmap's "without extending runtime errors with frontend metadata".
+   `StepExecutionRequest`, and every other type released in v0.6.0 keep the
+   exact variants, field sets, and signatures they have at the plan's base
+   `4c21753d`, which already include main's `StepAmbiguous` variant and `scope`
+   field (D14). No line, column, `SourceLocation`, or other frontend coordinate
+   may be added to them. This is the roadmap's "without extending runtime
+   errors with frontend metadata".
 2. No source identity is ever read back out of an `ExecutionError` or derived
    by parsing any string, in accessors or in `Display` (ADR-018, "Structured
    outcome"; 13.1.1 INV-7 clause three). After this change the rule holds
@@ -172,7 +178,7 @@ conflict in `Decision log`, and escalate.
   all gates green. Check with `python3 scripts/check_rs_file_lengths.py`.
 - Risk: making `ScenarioFailure` opaque breaks the four doctests that build
   `ScenarioFailure::EmptyPlan` as a value (`outcome/failure.rs` lines 124, 193,
-  and 211, and `outcome/mod.rs` line 304 at `3f3752a6`), because doctests
+  and 211, and `outcome/mod.rs` line 304 at `4c21753d`), because doctests
   compile as external crates. Severity: low. Likelihood: certain. Mitigation:
   rewrite each to fold a real run of an empty plan with an explicit
   `ScenarioScope::with_skip_policy(false)`, or to show `site()` only; list them
@@ -192,8 +198,12 @@ conflict in `Decision log`, and escalate.
   `no_unwrap_or_else_panic`) apply to integration-test helpers, and a by-value
   non-`Copy` fixture parameter trips pedantic `needless_pass_by_value`.
   Severity: low. Likelihood: medium. Mitigation: helpers use
-  `let … else { panic!(…) }`; the missing-fixture step takes `&T`.
-- Risk: `make test`'s `--no-default-features` leg (`Makefile` lines 121-141)
+  `let … else { panic!(…) }`; the missing-fixture step takes `&T`. Since the
+  rebase, the repinned Whitaker suite (0.2.12, #938) also counts `?` as a
+  branch and flags bumpy-road clusters in test code (#945), so a test helper
+  with several sequential `let … else` or `?` blocks is split into named
+  helpers rather than suppressed.
+- Risk: `make test`'s `--no-default-features` leg (`Makefile` lines 131-151)
   runs every new binary again with diagnostics off. Severity: low. Likelihood:
   medium. Mitigation: run the focused `--no-default-features` loop in
   `Concrete steps` before each gate.
@@ -233,6 +243,9 @@ conflict in `Decision log`, and escalate.
 - [x] (2026-10-18) Draft committed (`b68c5d15`).
 - [x] (2026-10-18) Expert-panel review (three reviewers covering six lenses);
   verdict "revise"; findings adopted as recorded in D12, and the plan rewritten.
+- [x] (2026-11-23) Rebased onto `origin/main` at `4c21753d` (24 commits);
+  both plan commits replayed without conflict. Plan re-audited against the new
+  base; corrections recorded in D14.
 - [ ] Approval of the plan by the user.
 - [ ] EP-M1: characterization tests and the error-shape tripwire (green).
 - [ ] EP-M2: opaque failure, step and scenario identity (red recorded, then
@@ -263,7 +276,7 @@ conflict in `Decision log`, and escalate.
 - Observation: an inherent `ScenarioFailure::source()` would shadow
   `std::error::Error::source()`, which `ScenarioFailure` implements to return
   its `ExecutionError` cause, and which existing tests call in fully qualified
-  form (`runner/tests/outcome/rendering.rs` lines 90-123). Evidence: panel
+  form (`runner/tests/outcome/rendering.rs` lines 89-122). Evidence: panel
   finding. Impact: the step-level accessor is named `step_source()` (D3).
 - Observation: `reporting/conversion.rs` lines 33-37 document that the
   outcome deliberately carries no scenario identity, which is why the
@@ -275,6 +288,21 @@ conflict in `Decision log`, and escalate.
   steps), runs both runners, and has a negative-control pattern over test-owned
   projections. Evidence: panel finding. Impact: the source properties extend
   that suite instead of creating a second property binary (D8).
+- Observation: after the rebase, a runner run can fail with
+  `ExecutionError::StepAmbiguous`. `drive.rs` resolves every frontend plan
+  against `StepScope::global()`, and `resolve_step` reports equally specific
+  global candidates as an ambiguity. `FailureKind::of` classifies it as `Other`
+  through its wildcard arm, without any compile error. Evidence:
+  `crates/rstest-bdd/src/execution/mod.rs` (`resolve_step_for_request`),
+  `runner/engine/drive.rs` (`request`), `registry/selection.rs`, and
+  `runner/outcome/failure.rs` (`FailureKind::of`) at `4c21753d`. Impact: the
+  executed-run table gains an ambiguity row (D14), and the variant is a
+  concrete instance of D6's rationale.
+- Observation: `format_with_loader_at` renders `StepAmbiguous` as its stored
+  message and ignores the supplied path. That message names the tied
+  candidates' definition-side Rust locations, not the plan's path. Evidence:
+  `execution/error/format.rs` and `StepLookupError`'s `Display` at `4c21753d`.
+  Impact: D5's rendering claim does not hold for this variant; see D14.
 
 ## Decision log
 
@@ -345,26 +373,27 @@ conflict in `Decision log`, and escalate.
   scenario line was supplied resolves the draft's open question in favour of
   preservation. The cost is one copy (`Static`) or one atomic increment
   (`Shared`) per run.
-- D5. Rendering keeps its shape and never reads the error.
-  Decision: `ScenarioFailure`'s `Display` renders the step location's path when
-  one exists and otherwise the scenario path; `ScenarioOutcome`'s `Display`
-  delegates to it. Both pass that path to the crate-private
-  `ExecutionError::format_with_loader_at`, so message identifiers and shape are
-  unchanged. Line and column are not added to rendered text; that is a
-  temporary state, ending when 13.3.1 introduces the source-neutral Fluent
+- D5. Rendering keeps its shape and never reads the error (narrowed for
+  `StepAmbiguous` by D14). Decision: `ScenarioFailure`'s `Display` renders the
+  step location's path when one exists and otherwise the scenario path;
+  `ScenarioOutcome`'s `Display` delegates to it. Both pass that path to the
+  crate-private `ExecutionError::format_with_loader_at`, so message identifiers
+  and shape are unchanged. Line and column are not added to rendered text; that
+  is a temporary state, ending when 13.3.1 introduces the source-neutral Fluent
   message (13.1.1 D15). Rationale: Constraint 2 then holds without the fallback
   13.1.1 documented; coordinates in messages are a user-visible wording change
   owned by 13.3.1.
 - D6. "Runtime errors are not extended" is enforced, not merely observed.
   Decision: add `crates/rstest-bdd/src/execution/error/shape_tests.rs`, an
   in-crate test module containing one wildcard-free `match` over every
-  `ExecutionError` variant and every `StepError` variant, each destructured
-  without `..`, plus `..`-free destructuring of `MissingFixturesDetails` and
-  `StepExecutionRequest`. `#[non_exhaustive]` does not apply inside the
-  defining crate, so adding any field or variant stops the build. The module
-  lives under `execution/` because that module owns the types. Rationale: a
-  compile-time tripwire is the cheapest artefact that fails when Constraint 1
-  is broken; `FailureKind::of`'s wildcard arm would not.
+  `ExecutionError` variant (including `StepAmbiguous`) and every `StepError`
+  variant, each destructured without `..`, plus `..`-free destructuring of
+  `MissingFixturesDetails` and `StepExecutionRequest` (including `scope`).
+  `#[non_exhaustive]` does not apply inside the defining crate, so adding any
+  field or variant stops the build. The module lives under `execution/` because
+  that module owns the types. Rationale: a compile-time tripwire is the
+  cheapest artefact that fails when Constraint 1 is broken; `FailureKind::of`'s
+  wildcard arm would not.
 - D7. No Verus and no Kani for this item. Rationale: every obligation is a
   value-preservation property of data plumbing — a location cloned from an
   invocation into a record, moved through a terminal, an assembly, and a fold.
@@ -391,8 +420,9 @@ conflict in `Decision log`, and escalate.
   `plan_for_located`, beside the untouched `plan_for`). Rationale: each
   integration binary costs a link of the whole crate; the property suite
   already owns the generator, the step registry, both runners, and the
-  60-second case budget; and the near-cap files (`skip_parity.rs` at 389 lines,
-  `runner_panics.rs` at 370, `sequence/steps/mod.rs` at 386) are not touched.
+  60-second case budget; and the near-cap files (`runner_panics.rs` at 375
+  lines and `sequence/steps/mod.rs` at 387, measured at `4c21753d`) are not
+  touched.
 - D9. No ADR. Rationale: the change implements ADR-018's existing binding
   semantics ("Terminal `Skipped` and `Failed` outcomes carry `source`";
   "Locations are never added to `ExecutionError`"; "prefer opaque accessors")
@@ -443,6 +473,30 @@ conflict in `Decision log`, and escalate.
   join key, and D2-D4 are justified by ADR-018's binding text, not by Cucumber.
   SARIF and the Language Server Protocol inform the column-unit note in the
   users' guide.
+
+- D14. Rebase onto `4c21753d` (2026-11-23): main's step-library scopes
+  (#686) are absorbed, not reversed. Decision: (a) Constraint 1 and D6 pin the
+  error shape as it stands at the new base, including
+  `ExecutionError::StepAmbiguous { message }` and
+  `StepExecutionRequest::scope`; neither is 13.1.2's change and neither carries
+  a frontend coordinate. (b) An ambiguous step is a failure path a frontend
+  plan can reach, because the runner resolves against the global library, so
+  the executed-run table gains an ambiguity row per runner and location shape
+  (48 rows), asserting `FailureKind::Other` before reading `step_source()`. The
+  property generator does not gain an ambiguous kind: that would grow
+  `sequence/steps/mod.rs` (387 lines) towards the cap, and the ambiguity
+  failure takes the same `Terminal::Fail` route as every other step failure.
+  (c) D5's rendering claim is narrowed: for `StepAmbiguous`,
+  `format_with_loader_at` ignores the path and renders the stored message, so
+  the rendered text names no plan path. Changing that wording is outside 13.1.2
+  (Constraint 5; message wording is 13.3.1's), and the accessors still return
+  the location. The ambiguity rows therefore assert through the accessors only,
+  and the rendering gap is recorded in the 13.3.1 roadmap note during EP-M4.
+  (d) Line citations and file sizes were re-measured at `4c21753d`. Rationale:
+  the plan must describe the code it will change, and these, with the Whitaker
+  repin recorded in `Risks`, were the plan-relevant changes among the 24
+  commits; ADR-018, the 13.1.1 ExecPlan, roadmap item 13.1.2, and design §2.6.4
+  are unchanged.
 
 ## Outcomes & retrospective
 
@@ -503,12 +557,12 @@ controls under `sequence/`). Steps are registered in each binary with the
 
 ## Conformance basis
 
-- Roadmap: `docs/roadmap.md` item 13.1.2 at `3f3752a6` (RM-13.1.2). Success
+- Roadmap: `docs/roadmap.md` item 13.1.2 at `4c21753d` (RM-13.1.2). Success
   criterion RM-13.1.2-S1: "runtime tests execute plans whose sources are not
   `.feature` files and assert that supplied path, line, and column information
   remains available to the caller".
 - ADR: `docs/adr-018-parser-neutral-scenario-execution.md` (Accepted,
-  2026-07-13) at `3f3752a6`:
+  2026-07-13) at `4c21753d`:
   - ADR18-OUT-SRC: "Every such outcome exposes
     `source() -> Option<&SourceLocation>`. Terminal `Skipped` and `Failed`
     outcomes carry `source` … alongside the terminal step index." The names
@@ -527,7 +581,7 @@ controls under `sequence/`). Steps are registered in each binary with the
   - ADR18-VER7: "Execute plans whose source paths are not `.feature` files
     and prove outcomes preserve the supplied locations without Gherkin
     parsing."
-- Design: `docs/rstest-bdd-design.md` §2.6.4 at `3f3752a6` (DES-2.6.4).
+- Design: `docs/rstest-bdd-design.md` §2.6.4 at `4c21753d` (DES-2.6.4).
 - Predecessor: `docs/execplans/13-1-1-add-parser-neutral-types.md`, INV-5
   (sync/async equality), INV-7 (source fidelity), INV-11 (surface purity), D15
   (Fluent wording deferred), D21 (integration-test rule).
@@ -555,8 +609,8 @@ ADR18-TR6 -> Constraint 3 -> EP-M1 -> runner_sources::paths_and_columns_are_pres
 Model a plan as `P = (scn, inv[0..n))` where `scn = (path, line?)` and each
 invocation `inv[i]` has `src(inv[i]) ∈ Option<Loc>`, with
 `Loc = (path, line ≥ 1, column? ≥ 1)`. A run maps `P`, a behaviour per step
-(pass, return, skip, fail by error, fail by panic, undefined, missing fixture),
-and a resolved skip policy to an outcome
+(pass, return, skip, fail by error, fail by panic, undefined, ambiguous,
+missing fixture), and a resolved skip policy to an outcome
 `O = (status, rec[0..n), skip?, failure?, scn')`. The fold maps `O` to `Ok(())`
 or a failure `f = (scn'', kind, index?, loc?, skip?)`. The model never inspects
 `path`: it is an opaque value compared by equality.
@@ -629,14 +683,15 @@ and implementation may show that SC-B and SC-C collapse into one.
   `one_path_has_one_identity_whatever_its_storage`).
 - AXIOM-2: `execute_step` and `execute_step_async` return the error variants
   13.1.1's INV-16 classifies (undefined, missing fixture, assertion, panic),
-  and the runner catches step panics, so a panicking step does not abort a
-  proptest case.
+  plus `StepAmbiguous`, which `FailureKind::of` maps to `Other`; and the runner
+  catches step panics, so a panicking step does not abort a proptest case.
 - AXIOM-3: Rust's exhaustive-pattern checking rejects a `..`-free struct
   pattern, and a wildcard-free `match`, when the struct or enum gains a field
   or variant, inside the defining crate.
-- AXIOM-4: `proptest` 1.11 (the locked version) generates from the declared
-  strategies and honours `Config::rng_seed = RngSeed::Fixed(seed)`; acceptance
-  is checked by classification counters, not assumed.
+- AXIOM-4: `proptest` 1.12 (the locked version at `4c21753d`) generates from
+  the declared strategies and honours
+  `Config::rng_seed = RngSeed::Fixed(seed)`; acceptance is checked by
+  classification counters, not assumed.
 - AXIOM-5: a current-thread `tokio` runtime drives `run_scenario_async` to
   completion in tests (the future is not `Send`; roadmap 13.3.1 note).
 
@@ -645,9 +700,10 @@ and implementation may show that SC-B and SC-C collapse into one.
 - Obligation SRC-1, SRC-2, SRC-3, SRC-5, SRC-6, SRC-9 on executed runs.
   Method: parameterized `rstest` table. Rationale: the relevant shape space is
   finite — terminal kind {none, skip permitted, skip forced, undefined step,
-  missing fixture, assertion error, panic} × runner {sync, async} × terminal
-  location {line and column, line only, absent} — and every cell is enumerable
-  (42 rows). Artefact: `crates/rstest-bdd/tests/runner_sources.rs` with
+  ambiguous step, missing fixture, assertion error, panic} × runner {sync,
+  async} × terminal location {line and column, line only, absent} — and every
+  cell is enumerable (48 rows). Artefact:
+  `crates/rstest-bdd/tests/runner_sources.rs` with
   `runner_sources/{steps,cases}.rs`. Evidence:
   `cargo nextest run -p rstest-bdd -E 'binary(runner_sources)'`. Rows that read
   only existing accessors pass at EP-M1; rows that read `step_source()`,
@@ -745,9 +801,12 @@ silently. In `crates/rstest-bdd/tests/runner_sources/steps.rs`, register steps
 for each behaviour: a passing step, a value-returning step, a step that calls
 `rstest_bdd::skip!`, a step that returns `Err`, a step that panics, and a step
 that requires a fixture (taken by reference) the context does not provide.
-Leave one step text unregistered for the undefined-step row. In
-`runner_sources/cases.rs`, build plans with
-`ScenarioPlanBuilder::new(name, path)` and
+Leave one step text unregistered for the undefined-step row. For the
+ambiguous-step row, register two global definitions with equal specificity that
+both match one step text; before trusting the row, assert that
+`rstest_bdd::find_step_with_metadata` returns `Err` for that text, so the row
+cannot pass by resolving to one definition (D14). In `runner_sources/cases.rs`,
+build plans with `ScenarioPlanBuilder::new(name, path)` and
 `.step(StepInvocation::new(keyword, text).at(SourceLocation::new(path, line, column)))`,
 using the three non-`.feature` sources. In `runner_sources.rs`, write the
 tables that run each plan through `run_scenario` and, on a current-thread
@@ -952,10 +1011,10 @@ pass after EP-M2 under
     (`line_text[..byte].chars().count() + 1`); using the step index to reach
     a frontend's own richer source map; and the fact that rendered messages
     carry only a path until 13.3.1. Rewrite the existing paragraph at
-    `users-guide.md` lines 2106-2111 that describes the old fallback.
+    `users-guide.md` lines 2252-2257 that describes the old fallback.
   - `docs/rstest-bdd-design.md` §2.6.4: a "Source-neutral diagnostics"
     paragraph recording D2-D5 and D11 and citing ADR-018; §2.6's Stage 1
-    paragraph (near line 1392) gains 13.1.2.
+    paragraph (near line 1403) gains 13.1.2.
   - `docs/developers-guide.md`, runner section: runner outcome types carry
     source identity and runtime errors never do; the tripwire module and what
     to do when it fires; `ScenarioFailure` is opaque and `FailureSite` is the
@@ -1183,3 +1242,11 @@ of the existing property suite (D8); red stages are recorded, never committed
 (D10); the step index is documented as the join key (D11); the scope tolerance
 is re-based on a counted file list. Effect on remaining work: EP-M1 is now
 green-only, and EP-M2 carries the red run; no milestone has started.
+
+2026-11-23, revision 3: rebased onto `origin/main` at `4c21753d`. Changed:
+Constraint 1, D6, the abstract model, AXIOM-2, the executed-run table, and
+Stage B absorb main's `StepAmbiguous` variant and `StepExecutionRequest::scope`
+field (D14); D5's rendering claim is narrowed for that variant; the Whitaker
+risk records the bumpy-road rule; line citations, file sizes, and the locked
+`proptest` version are refreshed. Effect on remaining work: EP-M1 gains one
+registered ambiguous pair and its rows; no milestone has started.
