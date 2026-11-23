@@ -669,10 +669,14 @@ dependency edge, the prelude admission bar, and the deliberate non-export of
 `adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`,
 indexed in `docs/contents.md` as "ADR 005a"), so 024 looked like the next free
 number. Two records landed on the base branch while this plan waited:
-[ADR-024](adr-024-structural-usage-tracking-in-registry-lookups.md) and
-[ADR-025](adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md). ADR-027 is
-therefore the number this plan's record takes, and every reference below uses
-it.
+[ADR-024](../adr-024-structural-usage-tracking-in-registry-lookups.md) and the
+OrthoConfig decision. That record was written as ADR-025 and the base's own
+merge renumbered it to
+[ADR-026](../adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md) when the
+merge took 025 for the nested-Cargo preparation gate, so the 025 spelling above
+is the number it carried when this plan read it, not a file that exists now.
+ADR-027 is therefore the number this plan's record takes, and every reference
+below uses it.
 
 Trace links:
 
