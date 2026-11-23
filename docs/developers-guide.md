@@ -2206,9 +2206,9 @@ The helper modules — `workflow_support`, `cache_step_support`,
 `lading_pins`, `timeout_budgets`, `nextest_config`, `strict_workflow_loader`,
 `pull_request_reach`, `guard_conditions`, `coverage_support`,
 `coverage_lane_pairs`, `runner_label_support`, and `job_name_support` — are
-private to the directory. They are importable
-only because pytest puts the test directory on `sys.path`, and nothing outside
-`tests/workflow_contracts` imports them.
+private to the directory. They are importable only because pytest puts the test
+directory on `sys.path`, and nothing outside `tests/workflow_contracts` imports
+them.
 
 `cache_step_support` owns the anatomy of a cache step: the approved action and
 its pinned ref, the predicates that recognize a restore or save step, the guard
