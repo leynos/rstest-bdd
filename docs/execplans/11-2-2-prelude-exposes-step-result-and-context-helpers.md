@@ -2873,3 +2873,28 @@ New tests:
   `Progress` and `Surprises & discoveries` record the candidate's verdicts. Two
   refactors were needed for the `bumpy_road_function` lint that arrived with a
   rebuilt Whitaker suite; neither changes behaviour. EP-M4 onwards remain.
+
+- 2026-11-23, restacked onto `main`. The stacked base merged as PR #912 and
+  landed as squash `4c21753d`, so the 35 commits this branch owns were replayed
+  from the exclusive boundary `7b617013` onto `main`. Two commits were dropped
+  because `main` had already made the same lint-driven refactors in a more
+  developed form: `a2564b38` (two Whitaker `bumpy_road_function` sites) and
+  `4e2c80b5` (thirteen sites plus a `text_document` module split). Every other
+  commit replayed; the three that changed did so only where this branch's text
+  met `main`'s: the `nextest_config` period paragraph keeps both, and the ADR
+  renumbering below. The decision record moved from ADR-026 to ADR-027 because
+  the merged base took 025 for the nested-Cargo preparation gate and moved
+  OrthoConfig to 026; every link and reference now names
+  `docs/adr-027-publish-a-facade-prelude.md`. One integration seam did not
+  conflict but did not compile: the prelude fixture called `ensure_prepared`,
+  which the base renamed to `ensure_prepared_building` and gave a runner
+  parameter, and `Preparation::new` gained `Directories`; `a4801610` adapts the
+  fixture to that API. At `a4801610`, `make check-fmt`, `make typecheck`,
+  `make lint` (all eleven steps including Whitaker and both pylint runs at
+  10.00/10), `make markdownlint` and `make nixie` are green. `make test` is not
+  green on this host: the nested-Cargo preparation tests exceed their own
+  in-test wall-clock bounds while the shared compile-admission pool holds
+  roughly 300 requests from other repositories, so 2,385 of 2,574 nextest cases
+  passed and the run stopped at the first preparation timeout. The hosted
+  `build-test (linux, default features)` lane runs the same suite on a trusted
+  runner and is the verdict being taken instead.
