@@ -59,7 +59,7 @@ def read_sources(root: Path) -> tuple[dict[Path, str], list[str]]:
         for relative_path in (PRELUDE, CRATE_ROOT, USERS_GUIDE)
     }
     unreadable = [
-        f"{relative_path}: unreadable"
+        f"{relative_path.as_posix()}: unreadable"
         for relative_path, source in sources.items()
         if source is None
     ]

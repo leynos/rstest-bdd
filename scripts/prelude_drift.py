@@ -348,11 +348,11 @@ def import_line_violations(
     end = line.find("}", start)
     if end == -1:
         return False, [
-            f"{relative_path}:{number}: the import is not closed on its line"
+            f"{relative_path.as_posix()}:{number}: the import is not closed on its line"
         ]
     names = [name for _, name in use_names(line[start + len("use ") : end + 1])]
     return True, [
-        f"{relative_path}:{number}: {name} is not a crate-root export"
+        f"{relative_path.as_posix()}:{number}: {name} is not a crate-root export"
         for name in names
         if name not in exports
     ]
@@ -379,7 +379,7 @@ def readme_violations(root: Path, exports: set[str]) -> list[str]:
     for relative_path in READMES:
         source = read_text(root, relative_path)
         if source is None:
-            violations.append(f"{relative_path}: unreadable")
+            violations.append(f"{relative_path.as_posix()}: unreadable")
             continue
         for number, line in enumerate(source.splitlines(), start=1):
             counted, line_violations = import_line_violations(
