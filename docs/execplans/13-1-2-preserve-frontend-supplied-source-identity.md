@@ -81,8 +81,9 @@ Read these before starting:
   §3.11.1 "The parser-neutral runner modules".
 - `docs/developers-guide.md` section "The parser-neutral runner
   (rstest_bdd::runner)" for the engine split, the integration-test rule (D21),
-  skip-policy isolation with `#[serial]`, and the runner gate commands; and
-  "Assertion vocabulary: googletest, pretty_assertions, and insta".
+  the skip-policy guidance (read its `#[serial]` isolation as the older pattern
+  that new tests do not adopt; Constraint 14), and the runner gate commands;
+  and "Assertion vocabulary: googletest, pretty_assertions, and insta".
 - `docs/users-guide.md` section "Running a plan without the Gherkin frontend".
 - `docs/rust-testing-with-rstest-fixtures.md` for fixture and `#[case]` shape.
 - `docs/rust-doctest-dry-guide.md` for doctest style on new accessors.
@@ -123,10 +124,11 @@ pretty_assertions, insta), `proptest` (the source-fidelity property),
 5. No edits to any Fluent `.ftl` file and no new message identifiers. The
    source-neutral message wording is carried by 13.3.1 (13.1.1 D15).
 6. No new dependencies. `rstest`, `rstest-bdd`, `googletest`,
-   `pretty_assertions`, `insta`, `proptest`, `serial_test`, and `tokio` are
-   already available to `rstest-bdd`'s tests. `temp-env` is also a
-   dev-dependency, but its entry points are disallowed in `clippy.toml`, so no
-   new test uses it (Constraint 12).
+   `pretty_assertions`, `insta`, `proptest`, and `tokio` are already available
+   to `rstest-bdd`'s tests. `serial_test` and `temp-env` are also
+   dev-dependencies; no new test uses `serial_test` (Constraint 14), and
+   `temp-env`'s entry points are disallowed in `clippy.toml`, so no new test
+   uses it (Constraint 12).
 7. Runner public types stay frontend-free: `crates/rstest-bdd/src/runner/`
    must keep passing the INV-11 token scan in
    `crates/rstest-bdd/src/runner/tests/surface.rs`, which forbids frontend
@@ -148,6 +150,12 @@ pretty_assertions, insta), `proptest` (the source-fidelity property),
     entry points are disallowed in `clippy.toml` (#969), and this plan adds
     no `#[expect(clippy::disallowed_methods)]` exemption. Skip policy is
     injected through `ScenarioScope::with_skip_policy` instead (D15).
+13. Every `assert!`, `assert_eq!`, and `assert_ne!` in new or edited tests
+    carries a custom diagnostic message stating the failed expectation and,
+    where useful, the values involved (`AGENTS.md`, #943; D16).
+14. No new test serializes itself with `#[serial]`, a shared `Mutex`, or
+    another process-wide lock. Shared process state is avoided by
+    injection, not guarded (`AGENTS.md`, #943; D16).
 
 If satisfying the objective requires violating a constraint, stop, record the
 conflict in `Decision log`, and escalate.
@@ -209,7 +217,8 @@ conflict in `Decision log`, and escalate.
   rebase, the repinned Whitaker suite (0.2.12, #938) also counts `?` as a
   branch and flags bumpy-road clusters in test code (#945), so a test helper
   with several sequential `let … else` or `?` blocks is split into named
-  helpers rather than suppressed.
+  helpers rather than suppressed. A fallible `rstest` fixture is consumed by a
+  test that returns `Result` and applies `?` to it (`AGENTS.md`, #943; D16).
 - Risk: `make test`'s `--no-default-features` leg (`Makefile` lines 131-151)
   runs every new binary again with diagnostics off. Severity: low. Likelihood:
   medium. Mitigation: run the focused `--no-default-features` loop in
@@ -258,6 +267,11 @@ conflict in `Decision log`, and escalate.
   commit, #969); three plan commits replayed without conflict. #969 touches no
   file this plan cites, so the citations measured at `4c21753d` stand; its
   test-environment rule is adopted as Constraint 12 (D15).
+- [x] (2026-11-23) Audited main's `AGENTS.md` rewrite (#943, in the first
+  rebase range but missed by D14) against the plan; its testing rules are
+  adopted as Constraints 13 and 14 (D16). Found that the developers' guide's
+  runner subsection on `#[serial]` and `temp-env` now contradicts them; its
+  rewrite is proposed for EP-M4, pending approval (D16).
 - [ ] Approval of the plan by the user.
 - [ ] EP-M1: characterization tests and the error-shape tripwire (green).
 - [ ] EP-M2: opaque failure, step and scenario identity (red recorded, then
@@ -524,6 +538,30 @@ conflict in `Decision log`, and escalate.
   the reason in `Risks`. Rationale: #969 is the only commit between `4c21753d`
   and `0669195f`, and it touches `clippy.toml`, harness, macro, and trybuild
   tests only, none of which the plan cites or reuses.
+
+- D16. Main's `AGENTS.md` rewrite (#943) is adopted. It landed in the
+  first rebase range (`3f3752a6..4c21753d`) and D14 did not audit it. Decision:
+  adopt three of its testing rules. (a) Every `assert!`, `assert_eq!`, and
+  `assert_ne!` carries a custom diagnostic message (Constraint 13);
+  `googletest` matchers already describe their failures. (b) Process-wide
+  locks, including `serial_test`'s `#[serial]`, are not an accepted way to
+  share state between tests (Constraint 14). The plan already avoids the
+  process-wide `fail_on_skipped` override by injecting skip policy, so no test
+  design changes; the developers' guide's `#[serial]` isolation is signposted
+  as the older pattern. (c) A fallible `rstest` fixture is consumed by a test
+  that returns `Result` (`Risks`). Its other rules (injected environments,
+  first-person prose, and item-scoped `#[expect]` with a reason) are already
+  satisfied: Constraint 12 covers the environment, the plan's prose has no
+  first person, and the plan adds no lint suppression, splitting helpers instead
+  (`Risks`). Rationale: the plan must follow the conventions on the branch it
+  will be implemented on, and these three change what EP-M1's tests may look
+  like. Open for approval: `docs/developers-guide.md` still has a runner
+  subsection, "`#[serial]` and `temp-env` in runner tests", that recommends
+  both, contradicting #943 and #969. EP-M4 already edits that runner section,
+  so the plan proposes that EP-M4 also rewrite this subsection to recommend
+  `ScenarioScope::with_skip_policy` injection. It adds one subsection to an
+  already-planned file, so the file count is unchanged. If the user prefers to
+  keep 13.1.2 narrow, it becomes a separate documentation fix instead.
 
 ## Outcomes & retrospective
 
@@ -1283,3 +1321,10 @@ Constraint 6 drops `temp-env` from the usable tools, Constraint 12 adopts
 main's ban on process-wide environment and working-directory changes in tests,
 and the skip-policy risk cites it (D15). Effect on remaining work: none beyond
 the constraint; no milestone has started.
+
+2026-11-23, revision 5: adopted main's `AGENTS.md` testing rules (#943), which
+revision 3 missed. Changed: Constraints 13 and 14 (assertion messages, no
+process-wide locks), Constraint 6 and the signpost no longer present
+`serial_test` as a usable tool, and the Whitaker risk records the
+fallible-fixture rule (D16). Effect on remaining work: none beyond the
+constraints; no milestone has started.
