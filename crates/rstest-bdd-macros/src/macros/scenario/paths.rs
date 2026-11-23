@@ -315,6 +315,10 @@ mod tests {
 
     #[serial(cargo_manifest_dir)]
     #[rstest]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
+    )]
     fn canonicalizes_with_manifest_dir(_cache_cleared: ()) {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         temp_env::with_var(
@@ -348,6 +352,10 @@ mod tests {
 
     #[serial(cargo_manifest_dir)]
     #[rstest]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
+    )]
     fn caches_paths_between_calls(_cache_cleared: ()) {
         use std::time::{SystemTime, UNIX_EPOCH};
 

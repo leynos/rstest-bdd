@@ -5,3 +5,18 @@ cognitive-complexity-threshold = 12     # default is 25
 # own boundary. This applies to built-in `#[test]` and `rstest` cases.
 allow-expect-in-tests = true
 allow-panic-in-tests = true
+
+# Tests must not change the process-wide environment or working directory: it
+# forces the runner to serialize them. Inject an environment object or isolate
+# the change to a subprocess (`Command::env`, `Command::current_dir`). A site that
+# cannot yet migrate carries `#[expect(clippy::disallowed_methods, reason = ...)]`,
+# which reports itself once the site is gone.
+disallowed-methods = [
+    { path = "std::env::set_var", reason = "process-wide env mutation; inject an environment or use a subprocess" },
+    { path = "std::env::remove_var", reason = "process-wide env mutation; inject an environment or use a subprocess" },
+    { path = "std::env::set_current_dir", reason = "process-wide working directory; pass the directory in or use Command::current_dir" },
+    { path = "temp_env::with_var", reason = "temp_env still mutates the process environment; inject an environment or use a subprocess" },
+    { path = "temp_env::with_var_unset", reason = "temp_env still mutates the process environment; inject an environment or use a subprocess" },
+    { path = "temp_env::with_vars", reason = "temp_env still mutates the process environment; inject an environment or use a subprocess" },
+    { path = "temp_env::with_vars_unset", reason = "temp_env still mutates the process environment; inject an environment or use a subprocess" },
+]

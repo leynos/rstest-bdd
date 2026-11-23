@@ -264,6 +264,10 @@ pub(crate) fn ensure_prepared(target_directory: &Utf8Path) -> io::Result<()> {
 /// the stamp I/O error when one cannot be written.
 #[test]
 #[serial_test::serial(trybuild_target_directory)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "trybuild reads CARGO_TARGET_DIR and RUST_BACKTRACE from the inherited environment; migrate to a subprocess"
+)]
 fn nested_fixture_preparation() -> io::Result<()> {
     // The same Windows-under-nextest deadlock `step_macros_compile` avoids:
     // nextest wraps test binaries in a Job Object, and the nested Cargo's
