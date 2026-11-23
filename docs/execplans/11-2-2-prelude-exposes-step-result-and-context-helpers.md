@@ -2909,3 +2909,28 @@ New tests:
   already-failing test pins the form on every platform. The restack is
   therefore the first revision at which the Windows lanes could report, and
   their verdict counts from `bca7367c` onward.
+
+- 2026-11-23, hosted verdict at `cc73c888`. CI run `45163896903` reports
+  `success` for all three lanes. The Linux lane ran the all-features,
+  all-targets nextest suite with doctests and pytest, the standalone fixture
+  lockfile check, the published-GPUI fixture and end-to-end scenario, the
+  coverage measurement and the publish dry run; both Windows lanes passed their
+  own feature sets. CodeScene and Gecko Security report success at the same
+  head. The one part of `make test` that the hosted lane does not run is the
+  separate `rstest-bdd --all-targets --no-default-features` leg. Three local
+  attempts at it reached 735 of 736 started tests with every result green, and
+  each stopped on the trybuild family: its first preparation mode finished (the
+  third attempt reports 1053.3 s) and its second nested command then met the
+  family's own 540 s wall-clock bound while the shared admission pool held 80
+  to 370 requests from other repositories. The trybuild family is therefore the
+  only suite without a green `--no-default-features` verdict. The configuration
+  itself is not unexercised: the hosted Windows strict-compile-time-validation
+  lane builds `with-default-features: false`, and the trybuild family passes
+  there.
+
+- 2026-11-23, scope decision recorded. The repository owner directed this
+  candidate to be delivered through merge with the overage recorded rather than
+  waived. DL-16 already states the measurement and the escalation; this entry
+  records the direction that answers the reviewer's request for the plan
+  approver's acceptance, and it is not a claim that the 50-file and 1,200-line
+  tolerances were met.
