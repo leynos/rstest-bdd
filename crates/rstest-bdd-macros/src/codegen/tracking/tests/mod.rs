@@ -286,6 +286,10 @@ fn empty_path_is_untrackable() {
 // ---------------------------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
+)]
 fn untrackable_root_diagnostic_names_path_and_remedy() {
     temp_env::with_var("CARGO_MANIFEST_DIR", Some("C:/repo"), || {
         let tokens = super::untrackable_error(
@@ -332,6 +336,10 @@ fn empty_diagnostic_explains_itself() {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
+)]
 fn snapshot_of_unrelatable_root_diagnostic() {
     // Redacted snapshot of the rendered D4 diagnostic (ExecPlan Milestone 5):
     // the absolute path fragments are normalized so the pinned wording drifts

@@ -132,6 +132,10 @@ fn locate_or_build_binary_returns_err_for_invalid_manifest() {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "unsets CARGO_BIN_EXE_* with temp_env; migrate to an injected lookup or a subprocess"
+)]
 fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
     let root = workspace_root();
     let name = BinaryName::new("__nonexistent_binary_xyzzy__");
@@ -146,6 +150,10 @@ fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "unsets CARGO_BIN_EXE_* with temp_env; migrate to an injected lookup or a subprocess"
+)]
 fn locate_or_build_returns_command_for_workspace_binary() {
     let root = workspace_root();
     let name = BinaryName::new("todo-cli");

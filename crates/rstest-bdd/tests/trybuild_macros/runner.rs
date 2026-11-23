@@ -24,6 +24,10 @@ use super::{
 
 #[test]
 #[serial_test::serial(trybuild_target_directory)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "trybuild reads CARGO_TARGET_DIR and RUST_BACKTRACE from the inherited environment; migrate to a subprocess"
+)]
 fn step_macros_compile() -> io::Result<()> {
     // This test spawns `cargo` (through `trybuild` and `cargo clippy`). On
     // Windows, nextest wraps test binaries in Job Objects and those child

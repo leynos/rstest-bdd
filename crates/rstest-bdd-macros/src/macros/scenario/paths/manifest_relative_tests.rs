@@ -48,6 +48,10 @@ fn render_feature_path_preserves_unix_backslashes() {
 
 #[serial(cargo_manifest_dir)]
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
+)]
 fn absolute_path_inside_manifest_becomes_relative() {
     let (manifest, inside, _) = native_absolute_path_fixtures();
     temp_env::with_var("CARGO_MANIFEST_DIR", Some(manifest), || {
@@ -58,6 +62,10 @@ fn absolute_path_inside_manifest_becomes_relative() {
 
 #[serial(cargo_manifest_dir)]
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
+)]
 fn absolute_path_outside_manifest_stays_absolute() {
     let (manifest, _, outside) = native_absolute_path_fixtures();
     temp_env::with_var("CARGO_MANIFEST_DIR", Some(manifest), || {
@@ -71,6 +79,10 @@ fn absolute_path_outside_manifest_stays_absolute() {
 
 #[serial(cargo_manifest_dir)]
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
+)]
 fn external_paths_remain_absolute_after_containment_checks() {
     let (manifest, ..) = native_absolute_path_fixtures();
     #[cfg(windows)]
