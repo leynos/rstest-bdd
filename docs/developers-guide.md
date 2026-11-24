@@ -2683,14 +2683,15 @@ When updating macro code generation, keep this boundary intact:
 
 ## Fallback binary build in integration tests
 
-`crates/cargo-bdd/tests/cli.rs` uses a two-phase strategy to locate the binary
-of a package it does not own, implemented by
-`rstest_bdd_harness::binary_test_support::locate_or_build_binary`. A package's
-own integration tests do not need it: Cargo builds the package's binary targets
-before running them and exports the path as `CARGO_BIN_EXE_<name>`, so
-`examples/todo-cli/tests/cli.rs` uses `assert_cmd::cargo::cargo_bin_cmd!`,
-which reads that path at compile time and can never compile anything inside a
-timed test. The strategy is:
+`crates/cargo-bdd/tests/cli.rs` uses a two-phase strategy to locate the
+`cargo-bdd` binary, implemented by
+`rstest_bdd_harness::binary_test_support::locate_or_build_binary`; its CLI
+suite also builds fixture crates, and the named preparation tests prepare those
+builds. A package's own integration tests that only run its binary do not need
+the helper: Cargo builds the package's binary targets before running them and
+exports the path as `CARGO_BIN_EXE_<name>`, so `examples/todo-cli/tests/cli.rs`
+uses `assert_cmd::cargo::cargo_bin_cmd!`, which reads that path at compile time
+and can never compile anything inside a timed test. The helper's strategy is:
 
 1. Try `assert_cmd::Command::cargo_bin("binary-name")`.
 2. On failure, compute the expected debug binary path via
