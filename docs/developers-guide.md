@@ -4431,22 +4431,22 @@ as an unresolvable failure. This is not a preference:
 reading that a non-resolving test would escape the rule, and all six tests
 panicked.
 
-### `#[serial]` and `temp-env` in runner tests
+### `#[serial]` and child processes in runner tests
 
 Skip policy is read from process-global environment state, which normally forces
-`#[serial]` plus `temp-env` on any test that touches it. D10 is what mostly
-removes the need: policy is resolved **once per run**, at scope construction,
-and recorded on the outcome, so a test can assert the *relation* between the
-inputs and outputs rather than the absolute value that a concurrent test might
-be mutating. The resolution event carries both inputs and both outputs for
-exactly this reason.
+`#[serial]` plus a changed environment on any test that touches it. D10 is
+what mostly removes the need: policy is resolved **once per run**, at scope
+construction, and recorded on the outcome, so a test can assert the *relation*
+between the inputs and outputs rather than the absolute value that a concurrent
+test might be mutating. The resolution event carries both inputs and both
+outputs for exactly this reason.
 
 The remaining constraint is narrower than it looks, and it is what the
-instrumentation tests actually do: a test that does not call `temp-env` must
-not assert an absolute policy value, because `config` reads `fail_on_skipped`
-once per scope while the doctests in the same crate also read it, and
-`#[serial]` gives no protection across binaries. Assert the relations the
-resolution event records instead:
+instrumentation tests actually do: a test that does not run in a child process
+with its own environment must not assert an absolute policy value, because
+`config` reads `fail_on_skipped` once per scope while the doctests in the same
+crate also read it, and `#[serial]` gives no protection across binaries. Assert
+the relations the resolution event records instead:
 
 ```plaintext
 allow_skipped  == plan_allows_skipping || !fail_on_skipped
