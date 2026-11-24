@@ -2683,9 +2683,15 @@ When updating macro code generation, keep this boundary intact:
 
 ## Fallback binary build in integration tests
 
-`crates/cargo-bdd/tests/cli.rs` and `examples/todo-cli/tests/cli.rs` use a
-two-phase strategy to locate test binaries, implemented by
-`rstest_bdd_harness::binary_test_support::locate_or_build_binary`:
+`crates/cargo-bdd/tests/cli.rs` uses a two-phase strategy to locate the
+`cargo-bdd` binary, implemented by
+`rstest_bdd_harness::binary_test_support::locate_or_build_binary`; its CLI
+suite also builds fixture crates, and the named preparation tests prepare those
+builds. A package's own integration tests that only run its binary do not need
+the helper: Cargo builds the package's binary targets before running them and
+exports the path as `CARGO_BIN_EXE_<name>`, so `examples/todo-cli/tests/cli.rs`
+uses `assert_cmd::cargo::cargo_bin_cmd!`, which reads that path at compile time
+and can never compile anything inside a timed test. The helper's strategy is:
 
 1. Try `assert_cmd::Command::cargo_bin("binary-name")`.
 2. On failure, compute the expected debug binary path via
@@ -2731,13 +2737,13 @@ coverage job cannot displace the branch under test.
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use rstest_bdd_harness::binary_test_support::BinaryLocateError;
+use rstest_bdd_harness::binary_test_support::{BinaryLocateError, BinaryName};
 
 /// Returns the expected debug binary path for `binary_name` given a target
 /// directory root. Pure computation: no I/O.
 pub fn binary_path_in_target_dir(
     target_directory: &Path,
-    binary_name: &str,
+    binary_name: BinaryName<'_>,
 ) -> PathBuf;
 
 /// Resolves the workspace target directory by running `cargo metadata`.
@@ -2752,7 +2758,7 @@ pub fn target_directory_for_manifest(
 pub fn locate_or_build_binary(
     manifest_path: &Path,
     workspace_root: &Path,
-    binary_name: &str,
+    binary_name: BinaryName<'_>,
 ) -> Result<Command, BinaryLocateError>;
 
 /// Builds `binary_name` via `cargo build --bin <name>` in `workspace_root`.
@@ -2760,20 +2766,24 @@ pub fn locate_or_build_binary(
 /// cannot be spawned.
 pub fn build_binary(
     workspace_root: &Path,
-    binary_name: &str,
+    binary_name: BinaryName<'_>,
 ) -> std::io::Result<Output>;
 ```
 
-**Usage example** (from `examples/todo-cli/tests/cli.rs`):
+**Usage example** (from `crates/cargo-bdd/tests/cli.rs`):
 
 ```rust
 use assert_cmd::Command;
 
-fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
+fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     let root = workspace_root();
-    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli")
-        .map(Command::from_std)
-        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+    locate_or_build_binary(
+        &root.join("Cargo.toml"),
+        &root,
+        BinaryName::new("cargo-bdd"),
+    )
+    .map(Command::from_std)
+    .map_err(|e| eyre::eyre!(e))
 }
 ```
 

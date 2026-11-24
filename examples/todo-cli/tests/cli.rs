@@ -1,56 +1,43 @@
 //! Integration tests exercising the `todo-cli` binary.
 
-use std::{env, path::PathBuf};
-
-use assert_cmd::Command;
+use assert_cmd::{Command, cargo::cargo_bin_cmd};
 use predicates::prelude::*;
-use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
 
-fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
-    let root = workspace_root();
-    locate_or_build_binary(&root.join("Cargo.toml"), &root, BinaryName::new("todo-cli"))
-        .map(Command::from_std)
-        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
-}
-
-fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..") }
+/// Builds a command for the package's own `todo-cli` binary.
+///
+/// Cargo builds a package's binary targets before it runs that package's
+/// integration tests and hands the path to the test through
+/// `CARGO_BIN_EXE_todo-cli`, so no test body compiles anything. A
+/// locate-or-build helper would only add a fallback that compiles the binary
+/// inside a timed test, which this package never needs.
+fn todo_cli_cmd() -> Command { cargo_bin_cmd!("todo-cli") }
 
 #[test]
-fn add_succeeds() -> Result<(), Box<dyn std::error::Error>> {
-    locate_or_build_todo_cli_cmd()?
+fn add_succeeds() {
+    todo_cli_cmd()
         .args(["add", "Buy milk"])
         .assert()
         .success()
         .stdout("");
-    Ok(())
 }
 
 #[test]
-fn list_is_empty_by_default() -> Result<(), Box<dyn std::error::Error>> {
-    locate_or_build_todo_cli_cmd()?
-        .arg("list")
-        .assert()
-        .success()
-        .stdout("\n");
-    Ok(())
-}
+fn list_is_empty_by_default() { todo_cli_cmd().arg("list").assert().success().stdout("\n"); }
 
 #[test]
-fn unknown_subcommand_fails() -> Result<(), Box<dyn std::error::Error>> {
-    locate_or_build_todo_cli_cmd()?
+fn unknown_subcommand_fails() {
+    todo_cli_cmd()
         .arg("bogus")
         .assert()
         .failure()
         .stderr(predicates::str::contains("error").or(predicates::str::contains("Usage")));
-    Ok(())
 }
 
 #[test]
-fn add_rejects_blank_description() -> Result<(), Box<dyn std::error::Error>> {
-    locate_or_build_todo_cli_cmd()?
+fn add_rejects_blank_description() {
+    todo_cli_cmd()
         .args(["add", "   "])
         .assert()
         .failure()
         .stderr(predicates::str::contains("must not be blank"));
-    Ok(())
 }
