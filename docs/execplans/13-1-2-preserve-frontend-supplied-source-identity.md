@@ -7,8 +7,8 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 proceeds.
 
 Status: DRAFT — revised after the expert-panel review (D12) and rebased onto
-`origin/main` at `0669195f` (D14, D15), awaiting approval. No implementation
-may begin until the plan is explicitly approved.
+`origin/main` at `7c8ac50f` (D14-D17), awaiting approval. No implementation may
+begin until the plan is explicitly approved.
 
 ## Purpose / big picture
 
@@ -73,10 +73,11 @@ coordinates.
 
 Read these before starting:
 
-- `docs/adr-018-parser-neutral-scenario-execution.md`, especially "Structured
-  outcome" (the binding source semantics), "Source-neutral diagnostics" (the
-  section this item discharges), "Known risks and limitations" ("prefer opaque
-  accessors where future change is plausible"), and verification item 7.
+- `docs/adrs/adr-0018-parser-neutral-scenario-execution.md`, especially
+  "Structured outcome" (the binding source semantics), "Source-neutral
+  diagnostics" (the section this item discharges), "Known risks and
+  limitations" ("prefer opaque accessors where future change is plausible"),
+  and verification item 7.
 - `docs/rstest-bdd-design.md` §2.6.4 "The parser-neutral scenario runner" and
   §3.11.1 "The parser-neutral runner modules".
 - `docs/developers-guide.md` section "The parser-neutral runner
@@ -114,7 +115,7 @@ pretty_assertions, insta), `proptest` (the source-fidelity property),
    may be added to them. This is the roadmap's "without extending runtime
    errors with frontend metadata".
 2. No source identity is ever read back out of an `ExecutionError` or derived
-   by parsing any string, in accessors or in `Display` (ADR-018, "Structured
+   by parsing any string, in accessors or in `Display` (ADR-0018, "Structured
    outcome"; 13.1.1 INV-7 clause three). After this change the rule holds
    without exception (D5).
 3. The runner treats paths as opaque: no normalization, extension check, case
@@ -176,7 +177,7 @@ conflict in `Decision log`, and escalate.
 - Iterations: a gate still failing after three focused fix attempts stops
   work.
 - Time: any single milestone exceeding six hours of active work stops work.
-- Ambiguity: if ADR-018 text admits two readings that lead to different
+- Ambiguity: if ADR-0018 text admits two readings that lead to different
   public shapes, stop and present both.
 - Evidence: if a red run fails for any reason other than a missing or wrong
   location (for example a compile error or an unrelated panic), stop and
@@ -272,6 +273,11 @@ conflict in `Decision log`, and escalate.
   adopted as Constraints 13 and 14 (D16). Found that the developers' guide's
   runner subsection on `#[serial]` and `temp-env` now contradicts them; its
   rewrite is proposed for EP-M4, pending approval (D16).
+- [x] (2026-11-24) Took #942 by rebasing onto `origin/main` at `7c8ac50f`;
+  five plan commits replayed without conflict. That commit moved ADRs to
+  `docs/adrs/` with four-digit numbers and imported the shared documentation
+  style guide; the plan's ADR references are updated and every line citation
+  and file size re-verified unchanged at `7c8ac50f` (D17).
 - [ ] Approval of the plan by the user.
 - [ ] EP-M1: characterization tests and the error-shape tripwire (green).
 - [ ] EP-M2: opaque failure, step and scenario identity (red recorded, then
@@ -362,7 +368,7 @@ conflict in `Decision log`, and escalate.
   `ForcedSkip(ScenarioSkip)`, and `EmptyPlan`. The public surface is accessors
   only. `FailureSite` remains the matchable projection, so a caller that
   branches on the kind of failure matches `failure.site()`. Rationale:
-  ADR-018's "prefer opaque accessors where future change is plausible"; change
+  ADR-0018's "prefer opaque accessors where future change is plausible"; change
   is plausible (the struck lifecycle-hook failures are expected arrivals,
   `failure.rs` lines 162-168); the `outcome` module already promises that every
   payload sits behind an accessor; and no code outside the crate destructures
@@ -375,7 +381,7 @@ conflict in `Decision log`, and escalate.
   the failing invocation's location for a step failure and the skipping
   invocation's location for a forced skip, and `None` for an empty plan.
   Rationale: `source()` would shadow `std::error::Error::source()` (see
-  `Surprises & discoveries`); the `step_` prefix keeps ADR-018's `source`
+  `Surprises & discoveries`); the `step_` prefix keeps ADR-0018's `source`
   vocabulary while saying which level of identity it is. A scenario line is
   never returned from a step-level accessor, so a reporter cannot mistake one
   for the other; `terminal_source()` likewise stays step-level.
@@ -449,11 +455,11 @@ conflict in `Decision log`, and escalate.
   60-second case budget; and the near-cap files (`runner_panics.rs` at 375
   lines and `sequence/steps/mod.rs` at 387, measured at `4c21753d`) are not
   touched.
-- D9. No ADR. Rationale: the change implements ADR-018's existing binding
+- D9. No ADR. Rationale: the change implements ADR-0018's existing binding
   semantics ("Terminal `Skipped` and `Failed` outcomes carry `source`";
   "Locations are never added to `ExecutionError`"; "prefer opaque accessors")
   rather than altering them. D2-D5 are recorded in `docs/rstest-bdd-design.md`
-  §2.6.4 in a new "Source-neutral diagnostics" paragraph that cites ADR-018.
+  §2.6.4 in a new "Source-neutral diagnostics" paragraph that cites ADR-0018.
 - D10. Red-Green-Refactor without red commits.
   Decision: EP-M1 is a green plateau (characterization tests that pin what
   already works, plus the tripwire). In EP-M2 the red rows are written first
@@ -471,7 +477,7 @@ conflict in `Decision log`, and escalate.
   index rather than forcing that map into `SourceLocation`. The
   frontend-supplied location is the primary location of a failure;
   definition-side locations (`MissingFixturesDetails::step_location`, a panic's
-  Rust location) remain inside the error, unchanged. Rationale: ADR-018
+  Rust location) remain inside the error, unchanged. Rationale: ADR-0018
   technical requirement 6 (frontends retain richer source maps); this is also
   how Cucumber messages join results to sources. `SourceLocation`'s private
   fields leave room to add an end position or span later without a breaking
@@ -496,9 +502,9 @@ conflict in `Decision log`, and escalate.
   give `Location` a required one-based line and an optional one-based column,
   matching `SourceLocation`, and join results to locations through identifiers
   rather than embedding locations in results or errors; that is D11's index
-  join key, and D2-D4 are justified by ADR-018's binding text, not by Cucumber.
-  SARIF and the Language Server Protocol inform the column-unit note in the
-  users' guide.
+  join key, and D2-D4 are justified by ADR-0018's binding text, not by
+  Cucumber. SARIF and the Language Server Protocol inform the column-unit note
+  in the users' guide.
 
 - D14. Rebase onto `4c21753d` (2026-11-23): main's step-library scopes
   (#686) are absorbed, not reversed. Decision: (a) Constraint 1 and D6 pin the
@@ -521,8 +527,8 @@ conflict in `Decision log`, and escalate.
   (d) Line citations and file sizes were re-measured at `4c21753d`. Rationale:
   the plan must describe the code it will change, and these, with the Whitaker
   repin recorded in `Risks`, were the plan-relevant changes among the 24
-  commits; ADR-018, the 13.1.1 ExecPlan, roadmap item 13.1.2, and design §2.6.4
-  are unchanged.
+  commits; ADR-0018, the 13.1.1 ExecPlan, roadmap item 13.1.2, and design
+  §2.6.4 are unchanged.
 
 - D15. Rebase onto `0669195f` (2026-11-23): main's test-environment rule
   (#969) is adopted. `clippy.toml` now disallows `std::env::set_var`,
@@ -562,6 +568,25 @@ conflict in `Decision log`, and escalate.
   `ScenarioScope::with_skip_policy` injection. It adds one subsection to an
   already-planned file, so the file count is unchanged. If the user prefers to
   keep 13.1.2 narrow, it becomes a separate documentation fix instead.
+
+- D17. Rebase onto `7c8ac50f` (2026-11-24): main's documentation style
+  guide (#942) is adopted. Decision: (a) ADR-0018 is cited at its new path,
+  `docs/adrs/adr-0018-parser-neutral-scenario-execution.md`, and named
+  "ADR-0018" in prose, matching main; the `ADR18-*` requirement identifiers are
+  internal labels and stay unchanged. The ADR's text changed only in ADR
+  numbering, and every passage this plan quotes is still present. (b) Headings
+  already use sentence case. (c) No migration-guide entry is needed: the style
+  guide requires one per release that changes observable behaviour, and the
+  runner types this item changes have never been released (D2), so
+  `docs/v0-7-0-migration-guide.md` gains nothing; its "runner" mentions refer
+  to test runners. (d) The users' guide example EP-M4 adds (byte offset to
+  scalar-value column) lies outside the region roadmap item 10.3.3 enforces with
+  `tested-example` markers; it is written to compile against the public API,
+  and marking it follows the rest of the guide under roadmap item 10.3.4.
+  Rationale: #942 changed no runner, error, or registry source; its edits to
+  files this plan cites are ADR renames inside comments
+  (`reporting/conversion.rs`, `runner_panics.rs`, `execution/unwind.rs`), so
+  the citations hold.
 
 ## Outcomes & retrospective
 
@@ -626,8 +651,8 @@ controls under `sequence/`). Steps are registered in each binary with the
   criterion RM-13.1.2-S1: "runtime tests execute plans whose sources are not
   `.feature` files and assert that supplied path, line, and column information
   remains available to the caller".
-- ADR: `docs/adr-018-parser-neutral-scenario-execution.md` (Accepted,
-  2026-07-13) at `4c21753d`:
+- ADR: `docs/adrs/adr-0018-parser-neutral-scenario-execution.md` (Accepted,
+  2026-07-13) at `7c8ac50f`:
   - ADR18-OUT-SRC: "Every such outcome exposes
     `source() -> Option<&SourceLocation>`. Terminal `Skipped` and `Failed`
     outcomes carry `source` … alongside the terminal step index." The names
@@ -1018,7 +1043,7 @@ pass after EP-M2 under
 - Conformance check:
   - S1, S2, S4 evidenced on executed runs.
   - Design unchanged; no production behaviour changed.
-  - ADR-018 assumptions hold.
+  - ADR-0018 assumptions hold.
   - No public interface change.
   - No trust-boundary or persisted-format change.
   - Trace links current.
@@ -1038,7 +1063,7 @@ pass after EP-M2 under
 - Conformance check:
   - S1-S8 and SRC-1..SRC-9 satisfied on executed runs.
   - Design: drivers still decision-free; policy owns assembly.
-  - ADR-018 assumptions hold; no location enters a runtime error.
+  - ADR-0018 assumptions hold; no location enters a runtime error.
   - Public change limited to `Interfaces and dependencies`.
   - No trust-boundary or persisted-format change.
   - Trace links current.
@@ -1078,7 +1103,7 @@ pass after EP-M2 under
     carry only a path until 13.3.1. Rewrite the existing paragraph at
     `users-guide.md` lines 2252-2257 that describes the old fallback.
   - `docs/rstest-bdd-design.md` §2.6.4: a "Source-neutral diagnostics"
-    paragraph recording D2-D5 and D11 and citing ADR-018; §2.6's Stage 1
+    paragraph recording D2-D5 and D11 and citing ADR-0018; §2.6's Stage 1
     paragraph (near line 1403) gains 13.1.2.
   - `docs/developers-guide.md`, runner section: runner outcome types carry
     source identity and runtime errors never do; the tripwire module and what
@@ -1095,7 +1120,7 @@ pass after EP-M2 under
 - Acceptance: `make fmt` (staging by path only), `make check-fmt`,
   `make lint`, `make test`, `make markdownlint`, `make nixie`, and
   `make -B spelling` pass.
-- Conformance check: reconcile every discovery with ADR-018 and the design
+- Conformance check: reconcile every discovery with ADR-0018 and the design
   document; record any mechanical difference in `Decision log`.
 - Recovery: documentation-only; revert to retry.
 - Remaining gaps: none expected.
@@ -1328,3 +1353,8 @@ process-wide locks), Constraint 6 and the signpost no longer present
 `serial_test` as a usable tool, and the Whitaker risk records the
 fallible-fixture rule (D16). Effect on remaining work: none beyond the
 constraints; no milestone has started.
+
+2026-11-24, revision 6: rebased onto `origin/main` at `7c8ac50f`. Changed:
+ADR-0018's path and name follow #942's renumbering, and D17 records the
+style-guide checks (headings, migration guide, tested examples). Effect on
+remaining work: none; no milestone has started.
