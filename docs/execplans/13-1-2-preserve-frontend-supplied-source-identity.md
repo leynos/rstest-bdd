@@ -7,7 +7,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 proceeds.
 
 Status: DRAFT — revised after the expert-panel review (D12) and rebased onto
-`origin/main` at `7c8ac50f` (D14-D17), awaiting approval. No implementation may
+`origin/main` at `bbc53615` (D14-D17), awaiting approval. No implementation may
 begin until the plan is explicitly approved.
 
 ## Purpose / big picture
@@ -278,6 +278,11 @@ conflict in `Decision log`, and escalate.
   `docs/adrs/` with four-digit numbers and imported the shared documentation
   style guide; the plan's ADR references are updated and every line citation
   and file size re-verified unchanged at `7c8ac50f` (D17).
+- [x] (2026-11-24) Rebased onto `origin/main` at `bbc53615` (three commits:
+  CI run cancellation, todo-cli binary tests, and manifest-directory injection
+  in macro path tests). None touches a convention file or any file this plan
+  cites: the developers' guide edits fall outside its runner section, and
+  `Cargo.lock` drops one todo-cli dependency. No plan change beyond this entry.
 - [ ] Approval of the plan by the user.
 - [ ] EP-M1: characterization tests and the error-shape tripwire (green).
 - [ ] EP-M2: opaque failure, step and scenario identity (red recorded, then
