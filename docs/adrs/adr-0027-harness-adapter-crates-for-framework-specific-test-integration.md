@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 005a: introduce harness adapter crates for framework-specific test integration
+# Architectural decision record (ADR) 0027: introduce harness adapter crates for framework-specific test integration
 
 ## Status
 
@@ -11,8 +11,19 @@ Bill of Materials) entries), while enabling Behaviour-Driven Development
 will follow the same pattern.
 
 Amended (2026-09-14): Renumber this record as ADR-005a to distinguish the
-harness-adapter decision from ADR-005's async-step-functions decision; the
+harness-adapter decision from ADR-005's async-step-functions decision (later
+renumbered ADR-0005); the accepted decision content is unchanged.
+
+Amended (2026-11-03): Renumber this record as ADR-0025 to follow the adopted
+four-digit serial convention; the accepted decision content is unchanged.
+
+Amended (2026-11-21): Renumber this record as ADR-0026 after ADR-0025 was
+reallocated to the nested-Cargo preparation gate on the target branch; the
 accepted decision content is unchanged.
+
+Amended (2026-11-22): Renumber this record as ADR-0027 after ADR-0026 was
+allocated to the OrthoConfig decision on the target branch; the accepted
+decision content is unchanged.
 
 ## Date
 
@@ -238,6 +249,28 @@ execution semantics.
 ### 2026-09-14: assign the 005a identifier
 
 This record was renumbered from ADR-005 to ADR-005a because ADR-005 now
-identifies the async-step-functions decision. The harness-adapter decision and
-its accepted content are unchanged; the filename and heading carry the new
-identifier to remove the collision.
+identifies the async-step-functions decision (later renumbered ADR-0005). The
+harness-adapter decision and its accepted content are unchanged; the filename
+and heading carry the new identifier to remove the collision.
+
+### 2026-11-03: adopt the four-digit serial convention
+
+The repository adopted four-digit serials for ADR filenames and headings. The
+legacy `005a` suffix does not fit that scheme, so this record took ADR-0025,
+the next serial available to it at the time. Its accepted decision content is
+unchanged.
+
+### 2026-11-21: reallocate 0025 to the nested-Cargo preparation gate
+
+The nested-Cargo preparation gate landed as ADR-0025 on the target branch
+first, so it keeps that serial and this record moved to ADR-0026. Numbering is
+allocation order, and renumbering the newer record is the only option that does
+not rewrite the record already published. The filename and heading carry the
+new identifier; the decision and its accepted content are unchanged.
+
+### 2026-11-22: reallocate 0026 to the OrthoConfig decision
+
+The OrthoConfig decision then landed as ADR-0026 on the target branch, so this
+record moves once more, to the next free serial. The same rule applies: the
+record already published keeps its number, and this one takes the next
+available. The decision and its accepted content are unchanged.

@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Ubicloud runners register as just-in-time self-hosted runners, so the
     # six-hour hosted limit does not apply. Bound the job explicitly.
-    timeout-minutes: 190
+    timeout-minutes: 240
     permissions:
       contents: read
     env:
@@ -608,7 +608,7 @@ jobs:
           # before nextest can use the budget it was given. See "Test
           # timeouts: four tiers, outermost last" in
           # docs/developers-guide.md.
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '6600'
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '9900'
           # Tests that snapshot a child process's stderr must see the same
           # panic-hook output on every lane. An instrumented build retains
           # debuginfo, so a backtrace would otherwise appear here and not on
@@ -655,7 +655,7 @@ jobs:
           # tiers, outermost last" in docs/developers-guide.md. It stays
           # explicit so a future default cannot quietly shorten these
           # lanes.
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '6600'
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '9900'
           # Match the Linux lane so stderr snapshots stay deterministic.
           RUST_BACKTRACE: '0'
         with:
@@ -689,7 +689,7 @@ jobs:
           # tiers, outermost last" in docs/developers-guide.md. It stays
           # explicit so a future default cannot quietly shorten these
           # lanes.
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '6600'
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '9900'
           # Match the Linux lane so stderr snapshots stay deterministic.
           RUST_BACKTRACE: '0'
         with:

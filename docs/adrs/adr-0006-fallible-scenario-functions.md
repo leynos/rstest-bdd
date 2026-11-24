@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 006: fallible scenario functions
+# Architectural decision record (ADR) 0006: fallible scenario functions
 
 ## Status
 
@@ -14,9 +14,10 @@ outcomes do not record a passed scenario.
 
 Scenario bodies currently return `()` while steps already support fallible
 return types via the shared `ReturnKind` classification. See
-[ADR 002](adr-002-stable-step-return-classification.md) for the return-kind
-design and [Users guide §Step return values](users-guide.md#step-return-values)
-for macro classification details. During the fallible scenario experiment, the
+[ADR 0002](adr-0002-stable-step-return-classification.md) for the return-kind
+design and
+[Users guide §Step return values](../users-guide.md#step-return-values) for
+macro classification details. During the fallible scenario experiment, the
 macro could not express a fallible scenario signature without breaking the skip
 path or misreporting the scenario outcome. The framework needs a way to let
 scenario bodies use `?` while keeping status recording accurate and compiler
@@ -28,7 +29,7 @@ diagnostics clear.
 - Preserve accurate pass/fail reporting when a scenario returns `Err`.
 - Keep the skip short-circuit path type-correct for fallible signatures.
 - Keep scenario handling on the existing `ReturnKind` logic; step aliases use
-  the separate type-directed dispatch introduced by ADR-019.
+  the separate type-directed dispatch introduced by ADR-0019.
 - Avoid introducing unused payload values in scenario results.
 
 ## Requirements

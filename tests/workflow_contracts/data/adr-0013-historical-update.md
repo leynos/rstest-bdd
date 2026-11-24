@@ -56,5 +56,5 @@ environment:
   `whitaker --all` through this same wrapper.
 
 Contributor-facing setup and maintenance steps are documented in
-`docs/developers-guide.md` under "Whitaker Dylint suite lint gate (ADR-013)".
+`docs/developers-guide.md` under "Whitaker Dylint suite lint gate (ADR-0013)".
 

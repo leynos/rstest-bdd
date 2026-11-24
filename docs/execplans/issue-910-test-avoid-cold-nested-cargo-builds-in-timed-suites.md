@@ -4414,7 +4414,7 @@ runner decision arrives as a parameter, resolved once by the call site with
 the toolchain probe and the diagnostic reporter, so a test can make `cargo -vV`
 fail and read the gate's stderr without either one being reachable from
 production's own binding. See
-`docs/adr-025-nested-cargo-preparation-gate-query-boundary.md`.
+`docs/adrs/adr-0025-nested-cargo-preparation-gate-query-boundary.md`.
 
 The five suites:
 

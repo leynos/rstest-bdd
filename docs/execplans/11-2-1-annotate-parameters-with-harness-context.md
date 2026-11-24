@@ -264,9 +264,9 @@ Stop and escalate — do not improvise — when any of these is reached.
   `docs/developers-guide.md` (`classify_harness_context` stage, shared
   `HARNESS_CONTEXT_FIXTURE` constant, `#[step_args]` cross-guard),
   `docs/rstest-bdd-design.md` §2.7.6.4 (marker recorded as delivered), and
-  `docs/adr-007-harness-context-injection.md` (dated addendum). `docs/` tree
-  passes `markdownlint` and `make nixie`; full-tree `make markdownlint` fails
-  only on the gitignored `.vtcode/` runtime artefacts.
+  `docs/adrs/adr-0007-harness-context-injection.md` (dated addendum). `docs/`
+  tree passes `markdownlint` and `make nixie`; full-tree `make markdownlint`
+  fails only on the gitignored `.vtcode/` runtime artefacts.
 - [x] Milestone 9 — roadmap tick, full gates, and pull request. Committed
   `ca7b73e`, 2026-08-17. `docs/roadmap.md` 11.2.1 ticked `[x]` with a
   completion note; this plan set `Status: COMPLETE` and filled in
@@ -402,14 +402,15 @@ Stop and escalate — do not improvise — when any of these is reached.
   agent.
 
 - Decision: record the change as a dated addendum to
-  `docs/adr-007-harness-context-injection.md` rather than a new ADR. Rationale:
-  ADR-007 is the record that established the reserved fixture key and the
-  `#[from(...)]` request form. Adding a second, readable spelling of the same
-  request is an amendment to that decision, not a new one. The documentation
-  style guide reserves ADRs for hard-to-reverse choices; a new ADR-016 would
-  fragment the harness-context record across two documents. Alternative
-  available if the reviewer disagrees: promote the addendum to ADR-016 and mark
-  ADR-007 as amended-by. Date/Author: 2026-08-15, planning agent.
+  `docs/adrs/adr-0007-harness-context-injection.md` rather than a new ADR.
+  Rationale: ADR-0007 is the record that established the reserved fixture key
+  and the `#[from(...)]` request form. Adding a second, readable spelling of
+  the same request is an amendment to that decision, not a new one. The
+  documentation style guide reserves ADRs for hard-to-reverse choices; a new
+  ADR-0016 would fragment the harness-context record across two documents.
+  Alternative available if the reviewer disagrees: promote the addendum to
+  ADR-0016 and mark ADR-0007 as amended-by. Date/Author: 2026-08-15, planning
+  agent.
 
 - Decision: verification uses `rstest` unit tests, a `proptest` property, an
   equivalence assertion over generated token streams, `trybuild` compile-fail
@@ -476,8 +477,8 @@ renamed, or re-typed; the crate-level test suites were left on the legacy
 spelling as the standing compatibility evidence. User-facing examples
 (`tokio-reminders` and `gpui-counter`) compile and run with the marker, the
 users guide and developer guide document all three spellings, design 2.7.6.4
-records the delivered design, and ADR-007 gained a dated addendum recording the
-marker, the unchanged wire format, and the shared-key relocation.
+records the delivered design, and ADR-0007 gained a dated addendum recording
+the marker, the unchanged wire format, and the shared-key relocation.
 
 One deliberate deviation from the plan's draft is that the Tokio example's
 context step performs no delivery. The harness step wrapper polls each async
@@ -706,8 +707,8 @@ Repository documentation to read:
 - `docs/rstest-bdd-design.md` §2.7 (lines 1468-2200), particularly §2.7.6.4
   (lines 2125-2136), the section this work realizes, and §2.7.6.5 (lines
   2137-2151), which describes what v0.7.0 will do instead.
-- `docs/adr-007-harness-context-injection.md` — the normative record for the
-  reserved key and the `#[from(...)]` form (lines 163-166).
+- `docs/adrs/adr-0007-harness-context-injection.md` — the normative record for
+  the reserved key and the `#[from(...)]` form (lines 163-166).
 - `docs/developers-guide.md` — "Workspace dependency policy" (lines 7-44),
   "Staging fixtures for trybuild tests" (lines 46-69), "Macro expansion
   snapshot helpers" (lines 70-110), and "Macro implementation: fixture
@@ -1308,9 +1309,9 @@ currently lists "an explicit harness-context parameter marker" among
 *candidate* additions. Rewrite that clause to record the delivered design: the
 marker's spelling, that it desugars to the reserved key internally, that the
 legacy `#[from(...)]` form is retained without deprecation, and a pointer to
-the ADR-007 addendum. Keep the remaining candidates as candidates.
+the ADR-0007 addendum. Keep the remaining candidates as candidates.
 
-**`docs/adr-007-harness-context-injection.md`.** Append a dated addendum
+**`docs/adrs/adr-0007-harness-context-injection.md`.** Append a dated addendum
 (2026-08-15) recording that the reserved key gained a readable marker spelling,
 that the key itself is unchanged and remains the wire format between generated
 scenario code and generated step wrappers, and that the canonical definition

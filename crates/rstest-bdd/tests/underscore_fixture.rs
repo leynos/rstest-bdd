@@ -16,46 +16,18 @@ fn world() -> StreamingState { StreamingState::default() }
 #[fixture]
 fn _world() -> &'static str { "explicit _world fixture" }
 
-// The step bodies read the injected fixture with an assertion, then hand it to
-// a helper that performs the mutation. The read keeps
-// `clippy::used_underscore_binding` firing on every toolchain, so the
-// `#[expect]` below is fulfilled on all of them: the lint's span moved between
-// compilers, and an `#[expect]` that one toolchain does not trigger is itself
-// an error. The assertion also proves both steps share one fixture instance.
-// `allow` is not an option here, since the workspace denies bare `allow`
-// attributes.
-
 #[given("the streaming world is available")]
-#[expect(
-    clippy::used_underscore_binding,
-    reason = "the test proves underscore-prefixed implicit fixture injection can be used directly"
-)]
-fn world_is_available(_world: &mut StreamingState) {
-    assert_eq!(
-        _world.parsed_events, 0,
-        "a new scenario should start with an untouched world fixture"
-    );
-    record_first_event(_world);
-}
+fn world_is_available(world: &mut StreamingState) { world.parsed_events = 1; }
 
 #[when("the parser runs once more")]
+fn parser_runs_again(world: &mut StreamingState) { world.parsed_events += 1; }
+
+#[when("the underscore-prefixed streaming world is changed")]
 #[expect(
     clippy::used_underscore_binding,
-    reason = "the test proves underscore-prefixed implicit fixture injection can be used directly"
+    reason = "the test proves mutable underscore-prefixed fixture injection changes the world"
 )]
-fn parser_runs_again(_world: &mut StreamingState) {
-    assert_eq!(
-        _world.parsed_events, 1,
-        "the given step should have run against this same fixture"
-    );
-    record_another_event(_world);
-}
-
-/// Mark the world as having handled its first event.
-fn record_first_event(state: &mut StreamingState) { state.parsed_events = 1; }
-
-/// Advance the world by one event.
-fn record_another_event(state: &mut StreamingState) { state.parsed_events += 1; }
+fn underscore_prefixed_world_is_changed(_world: &mut StreamingState) { _world.parsed_events += 1; }
 
 #[then("implicit underscore fixture lookup uses the world fixture")]
 #[expect(
@@ -64,6 +36,14 @@ fn record_another_event(state: &mut StreamingState) { state.parsed_events += 1; 
 )]
 fn implicit_lookup_uses_world_fixture(_world: &StreamingState) {
     assert_eq!(_world.parsed_events, 2);
+}
+
+#[then("the mutable underscore fixture change is visible")]
+fn mutable_underscore_fixture_change_is_visible(world: &StreamingState) {
+    assert_eq!(
+        world.parsed_events, 3,
+        "the mutation through the underscore-prefixed fixture must reach shared state"
+    );
 }
 
 #[then("explicit from keeps the underscore-prefixed fixture key")]

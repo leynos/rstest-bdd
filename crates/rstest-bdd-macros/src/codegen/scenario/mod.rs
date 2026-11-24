@@ -10,7 +10,7 @@
 //! - [`helpers`] — step-processing utilities and case-attribute generators.
 //! - [`metadata`] — feature-path and scenario-name wrappers for generated code.
 //! - [`runtime`] — async wrapper and harness-orchestrated runtime tokens.
-//! - [`test_attrs`] — ADR-008 attribute-policy resolution, translating harness and runtime-mode
+//! - [`test_attrs`] — ADR-0008 attribute-policy resolution, translating harness and runtime-mode
 //!   hints into the correct set of test attributes (`#[rstest::rstest]`, `#[tokio::test]`,
 //!   `#[gpui::test]`).
 //!
@@ -23,12 +23,19 @@ use std::borrow::Cow;
 use proc_macro2::TokenStream as TokenStream2;
 
 mod adapters;
+
 mod boundary;
+
 mod domain;
+
 mod emit;
+
 mod helpers;
+
 mod metadata;
+
 mod runtime;
+
 mod test_attrs;
 
 use adapters::resolve_scenario_adapters;

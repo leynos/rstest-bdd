@@ -6,7 +6,6 @@
 
 use std::{
     any::Any,
-    env,
     future::Future,
     panic::{self, RefUnwindSafe},
     process::Termination,
@@ -16,7 +15,10 @@ use std::{
 pub use gpui_macros::test;
 pub use test_window::{AnyWindowHandle, Entity, EntityError, VisualTestContext};
 
+mod seeds;
 mod test_window;
+
+use seeds::{calculate_seeds_with, parse_env_u64};
 
 /// Classifies one protected test invocation for the retry controller.
 enum AttemptAction {
@@ -177,7 +179,33 @@ pub fn run_test(
     test_fn: &mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
     on_fail_fn: Option<fn()>,
 ) {
-    let (seeds, is_multiple_runs) = calculate_seeds(num_iterations as u64, explicit_seeds);
+    run_test_with(
+        RunTestConfig {
+            num_iterations,
+            explicit_seeds,
+            max_retries,
+            test_fn,
+            on_fail_fn,
+        },
+        parse_env_u64,
+    );
+}
+
+/// Runs a test closure with the environment lookup supplied by the caller.
+///
+/// The public entry point passes the process environment; tests pass a lookup
+/// that answers nothing, so a seed expectation never depends on an ambient
+/// `SEED` or `ITERATIONS` value.
+fn run_test_with(config: RunTestConfig<'_>, lookup: impl Fn(&str) -> Option<u64>) {
+    let RunTestConfig {
+        num_iterations,
+        explicit_seeds,
+        max_retries,
+        test_fn,
+        on_fail_fn,
+    } = config;
+    let (seeds, is_multiple_runs) =
+        calculate_seeds_with(num_iterations as u64, explicit_seeds, lookup);
 
     let mut ctx = RunSeedContext {
         max_retries,
@@ -188,6 +216,20 @@ pub fn run_test(
     for seed in seeds {
         run_seed(seed, &mut ctx);
     }
+}
+
+/// Inputs for one test run, grouped so the environment seam stays narrow.
+struct RunTestConfig<'a> {
+    /// Number of generated seeds to try when no explicit seeds are provided.
+    num_iterations: usize,
+    /// Seeds supplied by the test harness instead of generating a range.
+    explicit_seeds: &'a [u64],
+    /// Maximum number of attempts for each seed before it fails terminally.
+    max_retries: usize,
+    /// Test closure invoked for each selected seed.
+    test_fn: &'a mut (dyn RefUnwindSafe + Fn(TestDispatcher, u64)),
+    /// Optional hook invoked after a seed fails terminally.
+    on_fail_fn: Option<fn()>,
 }
 
 /// The per-run settings shared by every seed a single test drives.
@@ -279,121 +321,5 @@ fn classify_attempt(
     }
 }
 
-/// Resolve the complete seed sequence and whether seed labels aid diagnostics.
-///
-/// Environment overrides take precedence over explicit seeds to mirror GPUI's
-/// reproducible test-run contract.
-fn calculate_seeds(
-    iterations: u64,
-    explicit_seeds: &[u64],
-) -> (impl Iterator<Item = u64> + '_, bool) {
-    let iterations = resolve_iterations(iterations);
-    let env_seed = parse_env_u64("SEED");
-    let seeds = select_seeds(iterations, explicit_seeds, env_seed);
-
-    let is_multiple_runs = seeds.len() > 1;
-    (seeds.into_iter(), is_multiple_runs)
-}
-
-/// Resolve the iteration count while preserving at least one test execution.
-fn resolve_iterations(default_iterations: u64) -> u64 {
-    parse_env_u64("ITERATIONS")
-        .unwrap_or(default_iterations)
-        .max(1)
-}
-
-/// Parse an optional unsigned environment override without failing the test run.
-///
-/// Invalid values are diagnosed to stderr because this shim has no logging
-/// subscriber and must make a discarded override observable to the developer.
-fn parse_env_u64(key: &str) -> Option<u64> { parse_env_u64_value(key, env::var(key)) }
-
-/// Parse a fallible environment lookup as an optional unsigned override.
-///
-/// A missing variable is deliberately optional, whereas an invalid Unicode or
-/// numeric value is discarded after its diagnostic makes the configuration
-/// mistake visible to the test author.
-#[expect(
-    clippy::print_stderr,
-    reason = "invalid environment overrides must be visible without global logging"
-)]
-fn parse_env_u64_value(key: &str, value: Result<String, env::VarError>) -> Option<u64> {
-    match value {
-        Ok(value) => match value.parse() {
-            Ok(parsed) => Some(parsed),
-            Err(error) => {
-                eprintln!("ignoring invalid {key} value {value:?}: {error}");
-                None
-            }
-        },
-        Err(env::VarError::NotPresent) => None,
-        Err(env::VarError::NotUnicode(value)) => {
-            eprintln!(
-                "ignoring invalid {key} value {}: value is not valid Unicode",
-                value.display()
-            );
-            None
-        }
-    }
-}
-
-/// Select deterministic seeds, giving an environment override precedence.
-fn select_seeds(iterations: u64, explicit_seeds: &[u64], env_seed: Option<u64>) -> Vec<u64> {
-    if let Some(seed) = env_seed {
-        return build_seed_range(seed, iterations);
-    }
-
-    let mut seeds = build_seed_range(0, iterations);
-    if iterations == 1 && explicit_seeds.is_empty() {
-        return seeds;
-    }
-
-    seeds.extend(explicit_seeds.iter().copied());
-    seeds
-}
-
-/// Build a non-empty consecutive seed range, truncating safely on overflow.
-///
-/// The truncation warning is emitted directly because silently wrapping would
-/// make a failing run unreproducible.
-#[expect(
-    clippy::print_stderr,
-    reason = "seed-range truncation must be visible without global logging"
-)]
-fn build_seed_range(start: u64, iterations: u64) -> Vec<u64> {
-    let mut seeds = Vec::new();
-    for offset in 0..iterations.max(1) {
-        if let Some(seed) = start.checked_add(offset) {
-            seeds.push(seed);
-        } else {
-            eprintln!(
-                "seed range overflowed for start={start} and iterations={iterations}; truncating \
-                 generated seeds"
-            );
-            break;
-        }
-    }
-
-    if seeds.is_empty() {
-        seeds.push(start);
-    }
-
-    seeds
-}
-
 #[cfg(test)]
-mod tests {
-    //! Tests the environment-override boundary without mutating process state.
-
-    use std::{env::VarError, ffi::OsString};
-
-    use super::parse_env_u64_value;
-
-    /// Treats an injected non-Unicode lookup failure as an invalid override.
-    #[test]
-    fn discards_non_unicode_environment_override() {
-        let value = VarError::NotUnicode(OsString::from("invalid-byte-sequence"));
-
-        assert_eq!(parse_env_u64_value("SEED", Err(value)), None);
-    }
-}
+mod retry_tests;

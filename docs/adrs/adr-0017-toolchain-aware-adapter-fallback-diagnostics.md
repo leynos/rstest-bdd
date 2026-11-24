@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 017: toolchain-aware adapter fallback diagnostics
+# Architectural decision record (ADR) 0017: toolchain-aware adapter fallback diagnostics
 
 ## Status
 
@@ -126,5 +126,5 @@ pin exactly one native warning, including a multi-scenario expansion.
 - [Design: harness adapters and attribute policies][design-harness].
 
 [issue-489]: https://github.com/leynos/rstest-bdd/issues/489
-[developers-fallback]: developers-guide.md#adapter-fallback-diagnostics
-[design-harness]: rstest-bdd-design.md#27-harness-adapters-and-attribute-policy-plugins-adr-005a-adr-007
+[developers-fallback]: ../developers-guide.md#adapter-fallback-diagnostics
+[design-harness]: ../rstest-bdd-design.md#27-harness-adapters-and-attribute-policy-plugins-adr-0025-adr-0007
