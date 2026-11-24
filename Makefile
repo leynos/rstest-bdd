@@ -122,6 +122,9 @@ test: build-python ## Run tests with warnings treated as errors
 	# nested builds in the tests resolve nothing under the shared cache lock.
 	$(CARGO) fetch --locked
 	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) build --bin $(APP) --bin todo-cli $(BUILD_JOBS)
+	# Prepare the nested-Cargo fixtures outside the timed pass, with exactly the
+	# pass's package selection and features (see `prepare-nested-fixtures`).
+	$(MAKE) prepare-nested-fixtures
 	if command -v cargo-nextest >/dev/null 2>&1; then \
 		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS); \
 	else \
@@ -144,6 +147,10 @@ test: build-python ## Run tests with warnings treated as errors
 	# The package selection is `-p rstest-bdd` alone for the same reason:
 	# `--workspace` would drag in every other crate, none of which is the
 	# subject of this leg.
+	#
+	# This leg builds a different feature graph from the pass above, so that
+	# pass's preparation warms nothing here: prepare it with its own flags.
+	$(MAKE) prepare-nested-fixtures PREPARE_FLAGS="-p rstest-bdd --all-targets --no-default-features"
 	if command -v cargo-nextest >/dev/null 2>&1; then \
 		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
 	else \
@@ -348,22 +355,32 @@ prefetch-fixture-deps: ## Warm the Cargo cache for the mutation lane's offline f
 # Compile the fixture dependency graphs the nested-Cargo suites need, before
 # any timed assertion runs.
 #
-# `make test` does not call this: under `cargo nextest` the named preparation
-# tests are part of the suite and `.config/nextest.toml` schedules them ahead
-# of the assertions with a budget of their own, and under plain `cargo test`
-# the timed tests prepare lazily behind a process-wide lock. Run this when a
-# run selects a subset — a filtered `cargo nextest run`, or a single test —
-# because nextest then fails the timed test with the command that prepares it
-# rather than letting that test's deadline pay for a cold build. It is
-# idempotent: a warm target directory costs one stamp read per family.
+# `make test` calls this before each of its test passes, with that pass's own
+# package selection and features in `PREPARE_FLAGS`, so a loaded host pays the
+# cold nested builds here rather than inside a timed test's deadline. The
+# preparation tests also remain members of the suite, where `.config/nextest.toml`
+# schedules them first; on a prepared tree they stamp in seconds. Run this
+# directly when a run selects a subset — a filtered `cargo nextest run`, or a
+# single test — because nextest then fails the timed test with the command that
+# prepares it rather than letting that test's deadline pay for a cold build. It
+# is idempotent: a warm target directory costs one stamp read per family.
 #
-# The environment deliberately matches the `test` target's main leg. The
-# preparation stamps record the build-relevant environment and the toolchain,
-# so preparing under a different `RUSTFLAGS` or feature selection only warms a
-# tree the timed tests will not reuse.
-prepare-nested-fixtures: ## Prepare the nested-Cargo fixture build trees before a filtered test run
-	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS) \
-		-E 'test(/nested_fixture_preparation$$/)'
+# The environment deliberately matches the pass it prepares. The preparation
+# stamps record the build-relevant environment and the toolchain, so preparing
+# under a different `RUSTFLAGS` or feature selection only warms a tree the
+# timed tests will not reuse. `PREPARE_FLAGS` defaults to the main pass's
+# `$(CARGO_FLAGS)`; the D4 leg of `test` overrides it. Without `cargo-nextest`
+# the same selection runs under `cargo test`, which is the lazy-preparation
+# path the timed tests take anyway.
+PREPARE_FLAGS ?= $(CARGO_FLAGS)
+prepare-nested-fixtures: ## Prepare the nested-Cargo fixture build trees before a test pass
+	if command -v cargo-nextest >/dev/null 2>&1; then \
+		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(PREPARE_FLAGS) $(BUILD_JOBS) \
+			-E 'test(/nested_fixture_preparation$$/)'; \
+	else \
+		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) test $(PREPARE_FLAGS) $(BUILD_JOBS) \
+			nested_fixture_preparation; \
+	fi
 
 # Run a filtered nextest selection in the environment the preparation stamps.
 #
