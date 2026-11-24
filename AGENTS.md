@@ -365,10 +365,11 @@ project:
   `mockable::MockEnv` in tests. A narrow closure seam of the same shape is
   acceptable where a trait object would be disproportionate. Production code
   must not reach for `std::env::var`/`var_os` outside that composition root.
-  The existing proc-macro and harness tests that scope `CARGO_MANIFEST_DIR` and
-  `CARGO_BIN_EXE_*` with `temp_env::with_var` and `temp_env::with_var_unset`
-  are the accepted local form for in-process scoping; new environment-dependent
-  behaviour still takes an injected environment.
+  Where a dependency such as `trybuild` reads the inherited environment and has
+  no injection point, run the test in a child copy of the test binary started
+  with `Command::env` and `Command::env_remove` (see
+  `crates/rstest-bdd/tests/trybuild_macros/scoped_child.rs`) rather than
+  changing the test process's own environment.
 - **Process-wide locks are not an escape hatch.** Serializing environment
   mutation behind a shared `Mutex`, `OnceLock`, or `serial_test` attribute is
   not an accepted fallback. It serializes the suite, defeats property-based

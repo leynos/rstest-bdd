@@ -2003,7 +2003,6 @@ dependencies = [
  "rustc_version",
  "serial_test",
  "syn 3.0.9",
- "temp-env",
  "tempfile",
  "thiserror 2.0.21",
  "walkdir",
@@ -2439,15 +2438,6 @@ name = "target-tuple"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "876fef147edbcbddc8ac5cbbba92c7b86519e314e86638596c09673b2ed01e7f"
-
-[[package]]
-name = "temp-env"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96374855068f47402c3121c6eed88d29cb1de8f3ab27090e273e420bdabcf050"
-dependencies = [
- "parking_lot",
-]
 
 [[package]]
 name = "tempfile"

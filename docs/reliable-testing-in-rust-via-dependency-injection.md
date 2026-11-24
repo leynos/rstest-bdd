@@ -204,5 +204,7 @@ ______________________________________________________________________
   to interact with the actual system.
 - **`RealEnv` is NOT a Scope Guard:** `RealEnv` directly mutates the global
   process environment without automatic cleanup. For integration tests that
-  require modifying the live environment, consider a crate such as `temp_env`.
-  For unit tests, `MockEnv` is preferable.
+  require a modified environment, start a child process with `Command::env`
+  instead of changing the test process's own environment; `temp_env` still
+  mutates the process environment and is disallowed in this repository. For
+  unit tests, `MockEnv` is preferable.
