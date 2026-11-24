@@ -2589,7 +2589,6 @@ dependencies = [
  "predicates",
  "rstest",
  "rstest-bdd",
- "rstest-bdd-harness",
  "rstest-bdd-macros",
  "rstest-bdd-test-macros",
  "toml 1.1.8+spec-1.1.0",
