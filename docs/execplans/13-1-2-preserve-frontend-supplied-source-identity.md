@@ -7,7 +7,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 proceeds.
 
 Status: DRAFT — revised after the expert-panel review (D12) and rebased onto
-`origin/main` at `bbc53615` (D14-D17), awaiting approval. No implementation may
+`origin/main` at `0df7fbec` (D14-D18), awaiting approval. No implementation may
 begin until the plan is explicitly approved.
 
 ## Purpose / big picture
@@ -82,9 +82,9 @@ Read these before starting:
   §3.11.1 "The parser-neutral runner modules".
 - `docs/developers-guide.md` section "The parser-neutral runner
   (rstest_bdd::runner)" for the engine split, the integration-test rule (D21),
-  the skip-policy guidance (read its `#[serial]` isolation as the older pattern
-  that new tests do not adopt; Constraint 14), and the runner gate commands;
-  and "Assertion vocabulary: googletest, pretty_assertions, and insta".
+  the skip-policy guidance ("`#[serial]` and child processes in runner tests";
+  Constraint 14), and the runner gate commands; and "Assertion vocabulary:
+  googletest, pretty_assertions, and insta".
 - `docs/users-guide.md` section "Running a plan without the Gherkin frontend".
 - `docs/rust-testing-with-rstest-fixtures.md` for fixture and `#[case]` shape.
 - `docs/rust-doctest-dry-guide.md` for doctest style on new accessors.
@@ -126,10 +126,9 @@ pretty_assertions, insta), `proptest` (the source-fidelity property),
    source-neutral message wording is carried by 13.3.1 (13.1.1 D15).
 6. No new dependencies. `rstest`, `rstest-bdd`, `googletest`,
    `pretty_assertions`, `insta`, `proptest`, and `tokio` are already available
-   to `rstest-bdd`'s tests. `serial_test` and `temp-env` are also
-   dev-dependencies; no new test uses `serial_test` (Constraint 14), and
-   `temp-env`'s entry points are disallowed in `clippy.toml`, so no new test
-   uses it (Constraint 12).
+   to `rstest-bdd`'s tests. `serial_test` is also a dev-dependency, but no new
+   test uses it (Constraint 14). `temp-env` is not a dependency: main removed
+   it (#976, D18).
 7. Runner public types stay frontend-free: `crates/rstest-bdd/src/runner/`
    must keep passing the INV-11 token scan in
    `crates/rstest-bdd/src/runner/tests/surface.rs`, which forbids frontend
@@ -220,7 +219,7 @@ conflict in `Decision log`, and escalate.
   with several sequential `let … else` or `?` blocks is split into named
   helpers rather than suppressed. A fallible `rstest` fixture is consumed by a
   test that returns `Result` and applies `?` to it (`AGENTS.md`, #943; D16).
-- Risk: `make test`'s `--no-default-features` leg (`Makefile` lines 131-151)
+- Risk: `make test`'s `--no-default-features` leg (`Makefile` lines 134-158)
   runs every new binary again with diagnostics off. Severity: low. Likelihood:
   medium. Mitigation: run the focused `--no-default-features` loop in
   `Concrete steps` before each gate.
@@ -272,7 +271,7 @@ conflict in `Decision log`, and escalate.
   rebase range but missed by D14) against the plan; its testing rules are
   adopted as Constraints 13 and 14 (D16). Found that the developers' guide's
   runner subsection on `#[serial]` and `temp-env` now contradicts them; its
-  rewrite is proposed for EP-M4, pending approval (D16).
+  rewrite was proposed for EP-M4 and is no longer needed (#976, D18).
 - [x] (2026-11-24) Took #942 by rebasing onto `origin/main` at `7c8ac50f`;
   five plan commits replayed without conflict. That commit moved ADRs to
   `docs/adrs/` with four-digit numbers and imported the shared documentation
@@ -283,6 +282,10 @@ conflict in `Decision log`, and escalate.
   in macro path tests). None touches a convention file or any file this plan
   cites: the developers' guide edits fall outside its runner section, and
   `Cargo.lock` drops one todo-cli dependency. No plan change beyond this entry.
+- [x] (2026-11-24) Rebased onto `origin/main` at `0df7fbec` (six commits,
+  `bbc53615..0df7fbec`, ending with the merge of #979); seven plan commits
+  replayed without conflict. The convention files were audited; two line
+  citations moved and D16's open question closed (D18).
 - [ ] Approval of the plan by the user.
 - [ ] EP-M1: characterization tests and the error-shape tripwire (green).
 - [ ] EP-M2: opaque failure, step and scenario identity (red recorded, then
@@ -572,7 +575,9 @@ conflict in `Decision log`, and escalate.
   so the plan proposes that EP-M4 also rewrite this subsection to recommend
   `ScenarioScope::with_skip_policy` injection. It adds one subsection to an
   already-planned file, so the file count is unchanged. If the user prefers to
-  keep 13.1.2 narrow, it becomes a separate documentation fix instead.
+  keep 13.1.2 narrow, it becomes a separate documentation fix instead. Closed
+  by D18: #976 rewrote the subsection on main, so EP-M4 does not touch it and
+  nothing remains to approve here.
 
 - D17. Rebase onto `7c8ac50f` (2026-11-24): main's documentation style
   guide (#942) is adopted. Decision: (a) ADR-0018 is cited at its new path,
@@ -592,6 +597,26 @@ conflict in `Decision log`, and escalate.
   files this plan cites are ADR renames inside comments
   (`reporting/conversion.rs`, `runner_panics.rs`, `execution/unwind.rs`), so
   the citations hold.
+
+- D18. Rebase onto `0df7fbec` (2026-11-24). Decision: (a) #979 makes
+  `make test` run `prepare-nested-fixtures` before each nextest pass, with that
+  pass's own flags, so nested-Cargo fixture builds are paid for outside the
+  timed pass. This plan's gate commands are unchanged. The new `runner_sources`
+  binary spawns no Cargo, so it needs no preparation family and no
+  `cargo-spawning` override. (b) #976 removed `temp-env` from every manifest
+  and rewrote the developers' guide subsection, now "`#[serial]` and child
+  processes in runner tests"; Constraint 6 and the signpost follow it, and
+  D16's open question is closed. `clippy.toml` still disallows the `temp_env`
+  paths, so Constraint 12 stands. (c) #773's prelude exports no runner type,
+  and this plan adds none: its admission bar is a name needed by a step
+  signature, derive, or attribute. The two lint checks #773 added cover
+  workspace examples, the users' guide prelude section, and README imports,
+  none of which this plan edits. (d) `AGENTS.md` now sends a test that must
+  vary the inherited environment to a child process; no test here needs that.
+  (e) The `Makefile` and `users-guide.md` line citations were re-measured at
+  `0df7fbec`; the other citations and file sizes are unchanged. Rationale: no
+  runner, execution, registry, or reporting source changed in the range, and
+  neither ADR-0018 nor roadmap phase 13 did.
 
 ## Outcomes & retrospective
 
@@ -1106,7 +1131,7 @@ pass after EP-M2 under
     (`line_text[..byte].chars().count() + 1`); using the step index to reach
     a frontend's own richer source map; and the fact that rendered messages
     carry only a path until 13.3.1. Rewrite the existing paragraph at
-    `users-guide.md` lines 2252-2257 that describes the old fallback.
+    `users-guide.md` lines 2337-2342 that describes the old fallback.
   - `docs/rstest-bdd-design.md` §2.6.4: a "Source-neutral diagnostics"
     paragraph recording D2-D5 and D11 and citing ADR-0018; §2.6's Stage 1
     paragraph (near line 1403) gains 13.1.2.
@@ -1363,3 +1388,9 @@ constraints; no milestone has started.
 ADR-0018's path and name follow #942's renumbering, and D17 records the
 style-guide checks (headings, migration guide, tested examples). Effect on
 remaining work: none; no milestone has started.
+
+2026-11-24, revision 7: rebased onto `origin/main` at `0df7fbec`. Changed:
+Constraint 6, the developers' guide signpost, and two line citations follow
+main; D16's open question is closed and D18 records the audit. Effect on
+remaining work: EP-M4 no longer proposes the subsection rewrite; no milestone
+has started.
