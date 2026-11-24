@@ -92,14 +92,17 @@ pub(super) fn fixture_dependency_closure(
 ) -> Result<Vec<String>> {
     let fixture = fixture_dir();
     let mut command = std::process::Command::new(env!("CARGO"));
+    // `--frozen` is set before the environment is handed to `apply_to`: no
+    // environment variable revokes it, so the query stays offline whatever the
+    // fixture build's environment holds.
+    command
+        .args(["tree", "--prefix", "none", "--frozen"])
+        .current_dir(&fixture);
     // The fixture build's own environment, not this process's. The query has
     // to resolve the graph the nested build resolves, and a `CARGO_HOME`,
     // registry setting or toolchain override the build is given changes that
     // graph without changing anything the test process can see.
     environment.apply_to(&mut command);
-    command
-        .args(["tree", "--prefix", "none", "--locked", "--offline"])
-        .current_dir(&fixture);
     // The Cargo that resolves the graph has to be the one the fixture build
     // runs, and that is `env!("CARGO")` rather than a `PATH` lookup: a host
     // with several toolchains would otherwise measure one Cargo's resolution

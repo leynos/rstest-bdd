@@ -94,12 +94,21 @@ fn a_real_cargo_build_is_counted_and_filed_as_a_rebuild() {
          \"2021\"\n\n[lib]\npath = \"lib.rs\"\n",
     )
     .expect("the scratch manifest");
+    std::fs::write(
+        crate_dir.join("Cargo.lock"),
+        "version = 3\n\n[[package]]\nname = \"counted-crate\"\nversion = \"0.0.0\"\n",
+    )
+    .expect("the scratch lockfile");
     std::fs::write(crate_dir.join("lib.rs"), "pub fn counted() -> u32 { 2 }\n")
         .expect("the scratch source");
 
     let mut command = std::process::Command::new(env!("CARGO"));
     command
         .arg("build")
+        // The crate has no dependencies and ships its own lockfile, so nothing
+        // needs the network; `--frozen` says so on the command, where no
+        // environment variable can revoke it.
+        .arg("--frozen")
         .arg("--color=never")
         .current_dir(&crate_dir)
         .env_remove("RUSTC_WRAPPER")
