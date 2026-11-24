@@ -286,30 +286,25 @@ fn empty_path_is_untrackable() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[expect(
-    clippy::disallowed_methods,
-    reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
-)]
 fn untrackable_root_diagnostic_names_path_and_remedy() {
-    temp_env::with_var("CARGO_MANIFEST_DIR", Some("C:/repo"), || {
-        let tokens = super::untrackable_error(
-            Untrackable::UnrelatableRoot(std::path::PathBuf::from(r"D:\repo\x.feature")),
-            proc_macro2::Span::call_site(),
-        );
-        let text = tokens.to_string();
-        assert!(
-            text.contains("shares no filesystem root"),
-            "unrelatable-root diagnostic must explain the failure:\n{text}"
-        );
-        assert!(
-            text.contains(r"D:\\repo\\x.feature"),
-            "unrelatable-root diagnostic must name the path:\n{text}"
-        );
-        assert!(
-            text.contains("manifest-relative path"),
-            "unrelatable-root diagnostic must offer the remedy:\n{text}"
-        );
-    });
+    let tokens = super::untrackable_error(
+        Untrackable::UnrelatableRoot(std::path::PathBuf::from(r"D:\repo\x.feature")),
+        proc_macro2::Span::call_site(),
+        "C:/repo",
+    );
+    let text = tokens.to_string();
+    assert!(
+        text.contains("shares no filesystem root"),
+        "unrelatable-root diagnostic must explain the failure:\n{text}"
+    );
+    assert!(
+        text.contains(r"D:\\repo\\x.feature"),
+        "unrelatable-root diagnostic must name the path:\n{text}"
+    );
+    assert!(
+        text.contains("manifest-relative path"),
+        "unrelatable-root diagnostic must offer the remedy:\n{text}"
+    );
 }
 
 #[test]
@@ -317,6 +312,7 @@ fn non_utf8_diagnostic_names_the_path() {
     let tokens = super::untrackable_error(
         Untrackable::NonUtf8(std::path::PathBuf::from("bad=\u{FF}")),
         proc_macro2::Span::call_site(),
+        "",
     );
     let text = tokens.to_string();
     assert!(
@@ -327,7 +323,7 @@ fn non_utf8_diagnostic_names_the_path() {
 
 #[test]
 fn empty_diagnostic_explains_itself() {
-    let tokens = super::untrackable_error(Untrackable::Empty, proc_macro2::Span::call_site());
+    let tokens = super::untrackable_error(Untrackable::Empty, proc_macro2::Span::call_site(), "");
     let text = tokens.to_string();
     assert!(
         text.contains("feature file path is empty"),
@@ -336,10 +332,6 @@ fn empty_diagnostic_explains_itself() {
 }
 
 #[test]
-#[expect(
-    clippy::disallowed_methods,
-    reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
-)]
 fn snapshot_of_unrelatable_root_diagnostic() {
     // Redacted snapshot of the rendered D4 diagnostic (ExecPlan Milestone 5):
     // the absolute path fragments are normalized so the pinned wording drifts
@@ -349,16 +341,15 @@ fn snapshot_of_unrelatable_root_diagnostic() {
     let mut settings = insta::Settings::clone_current();
     settings.add_filter("`[^`]*`", "<quoted>");
     settings.bind(|| {
-        temp_env::with_var("CARGO_MANIFEST_DIR", Some("C:/repo"), || {
-            insta::assert_snapshot!(
-                "unrelatable_root_diagnostic",
-                super::untrackable_error(
-                    Untrackable::UnrelatableRoot(std::path::PathBuf::from(r"D:\repo\x.feature")),
-                    proc_macro2::Span::call_site(),
-                )
-                .to_string()
-            );
-        });
+        insta::assert_snapshot!(
+            "unrelatable_root_diagnostic",
+            super::untrackable_error(
+                Untrackable::UnrelatableRoot(std::path::PathBuf::from(r"D:\repo\x.feature")),
+                proc_macro2::Span::call_site(),
+                "C:/repo",
+            )
+            .to_string()
+        );
     });
 }
 

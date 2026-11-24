@@ -229,15 +229,18 @@ const TRACKING_BINDING_DOC: &str = concat!(
 pub(crate) fn feature_tracking_item(path: &Path, span: Span) -> TokenStream {
     match TrackedFeaturePath::try_new(path) {
         Ok(tracked) => tracked.binding(),
-        Err(untrackable) => untrackable_error(untrackable, span),
+        Err(untrackable) => {
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
+            untrackable_error(untrackable, span, &manifest)
+        }
     }
 }
 
-/// Render the D4 diagnostic for a feature file that cannot be tracked.
-fn untrackable_error(untrackable: Untrackable, span: Span) -> TokenStream {
+/// Render the D4 diagnostic for a feature file that cannot be tracked;
+/// `manifest` is the crate manifest directory the message names.
+fn untrackable_error(untrackable: Untrackable, span: Span, manifest: &str) -> TokenStream {
     let message = match untrackable {
         Untrackable::UnrelatableRoot(path) => {
-            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
             format!(
                 "feature file `{}` shares no filesystem root with the crate manifest directory (`{manifest}`), so it cannot be registered as a Cargo rebuild dependency. Use a manifest-relative path, or a path on the same filesystem root.",
                 path.display()
