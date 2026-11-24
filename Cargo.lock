@@ -939,7 +939,6 @@ dependencies = [
  "rstest",
  "rstest-bdd",
  "rstest-bdd-harness-gpui",
- "rstest-bdd-macros",
  "rstest-bdd-test-macros",
 ]
 
@@ -1255,7 +1254,6 @@ version = "0.7.0"
 dependencies = [
  "rstest",
  "rstest-bdd",
- "rstest-bdd-macros",
  "rstest-bdd-test-macros",
 ]
 
@@ -2589,7 +2587,6 @@ dependencies = [
  "predicates",
  "rstest",
  "rstest-bdd",
- "rstest-bdd-macros",
  "rstest-bdd-test-macros",
  "toml 1.1.8+spec-1.1.0",
 ]
@@ -2627,7 +2624,6 @@ dependencies = [
  "rstest",
  "rstest-bdd",
  "rstest-bdd-harness-tokio",
- "rstest-bdd-macros",
  "rstest-bdd-test-macros",
  "thiserror 2.0.21",
  "tokio",
