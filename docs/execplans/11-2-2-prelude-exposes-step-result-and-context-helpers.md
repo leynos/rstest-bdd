@@ -13,7 +13,7 @@ items across eleven spellings, the step attributes document
 `#[harness_context]`, a compile-fail fixture pins the diagnostic for the marker
 written without a step attribute, the examples reach the facade through the
 prelude alone, the fixture crates prove a downstream manifest, the drift gate
-holds the documentation to the code, ADR-027 records the decision, and
+holds the documentation to the code, ADR-0028 records the decision, and
 `docs/roadmap.md` carries the amended finish line. Pull request 773 is in
 review against `main`; the branch was restacked onto `main` on 2026-11-23 after
 the stacked base merged, and the record below states what moved. The corrected
@@ -662,31 +662,31 @@ artefacts are:
 - `docs/developers-guide.md:368-393` — the workspace dependency policy.
   **DG-DEP**.
 
-This plan proposes one new decision record, **ADR-027**, covering the facade
+This plan proposes one new decision record, **ADR-0028**, covering the facade
 dependency edge, the prelude admission bar, and the deliberate non-export of
 `rstest`. Numbering note: when this plan was drafted the existing set ran to
 023, because `005` is duplicated (`adr-005-async-step-functions.md` and
 `adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`,
 indexed in `docs/contents.md` as "ADR 005a"), so 024 looked like the next free
 number. Two records landed on the base branch while this plan waited:
-[ADR-024](../adr-024-structural-usage-tracking-in-registry-lookups.md) and the
-OrthoConfig decision. That record was written as ADR-025 and the base's own
-merge renumbered it to
-[ADR-026](../adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md) when the
-merge took 025 for the nested-Cargo preparation gate, so the 025 spelling above
-is the number it carried when this plan read it, not a file that exists now.
-ADR-027 is therefore the number this plan's record takes, and every reference
-below uses it.
+[ADR-024](../adrs/adr-0024-structural-usage-tracking-in-registry-lookups.md)
+and the OrthoConfig decision. That record was written as ADR-025 and the base's
+own merge renumbered it to
+[ADR-026](../adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md) when
+the merge took 025 for the nested-Cargo preparation gate, so the 025 spelling
+above is the number it carried when this plan read it, not a file that exists
+now. ADR-0028 is therefore the number this plan's record takes, and every
+reference below uses it.
 
 Trace links:
 
 ```plaintext
-RM-11.2.2 -> ADR-027 -> EP-M2 -> crates/rstest-bdd/tests/prelude_surface.rs
-RM-11.2.2 -> ADR-027 -> EP-M4 -> examples/*/tests/*.rs compile without rstest-bdd-macros
+RM-11.2.2 -> ADR-0028 -> EP-M2 -> crates/rstest-bdd/tests/prelude_surface.rs
+RM-11.2.2 -> ADR-0028 -> EP-M4 -> examples/*/tests/*.rs compile without rstest-bdd-macros
 RM-11.2.2 -> EP-M5 -> scripts/check_prelude_exports.py in `make lint`
 RM-P11    -> EP-M1 -> `make publish-check` green; no public item removed
 DD-2.7.6.4 -> EP-M6 -> docs/rstest-bdd-design.md §2.7.6.4 marks the prelude delivered
-ADR-004   -> ADR-027 -> EP-M1 -> docs/developers-guide.md states both edge directions
+ADR-004   -> ADR-0028 -> EP-M1 -> docs/developers-guide.md states both edge directions
 ADR-007   -> EP-M3 -> given/when/then rustdoc documents #[harness_context]
 ```
 
@@ -810,7 +810,7 @@ Stop and escalate — do not improvise — when any of these is reached.
   `rstest-bdd-macros` pay **nothing**, because they already build the macro
   crate. The two payers are `cargo-bdd` and `rstest-bdd-harness-gpui`; for GPUI
   users the delta is +25 crates against a 787-package graph, about 3%.
-  Mitigation: accepted, recorded in ADR-027's Known Risks, with two follow-ups
+  Mitigation: accepted, recorded in ADR-0028's Known Risks, with two follow-ups
   filed that would remove most of it (see "Follow-up work").
 
 - **R-3 — `proc-macro2/span-locations` becomes unconditional downstream.**
@@ -903,8 +903,8 @@ Stop and escalate — do not improvise — when any of these is reached.
   breaks with a bare `unresolved import rstest` from generated code the user
   never wrote. This predates the plan, but a prelude that tells users "one
   import is enough" makes it likelier they arrive here confused. Mitigation:
-  EP-M6 states the supported `rstest` range in the users guide and in ADR-027's
-  Known Risks. EP-M4's fixture cannot inherit the requirement:
+  EP-M6 states the supported `rstest` range in the users guide and in
+  ADR-0028's Known Risks. EP-M4's fixture cannot inherit the requirement:
   `crates/rstest-bdd/tests/fixtures/prelude_only` is a standalone workspace, so
   its manifest is read the way a consumer's is and `rstest.workspace = true`
   has no `[workspace.dependencies]` to resolve against. It therefore states the
@@ -1357,7 +1357,7 @@ silently. **Recovery:** revert; `make lint` returns to its previous checks.
 
 ### Milestone 6 — the remaining documentation
 
-**Identifier:** EP-M6. **Discharges:** DD-2.7.6.4, ADR-027, DG-DEP.
+**Identifier:** EP-M6. **Discharges:** DD-2.7.6.4, ADR-0028, DG-DEP.
 
 1. **`README.md`, `crates/rstest-bdd/README.md`,
    `crates/rstest-bdd-macros/README.md`** — audit all five
@@ -1376,7 +1376,7 @@ silently. **Recovery:** revert; `make lint` returns to its previous checks.
    re-export harness traits and why.
 3. **`docs/rstest-bdd-design.md` §2.7.6.4** — move "a prelude for common
    integration imports" out of "Remaining candidates, not yet shipped" into the
-   delivered sentence, naming roadmap 11.2.2 and cross-linking ADR-027.
+   delivered sentence, naming roadmap 11.2.2 and cross-linking ADR-0028.
 4. **`docs/developers-guide.md`** — amend the "Workspace dependency policy"
    section at 368-393 to state both edge directions explicitly; add the prelude
    admission bar; add a section describing `check_prelude_exports.py` and
@@ -1387,13 +1387,13 @@ silently. **Recovery:** revert; `make lint` returns to its previous checks.
 6. **`docs/ergonomics-and-developer-experience.md`** — add the prelude to §2,
    "Reducing boilerplate in step definitions". That section is literally this
    change's subject.
-7. **`docs/adr-027-*.md`** — write it, using the template at
+7. **`docs/adrs/adr-0028-*.md`** — write it, using the template at
    `docs/documentation-style-guide.md:418-425`. Cover the facade edge and its
    reconciliation with ADR-004 (whose options table at line 36 rejected an
    option on the grounds that it "ties runtime to macros"), the admission bar,
    the deliberate non-export of `rstest`, and Known Risks naming the absent
    public-API gate and the measured build cost.
-8. **`docs/contents.md`** — index ADR-027.
+8. **`docs/contents.md`** — index ADR-0028.
 9. **`docs/CHANGELOG.md`** — an additive entry on the v0.6.1 line.
 10. Run `make markdownlint` and `make nixie`. Note that `make fmt` can itself
     introduce MD039/MD013 findings, so run the Markdown lint after formatting,
@@ -1587,7 +1587,7 @@ should be filed rather than forgotten:
 
   The migration checklist told users to replace macro-crate imports with the
   prelude, which breaks the datatable derives: the prelude deliberately excludes
-  `DataTable` and `DataTableRow` under ADR-027's entry rule. The guide now
+  `DataTable` and `DataTableRow` under ADR-0028's entry rule. The guide now
   names three exclusions, lists the prelude's eleven names instead of linking
   to them, and routes the datatable derives to the crate root. The users' guide
   carried the same defect fifteen times: at the base it named
@@ -1651,7 +1651,7 @@ should be filed rather than forgotten:
   implementation agent.
 
 - **DL-17 — The facade re-export is completed at the crate root, not the
-  prelude.** Resolved on 2026-11-16 while answering the review. ADR-027
+  prelude.** Resolved on 2026-11-16 while answering the review. ADR-0028
   requires the facade's re-export to be "total and flat", and the review showed
   it was not: `step_library` remained reachable only from `rstest-bdd-macros`,
   so every consumer declaring a scoped vocabulary still named the
@@ -1659,7 +1659,7 @@ should be filed rather than forgotten:
   `tests/prelude_surface.rs` names it so the compiler holds that. It does not
   enter the prelude: the ADR's entry rule admits an item only when a step
   signature, a `#[derive]`, or an attribute in the examples needs it, and no
-  example declares a library. ADR-027 records the completion as an amendment
+  example declares a library. ADR-0028 records the completion as an amendment
   rather than by editing the decision outcome, so the accepted decision and its
   later correction stay distinguishable. Date/Author: 2026-11-16,
   implementation agent.
@@ -1800,7 +1800,7 @@ should be filed rather than forgotten:
   `rstest` version under `rstest-bdd`'s control**, gating every consumer's
   rstest upgrade on an rstest-bdd release. Since generated code emits
   `#[rstest::rstest]` resolved against the consumer's own dependency, the
-  consumer must own that version. That is the trade to write into ADR-027. The
+  consumer must own that version. That is the trade to write into ADR-0028. The
   same review rejected as overstated the claim that two `rstest` copies would
   "silently mismatch" — two rstest majors produce a hard compile error on the
   fixture-resolution protocol, not silent misbehaviour — so this plan does not
@@ -1954,7 +1954,7 @@ in their own manifest.
 - [x] EP-M3 — marker documentation and the missing trybuild fixture.
 - [x] EP-M4 — example migration and the two fixture crates.
 - [x] EP-M5 — the drift gate and the users-guide table.
-- [x] EP-M6 — remaining documentation and ADR-027.
+- [x] EP-M6 — remaining documentation and ADR-0028.
 - [x] EP-M7 — roadmap amendment, full gates, pull request.
 
 EP-M1 is committed as `7fbd9fee`: the macro edge, crate-root re-exports,
@@ -2044,12 +2044,12 @@ constant-comparison chain in `split_top_level` became a `match`, and every test
 assertion carries a failure message so a red case prints its violations.
 
 EP-M6 is committed alongside this paragraph. It lands
-`docs/adr-027-publish-a-facade-prelude.md` and the eight documentation updates
-that cross-link it, as the "Artefacts and notes" entry lists. All four directed
-gates passed on the tree it certifies: `make check-fmt` in 2 s, `make lint` in
-14 s with every step reaching a verdict, `make typecheck` in 1 s, and
-`make test` in 553 s (2,394 nextest passed with seven skipped, 813 on the
-no-default-features leg with seven skipped, every doctest, and 313 pytest
+`docs/adrs/adr-0028-publish-a-facade-prelude.md` and the eight documentation
+updates that cross-link it, as the "Artefacts and notes" entry lists. All four
+directed gates passed on the tree it certifies: `make check-fmt` in 2 s,
+`make lint` in 14 s with every step reaching a verdict, `make typecheck` in 1
+s, and `make test` in 553 s (2,394 nextest passed with seven skipped, 813 on
+the no-default-features leg with seven skipped, every doctest, and 313 pytest
 checks). The gates ran at HEAD `35aa33e2` with the dirty tree hashing to
 `0d068b2e2818dcf3af1ff8dd9ce6447bf1aca9356d94735a442ddc6efbf166ab` at both
 start and end, so no gate input moved under them. Transcripts are
@@ -2258,7 +2258,7 @@ and DL-18 plus the documentation they imply: the crate root re-exports
 drift gate's item kinds, and the facade doc; the guide's two prelude fences are
 pinned to compiled copies; `check_example_imports.py` enforces the prelude
 alone and sees renamed and target-specific macro-crate dependencies; the
-`rstest` requirement equality is asserted; and the migration guide and ADR-027
+`rstest` requirement equality is asserted; and the migration guide and ADR-0028
 carry the signposts the review asked for. The seven commit gates then ran once
 each, sequentially, on that exact revision: `make check-fmt` (2 s), `make lint`
 (626 s, all eleven recipe steps so no step is left without a verdict),
@@ -2485,7 +2485,7 @@ Recorded during planning and execution as evidence was confirmed.
   time. That reservation expired twice on the moving base: ADR-024 and ADR-025
   landed before this branch was rebased onto `main`, then the stacked base's
   own merge took 025 and moved OrthoConfig to 026, so the shipped record is
-  ADR-027. The later observation recording the change carries the evidence.
+  ADR-0028. The later observation recording the change carries the evidence.
 
 - **Observation:** three READMEs document an import that has never compiled.
   **Evidence:** `README.md:116`, `crates/rstest-bdd/README.md:106`, and
@@ -2621,7 +2621,7 @@ Recorded during planning and execution as evidence was confirmed.
   `--keep-going`, then repair the set, then run `make lint-whitaker` for the
   verdict; do not read the survey's exit status as a gate result.
 
-- **Observation:** this plan's decision record is ADR-027, not the ADR-024 the
+- **Observation:** this plan's decision record is ADR-0028, not the ADR-024 the
   plan was drafted against, and not the ADR-026 an earlier rebase reserved.
   **Evidence:** while the plan waited on its stacked base, `main` gained
   `docs/adr-024-structural-usage-tracking-in-registry-lookups.md` and
@@ -2631,12 +2631,12 @@ Recorded during planning and execution as evidence was confirmed.
   025, moving the OrthoConfig record to
   `docs/adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md`, so 027 became the
   first free number. **Impact:** every reference in this plan and in the
-  shipped documents names ADR-027, and the record is
-  `docs/adr-027-publish-a-facade-prelude.md`. A plan that reserves a number and
-  then waits for a rebase must re-check the reservation, because the number it
-  chose is a fact about the base branch at drafting time, not about the plan.
-  This record has now moved twice for that reason; the second move is the
-  stronger evidence for the rule.
+  shipped documents names ADR-0028, and the record is
+  `docs/adrs/adr-0028-publish-a-facade-prelude.md`. A plan that reserves a
+  number and then waits for a rebase must re-check the reservation, because the
+  number it chose is a fact about the base branch at drafting time, not about
+  the plan. This record has now moved twice for that reason; the second move is
+  the stronger evidence for the rule.
 
 - **Observation:** the GPUI worked example keeps its explicit
   `rstest_bdd_macros` imports. **Evidence:** the three blocks in
@@ -2709,8 +2709,8 @@ examples build and pass with no path to the macro crate (V-5). The users' guide
 lists the exports under a gate that bites: EP-M5's two deliberate
 desynchronizations each made the check exit non-zero, and both recordings are in
 `Artefacts and notes`. The downstream fixture crate compiles and runs a
-scenario. ADR-027 records the decision and the admission bar; the roadmap entry
-carries the amended finish line.
+scenario. ADR-0028 records the decision and the admission bar; the roadmap
+entry carries the amended finish line.
 
 Two requirements from the original entry could not be met as written, and the
 plan says so rather than pretending otherwise. DL-9 replaced "examples import
@@ -2777,7 +2777,7 @@ To be filled in as milestones land. Required transcripts:
   - `/tmp/nonvacuity-table-row.out`: with the `Slot` row deleted from the item
     table (mutated guide sha256 `3facc3ba…`), the same script exited 1 with
     "the table omits rstest-bdd::Slot". The restored tree exits 0.
-- EP-M6: `docs/adr-027-publish-a-facade-prelude.md`, and the documentation
+- EP-M6: `docs/adrs/adr-0028-publish-a-facade-prelude.md`, and the documentation
   edits it cross-links: the design document's delivered sentence, the
   developers' guide's both-directions policy, admission bar, and two gate
   sections, the repository layout's facade edge, the ergonomics document's
@@ -2887,26 +2887,26 @@ New tests:
   `4e2c80b5` (thirteen sites plus a `text_document` module split). Every other
   commit replayed; the three that changed did so only where this branch's text
   met `main`'s: the `nextest_config` period paragraph keeps both, and the ADR
-  renumbering below. The decision record moved from ADR-026 to ADR-027 because
+  renumbering below. The decision record moved from ADR-026 to ADR-0028 because
   the merged base took 025 for the nested-Cargo preparation gate and moved
   OrthoConfig to 026; every link and reference now names
-  `docs/adr-027-publish-a-facade-prelude.md`. One integration seam did not
-  conflict but did not compile: the prelude fixture called `ensure_prepared`,
-  which the base renamed to `ensure_prepared_building` and gave a runner
-  parameter, and `Preparation::new` gained `Directories`; `a4801610` adapts the
-  fixture to that API. At `a4801610`, `make check-fmt`, `make typecheck`,
-  `make lint` (all eleven steps including Whitaker and both pylint runs at
-  10.00/10), `make markdownlint` and `make nixie` are green. `make test` is not
-  green on this host: the nested-Cargo preparation tests exceed their own
-  in-test wall-clock bounds while the shared compile-admission pool holds
-  roughly 300 requests from other repositories, so 2,385 of 2,574 nextest cases
-  passed and the run stopped at the first preparation timeout. The hosted
-  `build-test (linux, default features)` lane runs the same suite on a trusted
-  runner and is the verdict being taken instead. That lane also ran for the
-  first time on this branch: while it was stacked on a non-default base, no
-  `pull_request` workflow fired at all, so nothing had ever exercised the
-  Windows matrix. Its first run found a real defect in this plan's own gate —
-  `read_sources` formatted a repository-relative `Path`, so Windows rendered
+  `docs/adrs/adr-0028-publish-a-facade-prelude.md`. One integration seam did
+  not conflict but did not compile: the prelude fixture called
+  `ensure_prepared`, which the base renamed to `ensure_prepared_building` and
+  gave a runner parameter, and `Preparation::new` gained `Directories`;
+  `a4801610` adapts the fixture to that API. At `a4801610`, `make check-fmt`,
+  `make typecheck`, `make lint` (all eleven steps including Whitaker and both
+  pylint runs at 10.00/10), `make markdownlint` and `make nixie` are green.
+  `make test` is not green on this host: the nested-Cargo preparation tests
+  exceed their own in-test wall-clock bounds while the shared compile-admission
+  pool holds roughly 300 requests from other repositories, so 2,385 of 2,574
+  nextest cases passed and the run stopped at the first preparation timeout.
+  The hosted `build-test (linux, default features)` lane runs the same suite on
+  a trusted runner and is the verdict being taken instead. That lane also ran
+  for the first time on this branch: while it was stacked on a non-default
+  base, no `pull_request` workflow fired at all, so nothing had ever exercised
+  the Windows matrix. Its first run found a real defect in this plan's own gate
+  — `read_sources` formatted a repository-relative `Path`, so Windows rendered
   `crates\rstest-bdd\src\prelude.rs` in a message whose test, documentation and
   every committed path use `/`. `bca7367c` renders those four diagnostic sites
   with `as_posix()`, which is what the other scripts already do, and the

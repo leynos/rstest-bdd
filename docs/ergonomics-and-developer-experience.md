@@ -217,7 +217,7 @@ the glob or the spelled import and see the same items. The macros crate remains
 usable on its own, and it never depends on the runtime crate; the facade edge
 points one way only. The admission bar for the module, and the drift gate that
 compares it with its documentation, are recorded in
-[ADR-027](adr-027-publish-a-facade-prelude.md) and the
+[ADR-0028](adrs/adr-0028-publish-a-facade-prelude.md) and the
 [developers' guide](developers-guide.md#the-prelude-admission-bar).
 
 **User Experience:**

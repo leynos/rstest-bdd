@@ -838,7 +838,7 @@ root. `rstest-bdd-macros` must stay free of `rstest-bdd` in `dependencies`,
 `dev-dependencies`, and `build-dependencies` alike, and
 `crates/rstest-bdd/tests/prelude_surface.rs` parses the macro crate's manifest
 so the suite fails if a reverse edge appears. See
-[ADR-027](adr-027-publish-a-facade-prelude.md) for why the edge is
+[ADR-0028](adrs/adr-0028-publish-a-facade-prelude.md) for why the edge is
 unconditional rather than feature-gated.
 
 ### The prelude admission bar

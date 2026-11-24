@@ -193,10 +193,10 @@ than against a second handwritten inventory.
 
 ## References
 
-- [Roadmap 11.2.2](roadmap.md).
-- [Users' guide: importing rstest-bdd](users-guide.md#importing-rstest-bdd).
-- [ADR-004: policy crate](adr-004-policy-crate.md).
-- [ADR-005a: harness adapter crates](adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md).
+- [Roadmap 11.2.2](../roadmap.md).
+- [Users' guide: importing rstest-bdd](../users-guide.md#importing-rstest-bdd).
+- [ADR-0004: policy crate](adr-0004-policy-crate.md).
+- [ADR-0027: harness adapter crates](adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md).
 
 ## Amendments
 

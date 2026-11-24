@@ -111,7 +111,7 @@
   user's guide and the v0.6.0 migration guide, covering durable `Entity<T>`/
   `AnyWindowHandle` storage, `VisualTestContext` reconstruction, and the
   two-sided thread-local reset protocol.
-- Added the public `rstest_bdd::prelude` for integration imports (ADR-027).
+- Added the public `rstest_bdd::prelude` for integration imports (ADR-0028).
   `rstest-bdd` now depends on `rstest-bdd-macros` and re-exports `given`,
   `when`, `then`, `scenario`, `scenarios`, `ScenarioState`, and `StepArgs` at
   its crate root, alongside `Slot`, `StepContext`, `StepError`, and
