@@ -99,7 +99,69 @@ pub(crate) fn run_scoped(
 mod tests {
     //! Unit tests for the child's name and argument derivation.
 
-    use super::{child_arguments, libtest_name};
+    use std::{env, io};
+
+    use camino::Utf8Path;
+
+    use super::{CHILD_MARKER, child_arguments, libtest_name, run_scoped};
+
+    /// A target directory no real run uses, so the parent can tell its own
+    /// environment apart from the child's.
+    const PROBE_TARGET: &str = "/scoped-child-probe-target";
+
+    /// The child sees `CARGO_TARGET_DIR` set and `RUST_BACKTRACE` removed and
+    /// runs the body; the parent's own environment keeps neither change.
+    #[test]
+    fn run_scoped_gives_the_child_the_scoped_environment() {
+        let result = run_scoped(
+            concat!(
+                module_path!(),
+                "::run_scoped_gives_the_child_the_scoped_environment"
+            ),
+            Utf8Path::new(PROBE_TARGET),
+            || {
+                let target = env::var("CARGO_TARGET_DIR");
+                if target.as_deref() != Ok(PROBE_TARGET) {
+                    return Err(io::Error::other(format!(
+                        "the child's CARGO_TARGET_DIR was {target:?}, not {PROBE_TARGET}"
+                    )));
+                }
+                if env::var_os("RUST_BACKTRACE").is_some() {
+                    return Err(io::Error::other("the child still had RUST_BACKTRACE"));
+                }
+                Ok(())
+            },
+        );
+        result.expect("the scoped child should run the body and pass");
+        if env::var_os(CHILD_MARKER).is_none() {
+            assert_ne!(
+                env::var("CARGO_TARGET_DIR").as_deref(),
+                Ok(PROBE_TARGET),
+                "the parent's own environment must not receive the child's CARGO_TARGET_DIR"
+            );
+        }
+    }
+
+    /// A body error in the child fails the parent's call, and the message the
+    /// child printed reaches the parent's error.
+    #[test]
+    fn run_scoped_reports_a_failing_child_body() {
+        let result = run_scoped(
+            concat!(module_path!(), "::run_scoped_reports_a_failing_child_body"),
+            Utf8Path::new(PROBE_TARGET),
+            || Err(io::Error::other("probe body failure")),
+        );
+        if env::var_os(CHILD_MARKER).is_some() {
+            // The child fails its own test with the body's error.
+            result.expect("child body result");
+            return;
+        }
+        let err = result.expect_err("a failing child body must fail the parent's call");
+        assert!(
+            err.to_string().contains("probe body failure"),
+            "the child's failure message must reach the parent's error: {err}"
+        );
+    }
 
     #[test]
     fn the_child_receives_the_trybuild_fixture_filter() {
