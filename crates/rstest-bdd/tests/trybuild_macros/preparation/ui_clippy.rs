@@ -78,6 +78,9 @@ pub(crate) fn ui_clippy_command(bin: &str) -> io::Result<Command> {
     command
         .current_dir(manifest_dir.as_std_path())
         .env("CARGO_TARGET_DIR", ui_clippy_target_directory().as_str())
+        // The fixture's lockfile is committed; nothing here may
+        // reach a registry while holding the shared package-cache lock.
+        .env("CARGO_NET_OFFLINE", "true")
         .arg("clippy")
         .arg("--locked")
         .arg("--manifest-path")
