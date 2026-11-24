@@ -33,5 +33,4 @@ insta.workspace = true
 proptest.workspace = true
 rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
-temp-env.workspace = true
 tempfile.workspace = true

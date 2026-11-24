@@ -1931,7 +1931,6 @@ dependencies = [
  "rstest",
  "rstest-bdd-harness",
  "rstest-bdd-test-macros",
- "temp-env",
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
