@@ -1326,9 +1326,11 @@ default flags, and once with
 `PREPARE_FLAGS="-p rstest-bdd --all-targets --no-default-features"` before the
 D4 leg, which builds a different feature graph that the first preparation does
 not warm. Preparation therefore keeps cold compilation outside the timed
-assertion bodies. It is not exempt from limits: each preparation command keeps
-its `PREPARATION_COMMAND_TIMEOUT` bound. Without `cargo-nextest` the target
-runs the same selection under `cargo test`.
+assertion bodies. It is not exempt from limits: commands that run through the
+harness's bounded runner keep their `PREPARATION_COMMAND_TIMEOUT` bound, while
+trybuild-driven preparation, which spawns its own nested `cargo`, is bounded
+only by the preparation test's nextest `slow-timeout`. Without `cargo-nextest`
+the target runs the same selection under `cargo test`.
 
 `make nextest-run EXPR=...` runs a filtered selection in that same environment
 — the one the stamp records. **Filtered runs must use this target.** A

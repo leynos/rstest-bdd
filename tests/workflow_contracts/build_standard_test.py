@@ -28,9 +28,14 @@ LINUX_TABLE = 'cfg(target_os = "linux")'
 EXPECTED_INVOCATIONS = {
     "test": [
         "build",
+        # The preparation before each pass, then the pass itself.
+        "nextest run",
+        "test",
         "nextest run",
         "test",
         "test --doc",
+        "nextest run",
+        "test",
         "nextest run",
         "test",
     ],
