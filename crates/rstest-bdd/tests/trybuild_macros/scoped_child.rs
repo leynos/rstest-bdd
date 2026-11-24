@@ -6,7 +6,11 @@
 //! child of this binary with `Command::env` and `Command::env_remove`, and the
 //! child runs the body under that environment.
 
-use std::{env, io, process::Command};
+use std::{
+    env,
+    io::{self, Write as _},
+    process::Command,
+};
 
 use camino::Utf8Path;
 
@@ -74,6 +78,10 @@ pub(crate) fn run_scoped(
         .env_remove("RUST_BACKTRACE")
         .output()?;
     if output.status.success() {
+        // Pass the child's progress output through, as the in-process run showed
+        // it under `--nocapture`.
+        io::stdout().write_all(&output.stdout)?;
+        io::stderr().write_all(&output.stderr)?;
         return Ok(());
     }
     Err(io::Error::other(format!(
