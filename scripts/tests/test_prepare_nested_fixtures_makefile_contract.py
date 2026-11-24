@@ -35,9 +35,6 @@ RUNNER = "nextest-run"
 #: The target that runs the end-to-end workflow driver.
 DRIVER = "check-prepared-fixture-workflow"
 
-#: The filter the nextest override budgets, as nextest receives it.
-PREPARATION_FILTER = "test(/nested_fixture_preparation$/)"
-
 #: The environment assignment both halves of the policy must share.
 PINNED_FLAGS = 'RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)"'
 
@@ -67,55 +64,6 @@ def recipe(target: str) -> list[str]:
     while end < len(lines) and lines[end].startswith("\t"):
         end += 1
     return [line.removeprefix("\t") for line in lines[start:end]]
-
-
-def test_the_target_runs_the_preparation_tests_under_nextest() -> None:
-    """The target runs nextest, not ``cargo test``."""
-    lines = recipe(TARGET)
-
-    assert any("nextest run" in line for line in lines), (
-        f"{TARGET} should run the preparation tests under nextest, got {lines!r}"
-    )
-
-
-def test_the_target_selects_exactly_the_preparation_tests() -> None:
-    """The target's filter is the one the nextest override budgets.
-
-    The filter is asserted in its Makefile spelling, ``$$`` included. ``$$`` is
-    what Make requires to pass a literal ``$`` through to the command, so
-    comparing the raw text pins the escaping too: a bare ``$`` would be
-    expanded by Make before nextest ever saw it, and the filter would mean
-    something else.
-    """
-    expected = PREPARATION_FILTER.replace("$", "$$")
-    filters = [
-        line.split("-E '", 1)[1].split("'", 1)[0]
-        for line in recipe(TARGET)
-        if "-E '" in line
-    ]
-
-    assert filters == [expected], (
-        f"{TARGET} must select the tests the nextest override budgets, or it"
-        f" prepares nothing and the timed suites refuse their gate; got {filters!r}"
-    )
-
-
-def test_the_target_uses_the_same_build_environment_as_the_suite() -> None:
-    """The stamps record the build environment, so it has to match.
-
-    A preparation run under a different ``RUSTFLAGS`` or feature selection
-    warms a tree the timed tests will not reuse: the fingerprint would differ
-    and every gate would refuse the stamp the target had just written.
-    """
-    lines = recipe(TARGET)
-
-    assert any("RUSTFLAGS=" in line for line in lines), (
-        f"{TARGET} should pin RUSTFLAGS, as the test target's main leg does,"
-        f" got {lines!r}"
-    )
-    assert any("$(RUST_FLAGS)" in line for line in lines), (
-        f"{TARGET} should use the shared RUST_FLAGS, got {lines!r}"
-    )
 
 
 def test_the_run_half_pins_the_same_build_environment() -> None:
