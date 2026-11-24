@@ -3,8 +3,8 @@
 //! Unix-only: nested `cargo` from tests is unreliable on Windows under nextest
 //! (see `.cargo/nextest.toml`).
 //!
-//! `temp_env` scopes `CARGO_BIN_EXE_*` removal so we stay within the workspace
-//! `forbid(unsafe_code)` policy (Edition 2024 makes `remove_var` unsafe).
+//! The cases rely on `CARGO_BIN_EXE_*` being unset (this crate has no binaries)
+//! and assert that, rather than changing the process environment.
 
 #![cfg(unix)]
 
@@ -131,58 +131,60 @@ fn locate_or_build_binary_returns_err_for_invalid_manifest() {
     );
 }
 
-#[test]
-#[expect(
-    clippy::disallowed_methods,
-    reason = "unsets CARGO_BIN_EXE_* with temp_env; migrate to an injected lookup or a subprocess"
-)]
-fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
-    let root = workspace_root();
-    let name = BinaryName::new("__nonexistent_binary_xyzzy__");
-    temp_env::with_var_unset(format!("CARGO_BIN_EXE_{name}"), || {
-        let err = locate_or_build_binary(&root.join("Cargo.toml"), &root, name)
-            .expect_err("expected a build failure for a nonexistent binary");
-        match err {
-            BinaryLocateError::BuildFailed(_capture) => {}
-            other => panic!("expected BuildFailed, got: {other:?}"),
-        }
-    });
+/// Cargo sets `CARGO_BIN_EXE_<name>` only for the binaries of the package under
+/// test, and this crate has none, so the lookup always falls through to the
+/// build path. The precondition is asserted rather than arranged by changing
+/// the environment.
+fn assert_no_prebuilt_binary_variable(name: BinaryName<'_>) {
+    let variable = format!("CARGO_BIN_EXE_{name}");
+    assert!(
+        std::env::var_os(&variable).is_none(),
+        "{variable} must not be set for this test, which exercises the build fallback"
+    );
 }
 
 #[test]
-#[expect(
-    clippy::disallowed_methods,
-    reason = "unsets CARGO_BIN_EXE_* with temp_env; migrate to an injected lookup or a subprocess"
-)]
+fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
+    let root = workspace_root();
+    let name = BinaryName::new("__nonexistent_binary_xyzzy__");
+    assert_no_prebuilt_binary_variable(name);
+    let err = locate_or_build_binary(&root.join("Cargo.toml"), &root, name)
+        .expect_err("expected a build failure for a nonexistent binary");
+    match err {
+        BinaryLocateError::BuildFailed(_capture) => {}
+        other => panic!("expected BuildFailed, got: {other:?}"),
+    }
+}
+
+#[test]
 fn locate_or_build_returns_command_for_workspace_binary() {
     let root = workspace_root();
     let name = BinaryName::new("todo-cli");
-    temp_env::with_var_unset(format!("CARGO_BIN_EXE_{name}"), || {
-        let mut cmd = locate_or_build_binary(&root.join("Cargo.toml"), &root, name)
-            .expect("should locate or build a workspace binary");
+    assert_no_prebuilt_binary_variable(name);
+    let mut cmd = locate_or_build_binary(&root.join("Cargo.toml"), &root, name)
+        .expect("should locate or build a workspace binary");
 
-        let program = cmd.get_program().to_owned();
-        let program_path = Path::new(&program);
+    let program = cmd.get_program().to_owned();
+    let program_path = Path::new(&program);
 
-        assert!(
-            program_path.is_file(),
-            "expected resolved program path to exist and be a file: {program:?}"
-        );
+    assert!(
+        program_path.is_file(),
+        "expected resolved program path to exist and be a file: {program:?}"
+    );
 
-        let expected_name = format!("{}{}", name.as_str(), std::env::consts::EXE_SUFFIX);
-        let actual_name = program_path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default();
-        assert_eq!(
-            actual_name, expected_name,
-            "expected program file name {expected_name}, got {actual_name}"
-        );
+    let expected_name = format!("{}{}", name.as_str(), std::env::consts::EXE_SUFFIX);
+    let actual_name = program_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    assert_eq!(
+        actual_name, expected_name,
+        "expected program file name {expected_name}, got {actual_name}"
+    );
 
-        let status = cmd.arg("--help").status().expect("spawn --help");
-        assert!(
-            status.success(),
-            "expected `todo-cli --help` to exit successfully, got {status:?}"
-        );
-    });
+    let status = cmd.arg("--help").status().expect("spawn --help");
+    assert!(
+        status.success(),
+        "expected `todo-cli --help` to exit successfully, got {status:?}"
+    );
 }
