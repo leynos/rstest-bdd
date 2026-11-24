@@ -2940,6 +2940,23 @@ New tests:
   eight crates packaged and dry-run published, nine lockfiles validated fresh,
   exit 0. That is the publication evidence the hosted lane does not supply.
 
+- 2026-11-24, the no-default-features leg measured to completion. The earlier
+  runs stopped before most of the suite because the trybuild preparation had no
+  stamp and its tree had been reclaimed. Re-running
+  `make prepare-nested-fixtures` back-to-back accumulated cargo's completed
+  units across attempts, because each failed preparation leaves the units that
+  did finish: the trybuild family's tree grew from nothing to 902 MB over four
+  attempts and then stamped, and the prelude and rebuild-invalidation families
+  stamped in the same loop. With those stamps in place the exact leg,
+  `cargo nextest run -p rstest-bdd --all-targets --no-default-features`, ran
+  every test for the first time: 829 run, 827 passed, 7 skipped, and two
+  admission-bound timeouts — `feature_addition_triggers_rebuild`, whose nested
+  baseline `cargo test` met its 300 s bound, and `step_macros_compile`, which
+  needs one queued compiler slot per trybuild case and met its 1200 s bound.
+  Both are the nested-Cargo contention mode this host is under; both pass on
+  the hosted lanes. No bound was changed, no test skipped, no admission
+  bypassed.
+
 - 2026-11-23, scope decision recorded. The repository owner directed this
   candidate to be delivered through merge with the overage recorded rather than
   waived. DL-16 already states the measurement and the escalation; this entry
