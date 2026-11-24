@@ -6,7 +6,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 be kept up to date as work proceeds.
 
 Status: DRAFT (revised after community-of-experts review; observations
-re-verified against `origin/main` at `4c21753d` on 2026-11-23)
+re-verified against `origin/main` at `0df7fbec` on 2026-11-24)
 
 Approval: not yet approved. Implementation must not begin until the user
 explicitly approves this plan.
@@ -61,8 +61,9 @@ Observable success (each is pinned by a trybuild fixture):
 
 These are hard invariants. Violating one requires escalation, not a workaround.
 
-- C1 (semver, v0.6.1): the change is additive. No public item, macro argument,
-  or accepted syntax is removed or renamed in any published crate (`rstest-bdd`,
+- C1 (semver): the change is additive, as the Phase 11 preamble requires, even
+  though `main` is now at 0.7.0 (D26). No public item, macro argument, or
+  accepted syntax is removed or renamed in any published crate (`rstest-bdd`,
   `rstest-bdd-macros`, `rstest-bdd-harness`, `rstest-bdd-harness-tokio`,
   `rstest-bdd-harness-gpui`, `rstest-bdd-policy`).
 - C2 (no new rejections): a program that compiles today under default lint
@@ -77,9 +78,9 @@ These are hard invariants. Violating one requires escalation, not a workaround.
   first-party `harness`, then the deprecated `runtime` alias, then the runtime
   fallback" is preserved exactly as the code implements it today. Diagnostics
   describe the outcome of that order; they never change it. Where the code
-  departs from the prose of ADR-008, the code is preserved and the departure is
-  recorded (decision D14).
-- C5 (ADR-017 contracts): diagnostics are computed purely and emitted at the
+  departs from the prose of ADR-0008, the code is preserved and the departure
+  is recorded (decision D14).
+- C5 (ADR-0017 contracts): diagnostics are computed purely and emitted at the
   owning expansion boundary. `scenarios!` emits one diagnostic per distinct
   cause, however many scenarios it generates. Canonical first-party paths and
   same-named custom types such as `custom::TokioHarness` stay warning-free. The
@@ -90,14 +91,17 @@ These are hard invariants. Violating one requires escalation, not a workaround.
   `harness = ...` without `attributes = ...` stays silent (decision D2).
 - C7 (file size): no Rust source file may exceed 400 lines.
   `crates/rstest-bdd-macros/src/codegen/mod.rs` is at exactly 400 lines at
-  `8737d88f` and still at `4c21753d`, so its net line count must not grow. The
-  boundary files have grown on `main` and have little headroom at `4c21753d`:
+  `8737d88f` and still at `0df7fbec`, so its net line count must not grow. The
+  boundary files have grown on `main` and have little headroom at `0df7fbec`:
   `macros/scenario/mod.rs` (356 lines), `macros/scenarios/mod.rs` (367), and
   `macros/scenarios/test_generation/mod.rs` (374). Boundaries therefore gain
   call sites only; logic goes into `policy_diagnostics`.
 - C8 (no suppressions): no new `#[allow]` or `#[expect]` lint suppressions in
-  production or test code. Fixtures that demonstrate a user's opt-out are the
-  sole exception, because the suppression is the behaviour under test.
+  production or test code. The trybuild fixture that demonstrates a user's
+  opt-out is the sole exception, because the suppression is the behaviour under
+  test. It must be a trybuild fixture: the workspace denies Clippy's
+  `allow_attributes`, so the same `#[allow]` in a linted test target would fail
+  `make lint` (D25).
 - C9 (policy-crate tables untouched): do not edit the private tables in
   `crates/rstest-bdd-policy/src/lib.rs`; consume only its public constants and
   resolvers. Open draft PR #783 (issue #754) is restructuring those tables.
@@ -109,6 +113,13 @@ These are hard invariants. Violating one requires escalation, not a workaround.
   already parsed, so `macros/scenario/args.rs` and
   `macros/scenarios/macro_args/mod.rs` are not edited. This keeps the plan
   clear of open draft PR #784.
+
+- C12 (test conventions, AGENTS.md at `0df7fbec`): every `assert!` family
+  invocation carries a diagnostic message; `insta` snapshots are paired with
+  semantic assertions; tests that use fallible fixtures return `Result`; no new
+  test relies on `#[serial]` or another process-wide lock, or changes the
+  process environment. New trybuild cases therefore join the existing timed
+  test functions (D27).
 
 If satisfying the objective requires violating a constraint, stop, record the
 conflict in `Decision log`, and escalate.
@@ -142,30 +153,38 @@ conflict in `Decision log`, and escalate.
   a build failure after upgrading if they have a configuration that newly
   warns. The new warnings are W001 for deeply nested re-export paths (silent
   today), W002 for non-canonical GPUI harness paths, and W003 for conflicting
-  framework selectors. Severity: medium. Likelihood: low; there are zero
-  in-repo instances of the W002, W003, or deep-nesting W001 shapes at
-  `8737d88f` (the scan was re-run unchanged at `4c21753d`). Mitigation: each
-  warning fires only when a consequence has demonstrably occurred, or when two
-  explicit selectors contradict each other. Each is documented with its fix and
-  its opt-out (decision D10) in the users' guide and in `docs/CHANGELOG.md`.
-- Risk R2: open pull requests touch neighbouring files. As of 2026-11-23:
-  - draft PRs #783 (policy hint tables) and #784 (macro argument parsers),
-    both unchanged since 2026-09-15. C9 and C11 keep this plan out of their
-    code files. #783 also edits `docs/rstest-bdd-design.md`, ADR-008, and
+  framework selectors. Severity: medium. Likelihood: low. A scan at `0df7fbec`
+  found no W003, E002, or deep-nesting shape in the repository. The only
+  `Evidenced` paths are in the nine fallback fixtures, two of which (both GPUI)
+  are W002 shapes that already warn today. Mitigation: each warning fires only
+  when a consequence has demonstrably occurred, or when two explicit selectors
+  contradict each other. Each is documented with its fix and its opt-out
+  (decision D10) in the users' guide and in `docs/CHANGELOG.md`.
+- Risk R2: open pull requests touch neighbouring files. All 22 open pull
+  requests were scanned on 2026-11-24. Those that overlap are:
+  - drafts #783 (policy hint tables) and #784 (macro argument parsers), both
+    unchanged since 2026-09-15. C9 and C11 keep this plan out of their code
+    files. #783 also edits ADR-0008 at its old path, the design document, and
     `docs/developers-guide.md`, which EP-M6 rewrites;
-  - PR #930 (empty `scenarios!` results) rewrites part of
-    `macros/scenarios/mod.rs`, the `scenarios!` boundary that EP-M3 edits;
-  - PR #927 (outline case indexes) edits `codegen/scenario/mod.rs`, home of
+  - #930 (empty `scenarios!` results) rewrites part of
+    `macros/scenarios/mod.rs`, the `scenarios!` boundary that EP-M3 edits. E002
+    must return before any empty-result check that #930 adds;
+  - #927 (outline case indexes) edits `codegen/scenario/mod.rs`, home of
     `reject_async_harness`;
-  - PR #942 (documentation style guide) makes small wording edits to
-    `codegen/scenario/{boundary,mod,test_attrs}.rs` and moves every ADR to
-    `docs/adrs/adr-NNNN-*.md`, which changes the paths EP-M6 links to (D22);
-  - draft PR #773 (11.2.2 prelude) adds `docs/adr-027-*` (D22).
+  - #925 (outline data tables) edits `codegen/scenario/helpers.rs` and its
+    tests;
+  - #936 edits `macros/scenarios/tests/mod.rs`;
+  - draft #777 (poison recovery) edits both harness crates' manifests, which
+    matters only if C10's permitted dev-dependency is needed;
+  - #810 and #775 bump `rstest` in fixture and workspace lockfiles; see Risk R5;
+  - #926 to #931 each edit `docs/CHANGELOG.md`, and several edit
+    `docs/users-guide.md`.
 
-  Severity: low. Likelihood: high. Mitigation: rebase onto `origin/main` at the
-  start of each milestone and re-run the `SharedAdapterResolutions` call site
-  inventory. If a Markdown merge is needed, verify it against a plain
-  `git merge-file` (the Weave merge driver can relocate blocks).
+  #942 and #773, listed here previously, have merged. Severity: low.
+  Likelihood: high. Mitigation: rebase onto `origin/main` at the start of each
+  milestone and re-run the `SharedAdapterResolutions` call site inventory. If a
+  Markdown merge is needed, verify it against a plain `git merge-file` (the
+  Weave merge driver can relocate blocks).
 - Risk R3: trybuild `.stderr` snapshots are toolchain-sensitive, and
   `rust-toolchain.toml` floats on `stable`. Severity: low. Likelihood: medium.
   Mitigation: follow the existing fixture idiom. Reuse the normalizers in
@@ -175,15 +194,17 @@ conflict in `Decision log`, and escalate.
   the native channel is verified only locally. Severity: low. Likelihood:
   certain. Mitigation: EP-M0 re-confirms the lane list. Every milestone that
   touches a nightly fixture records the local nightly transcript and the exact
-  toolchain in `Artefacts and notes`.
+  toolchain in `Artefacts and notes`. Re-confirmed at `0df7fbec`: CI installs a
+  nightly only for `rustfmt` and the published-GPUI end-to-end fixture.
 - Risk R5: a future `rstest` release could relax its rule for asynchronous
   tests. The rule is currently "an explicit `#[test_attr(...)]`, or any
   attribute whose last path segment is `test`". E001 mirrors that rule; if
   `rstest` relaxed it, E001 would reject a program that `rstest` accepts,
   violating C2. Severity: high. Likelihood: low. `rstest_macros` 0.26.1 and
-  0.27.0 have byte-identical `parse/rstest/test_attr.rs` files and the same
-  check in `error.rs`, according to the panel's reading of the registry
-  sources. Mitigation: the axiom `AX-RSTEST-ASYNC` is guarded by canary
+  0.27.0 have byte-identical `parse/rstest/test_attr.rs` files. 0.28.0 differs
+  there only in the layout of its unit tests. All three keep the same error
+  text in `error.rs` (registry sources compared on 2026-11-24; 0.26.1 is
+  locked). Mitigation: the axiom `AX-RSTEST-ASYNC` is guarded by canary
   fixtures that compile plain `rstest` tests. One pins the rejection; the other
   pins the acceptance of the `test_attr` form. A dependency bump that changes
   either fails loudly.
@@ -193,9 +214,10 @@ conflict in `Decision log`, and escalate.
   Likelihood: medium. Mitigation: the EP-M0 spike decides the host suite before
   any production code is written.
 - Risk R7: harness-crate trybuild registration files and
-  `crates/rstest-bdd/tests/trybuild_macros.rs` (368 lines at `4c21753d`) may
-  approach the 400-line cap. Severity: low. Likelihood: low; the plan adds six
-  stable fixtures, two canaries, and two nightly fixtures. Mitigation: if a
+  `crates/rstest-bdd/tests/trybuild_macros.rs` (373 lines at `0df7fbec`) may
+  approach the 400-line cap. Severity: low. Likelihood: low; the plan adds five
+  stable fixtures (four `compile_fail`, one `pass`), two canaries, and at most
+  two nightly fixtures, all in the harness crates' suites. Mitigation: if a
   file would exceed 380 lines, split the registration into a child module first.
 - Risk R8: rustc may not run the `deprecated` lint when the same expansion
   also contains a `compile_error!`. Stable warnings would then vanish beside
@@ -215,10 +237,14 @@ conflict in `Decision log`, and escalate.
 - [x] (2026-10-15) Community-of-experts design review completed: three
   panels covering all six Logisphere lenses. Verdict: revise. Findings folded
   into this revision; see decisions D10 to D21.
-- [x] (2026-11-23) Rebased onto `origin/main` at `4c21753d` (25 commits,
-  no conflicts). Every revision-anchored observation, line reference, open-PR
-  blocker, and gate command was re-measured; changes are recorded under
-  `Surprises & discoveries` (2026-11-23), D22, and D23.
+- [x] (2026-11-23) Rebased onto `origin/main` at `4c21753d` (25 commits, no
+  conflicts) and revised (D22, D23). That revision claimed that every
+  revision-anchored observation had been re-measured. It had not: see the
+  2026-11-24 entry under `Surprises & discoveries`.
+- [x] (2026-11-24) Rebased onto `origin/main` at `0df7fbec` (11 further
+  commits, no conflicts). The code anchors, documentation anchors, open pull
+  requests, gate commands, and convention files listed under the 2026-11-24
+  discoveries were re-measured; see D24 to D27.
 - [ ] Plan approved by the user.
 - [ ] EP-M0: baseline, fixture-host spike, and channel experiments.
 - [ ] EP-M1: behaviour-preserving extraction of `policy_diagnostics`.
@@ -226,7 +252,7 @@ conflict in `Decision log`, and escalate.
 - [ ] EP-M3: W003 and E002 (ambiguous selectors).
 - [ ] EP-M4: E001 (missing executor).
 - [ ] EP-M5: behavioural scenarios for silence and suggested fixes.
-- [ ] EP-M6: documentation, ADR-028, CHANGELOG.
+- [ ] EP-M6: documentation, ADR-0029, CHANGELOG.
 - [ ] EP-M7: roadmap tick, final gates, plan marked `COMPLETE`.
 
 ## Surprises & discoveries
@@ -234,15 +260,15 @@ conflict in `Decision log`, and escalate.
 - Observation: a warning for every third-party harness without
   `attributes = ...` would break the repository's own tests, and would offer no
   useful fix. Evidence: a scan of tracked `.rs` files at `8737d88f`, re-run
-  unchanged at `4c21753d`, found 20 non-first-party `harness =` uses, 17 of
-  them without `attributes =` (the command is recorded in
+  with the same result at `0df7fbec`, found 20 non-first-party `harness =`
+  uses, 17 of them without `attributes =` (the command is recorded in
   `Artefacts and notes`). `make test` compiles all of them under
   `RUSTFLAGS="-D warnings"`. The panel spot-checked `RecordingHarness`,
   `CountingHarness`, and `MetadataCapturingHarness`: they are synchronous
   harnesses that need no native attribute. The only fix such a warning could
   suggest is a custom `attributes = ...`, which changes nothing because the
   macros cannot evaluate unknown policies. Impact: decision D2.
-- Observation: the existing ADR-017 message offers three remedies, and none
+- Observation: the existing ADR-0017 message offers three remedies, and none
   of the other two removes the warning. Adding `rstest-bdd-harness` as a direct
   dev-dependency makes the fallback *compile*, but `fallback_candidate` in
   `crates/rstest-bdd-macros/src/codegen/adapter_fallback.rs` never consults
@@ -252,9 +278,13 @@ conflict in `Decision log`, and escalate.
   fix-convergence lemma `LEM-FIX-CONVERGES` separates *fixes*, which remove a
   finding, from *workarounds*, which only make code build. Messages offer only
   fixes. The workaround moves to the users' guide (decision D5). Three
-  documents repeat the false remedy (line numbers at `4c21753d`):
-  `docs/users-guide.md` lines 1087-1088, `docs/rstest-bdd-design.md` line 1794,
-  and `docs/v0-6-0-migration-guide.md` line 340. EP-M6 corrects all three.
+  documents repeat the false remedy (line numbers at `0df7fbec`):
+  `docs/users-guide.md` lines 1172-1173 ("to get the same attribute
+  recognition"), `docs/rstest-bdd-design.md` lines 1794-1795 ("for the macro to
+  resolve it"), and `docs/v0-6-0-migration-guide.md` lines 339-341. EP-M6
+  corrects all three. Two nearby passages are true and stay, because they
+  describe the workaround rather than a cure: `docs/users-guide.md` lines
+  1196-1200 and `docs/v0-6-0-migration-guide.md` lines 334-335.
 - Observation: the Tokio consequence "`#[tokio::test]` was not applied" is
   never true in a compiling program. Evidence:
   `generate_test_attrs_with_boundary` in `codegen/scenario/test_attrs.rs` drops
@@ -295,7 +325,7 @@ conflict in `Decision log`, and escalate.
   `macros/scenarios/test_generation/tests/mod.rs` builds
   `SharedAdapterResolutions` with a struct literal. At `8737d88f` it was under
   `#[cfg(windows)]`, so the Linux gates never compiled it (panel: Pandalump).
-  Commit `5a1bd0d6` (#686) removed that gate, so at `4c21753d` the literal
+  Commit `5a1bd0d6` (#686) removed that gate, so at `0df7fbec` the literal
   (line 41) compiles on every platform. Impact: EP-M1 still gives the
   replacement type a constructor and updates this site, but the Linux
   `make test` now proves it compiles; Windows CI is no longer needed as special
@@ -322,8 +352,42 @@ conflict in `Decision log`, and escalate.
   `preparation::tree().ensure_prepared(preparation::prepare)?`, as the existing
   ones do. New fixtures need no preparation change, because the prepared
   dependency graph comes from the manifest rather than from the fixture list.
-- Observation (2026-11-23 rebase): `main` gained ADR-024 (registry lookups),
-  ADR-025, and ADR-026, so this plan's ADR cannot be ADR-024. Impact: D22.
+- Observation (2026-11-24 rebase): the 2026-11-23 revision overstated its
+  checks. It said that the W002, W003, and deep-nesting scan had been re-run,
+  but only the "17 of 20" scan had been. It did not compare `AGENTS.md`,
+  `clippy.toml`, or the workspace version. It left two hand-typed
+  `cargo nextest run` commands in place, and it deferred ADR-0008 and ADR-0017
+  path changes. Evidence: this revision's re-measurement. Impact: Risk R1, C8,
+  C12, and D24 to D27.
+- Observation (2026-11-24 rebase): the existing fixtures
+  `scenario_harness_gpui_alias_fallback_warning.rs` and
+  `nightly_gpui_adapter_fallback_warning.rs` are W002 shapes (an `Evidenced`
+  GPUI harness without `attributes`). Impact: EP-M2 regenerates both as W002,
+  so the stable and nightly W002 texts are already pinned. EP-M2 adds the
+  separate nightly twin only if it pins something the existing fixture does not.
+- Observation (2026-11-24 rebase): the workspace has denied Clippy's
+  `allow_attributes` since before this plan was drafted, so the planned
+  integration test with a module-level `#[allow(deprecated)]` could never have
+  passed `make lint`. Impact: D25.
+- Observation (2026-11-24 rebase): the workspace version is 0.7.0, not 0.6.x,
+  and `docs/v0-7-0-migration-guide.md` covers the unreleased line. Roadmap
+  11.2.2 (#773) shipped there. Impact: D26.
+- Observation (2026-11-24 rebase): `make test` now runs
+  `prepare-nested-fixtures` before each of its two nextest passes (#979), with
+  that pass's own `PREPARE_FLAGS`. Impact: milestone gates need no separate
+  preparation step. Filtered loops still do (D23), and the default
+  `PREPARE_FLAGS` covers both harness suites, because the second pass builds
+  only `rstest-bdd`. The macro crate's policy seams are unchanged: between
+  `4c21753d` and `0df7fbec` the files under `codegen/scenario/` changed only in
+  documentation comments and blank lines.
+- Observation (2026-11-24 rebase): the `scenarios!` boundary body now lives in
+  `expand_scenarios_tokens`, which is testable without a compiler session
+  (`macros/scenarios/tests.rs`). It calls `emit_runtime_deprecation_warning`
+  before any feature file is read. Impact: EP-M3 emits E002 there, and can unit
+  test it directly.
+- Observation (2026-11-24 rebase): `rstest_bdd::prelude` (#773) re-exports no
+  harness adapter or attribute policy, so it adds no new non-canonical path.
+  Impact: none.
 
 ## Decision log
 
@@ -340,16 +404,16 @@ earlier one, the earlier entry says so.
   a harness). Rationale: the macros can act only on what the tokens prove.
   Date/Author: 2026-10-15 / Claude.
 - Decision D2: do not warn when a non-first-party harness is supplied without
-  `attributes = ...`. Rationale: ADR-008 declares harness-only usage valid. The
-  in-repo instances are correct synchronous harnesses, and under `-D warnings`
-  a warning is a build failure for a patch upgrade (C1, C6). The only fix such
-  a warning could offer is a custom policy, which the macros cannot evaluate.
-  Roadmap 12.2.3 owns the policy-extension question; ADR-028 states that
-  12.2.3's ADR may supersede this rule. An opt-in strict mode was considered
-  and rejected: a new macro argument breaches the Interface tolerance, and a
-  Cargo feature unifies across a build, so one crate enabling it would break a
-  neighbour that builds with `-D warnings`. Date/Author: 2026-10-15 / Claude
-  (panel: Wafflecat).
+  `attributes = ...`. Rationale: ADR-0008 declares harness-only usage valid.
+  The in-repo instances are correct synchronous harnesses, and under
+  `-D warnings` a warning is a build failure for a patch upgrade (C1, C6). The
+  only fix such a warning could offer is a custom policy, which the macros
+  cannot evaluate. Roadmap 12.2.3 owns the policy-extension question; ADR-0029
+  states that 12.2.3's ADR may supersede this rule. An opt-in strict mode was
+  considered and rejected: a new macro argument breaches the Interface
+  tolerance, and a Cargo feature unifies across a build, so one crate enabling
+  it would break a neighbour that builds with `-D warnings`. Date/Author:
+  2026-10-15 / Claude (panel: Wafflecat).
 - Decision D3: E001 and E002 are hard errors. Rationale: each fires only on
   configurations that already fail to compile (`LEM-ERR-REPLACES`), so a
   clearer error rejects nothing new (C2). Date/Author: 2026-10-15 / Claude.
@@ -426,12 +490,12 @@ earlier one, the earlier entry says so.
   harness path's span avoids any parser change (C11). The alias-alone
   deprecation warning stays nightly-only, as it is today. Date/Author:
   2026-10-15 / Claude (panel: Wafflecat and Telefono).
-- Decision D14: record without changing a departure between ADR-008's prose
-  and the code. ADR-008 says that the alias does not change attribute
+- Decision D14: record without changing a departure between ADR-0008's prose
+  and the code. ADR-0008 says that the alias does not change attribute
   selection, but in code `attribute_runtime` makes the alias select the Tokio
   hint when no first-party harness is recognized. Every configuration in which
   that departure is observable is now an E002 error, so preserving the code
-  (C4) changes nothing visible. ADR-028 records the departure. Date/Author:
+  (C4) changes nothing visible. ADR-0029 records the departure. Date/Author:
   2026-10-15 / Claude (panel: Telefono).
 - Decision D15: the precedence ladder is implemented once. A new pure
   function, `policy_diagnostics::resolution::selected_hint`, takes classified
@@ -465,7 +529,7 @@ earlier one, the earlier entry says so.
   2026-10-15 / Claude (panel: Dinolump).
 - Decision D18: `Evidenced` carries a private `Framework { Tokio, Gpui }` with
   a conversion into `TestAttributeHint`, so `Evidenced(RstestOnly)` is
-  unrepresentable. Rationale: ADR-004 governs ownership of the shared
+  unrepresentable. Rationale: ADR-0004 governs ownership of the shared
   vocabulary; a private subset type does not compete with it. Date/Author:
   2026-10-15 / Claude (panel: Telefono).
 - Decision D19: the model grows milestone by milestone. EP-M1 introduces only
@@ -496,15 +560,9 @@ earlier one, the earlier entry says so.
   classify as alias plus a harness and raise E002. Rationale: a unit case pins
   alias-alone as diagnostic-free. Date/Author: 2026-10-15 / Claude (panel:
   Pandalump).
-- Decision D22: the new ADR is provisionally ADR-028, not ADR-024.
-  Rationale: at `4c21753d`, ADR-024 to ADR-026 exist on `main`. ADR-027 is
-  claimed twice by open pull requests: #773 adds `docs/adr-027-*`, and #942
-  renames `adr-005a` to `docs/adrs/adr-0027-*`. 028 is the lowest number free
-  whichever lands first. EP-M6 confirms the next free number before creating
-  the file. If #942 has merged, the file lives at
-  `docs/adrs/adr-0028-evidence-based-harness-and-policy-diagnostics.md` and
-  links to ADR-008 and ADR-017 use their `docs/adrs/` paths. Date/Author:
-  2026-11-23 / Claude.
+- Decision D22 (superseded by D24): the new ADR is not ADR-0024, because that
+  number was taken on `main`. The provisional number 0028 was chosen to survive
+  two open pull requests. Date/Author: 2026-11-23 / Claude.
 - Decision D23: focused test loops go through the Makefile's prepared-fixture
   targets instead of hand-typed `cargo nextest run` filters. Rationale: on
   `main` the stamp fingerprint includes `RUSTFLAGS`, so an ad hoc filter is
@@ -513,6 +571,33 @@ earlier one, the earlier entry says so.
   `cargo test` prepares lazily under its own lock. `make typecheck` is added
   to the milestone gate list because it is one of the repository's commit
   gates. Date/Author: 2026-11-23 / Claude.
+- Decision D24: the new ADR is ADR-0029, at
+  `docs/adrs/adr-0029-evidence-based-harness-and-policy-diagnostics.md`.
+  Rationale: #942 moved every ADR to `docs/adrs/adr-nnnn-*.md` and made
+  ADR-005a ADR-0027, and #773 took ADR-0028. On 2026-11-24 no open pull request
+  and no fetched branch claimed 0029. EP-M6 confirms this before creating the
+  file, because published ADRs are never renumbered. Date/Author: 2026-11-24 /
+  Claude.
+- Decision D25 (revises D20's third bullet for one case): the documented opt-out
+  is pinned by a trybuild `pass` fixture, as D10 says, and not by an
+  integration test. Rationale: the workspace denies `allow_attributes`, and
+  trybuild fixtures are not Clippy targets. The fixture sets a crate-level
+  `#![deny(deprecated)]`, so it fails without the module-level opt-out;
+  trybuild strips `RUSTFLAGS`, so `-D warnings` alone would not prove that. The
+  alternative, `#[expect(deprecated)]`, is unfulfilled on nightly, where no
+  deprecated item is generated. `policy_user_executor.rs` needs no suppression
+  and stays an integration test. Date/Author: 2026-11-24 / Claude.
+- Decision D26: keep the roadmap's additive constraint and release on the
+  current unreleased line. Rationale: `main` already carries 0.7.0 breaking
+  changes, so a v0.6.1 release of this work would need a backport that the
+  roadmap does not request. C1 to C3 are stricter than 0.7.0 requires, and are
+  kept. User-facing guidance goes to `docs/v0-7-0-migration-guide.md`; the
+  v0.6.0 guide receives only the correction of its false statement.
+  Date/Author: 2026-11-24 / Claude.
+- Decision D27: new trybuild cases join the existing timed test functions, and
+  the plan adds no new `#[serial]` test. Rationale: AGENTS.md no longer accepts
+  process-wide locks as a fallback. If a nightly function's name stops
+  describing its contents, rename it. Date/Author: 2026-11-24 / Claude.
 
 ## Outcomes & retrospective
 
@@ -532,7 +617,7 @@ every discovery against the artefacts listed in `Conformance basis`.
   macros cannot call its methods at expansion time, so only first-party
   policies affect emitted attributes.
 - *Test attribute hint*: `rstest_bdd_policy::TestAttributeHint`, one of
-  `RstestOnly`, `RstestWithTokioCurrentThread`, `RstestWithGpuiTest`. ADR-004
+  `RstestOnly`, `RstestWithTokioCurrentThread`, `RstestWithGpuiTest`. ADR-0004
   makes it the shared vocabulary for "which framework attributes to emit". This
   plan calls the hint a path selects that path's *family*.
 - *Selected hint* versus *emitted attributes*: the selected hint is the
@@ -560,12 +645,12 @@ every discovery against the artefacts listed in `Conformance basis`.
   3. that adapter crate is directly resolvable through `proc_macro_crate`.
 
   `custom::TokioHarness` has no evidence and is treated as a custom type
-  (ADR-017). Today's rule is the special case in which the crate identifier is
+  (ADR-0017). Today's rule is the special case in which the crate identifier is
   the penultimate segment.
 - *Expansion boundary*: the single place in each macro where supplied paths
   are resolved and diagnostics are emitted. For `#[scenario]` it is
   `try_scenario` in `crates/rstest-bdd-macros/src/macros/scenario/mod.rs`. For
-  `scenarios!` it is `scenarios` in
+  `scenarios!` it is `expand_scenarios_tokens` in
   `crates/rstest-bdd-macros/src/macros/scenarios/mod.rs`.
 - *Stable channel* and *nightly channel*: stable procedural macros cannot
   emit warnings. Instead the macros emit a `const _` block that uses a
@@ -604,7 +689,7 @@ Each message names only consequences that really occurred. W001 and W002
 mention a dropped attribute only when the attribute set the canonical path
 would have emitted differs from the attribute set actually emitted. In practice
 that is `#[gpui::test]` (see discoveries). W001 always mentions the fallback to
-base harness API types, which is the consequence ADR-017 introduced. An
+base harness API types, which is the consequence ADR-0017 introduced. An
 explicit downgrade to `rstest_bdd_harness::DefaultAttributePolicy` is a
 documented override and never triggers W003.
 
@@ -678,7 +763,7 @@ Explicitly out of scope, recorded so that a reviewer can challenge it:
 - `crates/rstest-bdd-macros/src/codegen/scenario/test_attrs.rs` (238 lines):
   `TestAttrPolicy`, `resolve_attribute_policy` (which will delegate to
   `selected_hint`), and `generate_test_attrs_with_boundary`.
-- `crates/rstest-bdd-macros/src/codegen/scenario/mod.rs` (331 lines):
+- `crates/rstest-bdd-macros/src/codegen/scenario/mod.rs` (338 lines):
   `ScenarioConfig` (which now also carries the step-library `scope`) and
   `reject_async_harness`. Test emission goes through
   `codegen/scenario/emit.rs::emit_scenario_test` (88 lines), which calls
@@ -694,9 +779,9 @@ Explicitly out of scope, recorded so that a reviewer can challenge it:
   alias-plus-harness branch E002 replaces.
 - `crates/rstest-bdd-macros/src/macros/scenarios/test_generation/mod.rs`
   (374 lines): `ScenarioTestContext.resolutions`.
-- `SharedAdapterResolutions` sites at `4c21753d`, all updated in EP-M1:
+- `SharedAdapterResolutions` sites at `0df7fbec`, all updated in EP-M1:
   - production: `codegen/mod.rs:20`, `codegen/scenario/adapters.rs:14,19,33`,
-    `codegen/scenario/mod.rs:108`, `macros/scenario/mod.rs:231`,
+    `codegen/scenario/mod.rs:115`, `macros/scenario/mod.rs:231`,
     `macros/scenarios/mod.rs:89,328`, `macros/scenarios/test_generation/mod.rs:66`;
   - tests: `codegen/scenario/tests/adapter_sharing.rs`,
     `codegen/scenario/tests/runtime_split.rs`, `macros/scenarios/tests.rs`
@@ -750,7 +835,7 @@ Before implementation, load `rust-router`. Then, as each facet arises, load:
 - `rust-verification`, for method selection;
 - `rust-errors`, for the two new errors;
 - `rust-unused-code`, for the cfg-gated channel functions;
-- `arch-decision-records`, for ADR-028;
+- `arch-decision-records`, for ADR-0029;
 - `en-gb-oxendict-style`, for message wording and documentation.
 
 Use `codegraph-mcp` (`codegraph_get_callers`, `codegraph_analyze_impact`)
@@ -758,13 +843,15 @@ before moving `adapter_fallback` items, and `nextest` for focused runs.
 
 Read:
 
-- `docs/rstest-bdd-design.md` §§2.7.3-2.7.6.4: harness integration, ADR-008
+- `docs/rstest-bdd-design.md` §§2.7.3-2.7.6.4: harness integration, ADR-0008
   codegen, first-party targets, and the v0.6.1 helpers;
-- `docs/adr-008-harness-led-attribute-policy-defaults.md`: precedence, and
+- `docs/v0-7-0-migration-guide.md`: the unreleased line's guidance (D26);
+- `docs/adrs/adr-0008-harness-led-attribute-policy-defaults.md`: precedence, and
   the validity of harness-only and attributes-only usage;
-- `docs/adr-017-toolchain-aware-adapter-fallback-diagnostics.md`: channels,
-  cardinality, and ownership;
-- `docs/adr-004-policy-crate.md`: `TestAttributeHint` as the single source;
+- `docs/adrs/adr-0017-toolchain-aware-adapter-fallback-diagnostics.md`:
+  channels, cardinality, and ownership;
+- `docs/adrs/adr-0004-policy-crate.md`: `TestAttributeHint` as the single
+  source;
 - `docs/developers-guide.md`: "Adapter fallback diagnostics" and "Staging
   fixtures for trybuild tests";
 - `docs/users-guide.md`: "Harness adapter and attribute policy" and
@@ -782,20 +869,20 @@ does not read `harness` or `attributes` paths, so it is unaffected.
 
 ## Conformance basis
 
-Upstream artefacts, read at repository revision `8737d88f` and re-verified at
-`4c21753d` (2026-11-23):
+Upstream artefacts, read at repository revision `8737d88f` and checked again at
+`0df7fbec` (2026-11-24):
 
 - Roadmap item 11.2.3 in `docs/roadmap.md` §11.2, including its finish line,
   and the Phase 11 preamble on semver-compatible additive hardening.
 - Design document `docs/rstest-bdd-design.md`:
   - §2.7.3: macro integration, the attribute-policy trust model, and the
     fallback diagnostic;
-  - §2.7.4: ADR-008 codegen;
+  - §2.7.4: ADR-0008 codegen;
   - §2.7.5: first-party targets;
   - §2.7.6.3 and §2.7.6.4: the beta quick wins and the v0.6.1 helpers.
-- ADR-004 (policy crate), ADR-005a (adapter crates), ADR-007 (context
-  injection), ADR-008 (harness-led defaults), and ADR-017 (fallback
-  diagnostics).
+- ADR-0004 (policy crate), ADR-0027 (adapter crates; formerly ADR-005a),
+  ADR-0007 (context injection), ADR-0008 (harness-led defaults), and ADR-0017
+  (fallback diagnostics).
 - Governing standards: `AGENTS.md` and `docs/documentation-style-guide.md`.
 - No Terms of Reference document exists for this work, and none is invented.
 
@@ -811,10 +898,10 @@ Traced requirements (identifiers are local to this plan):
 Trace chain:
 
 ```plaintext
-11.2.3 -> REQ-NC     -> §2.7.3, ADR-017 -> EP-M1, EP-M2 -> W001 fixtures, LEM-EVIDENCE
-11.2.3 -> REQ-MISS   -> §2.7.3, ADR-008 -> EP-M2, EP-M4 -> W002 + E001 fixtures, LEM-ERR-REPLACES
-11.2.3 -> REQ-AMB    -> ADR-008         -> EP-M3        -> W003 + E002 fixtures, LEM-SILENCE
-11.2.3 -> REQ-FIX    -> ADR-028 (new)   -> EP-M2..EP-M4 -> LEM-FIX-CONVERGES, LEM-FIX-CANONICAL, insta
+11.2.3 -> REQ-NC     -> §2.7.3, ADR-0017 -> EP-M1, EP-M2 -> W001 fixtures, LEM-EVIDENCE
+11.2.3 -> REQ-MISS   -> §2.7.3, ADR-0008 -> EP-M2, EP-M4 -> W002 + E001 fixtures, LEM-ERR-REPLACES
+11.2.3 -> REQ-AMB    -> ADR-0008         -> EP-M3        -> W003 + E002 fixtures, LEM-SILENCE
+11.2.3 -> REQ-FIX    -> ADR-0029 (new)   -> EP-M2..EP-M4 -> LEM-FIX-CONVERGES, LEM-FIX-CANONICAL, insta
 11.2.3 -> REQ-TRY    -> dev guide       -> EP-M2..EP-M4 -> trybuild stable + nightly representatives
 Ph. 11 -> REQ-COMPAT -> C1-C3           -> EP-M1..EP-M5 -> LEM-SILENCE, REP-EMITTED-TOKENS, BDD scenarios
 ```
@@ -955,8 +1042,8 @@ independently falsifiable.
   phrased as a characterization of silence, written independently of the
   clauses of `diagnose`, and the named witness table (below) supplies expected
   values without a second implementation. Artefact:
-  `policy_diagnostics/tests/exhaustive.rs`. Evidence:
-  `cargo nextest run -p rstest-bdd-macros policy_diagnostics`.
+  `policy_diagnostics/tests/exhaustive.rs`. Evidence: the `policy_diagnostics`
+  focused loop in `Concrete steps`.
 
   Non-vacuity checks:
   - the enumerator yields exactly 294 distinct states (asserted, and grown
@@ -1051,8 +1138,8 @@ independently falsifiable.
   Non-vacuity: class-first generation makes each class's frequency a property
   of the strategy, not of chance. A fixed seed is recorded, and the test
   asserts that each generated class round-trips through `classify`. Seeded
-  fault: matching only the penultimate segment (today's ADR-017 rule) must fail
-  the deep-nesting case.
+  fault: matching only the penultimate segment (today's ADR-0017 rule) must
+  fail the deep-nesting case.
 - Obligation `REP-EMITTED-TOKENS` (the representation relationship): for one
   concrete witness path per `SlotClass`, across all `#[scenario]` and
   `scenarios!` states, the attribute tokens produced by the real
@@ -1215,7 +1302,7 @@ Work:
   - Windows CI passes on the pushed branch.
 - Conformance check:
   - no requirement is newly claimed;
-  - the ADR-017 structure is preserved (pure resolution, boundary emission);
+  - the ADR-0017 structure is preserved (pure resolution, boundary emission);
   - assumptions are unchanged;
   - there is no public interface change (all items are `pub(crate)` or
     narrower);
@@ -1237,9 +1324,9 @@ Red:
 - Add `LEM-EVIDENCE` deep-nesting, renamed, and unresolvable cases, the
   `LEM-FIX-CANONICAL` table, the `LEM-CONSEQUENCE-TRUE` states, and the
   W001/W002 `insta` cases.
-- Register fixtures in the existing timed tests where possible. Any new
-  timed `#[test]` (for example a separate nightly representative) must call
-  `preparation::tree().ensure_prepared(preparation::prepare)?` first (D23).
+- Register every fixture in the existing timed tests (D27). Those functions
+  already call `preparation::tree().ensure_prepared(preparation::prepare)?`,
+  which any new timed test would also have to do.
 - Add trybuild fixtures, all stable fixtures under `#![deny(deprecated)]`:
   - `crates/rstest-bdd-harness-tokio/tests/fixtures_macros/policy_w001_noncanonical.rs`:
     a nested harness and a nested policy in synchronous code, giving two W001
@@ -1248,12 +1335,13 @@ Red:
     a nested GPUI harness without attributes (W002), plus a nested GPUI
     policy (W001 with the `#[gpui::test]` clause);
   - nightly twin
-    `crates/rstest-bdd-harness-gpui/tests/fixtures_macros/nightly_policy_w002_warning.rs`.
-- Add an integration test,
-  `crates/rstest-bdd-harness-tokio/tests/policy_opt_out.rs`: a module-level
-  `#[allow(deprecated)]` around a W001 configuration. It compiles under
-  `make test`'s `-D warnings`, which pins the documented opt-out (D10). This is
-  the C8 exception.
+    `crates/rstest-bdd-harness-gpui/tests/fixtures_macros/nightly_policy_w002_warning.rs`,
+    only if the existing nightly GPUI fixture does not already pin W002.
+- Add a trybuild `pass` fixture,
+  `crates/rstest-bdd-harness-tokio/tests/fixtures_macros/policy_opt_out.rs`: a
+  module-level `#[allow(deprecated)]` around a W001 configuration, under a
+  crate-level `#![deny(deprecated)]`. Removing the opt-out must make it fail.
+  This pins the documented opt-out (D10, D25) and is the C8 exception.
 
 Green:
 
@@ -1264,13 +1352,13 @@ Green:
 - Requirements: `REQ-NC`, `REQ-MISS` (W002), `REQ-FIX`, and `REQ-TRY` for
   these codes.
 - Acceptance:
-  - the new fixtures and the opt-out test pass;
+  - the new fixtures, including the opt-out, behave as expected;
   - `scenario_custom_tokio_harness_name.rs` (a custom type under
     `deny(deprecated)`, `pass`) still passes;
   - the nightly regeneration transcript is recorded.
 - Conformance check:
   - REQ-NC and the W002 part of REQ-MISS are satisfied;
-  - ADR-017 cardinality and custom-type silence hold;
+  - ADR-0017 cardinality and custom-type silence hold;
   - assumptions remain valid;
   - there is no public interface change;
   - there is no trust-boundary change;
@@ -1418,7 +1506,7 @@ afterwards.
 
 - Requirements: `REQ-COMPAT` and `REQ-FIX`, end to end.
 - Acceptance:
-  `cargo nextest run -p rstest-bdd-harness-tokio --test harness_led_defaults`
+  `make nextest-run EXPR='binary_id(rstest-bdd-harness-tokio::harness_led_defaults)'`
   passes all its scenarios, including the three new ones.
 - Conformance check: one line per item, as for EP-M2.
 - Recovery: revert. EP-M4 remains coherent.
@@ -1429,37 +1517,40 @@ afterwards.
 
 Outcome: documentation matches the implementation.
 
-- Add `docs/adr-028-evidence-based-harness-and-policy-diagnostics.md`
+- Add `docs/adrs/adr-0029-evidence-based-harness-and-policy-diagnostics.md`
   following the documentation style guide's ADR template. Its status becomes
   `Accepted` when the implementation lands. It records:
   - the taxonomy and codes;
   - the evidence principle, including the resolvability conjunct;
   - the error-replaces-error rule;
   - the decision not to warn on harness-only third-party usage, scoped to
-    v0.6.x and supersedable by roadmap 12.2.3's ADR;
+    the additive Phase 11 line and supersedable by roadmap 12.2.3's ADR;
   - the fix-versus-workaround rule;
   - the rule that errors suppress warnings;
   - channel reuse and the opt-out;
-  - the ADR-008 prose departure (D14).
+  - the ADR-0008 prose departure (D14).
 
-  Confirm the next free ADR number and the ADR directory first (D22). Add an
-  `Amended by ADR-028 (date)` banner and an `## Amendments` entry to ADR-017.
-  Index ADR-028 in `docs/contents.md`.
+  Confirm the next free ADR number first (D24). Add an
+  `Amended by ADR-0029 (date)` banner to the Status section, and an
+  `## Amendments` section, in ADR-0017. Index ADR-0029 in `docs/contents.md`.
 - `docs/rstest-bdd-design.md`:
   - §2.7.3: replace the fallback paragraphs with a "Policy diagnostics"
-    subsection that summarizes the five diagnostics and references ADR-028;
-  - correct the false remedy at line 1794 (at `4c21753d`);
+    subsection that summarizes the five diagnostics and references ADR-0029;
+  - correct the false remedy at lines 1794-1795 (at `0df7fbec`), and the
+    description of the warning text in the paragraph that follows;
   - §2.7.6.4: list 11.2.3 as delivered.
 - `docs/users-guide.md`: rename "First-party adapter fallback diagnostics" to
   "Harness and attribute-policy diagnostics", and give each code an anchored
   entry with a triggering example, the message, and the fix. Also:
-  - correct lines 1087-1088 (at `4c21753d`);
+  - correct lines 1172-1173 (at `0df7fbec`);
   - document the dev-dependency workaround as a workaround;
   - document the module-level opt-out and the nightly limitation;
   - state the renamed-import and `macro_rules!` limitations;
   - state the `-D warnings` consequence.
-- `docs/v0-6-0-migration-guide.md`: correct line 340 (unchanged at
-  `4c21753d`) and update the fallback-warning blockquote.
+- `docs/v0-6-0-migration-guide.md`: correct lines 339-341 (at `0df7fbec`) in
+  the fallback-warning blockquote.
+- `docs/v0-7-0-migration-guide.md`: add guidance for the new warnings, their
+  `-D warnings` consequence, and the opt-out (D26).
 - `docs/developers-guide.md`: replace "Adapter fallback diagnostics" with
   "Policy diagnostics". It must describe:
   - module ownership: `policy_diagnostics` is the only emitter of harness and
@@ -1483,7 +1574,7 @@ Outcome: documentation matches the implementation.
 ### EP-M7: completion
 
 Mark roadmap 11.2.3 as done, with a completion note naming this ExecPlan and
-ADR-028. Run all gates. Complete `Outcomes & retrospective`, reconcile
+ADR-0029. Run all gates. Complete `Outcomes & retrospective`, reconcile
 discoveries against the conformance basis, and set the status to `COMPLETE`.
 
 ## Concrete steps
@@ -1499,8 +1590,10 @@ developers' guide).
 BR=$(git branch --show-current | tr / -)
 ```
 
-Focused loops use the prepared-fixture targets (D23). Prepare once per
-`RUSTFLAGS` or dependency change, then filter:
+`make test` prepares its own fixtures. Focused loops use the prepared-fixture
+targets directly (D23). Run `prepare-nested-fixtures` after any `RUSTFLAGS`,
+toolchain, or dependency change, and after a plain or nightly `cargo test`,
+then filter. It is idempotent on a warm tree:
 
 ```bash
 make prepare-nested-fixtures 2>&1 | tee "/tmp/prepare-rstest-bdd-$BR.out"
@@ -1510,6 +1603,8 @@ make nextest-run EXPR='binary_id(rstest-bdd-harness-tokio::macro_compile)' 2>&1 
   | tee "/tmp/trybuild-tokio-rstest-bdd-$BR.out"
 make nextest-run EXPR='binary_id(rstest-bdd-harness-gpui::macro_compile)' 2>&1 \
   | tee "/tmp/trybuild-gpui-rstest-bdd-$BR.out"
+make nextest-run EXPR='binary_id(rstest-bdd-harness-tokio::harness_led_defaults)' 2>&1 \
+  | tee "/tmp/bdd-tokio-rstest-bdd-$BR.out"
 ```
 
 To refresh a `.stderr` snapshot after a deliberate message change, run the
@@ -1571,13 +1666,13 @@ Acceptance criteria, phrased as behaviour:
    `harness` with `async fn`" error.
 5. `scenario_default_policy_async_no_harness_rejected.rs` produces three
    `rstest-bdd[E001]` errors and no `rstest` "async test requires" error.
-6. `policy_user_executor.rs` and `policy_opt_out.rs` compile and pass under
-   `make test`.
+6. `policy_user_executor.rs` compiles and passes, and the `policy_opt_out.rs`
+   fixture passes, under `make test`.
 7. Every pre-existing `pass` fixture, macrotest snapshot, and
    `harness_defaults` case is unchanged.
 8. The three new behavioural scenarios pass.
-9. `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
-   `make nixie` pass.
+9. `make check-fmt`, `make lint`, `make typecheck`, `make test`,
+   `make markdownlint`, and `make nixie` pass.
 
 Quality criteria:
 
@@ -1603,7 +1698,7 @@ the tree to the previous plateau. Stage files by path rather than with
 ## Artefacts and notes
 
 The in-repo scan behind the "17 of 20" figure (read-only, run at `8737d88f` and
-re-run with the same result at `4c21753d`). It treats a `harness =` path whose
+re-run with the same result at `0df7fbec`). It treats a `harness =` path whose
 last segment is `TokioHarness`, `GpuiHarness`, or `StdHarness` as first-party:
 
 ```bash
@@ -1728,16 +1823,23 @@ existing dev-dependencies of `rstest-bdd-macros`), plus `trybuild` and
   Effect on remaining work: EP-M0 gains three experiments; EP-M2 gains W002;
   EP-M3 swaps the alias warning for E002; C11 now keeps the plan out of the
   parser files.
-- 2026-11-23: rebased onto `origin/main` at `4c21753d` and re-verified every
-  revision-anchored claim. Changes:
-  - the ADR becomes provisionally ADR-028 (D22);
-  - focused loops use `make prepare-nested-fixtures` and
-    `make nextest-run` (D23), and `make typecheck` joins the gate list;
-  - line counts, `SharedAdapterResolutions` call sites, and documentation
-    line references are refreshed;
-  - the former Windows-only struct literal now compiles on Linux;
-  - Risk R2 lists the open PRs (#773, #783, #784, #927, #930, #942) that
-    touch the plan's files.
+- 2026-11-23: rebased onto `origin/main` at `4c21753d`. The ADR number, focused
+  test commands, line references, and open pull requests were revised (D22,
+  D23). The revision's claim to have re-verified everything was wrong.
 
   Effect on remaining work: none on the design. EP-M1 step 2, EP-M2's
   registration, and EP-M6's ADR step carry the new instructions.
+- 2026-11-24: rebased onto `origin/main` at `0df7fbec`. Changes:
+  - the ADR becomes ADR-0029 under `docs/adrs/`, and all ADR references use
+    four digits (D24);
+  - the opt-out is pinned by a trybuild fixture, because the integration test
+    would have failed `make lint` (D25);
+  - the work targets the unreleased 0.7.0 line (D26);
+  - C12 and D27 record the current AGENTS.md test conventions;
+  - Risk R1's in-repo claim, Risk R2's pull requests, and all anchors are
+    corrected;
+  - `make test` prepares its own nested fixtures (#979).
+
+  Effect on remaining work: EP-M2 changes where the opt-out is tested and may
+  drop one nightly fixture; EP-M6 gains the v0.7.0 migration guidance. The
+  taxonomy, model, and obligations are unchanged.
