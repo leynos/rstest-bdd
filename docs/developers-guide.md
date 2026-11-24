@@ -2569,12 +2569,14 @@ it only for tests:
 rstest-bdd-harness = { workspace = true, features = ["testing"] }
 ```
 
-The core macro trybuild test scopes `RUST_BACKTRACE` removal with
-`temp_env::with_var_unset`. Trybuild compares compiler diagnostics verbatim,
-and CI's inherited backtrace setting otherwise adds platform-specific output.
-Keep `temp-env` available as a dev-dependency when building this test target;
-direct environment mutation is unsafe under Rust 2024 and would violate the
-workspace's unsafe-code policy.
+The core macro trybuild tests remove `RUST_BACKTRACE` and set
+`CARGO_TARGET_DIR` by running the test body in a child copy of the test binary
+(`tests/trybuild_macros/scoped_child.rs`), started with `Command::env` and
+`Command::env_remove`. Trybuild compares compiler diagnostics verbatim, and
+CI's inherited backtrace setting otherwise adds platform-specific output. A
+test never changes its own process environment: direct mutation is unsafe under
+Rust 2024, violates the workspace's unsafe-code policy, and forces tests to run
+serially.
 
 ### Fallible GPUI test boundaries
 

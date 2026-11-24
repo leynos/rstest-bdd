@@ -36,6 +36,9 @@ mod preparation;
 #[path = "trybuild_macros/runner.rs"]
 mod runner;
 
+#[path = "trybuild_macros/scoped_child.rs"]
+mod scoped_child;
+
 #[path = "trybuild_macros/tracking.rs"]
 mod tracking;
 
