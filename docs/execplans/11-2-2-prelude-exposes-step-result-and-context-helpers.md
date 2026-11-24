@@ -2630,13 +2630,16 @@ Recorded during planning and execution as evidence was confirmed.
   records: `docs/adr-025-nested-cargo-preparation-gate-query-boundary.md` took
   025, moving the OrthoConfig record to
   `docs/adr-026-adopt-ortho-config-for-the-cargo-bdd-cli.md`, so 027 became the
-  first free number. **Impact:** every reference in this plan and in the
-  shipped documents names ADR-0028, and the record is
+  first free number. `main` then adopted the archived layout in #942, which
+  moved the records into `docs/adrs/` with zero-padded numbers and gave 0027 to
+  the harness-adapter record. **Impact:** every reference in this plan and in
+  the shipped documents names ADR-0028, and the record is
   `docs/adrs/adr-0028-publish-a-facade-prelude.md`. A plan that reserves a
   number and then waits for a rebase must re-check the reservation, because the
   number it chose is a fact about the base branch at drafting time, not about
-  the plan. This record has now moved twice for that reason; the second move is
-  the stronger evidence for the rule.
+  the plan. This record has now moved three times, and each move had a
+  different cause — a landed record, a renumbered record, and a changed
+  directory convention — which is the stronger evidence for the rule.
 
 - **Observation:** the GPUI worked example keeps its explicit
   `rstest_bdd_macros` imports. **Evidence:** the three blocks in
