@@ -2683,9 +2683,14 @@ When updating macro code generation, keep this boundary intact:
 
 ## Fallback binary build in integration tests
 
-`crates/cargo-bdd/tests/cli.rs` and `examples/todo-cli/tests/cli.rs` use a
-two-phase strategy to locate test binaries, implemented by
-`rstest_bdd_harness::binary_test_support::locate_or_build_binary`:
+`crates/cargo-bdd/tests/cli.rs` uses a two-phase strategy to locate the binary
+of a package it does not own, implemented by
+`rstest_bdd_harness::binary_test_support::locate_or_build_binary`. A package's
+own integration tests do not need it: Cargo builds the package's binary targets
+before running them and exports the path as `CARGO_BIN_EXE_<name>`, so
+`examples/todo-cli/tests/cli.rs` uses `assert_cmd::cargo::cargo_bin_cmd!`,
+which reads that path at compile time and can never compile anything inside a
+timed test. The strategy is:
 
 1. Try `assert_cmd::Command::cargo_bin("binary-name")`.
 2. On failure, compute the expected debug binary path via
@@ -2764,14 +2769,16 @@ pub fn build_binary(
 ) -> std::io::Result<Output>;
 ```
 
-**Usage example** (from `examples/todo-cli/tests/cli.rs`):
+**Usage example** (from `crates/cargo-bdd/tests/cli.rs`'s shape; a package's
+own binary needs only `cargo_bin_cmd!("todo-cli")`, as in
+`examples/todo-cli/tests/cli.rs`):
 
 ```rust
 use assert_cmd::Command;
 
-fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
+fn locate_or_build_cmd() -> Result<Command, Box<dyn std::error::Error>> {
     let root = workspace_root();
-    locate_or_build_binary(&root.join("Cargo.toml"), &root, "todo-cli")
+    locate_or_build_binary(&root.join("Cargo.toml"), &root, "other-package-bin")
         .map(Command::from_std)
         .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
 }
