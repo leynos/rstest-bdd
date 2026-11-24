@@ -1910,7 +1910,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
- "temp-env",
  "tempfile",
  "the-newtype",
  "thiserror 2.0.21",

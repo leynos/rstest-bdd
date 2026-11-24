@@ -264,10 +264,6 @@ pub(crate) fn ensure_prepared(target_directory: &Utf8Path) -> io::Result<()> {
 /// the stamp I/O error when one cannot be written.
 #[test]
 #[serial_test::serial(trybuild_target_directory)]
-#[expect(
-    clippy::disallowed_methods,
-    reason = "trybuild reads CARGO_TARGET_DIR and RUST_BACKTRACE from the inherited environment; migrate to a subprocess"
-)]
 fn nested_fixture_preparation() -> io::Result<()> {
     // The same Windows-under-nextest deadlock `step_macros_compile` avoids:
     // nextest wraps test binaries in a Job Object, and the nested Cargo's
@@ -276,9 +272,11 @@ fn nested_fixture_preparation() -> io::Result<()> {
         return Ok(());
     }
     let target_directory = target_directory();
-    temp_env::with_var("CARGO_TARGET_DIR", Some(target_directory.as_str()), || {
-        temp_env::with_var_unset("RUST_BACKTRACE", || prepare_all(&target_directory))
-    })
+    super::scoped_child::run_scoped(
+        concat!(module_path!(), "::nested_fixture_preparation"),
+        &target_directory,
+        || prepare_all(&target_directory),
+    )
 }
 
 /// Compile the generated trybuild crate and its dependency graph.

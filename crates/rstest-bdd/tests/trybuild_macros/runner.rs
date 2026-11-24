@@ -1,4 +1,8 @@
-//! Process-wide environment orchestration for the trybuild integration run.
+//! Environment orchestration for the trybuild integration run.
+//!
+//! The run's environment (`CARGO_TARGET_DIR` set, `RUST_BACKTRACE` removed) is
+//! given to a child copy of the test binary by `scoped_child`; this process's
+//! own environment is never changed.
 //!
 //! This private module owns the single serialized test entrypoint. Fixture
 //! paths and snapshot guards remain in `staging`; individual test groups stay
@@ -18,16 +22,13 @@ use super::{
     run_feature_tracking_test,
     run_lint_ui_tests,
     run_passing_macro_tests,
+    scoped_child,
     staging,
     tracking,
 };
 
 #[test]
 #[serial_test::serial(trybuild_target_directory)]
-#[expect(
-    clippy::disallowed_methods,
-    reason = "trybuild reads CARGO_TARGET_DIR and RUST_BACKTRACE from the inherited environment; migrate to a subprocess"
-)]
 fn step_macros_compile() -> io::Result<()> {
     // This test spawns `cargo` (through `trybuild` and `cargo clippy`). On
     // Windows, nextest wraps test binaries in Job Objects and those child
@@ -46,9 +47,8 @@ fn step_macros_compile() -> io::Result<()> {
     // Linux-generated snapshots. Trybuild tests are about structured
     // diagnostics, not runtime backtraces.
     //
-    // Rust 2024 makes `std::env::remove_var` unsafe; Rust 1.85.0 is the first
-    // release supporting that edition. This workspace forbids unsafe code, so
-    // `temp_env` provides the same scoped mutation without weakening that lint.
+    // The removal and the target directory below are applied to a child copy
+    // of this test binary (`scoped_child::run_scoped`), not to this process.
     let crate_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
     let workspace_root = crate_root
         .parent()
@@ -65,8 +65,10 @@ fn step_macros_compile() -> io::Result<()> {
     // nextest a missing or stale stamp fails here with the command that
     // prepares it, rather than making this deadline pay for a cold build;
     // under plain `cargo test` the gate prepares lazily under its own lock.
-    temp_env::with_var("CARGO_TARGET_DIR", Some(target_directory.as_str()), || {
-        temp_env::with_var_unset("RUST_BACKTRACE", || {
+    scoped_child::run_scoped(
+        concat!(module_path!(), "::step_macros_compile"),
+        &target_directory,
+        || {
             super::preparation::ensure_prepared(&target_directory)?;
             let _target_root_snapshots = staging::stage_target_root_snapshots()?;
             let t = trybuild::TestCases::new();
@@ -100,6 +102,6 @@ fn step_macros_compile() -> io::Result<()> {
             drop(t);
             tracking::assert_trybuild_tracking_registered_in_dep_info(run_started);
             Ok(())
-        })
-    })
+        },
+    )
 }

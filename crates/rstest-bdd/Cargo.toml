@@ -61,7 +61,6 @@ serial_test.workspace = true
 googletest.workspace = true
 pretty_assertions.workspace = true
 eyre.workspace = true
-temp-env.workspace = true
 the-newtype = "0.1.1"
 tempfile.workspace = true
 toml = "1.1"
