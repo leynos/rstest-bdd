@@ -196,9 +196,15 @@ pub(super) fn manifest_relative_feature_path(path: &Path) -> String {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .unwrap_or_default();
+    manifest_relative_feature_path_in(path, &manifest_dir)
+}
+
+/// [`manifest_relative_feature_path`] against an explicit manifest directory,
+/// so tests can use synthetic roots without touching the process environment.
+fn manifest_relative_feature_path_in(path: &Path, manifest_dir: &Path) -> String {
     let absolute_path = path.is_absolute().then(|| path.to_path_buf());
     let resolved = lexical_normalize(&manifest_dir.join(path));
-    let manifest_dir = lexical_normalize(&manifest_dir);
+    let manifest_dir = lexical_normalize(manifest_dir);
 
     resolved.strip_prefix(&manifest_dir).map_or_else(
         |_| {
@@ -313,26 +319,19 @@ mod tests {
         dir.remove_file(&target)
     }
 
+    /// Cargo and nextest both set `CARGO_MANIFEST_DIR` for a test process to the
+    /// crate's own manifest directory, which is what `env!` captured at build
+    /// time, so the test reads it without setting anything.
     #[serial(cargo_manifest_dir)]
     #[rstest]
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
-    )]
     fn canonicalizes_with_manifest_dir(_cache_cleared: ()) {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        temp_env::with_var(
-            "CARGO_MANIFEST_DIR",
-            Some(env!("CARGO_MANIFEST_DIR")),
-            || {
-                let path = Path::new("Cargo.toml");
-                let expected = canonicalize_with_cap_std(&manifest.join(path))
-                    .expect("canonical path")
-                    .display()
-                    .to_string();
-                assert_eq!(canonical_feature_path(path), expected);
-            },
-        );
+        let path = Path::new("Cargo.toml");
+        let expected = canonicalize_with_cap_std(&manifest.join(path))
+            .expect("canonical path")
+            .display()
+            .to_string();
+        assert_eq!(canonical_feature_path(path), expected);
     }
 
     #[serial(cargo_manifest_dir)]
@@ -352,10 +351,6 @@ mod tests {
 
     #[serial(cargo_manifest_dir)]
     #[rstest]
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "scopes CARGO_MANIFEST_DIR with temp_env; migrate to an injected manifest directory"
-    )]
     fn caches_paths_between_calls(_cache_cleared: ()) {
         use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -365,25 +360,19 @@ mod tests {
             .as_nanos();
         let file_name = format!("cache_{unique}.feature");
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        temp_env::with_var(
-            "CARGO_MANIFEST_DIR",
-            Some(env!("CARGO_MANIFEST_DIR")),
-            || {
-                let tmp_dir = manifest.join("target/canonical-path-cache-tests");
-                create_dir_all_cap(&tmp_dir).expect("create tmp dir");
-                let file_path = tmp_dir.join(&file_name);
-                write_file_cap(&file_path, b"").expect("create temp feature file");
+        let tmp_dir = manifest.join("target/canonical-path-cache-tests");
+        create_dir_all_cap(&tmp_dir).expect("create tmp dir");
+        let file_path = tmp_dir.join(&file_name);
+        write_file_cap(&file_path, b"").expect("create temp feature file");
 
-                let rel_path = format!("target/canonical-path-cache-tests/{file_name}");
-                let path = Path::new(&rel_path);
-                let first = canonical_feature_path(path);
+        let rel_path = format!("target/canonical-path-cache-tests/{file_name}");
+        let path = Path::new(&rel_path);
+        let first = canonical_feature_path(path);
 
-                remove_file_cap(&file_path).expect("remove temp feature file");
-                let second = canonical_feature_path(path);
+        remove_file_cap(&file_path).expect("remove temp feature file");
+        let second = canonical_feature_path(path);
 
-                assert_eq!(first, second);
-            },
-        );
+        assert_eq!(first, second);
     }
 }
 
