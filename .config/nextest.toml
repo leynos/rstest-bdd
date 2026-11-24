@@ -41,12 +41,14 @@ max-threads = 1
 # gets these tests started early.
 #
 # This budget is not a deadline on any assertion, and it is not sized to be
-# spent. No lane prepares ahead of the suite: the six preparation tests are
-# ordinary members of it, and `priority` below is what starts them early, so
-# the timed assertions that follow find the stamp and spend only the read. The
-# `prepare-nested-fixtures` target serves the *filtered* case instead — a
-# single timed test run on its own, where nothing else would warm the tree —
-# and `make nextest-run` is its matching half. It bounds the genuinely cold
+# spent. `make test` runs the `prepare-nested-fixtures` target before each of
+# its nextest passes, with that pass's own package selection and features, so
+# a cold build is paid in this lane, outside the timed pass. The six
+# preparation tests are also ordinary members of the suite, and `priority`
+# below starts them early, so on a prepared tree they stamp in seconds and the
+# timed assertions that follow spend only the read. The same target serves the
+# *filtered* case — a single timed test run on its own, where nothing else
+# would warm the tree — and `make nextest-run` is its matching half. It bounds the genuinely cold
 # case for a single preparation test; the sibling preparations queue behind it
 # in the `cargo-spawning` group, and nextest starts a test's slow-timeout when
 # the test begins running, not while it waits for the group. Measured on the

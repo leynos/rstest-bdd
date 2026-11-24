@@ -1319,7 +1319,18 @@ and the difference is what environment each one establishes.
 `make prepare-nested-fixtures` runs `cargo nextest` with the
 `nested_fixture_preparation` filter. It uses the same `RUSTFLAGS` and build
 settings as the timed tests, because the same Makefile variables own both, so
-the stamp it writes describes the tree the timed tests will read.
+the stamp it writes describes the tree the timed tests will read. Its package
+and feature selection comes from `PREPARE_FLAGS`, which defaults to
+`$(CARGO_FLAGS)`. `make test` runs it before each nextest pass: once with the
+default flags, and once with
+`PREPARE_FLAGS="-p rstest-bdd --all-targets --no-default-features"` before the
+D4 leg, which builds a different feature graph that the first preparation does
+not warm. Preparation therefore keeps cold compilation outside the timed
+assertion bodies. It is not exempt from limits: commands that run through the
+harness's bounded runner keep their `PREPARATION_COMMAND_TIMEOUT` bound, while
+trybuild-driven preparation, which spawns its own nested `cargo`, is bounded
+only by the preparation test's nextest `slow-timeout`. Without `cargo-nextest`
+the target runs the same selection under `cargo test`.
 
 `make nextest-run EXPR=...` runs a filtered selection in that same environment
 — the one the stamp records. **Filtered runs must use this target.** A
