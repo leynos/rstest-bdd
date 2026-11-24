@@ -132,9 +132,11 @@ fn locate_or_build_binary_returns_err_for_invalid_manifest() {
 }
 
 /// Cargo sets `CARGO_BIN_EXE_<name>` only for the binaries of the package under
-/// test, and this crate has none, so the lookup always falls through to the
-/// build path. The precondition is asserted rather than arranged by changing
-/// the environment.
+/// test, and this crate has none, so the variable never short-circuits the
+/// lookup. (The lookup can still find an existing binary through the
+/// executable or target-directory path; that coverage limit predates this
+/// helper.) The precondition is asserted rather than arranged by changing the
+/// environment.
 fn assert_no_prebuilt_binary_variable(name: BinaryName<'_>) {
     let variable = format!("CARGO_BIN_EXE_{name}");
     assert!(
