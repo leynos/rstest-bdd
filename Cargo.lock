@@ -927,6 +927,7 @@ version = "0.2.2"
 dependencies = [
  "futures",
  "gpui-macros",
+ "proptest",
 ]
 
 [[package]]

@@ -46,23 +46,37 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-/// The value of `key` in `profile.default`, if the profile sets it.
-fn default_profile_key<'a>(configuration: &'a Value, key: &str) -> Option<&'a Value> {
+/// The value of `key` in the named profile, if that profile sets it.
+fn profile_key<'a>(configuration: &'a Value, profile_name: &str, key: &str) -> Option<&'a Value> {
     configuration
         .get("profile")
         .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get("default"))
+        .and_then(|profiles| profiles.get(profile_name))
         .and_then(Value::as_table)
-        .and_then(|default_profile| default_profile.get(key))
+        .and_then(|profile| profile.get(key))
+}
+
+/// The named profile's run-level `global-timeout`.
+///
+/// Generalizing the default-profile reader is what lets the long profile be
+/// checked against the same ordering, rather than duplicating the lookup and
+/// its dotted-path error for a second profile name.
+pub(super) fn profile_global_timeout<'a>(
+    configuration: &'a Value,
+    profile_name: &str,
+) -> Result<&'a str, io::Error> {
+    profile_key(configuration, profile_name, "global-timeout")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "nextest configuration must set profile.{profile_name}.global-timeout"
+            ))
+        })
 }
 
 /// The default profile's run-level `global-timeout`.
 pub(super) fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
-    default_profile_key(configuration, "global-timeout")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            io::Error::other("nextest configuration must set profile.default.global-timeout")
-        })
+    profile_global_timeout(configuration, "default")
 }
 
 /// `test-groups` is a top-level nextest table, not a profile key, so it needs
@@ -221,5 +235,73 @@ fn format_binary_ids(binary_ids: &BTreeSet<&str>) -> String {
         "<none>".to_owned()
     } else {
         binary_ids.iter().copied().collect::<Vec<_>>().join(", ")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Coverage for the profile reader's selection and error paths.
+
+    use toml::Value;
+
+    use super::profile_global_timeout;
+
+    /// The reader returns the profile it is asked for, not the default one.
+    ///
+    /// The two profiles carry different values so a reader that always selects
+    /// `default` fails here rather than agreeing with a shared expectation.
+    #[test]
+    fn profile_global_timeout_reads_the_requested_profile() {
+        let configuration: Value = toml::from_str(concat!(
+            "[profile.default]\n",
+            "global-timeout = \"90m\"\n",
+            "[profile.long]\n",
+            "global-timeout = \"30m\"\n",
+        ))
+        .expect("valid TOML");
+
+        assert_eq!(
+            profile_global_timeout(&configuration, "default").expect("default profile"),
+            "90m",
+            "the default profile's own global timeout must be returned"
+        );
+        assert_eq!(
+            profile_global_timeout(&configuration, "long").expect("long profile"),
+            "30m",
+            "the long profile's own global timeout must be returned, not the default's"
+        );
+    }
+
+    /// A missing leaf, a wrongly typed one and an absent profile all name the
+    /// dotted path, including for a profile other than `default`.
+    ///
+    /// The Windows strict coverage ratchet reads this path, so each rejection
+    /// is exercised rather than left to a real misconfiguration.
+    #[test]
+    fn profile_global_timeout_reports_unreadable_leaves_with_their_path() {
+        let cases = [
+            ("[profile.default]\n", "default", "a missing leaf"),
+            (
+                "[profile.default]\nglobal-timeout = 10\n",
+                "default",
+                "a wrongly typed leaf",
+            ),
+            (
+                "[profile.default]\nglobal-timeout = \"90m\"\n",
+                "long",
+                "an absent profile",
+            ),
+        ];
+
+        for (document, profile_name, label) in cases {
+            let configuration: Value = toml::from_str(document).expect("valid TOML");
+            let error = profile_global_timeout(&configuration, profile_name)
+                .expect_err("an unreadable global-timeout must be reported");
+            assert_eq!(
+                error.to_string(),
+                format!("nextest configuration must set profile.{profile_name}.global-timeout"),
+                "{label} must name the dotted path that could not be read"
+            );
+        }
     }
 }

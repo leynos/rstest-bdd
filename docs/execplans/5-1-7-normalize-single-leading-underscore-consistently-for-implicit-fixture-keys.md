@@ -14,7 +14,7 @@ extraction. Reuse `normalize_param_name()` so `_world` behaves like `world`,
 `__world` continues to mean `_world`, and explicit `#[from(...)]` names remain
 authoritative. Success means scenario-side registration and step-side lookup
 agree, runtime missing-fixture diagnostics stop diverging, unit and behavioural
-coverage prove the rule in both directions, ADR-009 records any final design
+coverage prove the rule in both directions, ADR-0009 records any final design
 decisions, the users' guide documents the rule and escape hatch, and
 `docs/roadmap.md` marks item 5.1.7 done after the feature lands.
 
@@ -36,7 +36,7 @@ The implementation surface is already narrowed:
 - Existing behavioural coverage for underscore-prefixed fixtures lives in
   `crates/rstest-bdd/tests/underscore_fixture.rs`.
 
-Architecture Decision Record (ADR-009) now records the accepted direction for
+Architecture Decision Record (ADR-0009) now records the accepted direction for
 this change, so delivery can land the implementation and keep the documentation
 aligned with that accepted scope.
 
@@ -45,7 +45,7 @@ aligned with that accepted scope.
 Documentation signposts:
 
 - `docs/roadmap.md` for item 5.1.7 and the completion checkbox.
-- `docs/adr-009-consistent-implicit-fixture-name-normalization.md` for the
+- `docs/adrs/adr-0009-consistent-implicit-fixture-name-normalization.md` for the
   governing design decision and any follow-up decisions taken during delivery.
 - `docs/users-guide.md`, especially `### Fixtures and implicit injection`, for
   the user-facing rule and `#[from(...)]` escape hatch.
@@ -82,7 +82,7 @@ Skill signposts:
   expansion rather than by adding runtime fuzzy matching.
 - Add unit tests and behavioural tests that cover both scenario registration
   and step extraction paths, including explicit override precedence.
-- Update ADR-009 if any design detail changes during implementation.
+- Update ADR-0009 if any design detail changes during implementation.
 - Update `docs/users-guide.md` to document the rule and the `#[from(...)]`
   escape hatch.
 - Mark roadmap item 5.1.7 done only after implementation and quality gates
@@ -100,7 +100,7 @@ Skill signposts:
   public runtime API rather than only macro output.
 - Stop and escalate if supporting this rule needs broader canonicalization than
   a single leading underscore.
-- Stop and escalate if ADR-009 remains unaccepted and no explicit instruction
+- Stop and escalate if ADR-0009 remains unaccepted and no explicit instruction
   is given to accept it as part of the feature.
 - Stop and escalate if coverage requires new crates, dependencies, or a major
   test harness rewrite.
@@ -126,11 +126,11 @@ Skill signposts:
 
 ## Progress
 
-- [x] 2026-04-12: Gathered roadmap, ADR-009, users' guide, design docs, and
+- [x] 2026-04-12: Gathered roadmap, ADR-0009, users' guide, design docs, and
   current code/test touchpoints.
 - [x] 2026-04-12: Confirmed the likely implementation split between
   `resolve_fixture_name()` and `classify_fixture_or_step()`.
-- [x] 2026-04-12: Confirmed ADR-009 is accepted and the scoped rule only
+- [x] 2026-04-12: Confirmed ADR-0009 is accepted and the scoped rule only
   applies to scenario and step parameter names; preserving `__world` as
   `_world` is sufficient.
 - [x] 2026-04-12: Updated step wrapper fallback so implicit fixture names reuse
@@ -139,7 +139,7 @@ Skill signposts:
   implicit `__world`, and explicit `#[from(_world)]`.
 - [x] 2026-04-12: Reworked the underscore behaviour scenario to prove implicit
   normalization and explicit override precedence end to end.
-- [x] 2026-04-12: Updated ADR-009, the users' guide, the design document, and
+- [x] 2026-04-12: Updated ADR-0009, the users' guide, the design document, and
   the roadmap entry to reflect the accepted scope and landed behaviour.
 - [x] 2026-04-12: `make fmt` succeeded with a temporary `mdformat-all` shim;
   `make check-fmt` and `make lint` succeeded.
@@ -157,11 +157,11 @@ Skill signposts:
 
 ### Stage A: confirm the governing rule and prerequisite
 
-- Confirm whether ADR-009 is accepted. If not, accept it as part of this work
+- Confirm whether ADR-0009 is accepted. If not, accept it as part of this work
   or pause for direction before code changes.
-- Re-read ADR-009 against the current implementation to verify that only
+- Re-read ADR-0009 against the current implementation to verify that only
   implicit names are normalized and explicit `#[from(...)]` names remain exact.
-- Record any newly discovered edge-case decision in ADR-009 before or during
+- Record any newly discovered edge-case decision in ADR-0009 before or during
   implementation.
 
 ### Stage B: align step-side implicit fixture extraction with scenario-side registration
@@ -196,9 +196,9 @@ Skill signposts:
 - Update `docs/users-guide.md` in the implicit fixture section with the exact
   normalization rule and a short example showing when `#[from(...)]` is still
   required.
-- Update `docs/adr-009-consistent-implicit-fixture-name-normalization.md` with
-  any implementation-time decision, acceptance status, or resolved outstanding
-  question.
+- Update `docs/adrs/adr-0009-consistent-implicit-fixture-name-normalization.md`
+  with any implementation-time decision, acceptance status, or resolved
+  outstanding question.
 - Mark roadmap item 5.1.7 as done in `docs/roadmap.md` once the feature and
   gates are complete.
 
@@ -213,7 +213,7 @@ Skill signposts:
 
 ## Concrete steps
 
-1. Confirm ADR-009 acceptance state and update the ADR if acceptance or an
+1. Confirm ADR-0009 acceptance state and update the ADR if acceptance or an
    implementation clarification is required.
 2. Modify step fixture fallback in
    `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify.rs` so implicit
@@ -228,7 +228,7 @@ Skill signposts:
    `crates/rstest-bdd/tests/underscore_fixture.rs` or a nearby integration test
    so scenario-side registration and step-side extraction agree in one
    executable scenario.
-6. Update `docs/users-guide.md` and ADR-009 with the final documented rule.
+6. Update `docs/users-guide.md` and ADR-0009 with the final documented rule.
 7. Mark roadmap item 5.1.7 done in `docs/roadmap.md`.
 8. Run the full validation suite and inspect logs before considering the work
    complete.
@@ -247,7 +247,7 @@ Implementation is complete only when all of the following are true:
 - Behavioural tests prove the end-to-end runtime path uses matching keys and
   no longer produces mismatched missing-fixture diagnostics.
 - `docs/users-guide.md` documents the rule and the `#[from(...)]` escape hatch.
-- ADR-009 reflects any design decisions taken during implementation and is no
+- ADR-0009 reflects any design decisions taken during implementation and is no
   longer left ambiguous relative to the roadmap prerequisite.
 - `docs/roadmap.md` marks item 5.1.7 done.
 - `make check-fmt`, `make lint`, and `make test` succeed. For documentation
@@ -257,9 +257,9 @@ Implementation is complete only when all of the following are true:
 ## Decision log
 
 - 2026-04-12 / Codex: planned the feature around macro-expansion changes rather
-  than runtime lookup changes because ADR-009 explicitly prefers exact runtime
+  than runtime lookup changes because ADR-0009 explicitly prefers exact runtime
   matching and reuse of `normalize_param_name()`.
-- 2026-04-12 / Codex: treated ADR-009 acceptance state as a prerequisite check
+- 2026-04-12 / Codex: treated ADR-0009 acceptance state as a prerequisite check
   because the roadmap names acceptance as a dependency while the ADR currently
   still says `Proposed`.
 - 2026-04-12 / Codex: recorded the lack of an installed `execplans` skill and
@@ -282,7 +282,7 @@ Implementation is complete only when all of the following are true:
   `crates/rstest-bdd/tests/underscore_fixture.rs` exercises the end-to-end
   interplay between normalized implicit injection and an explicit `_world`
   override.
-- Documentation was updated in ADR-009, the users' guide, the design doc, and
+- Documentation was updated in ADR-0009, the users' guide, the design doc, and
   the roadmap so the accepted scope is explicit: only scenario and step
   parameter names are normalized, and only one leading underscore is stripped.
 - Validation outcome:

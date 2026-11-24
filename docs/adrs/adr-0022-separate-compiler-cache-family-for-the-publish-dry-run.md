@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 022: a separate compiler-cache family for the Windows publish dry run
+# Architectural decision record (ADR) 0022: a separate compiler-cache family for the Windows publish dry run
 
 ## Status
 

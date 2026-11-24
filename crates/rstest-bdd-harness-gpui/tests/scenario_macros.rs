@@ -148,7 +148,7 @@ fn gpui_test_context_is_valid(#[from(rstest_bdd_harness_context)] context: &gpui
 }
 
 /// Runtime integration coverage for the harness-led-default policy in
-/// ADR-008: the macro is invoked with `harness = GpuiHarness` and no
+/// ADR-0008: the macro is invoked with `harness = GpuiHarness` and no
 /// `attributes = ...`, so the macro infers `GpuiAttributePolicy` and the
 /// emitted `#[gpui::test]` is filtered (the function is sync, the GPUI
 /// runtime is supplied by the harness rather than the attribute). Reaching

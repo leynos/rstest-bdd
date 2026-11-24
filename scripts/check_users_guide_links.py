@@ -18,7 +18,7 @@ missing is still caught; links to other projects (for example docs.rs) are
 ignored.
 
 Proportionality (issue #540): the validator was judged proportionate and
-retained (see ADR-014). The users guide is vendored into consumer projects, so
+retained (see ADR-0014). The users guide is vendored into consumer projects, so
 a broken absolute link ships silently to downstream users and is otherwise
 caught only by manual review; the checker turns that drift into a deterministic
 lint failure. Scope deliberately stays limited to the guide's repository

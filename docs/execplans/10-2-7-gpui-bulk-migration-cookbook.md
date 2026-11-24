@@ -379,8 +379,8 @@ Stop and escalate (document in Decision Log, await direction) when:
   Rationale: maintainer instruction; also matches the repository convention
   that every playbook snippet has an executable mirror. Date/Author: 2026-07-06.
 - Decision: No new ADR. Rationale: an additive, reversible, test-only
-  documentation-and-testing convention resting on existing ADR-007/ADR-011 and
-  design §2.7.6.2; AGENTS.md routes such conventions to the design doc and
+  documentation-and-testing convention resting on existing ADR-0007/ADR-0011
+  and design §2.7.6.2; AGENTS.md routes such conventions to the design doc and
   developer guide. Date/Author: 2026-07-06. (Panel concurred.)
 - Decision: Rigour level — behavioural tests (rstest-bdd) are the core
   deliverable; one rstest unit test guards the reset helper; `insta`/`proptest`/

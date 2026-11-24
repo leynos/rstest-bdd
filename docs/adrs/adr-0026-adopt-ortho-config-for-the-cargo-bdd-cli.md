@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 026: Adopt OrthoConfig for the `cargo-bdd` command-line interface
+# Architectural decision record (ADR) 0026: Adopt OrthoConfig for the `cargo-bdd` command-line interface
 
 ## Status
 
