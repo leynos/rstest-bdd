@@ -53,7 +53,10 @@ fn child_arguments(qualified_test: &str, parent_arguments: &[String]) -> Vec<Str
 /// `qualified_test` is the calling test's `concat!(module_path!(), "::", name)`.
 /// In the parent this re-executes the current test alone, with the scoped
 /// environment, and fails with the child's output when it fails; in the child
-/// it just runs `body`.
+/// it just runs `body`. The child's output is buffered, then replayed on
+/// success or carried in the error on failure, so a failure keeps its full
+/// diagnostics; the accepted cost is that no progress shows until the child
+/// ends.
 ///
 /// # Errors
 ///
@@ -111,7 +114,8 @@ mod tests {
                 "runner::step_macros_compile",
                 "--nocapture",
                 "trybuild=ui_lints"
-            ]
+            ],
+            "the child must run the one test and carry the parent's trybuild= filter"
         );
     }
 
@@ -122,7 +126,8 @@ mod tests {
         assert!(
             !arguments
                 .iter()
-                .any(|argument| argument.starts_with("trybuild="))
+                .any(|argument| argument.starts_with("trybuild=")),
+            "an unfiltered parent must not give the child a trybuild= filter: {arguments:?}"
         );
     }
 
@@ -130,8 +135,13 @@ mod tests {
     fn libtest_name_drops_the_crate_segment() {
         assert_eq!(
             libtest_name("trybuild_macros::runner::step_macros_compile"),
-            "runner::step_macros_compile"
+            "runner::step_macros_compile",
+            "the binary's own crate segment is not part of the libtest name"
         );
-        assert_eq!(libtest_name("bare"), "bare");
+        assert_eq!(
+            libtest_name("bare"),
+            "bare",
+            "a name without a crate segment is used as given"
+        );
     }
 }
