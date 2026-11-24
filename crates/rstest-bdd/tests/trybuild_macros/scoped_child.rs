@@ -113,6 +113,8 @@ mod tests {
     /// runs the body; the parent's own environment keeps neither change.
     #[test]
     fn run_scoped_gives_the_child_the_scoped_environment() {
+        let target_before = env::var_os("CARGO_TARGET_DIR");
+        let backtrace_before = env::var_os("RUST_BACKTRACE");
         let result = run_scoped(
             concat!(
                 module_path!(),
@@ -133,13 +135,16 @@ mod tests {
             },
         );
         result.expect("the scoped child should run the body and pass");
-        if env::var_os(CHILD_MARKER).is_none() {
-            assert_ne!(
-                env::var("CARGO_TARGET_DIR").as_deref(),
-                Ok(PROBE_TARGET),
-                "the parent's own environment must not receive the child's CARGO_TARGET_DIR"
-            );
-        }
+        assert_eq!(
+            env::var_os("CARGO_TARGET_DIR"),
+            target_before,
+            "run_scoped must leave this process's CARGO_TARGET_DIR as it was"
+        );
+        assert_eq!(
+            env::var_os("RUST_BACKTRACE"),
+            backtrace_before,
+            "run_scoped must leave this process's RUST_BACKTRACE as it was"
+        );
     }
 
     /// A body error in the child fails the parent's call, and the message the
