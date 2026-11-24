@@ -2736,13 +2736,13 @@ coverage job cannot displace the branch under test.
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use rstest_bdd_harness::binary_test_support::BinaryLocateError;
+use rstest_bdd_harness::binary_test_support::{BinaryLocateError, BinaryName};
 
 /// Returns the expected debug binary path for `binary_name` given a target
 /// directory root. Pure computation: no I/O.
 pub fn binary_path_in_target_dir(
     target_directory: &Path,
-    binary_name: &str,
+    binary_name: BinaryName<'_>,
 ) -> PathBuf;
 
 /// Resolves the workspace target directory by running `cargo metadata`.
@@ -2757,7 +2757,7 @@ pub fn target_directory_for_manifest(
 pub fn locate_or_build_binary(
     manifest_path: &Path,
     workspace_root: &Path,
-    binary_name: &str,
+    binary_name: BinaryName<'_>,
 ) -> Result<Command, BinaryLocateError>;
 
 /// Builds `binary_name` via `cargo build --bin <name>` in `workspace_root`.
@@ -2765,22 +2765,24 @@ pub fn locate_or_build_binary(
 /// cannot be spawned.
 pub fn build_binary(
     workspace_root: &Path,
-    binary_name: &str,
+    binary_name: BinaryName<'_>,
 ) -> std::io::Result<Output>;
 ```
 
-**Usage example** (from `crates/cargo-bdd/tests/cli.rs`'s shape; a package's
-own binary needs only `cargo_bin_cmd!("todo-cli")`, as in
-`examples/todo-cli/tests/cli.rs`):
+**Usage example** (from `crates/cargo-bdd/tests/cli.rs`):
 
 ```rust
 use assert_cmd::Command;
 
-fn locate_or_build_cmd() -> Result<Command, Box<dyn std::error::Error>> {
+fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     let root = workspace_root();
-    locate_or_build_binary(&root.join("Cargo.toml"), &root, "other-package-bin")
-        .map(Command::from_std)
-        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+    locate_or_build_binary(
+        &root.join("Cargo.toml"),
+        &root,
+        BinaryName::new("cargo-bdd"),
+    )
+    .map(Command::from_std)
+    .map_err(|e| eyre::eyre!(e))
 }
 ```
 
