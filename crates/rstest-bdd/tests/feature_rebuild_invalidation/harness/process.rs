@@ -211,8 +211,9 @@ pub(crate) fn cargo_command(env: &ChildEnv, cwd: &Path) -> Command {
     for (key, value) in &env.vars {
         cmd.env(key, value);
     }
-    // Last, so no inherited value can turn it off: every caller passes
-    // `--locked --offline`, and the lockfile is the fixture's own.
+    // Last, so no inherited value can turn it off. Most callers also pass
+    // `--locked --offline`; `cargo clean -p <fixture>` passes neither, and
+    // reads no registry, so this variable is the only offline evidence it has.
     cmd.env("CARGO_NET_OFFLINE", "true");
     cmd
 }
