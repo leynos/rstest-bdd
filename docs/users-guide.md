@@ -134,7 +134,7 @@ Step definitions use the same Unicode phrases:
 
 ```rust,no_run
 use japanese_ledger::HouseholdLedger;
-use rstest_bdd_macros::{given, when, then};
+use rstest_bdd::prelude::*;
 
 #[given("残高は{start:i32}である")]
 fn starting_balance(ledger: &HouseholdLedger, start: i32) {
@@ -145,6 +145,85 @@ fn starting_balance(ledger: &HouseholdLedger, start: i32) {
 Running `cargo test -p japanese-ledger` executes both Japanese scenarios. The
 full source lives under `examples/japanese-ledger/` for teams that want to copy
 the structure into their projects.
+
+## Importing `rstest-bdd`
+
+An integration test that drives BDD scenarios usually needs the step
+attributes, the scenario macros, the state and capture types, and the runtime
+context. One glob import supplies them all:
+
+<!-- tested-example: prelude-glob-import -->
+
+```rust
+use rstest_bdd::prelude::*;
+```
+
+The prelude is a convenience over the crate root, not a separate API. Every
+name it exports is available at `rstest_bdd`'s root as well, and it adds none
+of its own, so spelling the same import out in full needs no second path:
+
+<!-- tested-example: prelude-spelled-import -->
+
+```rust
+use rstest_bdd::{
+    ScenarioState,
+    Slot,
+    StepArgs,
+    StepContext,
+    StepError,
+    StepResult,
+    given,
+    scenario,
+    scenarios,
+    then,
+    when,
+};
+```
+
+`ScenarioState` and `StepArgs` each name two items, a trait and a derive macro.
+Rust keeps traits and macros in separate namespaces, so the single import above
+brings both halves into scope, exactly as `serde::Serialize` does. The table
+records which item each spelling delivers and which crate defines it. The
+canonical path is the crate root rather than the defining module, because the
+prelude re-exports these items instead of redefining them.
+
+| Item                 | Kind                | Defining crate      | Canonical path              |
+| -------------------- | ------------------- | ------------------- | --------------------------- |
+| `given`              | attribute macro     | `rstest-bdd-macros` | `rstest_bdd::given`         |
+| `when`               | attribute macro     | `rstest-bdd-macros` | `rstest_bdd::when`          |
+| `then`               | attribute macro     | `rstest-bdd-macros` | `rstest_bdd::then`          |
+| `scenario`           | attribute macro     | `rstest-bdd-macros` | `rstest_bdd::scenario`      |
+| `scenarios`          | function-like macro | `rstest-bdd-macros` | `rstest_bdd::scenarios`     |
+| `ScenarioState`      | derive macro        | `rstest-bdd-macros` | `rstest_bdd::ScenarioState` |
+| `ScenarioState`      | trait               | `rstest-bdd`        | `rstest_bdd::ScenarioState` |
+| `StepArgs`           | derive macro        | `rstest-bdd-macros` | `rstest_bdd::StepArgs`      |
+| `StepArgs`           | trait               | `rstest-bdd`        | `rstest_bdd::StepArgs`      |
+| `Slot`               | struct              | `rstest-bdd`        | `rstest_bdd::Slot`          |
+| `StepContext`        | struct              | `rstest-bdd`        | `rstest_bdd::StepContext`   |
+| `StepError`          | enum                | `rstest-bdd`        | `rstest_bdd::StepError`     |
+| `StepResult`         | type alias          | `rstest-bdd`        | `rstest_bdd::StepResult`    |
+| `#[harness_context]` | parameter marker    | none                | no import required          |
+
+`#[harness_context]` is an inert marker that the step macros read from the
+parameter's attribute syntax, so it needs no import at all.
+
+The import a user writes never names the macro crate `rstest-bdd-macros`
+directly: it is an implementation detail of the facade, which re-exports every
+macro that crate publishes. The prelude carries the subset a step definition or
+a scenario needs. `#[step_library]` sits outside it, at
+`rstest_bdd::step_library`, and the datatable derives sit at the crate root.
+The prelude deliberately carries no harness traits, for the reason given in
+[Harness adapter and attribute policy](#harness-adapter-and-attribute-policy).
+
+`scripts/check_prelude_exports.py` compares this table, the spelled example
+above, and `crates/rstest-bdd/src/prelude.rs` against each other, so the three
+cannot drift silently.
+
+The prelude does not re-export `rstest::fixture` or `rstest::rstest`. The
+generated code resolves `rstest` through the consuming crate's own manifest, so
+keep `rstest` as a direct dependency and pick its version there. This release
+is built and tested against `rstest` `^0.26.1`; a newer compatible `0.26.x`
+should work, and a different minor version is untested.
 
 ## Step definitions
 
@@ -176,11 +255,12 @@ selects an exact, closed list through `libraries = [...]`; an omitted list
 selects only `rstest_bdd::global`, which contains unannotated definitions.
 
 ```rust,no_run
-use rstest_bdd_macros::{given, scenario, step_library};
+use rstest_bdd::prelude::*;
+use rstest_bdd::step_library;
 
 #[step_library]
 mod accounts {
-    use super::given;
+    use super::*;
 
     #[given("the domain is empty")]
     fn account_is_empty() {}
@@ -407,7 +487,7 @@ exactly as before; mutability is an opt‑in convenience.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd::prelude::*;
 
 #[derive(Default)]
 struct CounterWorld {
@@ -478,8 +558,7 @@ without consuming the outcome.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd::{ScenarioState as _, Slot};
-use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
+use rstest_bdd::prelude::*;
 
 #[derive(Default, ScenarioState)]
 struct CartState {
@@ -576,7 +655,7 @@ not overwritten.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, when, then, scenario};
+use rstest_bdd::prelude::*;
 
 #[fixture]
 fn number() -> i32 { 1 }
@@ -609,7 +688,7 @@ without affecting table-row policies.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenario, then, when, StepArgs};
+use rstest_bdd::prelude::*;
 
 #[derive(StepArgs)]
 struct CartInput {
@@ -659,7 +738,7 @@ Example:
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, when, then, scenario};
+use rstest_bdd::prelude::*;
 
 // A fixture used by multiple steps.
 #[fixture]
@@ -709,8 +788,7 @@ logic.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd::{ScenarioState, Slot};
-use rstest_bdd_macros::{given, scenario, then, when, ScenarioState};
+use rstest_bdd::prelude::*;
 
 #[derive(ScenarioState)]
 struct CliState {
@@ -768,7 +846,7 @@ only whitespace. In either case, the macro derives a pattern from the function
 name by replacing underscores with spaces.
 
 ```rust,no_run
-use rstest_bdd_macros::given;
+use rstest_bdd::prelude::*;
 
 #[given]
 fn user_logs_in() {
@@ -833,7 +911,7 @@ Feature: User management
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd::prelude::*;
 use std::sync::OnceLock;
 
 struct DbPool;
@@ -1040,6 +1118,13 @@ types that implement `HarnessAdapter` and `AttributePolicy` from the
 (per Architectural Decision Record (ADR-0027)) without coupling the core crates
 to any specific runtime.
 
+The prelude does not re-export `HarnessAdapter` or `AttributePolicy`. The
+facade takes `rstest-bdd-harness` only as a development dependency, so neither
+trait is reachable at the `rstest_bdd` crate root, and the prelude adds no name
+that the root does not already have. Adapters are selected per scenario rather
+than imported for step writing, so import these traits from
+`rstest-bdd-harness` or from a first-party adapter crate.
+
 Use them in this order of preference:
 
 - Omit both when the default synchronous `StdHarness` path is sufficient.
@@ -1228,7 +1313,7 @@ fixed:
 
 ```rust,no_run
 use bevy::ecs::world::World;
-use rstest_bdd_macros::{given, then, when};
+use rstest_bdd::prelude::*;
 
 #[given("the world starts empty")]
 fn world_starts_empty(#[harness_context] world: &World) {
@@ -1293,7 +1378,7 @@ The harness and policy can then be used from scenario tests like any other
 macro configuration:
 
 ```rust,no_run
-use rstest_bdd_macros::scenario;
+use rstest_bdd::prelude::*;
 use rstest_bdd_harness_bevy::{BevyAttributePolicy, BevyHarness};
 
 #[scenario(
@@ -1361,7 +1446,7 @@ adapter, the macro infers `TokioAttributePolicy` from the canonical harness
 path when `attributes = ...` is omitted:
 
 ```rust,no_run
-# use rstest_bdd_macros::scenario;
+# use rstest_bdd::prelude::*;
 #[scenario(
     path = "tests/features/reminders.feature",
     name = "Scheduling a reminder queues it for later delivery",
@@ -1400,7 +1485,7 @@ implement `Debug`. Std and Tokio scenarios retain their fallible signatures and
 propagate results through Rust's native `Termination` support.
 
 ```rust,no_run
-# use rstest_bdd_macros::scenario;
+# use rstest_bdd::prelude::*;
 # fn increment_counter() -> Result<(), std::io::Error> { Ok(()) }
 #[scenario(
     path = "tests/features/counter.feature",
@@ -1552,7 +1637,7 @@ step:
 
 ```rust,no_run
 # use rstest::fixture;
-# use rstest_bdd_macros::scenario;
+# use rstest_bdd::prelude::*;
 # use serial_test::serial;
 # use std::cell::RefCell;
 #[derive(Clone, Debug, Default)]
@@ -1626,7 +1711,7 @@ defensively re-runs the reset before storing handles and observes the
 `stale_window_count` invariant that the regression suite encodes:
 
 ```rust,no_run
-# use rstest_bdd_macros::given;
+# use rstest_bdd::prelude::*;
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]
@@ -1663,7 +1748,7 @@ has been violated, not a legitimate test outcome. This form also passes the
 repository's pedantic lint profile:
 
 ```rust,no_run
-# use rstest_bdd_macros::{then, when};
+# use rstest_bdd::prelude::*;
 # fn current_handles() -> (gpui::Entity<()>, gpui::AnyWindowHandle) { unimplemented!() }
 #[when("the view is updated through a reconstructed visual context")]
 fn view_is_updated_through_reconstructed_visual_context(
@@ -1721,7 +1806,7 @@ durable handles:
 
 ```rust,ignore
 use gpui::{AppContext as _, VisualContext as _};
-use rstest_bdd_macros::given;
+use rstest_bdd::prelude::*;
 
 #[given("a fresh GPUI window is opened")]
 fn fresh_gpui_window_is_opened(
@@ -1757,7 +1842,7 @@ entity because published `Entity<T>` is `Clone`, not `Copy`:
 
 ```rust,ignore
 use gpui::AppContext as _;
-use rstest_bdd_macros::{then, when};
+use rstest_bdd::prelude::*;
 
 fn current_handles() -> (gpui::Entity<CounterView>, gpui::AnyWindowHandle) {
     with_state(|state| {
@@ -1915,7 +2000,7 @@ steps of its own. Bind the shared fixture with a module-qualified
 #[path = "common/ledger_steps.rs"]
 mod ledger_steps;
 
-use rstest_bdd_macros::scenario;
+use rstest_bdd::prelude::*;
 
 #[scenario(
     path = "tests/features/first.feature",
@@ -2081,7 +2166,7 @@ the panic payload.
 
 ```rust,no_run
 # use rstest_bdd as bdd;
-# use rstest_bdd_macros::{given, scenario};
+# use rstest_bdd::prelude::*;
 
 #[given("a dependent service is unavailable")]
 fn service_unavailable() {
@@ -2326,7 +2411,7 @@ occur. The `dir` argument is resolved relative to `CARGO_MANIFEST_DIR` at
 macro-expansion time.
 
 ```rust,no_run
-use rstest_bdd_macros::{given, then, when, scenarios};
+use rstest_bdd::prelude::*;
 
 #[given("a precondition")] fn precondition() {}
 #[when("an action occurs")] fn action() {}
@@ -2351,11 +2436,12 @@ When the argument is omitted, `scenarios!` selects only the built-in
 invocation also needs unannotated steps.
 
 ```rust,no_run
-use rstest_bdd_macros::{given, scenarios, step_library};
+use rstest_bdd::prelude::*;
+use rstest_bdd::step_library;
 
 #[step_library]
 mod accounts {
-    use super::given;
+    use super::*;
 
     #[given("the account is empty")]
     fn account_is_empty() {}
@@ -2381,7 +2467,7 @@ corresponding parameter.
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenarios};
+use rstest_bdd::prelude::*;
 
 struct TestWorld { value: i32 }
 
@@ -2413,8 +2499,8 @@ Declare the test function as `async fn` and add
 The macro detects the async signature and generates an async step executor:
 
 ```rust,no_run
-use rstest_bdd_macros::{given, scenario, then, when};
 use rstest::fixture;
+use rstest_bdd::prelude::*;
 
 #[derive(Default)]
 struct Counter {
@@ -2479,7 +2565,7 @@ predictable. This section summarizes the canonical guidance in
 
 ```rust,no_run
 use rstest::fixture;
-use rstest_bdd_macros::{given, scenarios, when};
+use rstest_bdd::prelude::*;
 
 struct StreamEnd;
 
@@ -2516,7 +2602,7 @@ scenarios!(
   scenarios, prefer async steps, async fixtures, or the async test body.
 
 ```rust,no_run
-use rstest_bdd_macros::when;
+use rstest_bdd::prelude::*;
 
 #[when("the stream ends")]
 fn end_stream() {
@@ -3166,7 +3252,7 @@ each row should be interpreted for a given type. When `T::REQUIRES_HEADER` is
 use rstest_bdd::datatable::{
     self, DataTableError, DataTableRow, RowSpec, Rows,
 };
-# use rstest_bdd_macros::given;
+# use rstest_bdd::prelude::*;
 
 #[derive(Debug, PartialEq, Eq)]
 struct UserRow {
@@ -3236,7 +3322,7 @@ attributes:
 
 ```rust,no_run
 use rstest_bdd::datatable::{self, DataTableError, Rows};
-use rstest_bdd_macros::DataTableRow;
+use rstest_bdd::DataTableRow;
 
 fn default_region() -> String { String::from("EMEA") }
 
@@ -3282,7 +3368,7 @@ rows before exposing them to the step function:
 
 ```rust,no_run
 use rstest_bdd::datatable::{DataTableError, Rows};
-use rstest_bdd_macros::{DataTable, DataTableRow};
+use rstest_bdd::{DataTable, DataTableRow};
 
 #[derive(Debug, PartialEq, Eq, DataTableRow)]
 struct UserRow {
@@ -3312,7 +3398,7 @@ inspection of the row and column that triggered the failure:
 
 ```rust,no_run
 # use rstest_bdd::datatable::{DataTableError, Rows};
-# use rstest_bdd_macros::DataTableRow;
+# use rstest_bdd::DataTableRow;
 #
 # #[derive(Debug, PartialEq, Eq, DataTableRow)]
 # struct UserRow {

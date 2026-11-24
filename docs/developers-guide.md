@@ -831,6 +831,31 @@ procedural macro crate may depend on those shared crates, but it must not
 depend on `rstest-bdd`; macro/runtime integration tests live under `rstest-bdd`
 instead.
 
+The facade edge runs the other way, and only that way. `rstest-bdd` depends on
+`rstest-bdd-macros`, re-exports its step attributes and scenario macros at its
+crate root, and publishes `rstest_bdd::prelude` as a documented subset of that
+root. `rstest-bdd-macros` must stay free of `rstest-bdd` in `dependencies`,
+`dev-dependencies`, and `build-dependencies` alike, and
+`crates/rstest-bdd/tests/prelude_surface.rs` parses the macro crate's manifest
+so the suite fails if a reverse edge appears. See
+[ADR-0028](adrs/adr-0028-publish-a-facade-prelude.md) for why the edge is
+unconditional rather than feature-gated.
+
+### The prelude admission bar
+
+`rstest_bdd::prelude` is a glob-import target, so a name added to it can break
+a downstream crate that already has that name in scope. An item enters the
+prelude only when a step signature, a `#[derive]`, or an attribute in
+`examples/*/tests/*.rs` needs it, or when it is required to make such an item
+usable (a trait whose derive is exported, or an error type named in an exported
+alias). The prelude never adds a name that is not also reachable at the
+`rstest_bdd` crate root.
+
+Removing or renaming a prelude item is a breaking change. Adding one is
+permitted within a minor line, but it must be recorded in `docs/CHANGELOG.md`
+and noted as potentially requiring disambiguation for glob importers. The
+founding bindings named by roadmap 11.2.2 are grandfathered by that entry.
+
 Do not restore root-level `[patch.crates-io]` entries for normal development.
 Patches make local resolution differ from publish-time resolution and can hide
 registry-only failures. If a temporary patch is required for a one-off
@@ -842,6 +867,44 @@ The GPUI test shim follows the same pattern. The workspace dependency for
 tests use the stable-compatible shim. `lading publish` stages the workspace and
 strips local patch entries before packaging, so the staged release surface uses
 the upstream `gpui` dependency declaration before publication.
+
+## Prelude documentation and facade-import gates
+
+`make lint` runs two Python checks that keep the facade's public surface and
+the documentation that describes it in step with each other. Both print one
+line per violation to standard error, exit non-zero when they find one, and
+treat an empty scan as a violation, so neither can pass by matching nothing.
+
+### Prelude export drift (`scripts/check_prelude_exports.py`)
+
+This check compares Rust source with three documents: the users' guide's
+`## Importing rstest-bdd` section, whose item table and spelled import must
+agree with `crates/rstest-bdd/src/prelude.rs`, and the READMEs, whose braced
+imports must name real crate-root exports. The table row for a prelude item
+must also state the item's kind and its canonical path, because a name that
+resolves at the root but is documented under a module path teaches the wrong
+shape.
+
+The comparison is split across modules so each half can be tested on its own:
+`prelude_exports.py` parses the `pub use` leaves from `prelude.rs` and the
+crate root, `prelude_docs.py` locates the guide section and reads its Markdown
+tables and fenced blocks, and `prelude_drift.py` turns both into violations.
+`scripts/tests/test_check_prelude_exports.py` exercises each disagreement
+against fixtures rather than the live documents.
+
+The section's two fenced examples carry `tested-example` markers, so the code
+the drift gate parses is the same code the compiled-example suite runs.
+
+### Example imports (`scripts/check_example_imports.py`)
+
+The examples are the code users copy, so an import the facade makes unnecessary
+teaches the wrong shape. The check makes two claims. No example manifest may
+declare `rstest-bdd-macros`, because declaring it is what lets a downstream
+crate reach past the facade. Every example source that writes a scenario or
+step attribute must import the facade and name no macro crate; sources that
+write no such attribute, including the CLI driver, are out of scope for that
+half. An example that declares the macros crate is reported even when it never
+uses an attribute.
 
 ## Staging fixtures for trybuild tests
 

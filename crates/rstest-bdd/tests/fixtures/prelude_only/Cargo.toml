@@ -1,0 +1,34 @@
+[package]
+name = "rstest-bdd-prelude-only-fixture"
+version = "0.1.0"
+edition = "2024"
+
+# A downstream consumer's manifest, reduced to what a scenario written through
+# `rstest_bdd::prelude` genuinely needs. `rstest-bdd-macros` is deliberately
+# absent: the facade re-exports every attribute and derive `tests/prelude.rs`
+# uses, and the derive resolves the runtime path from *this* manifest through
+# `proc_macro_crate`, which is why V-2 needs a real separate crate rather than
+# an in-crate test.
+#
+# `features = ["diagnostics", "test-support"]` matches the workspace's
+# `--all-features` build so the fixture's graph reuses compiled units in the
+# shared `target/`. The committed lockfile is seeded from the workspace lock,
+# and `scripts/fixture_lockfile_alignment.py` fails if a package here resolves
+# to a version or source the workspace did not pick.
+#
+# `rstest` stays because `rstest_macros` panics during expansion when the
+# consuming manifest omits it, and because `#[scenario]` emits `#[rstest::rstest]`
+# as a bare path. It is the one remaining entry the prelude cannot hide, so the
+# fixture's point is that it is the *only* one.
+#
+# This standalone workspace cannot inherit `[workspace.dependencies]`, so the
+# literal below is the workspace's requirement rather than a second opinion:
+# `prelude_only_fixture_takes_its_rstest_requirement_from_the_workspace` fails
+# when the two diverge.
+[dependencies]
+rstest-bdd = { path = "../../../../../crates/rstest-bdd", features = ["diagnostics", "test-support"] }
+
+[dev-dependencies]
+rstest = "0.26.1"
+
+[workspace]

@@ -111,3 +111,16 @@
   user's guide and the v0.6.0 migration guide, covering durable `Entity<T>`/
   `AnyWindowHandle` storage, `VisualTestContext` reconstruction, and the
   two-sided thread-local reset protocol.
+- Added the public `rstest_bdd::prelude` for integration imports (ADR-0028).
+  `rstest-bdd` now depends on `rstest-bdd-macros` and re-exports `given`,
+  `when`, `then`, `scenario`, `scenarios`, `ScenarioState`, and `StepArgs` at
+  its crate root, alongside `Slot`, `StepContext`, `StepError`, and
+  `StepResult`. The prelude is a strict subset of that root, so
+  `use rstest_bdd::prelude::*;` and the spelled `use rstest_bdd::{…};` reach
+  the same items, and an integration test no longer names `rstest-bdd-macros`.
+  The crate root also re-exports `step_library`, so declaring a scoped
+  vocabulary no longer means naming the macro crate; it stays out of the
+  prelude, which only carries what a step signature or attribute needs. This is
+  additive: no existing path changed. A crate that glob-imports the prelude and
+  defines a name from this list itself may need to disambiguate it, and items
+  added to the prelude later carry the same hazard.

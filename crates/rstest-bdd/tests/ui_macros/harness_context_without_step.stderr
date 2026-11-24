@@ -1,0 +1,5 @@
+error: cannot find attribute `harness_context` in this scope
+ --> tests/ui_macros/harness_context_without_step.rs:9:20
+  |
+9 | fn records_count(#[harness_context] count: &mut u32) {
+  |                    ^^^^^^^^^^^^^^^

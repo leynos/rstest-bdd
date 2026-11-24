@@ -23,6 +23,9 @@ use super::{
     scan_region,
 };
 
+/// The guide's prelude examples, kept where the compiler checks them.
+mod prelude_examples;
+
 fn lines(text: &str) -> Vec<&str> { text.lines().collect() }
 
 #[test]
@@ -230,6 +233,54 @@ fn enforced_regions_list_is_what_we_think() {
         .collect();
     assert_eq!(
         regions,
-        vec![("docs/users-guide.md", "Feature file rebuild invalidation")]
+        vec![
+            ("docs/users-guide.md", "Feature file rebuild invalidation"),
+            ("docs/users-guide.md", "Importing `rstest-bdd`"),
+        ]
     );
+}
+
+/// The guide's two prelude examples are exactly the text this test compiles.
+///
+/// Marking a fence inside an enforced region makes the harness require a
+/// marker, not a compiler: only an example a test consumes is really tested.
+/// The two bodies therefore live once in `prelude_examples/`, where the
+/// compiler resolves them, and this test pins the guide's text to that copy. If
+/// either side moves alone — a renamed item, a reflowed import, a deleted
+/// line — the two disagree and this fails.
+#[test]
+fn prelude_examples_are_compiled_as_written() -> Result<()> {
+    let examples = [
+        (
+            "prelude-glob-import",
+            include_str!("prelude_examples/glob.rs"),
+        ),
+        (
+            "prelude-spelled-import",
+            include_str!("prelude_examples/spelled.rs"),
+        ),
+    ];
+    for (id, compiled) in examples {
+        assert_eq!(
+            example_text(compiled),
+            documented_example(id)?.body.trim_end(),
+            "the guide's `{id}` example must be the import the test suite compiles",
+        );
+    }
+    Ok(())
+}
+
+/// The import one compiled example carries, without the docs and lint
+/// allowance an import-only module needs.
+fn example_text(source: &str) -> String {
+    source
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim_start();
+            !(trimmed.starts_with("//!") || trimmed.starts_with("#!["))
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_owned()
 }

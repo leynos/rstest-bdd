@@ -1,0 +1,7 @@
+error[E0432]: unresolved import `rstest_bdd::prelude::DataTable`
+  --> tests/ui_macros/prelude_omits_datatable.rs:10:5
+   |
+10 | use rstest_bdd::prelude::DataTable;
+   |     ^^^^^^^^^^^^^^^^^^^^^---------
+   |                          |
+   |                          no `DataTable` in `prelude`

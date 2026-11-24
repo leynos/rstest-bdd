@@ -35,6 +35,7 @@ pub mod localization;
 pub mod panic_support;
 mod pattern;
 mod placeholder;
+pub mod prelude;
 mod registry;
 pub mod reporting;
 pub mod runner;
@@ -103,6 +104,42 @@ pub const fn diagnostics_enabled() -> bool { cfg!(feature = "diagnostics") }
 pub use execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 #[doc(hidden)]
 pub use panic_support::catch_unwind_future as __rstest_bdd_catch_unwind_future;
+/// Re-export of the `DataTable` derive macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::DataTable;
+/// Re-export of the `DataTableRow` derive macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::DataTableRow;
+/// Re-export of the `ScenarioState` derive macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::ScenarioState;
+/// Re-export of the `StepArgs` derive macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::StepArgs;
+/// Re-export of the `given` attribute macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::given;
+/// Re-export of the `scenario` attribute macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::scenario;
+/// Re-export of the `scenarios` function-like macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::scenarios;
+/// Re-export of the `step_library` attribute macro.
+///
+/// A scoped vocabulary is declared with this macro, so a consumer that uses
+/// step libraries would otherwise have to name `rstest-bdd-macros`. It stays
+/// out of [`prelude`] because no step signature, `#[derive]`, or attribute in
+/// the examples needs it yet; the facade's re-export is what keeps the macro
+/// crate an implementation detail.
+#[doc(inline)]
+pub use rstest_bdd_macros::step_library;
+/// Re-export of the `then` attribute macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::then;
+/// Re-export of the `when` attribute macro.
+#[doc(inline)]
+pub use rstest_bdd_macros::when;
 #[doc(hidden)]
 pub use skip::{
     ScopeKind as __rstest_bdd_scope_kind,
