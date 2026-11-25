@@ -37,7 +37,7 @@ jobs:
       CARGO_TERM_COLOR: always
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
-      LADING_REF: b771852411b428ff6fc779cc3a68b153a8f2439a
+      LADING_REF: f2a24c51a59783318f76182053ade0ed1e1cd329
       BUN_VERSION: '1.2.21'
       MERMAID_CLI_VERSION: '11.9.0'
       MERMAN_CLI_VERSION: '0.7.0'

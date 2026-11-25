@@ -31,16 +31,21 @@ wheels = [
 
 [[package]]
 name = "cuprum"
-version = "0.1.0"
+version = "0.2.0b2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/41/2a/75534f4578a7437fab7d0075ea5955a1553bf4cf016ab0d9a6e5a24f6f7f/cuprum-0.1.0.tar.gz", hash = "sha256:bdc6ab92b1895613f7bfc35c762376f4830928add3d39061f7b3806d7aa422b4", size = 47214, upload-time = "2025-12-25T23:15:10.091Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/b7/d933ba32a658cef81b6c1aaefb2c938dea836c5ea0e1549092cca609ecf0/cuprum-0.2.0b2.tar.gz", hash = "sha256:325cc0e4d025f313ce09aece37a71267e590848536f6847a986eebf53b0331e3", size = 535661, upload-time = "2026-10-18T23:55:30.771Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/2b/a5ada0f42e8e27c0ce8102256344db5adc339334293431319da06e33a80c/cuprum-0.1.0-py3-none-any.whl", hash = "sha256:b03e813bb56afe75f6cc38ec742091a0b1dc183480630abbaf8f205c984c3e72", size = 60578, upload-time = "2025-12-25T23:15:08.336Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/1a/efb78849a1eaa66a15fa74dbd138068ea1632fa3890f7cfaf6799a114126/cuprum-0.2.0b2-cp312-abi3-macosx_10_12_x86_64.whl", hash = "sha256:bcdfd81e870dbe7f5cf03f88b76c95b9e9a6387e8962f45ca0bd875e5e9c7bc2", size = 740636, upload-time = "2026-10-18T23:55:21.22Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/93/11bb25c6485fd232f9970427571329e5994f234140e3e9fc7cf633eee18a/cuprum-0.2.0b2-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:07e7087d3e7a6beaac460eb065eafd4326e317514f00e50876b630c88c3fbc83", size = 739060, upload-time = "2026-10-18T23:55:23.043Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/7d/ed30accf7f030bb7409b68b7b8fe6c229956930e205166cb5b31cfd9dd09/cuprum-0.2.0b2-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:dfe32d6602c64a1513a2bf4bfe8a8a3f64c195b43df5fc670925c5fe1be34929", size = 781310, upload-time = "2026-10-18T23:55:24.533Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/86/dd7fae1e28a2fed4851c3956b86eda9737728203e3d3d1cf61ead1999b98/cuprum-0.2.0b2-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:4fe9621790634e350e5735ddf3cb400247976bb565f72548e478049e9c1b839a", size = 779690, upload-time = "2026-10-18T23:55:26.423Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/e1/2462d575c80d50e550c0178382689e934f45b59b306d8d1534b6a6ba4faa/cuprum-0.2.0b2-cp312-abi3-win_amd64.whl", hash = "sha256:c3258d254d7495797f06ed4eb23f46580f2bcc801f0ef56862d17644c0aefe0d", size = 629204, upload-time = "2026-10-18T23:55:27.973Z" },
+    { url = "https://files.pythonhosted.org/packages/54/b8/96703f2ff979d21a75c0d860de09caf99503f12191500625955f3aed5331/cuprum-0.2.0b2-py3-none-any.whl", hash = "sha256:723518f51e6242e04c6c7ce4ab4b31bf09d0bfa0b57b75d3c61dc23835db13bf", size = 517450, upload-time = "2026-10-18T23:55:29.295Z" },
 ]
 
 [[package]]
 name = "cyclopts"
-version = "4.18.0"
+version = "4.25.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -48,9 +53,9 @@ dependencies = [
     { name = "rich" },
     { name = "rich-rst" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/19/5c438b428b3dca208eb920804dc16aeb3ca1e85d6163d17e8fb0785ead19/cyclopts-4.18.0.tar.gz", hash = "sha256:fb7b730f21932e0784f7e54462df0447aaa1fbf034d65b605bd8a25dce58b188", size = 182821, upload-time = "2026-06-11T19:55:05.326Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c1/08/a444f3cca86cb27bc256831fc8c42b578390f4087bf6631cccb5334bd9ed/cyclopts-4.25.3.tar.gz", hash = "sha256:7d3a067bc7699a1a65fe2ea0b092a925855bb711a05adc1e65c5b9ba307acea4", size = 202814, upload-time = "2026-09-17T16:25:16.892Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/9f/b67f14c6b686ca90d317c0358f1a52ae171f43f83c808683fae3ba0b1f90/cyclopts-4.18.0-py3-none-any.whl", hash = "sha256:18ba2912e48e890a97ecc8a05c9beddf30a407b43f4e14cccfd40efddc41f029", size = 221216, upload-time = "2026-06-11T19:55:03.773Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/cc/e879da3d54cf727f90e6d90118e132672c3913338b566740486f8797190d/cyclopts-4.25.3-py3-none-any.whl", hash = "sha256:40e76b3153ea90e885abd8d3a4d8184db5a5eec2fde8540025aae8d72fc973fc", size = 242748, upload-time = "2026-09-17T16:25:15.509Z" },
 ]
 
 [[package]]
@@ -161,8 +166,8 @@ wheels = [
 
 [[package]]
 name = "lading"
-version = "0.3.1"
-source = { git = "https://github.com/leynos/lading?rev=b771852411b428ff6fc779cc3a68b153a8f2439a#b771852411b428ff6fc779cc3a68b153a8f2439a" }
+version = "0.4.0b1"
+source = { git = "https://github.com/leynos/lading?rev=f2a24c51a59783318f76182053ade0ed1e1cd329#f2a24c51a59783318f76182053ade0ed1e1cd329" }
 dependencies = [
     { name = "cuprum" },
     { name = "cyclopts" },
@@ -382,7 +387,7 @@ python-tools = [
 python-tools = [
     { name = "df12-python-lints", git = "https://github.com/leynos/df12-python-lints.git?rev=v0.3.0" },
     { name = "hypothesis" },
-    { name = "lading", git = "https://github.com/leynos/lading?rev=b771852411b428ff6fc779cc3a68b153a8f2439a" },
+    { name = "lading", git = "https://github.com/leynos/lading?rev=f2a24c51a59783318f76182053ade0ed1e1cd329" },
     { name = "pathspec", specifier = "==1.1.1" },
     { name = "pylint" },
     { name = "pytest" },
