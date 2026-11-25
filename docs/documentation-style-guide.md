@@ -183,10 +183,6 @@ this means operators, end users, or integrators.
   documented example becomes a contract the implementation must satisfy and
   cannot drift from the behaviour it claims.
 
-  Repository status: enforcement currently covers only the bounded region
-  described by roadmap item 10.3.3. Extending it across the users' guide is
-  deferred to roadmap item 10.3.4.
-
 ### Migration guide
 
 Use a migration guide, named `docs/v<major>-<minor>-<patch>-migration-guide.md`
@@ -381,6 +377,11 @@ Name RFC files using the pattern `rfcs/rfc-nnnn-title-slug.md`, relative to the
 - Number RFCs sequentially in allocation order rather than by date.
 - Do not renumber existing RFCs after publication. Gaps are acceptable when
   numbers are reserved, drafted on another branch, or intentionally skipped.
+  Exception: where two RFCs share a number, renumber the later one (by first
+  appearance in history; if both first appear in the same commit, the one whose
+  title sorts later alphabetically) to the next free number, record "Renumbered
+  from NNNN on YYYY-MM-DD (duplicate number)" under its title, and update every
+  inbound link, including number-only references.
 - Keep the slug stable once the RFC is published. If the title changes
   materially, rename the file, keep the number, and update every inbound link.
 
@@ -525,7 +526,7 @@ providing a historical record for future maintainers.
 ### Naming convention
 
 Name ADR files using the pattern `adrs/adr-nnnn-title-slug.md`, relative to the
-`docs/` directory, for example `docs/adrs/adr-0001-async-fixtures-and-test.md`.
+`docs/` directory, for example `docs/adrs/adr-0001-async-fixtures-and-tests.md`.
 
 - `nnnn` is a four-digit, zero-padded serial number, unique among the ADRs in
   the repository and allocated independently of RFC numbers.
@@ -533,7 +534,12 @@ Name ADR files using the pattern `adrs/adr-nnnn-title-slug.md`, relative to the
   `Architectural decision record (ADR) nnnn:` prefix, following the same slug
   rules as RFC filenames.
 - Number ADRs sequentially in allocation order rather than by date, and do not
-  renumber an ADR after publication.
+  renumber an ADR after publication. Exception: where two ADRs share a number,
+  renumber the later one (by first appearance in history; if both first appear
+  in the same commit, the one whose title sorts later alphabetically) to the
+  next free number, record "Renumbered from NNNN on YYYY-MM-DD (duplicate
+  number)" under its title, and update every inbound link, including
+  number-only references.
 
 ### Required sections
 
@@ -720,6 +726,9 @@ contents of the manual.
 - Place examples under `# Examples`. Let examples run as documentation tests
   when they can execute correctly, so the compiler verifies that they compile
   and behave as documented.
+- Import the documented item in each example. Rustdoc compiles a doctest as an
+  external crate that depends on the documented crate, so a bare call to the
+  item cannot resolve; use a hidden `# use crate_name::item;` line.
 - Use `no_run` for complete examples that must compile but must not execute,
   such as examples that require external resources, environment-specific setup,
   or a long-running service.
@@ -727,8 +736,6 @@ contents of the manual.
   `no_run` only suppresses execution, so it cannot carry uncompilable code;
   `ignore` skips both compilation and execution.
 - Put function attributes after the doc comment.
-
-The `example_crate` name below is a placeholder; replace it with the crate name.
 
 ```rust,no_run
 /// Returns the sum of `a` and `b`.
@@ -743,7 +750,7 @@ The `example_crate` name below is a placeholder; replace it with the crate name.
 /// # Examples
 ///
 /// ```rust
-/// use example_crate::add;
+/// # use mycrate::add;
 /// assert_eq!(add(2, 3), 5);
 /// ```
 #[inline]
@@ -751,6 +758,9 @@ pub fn add(a: i32, b: i32) -> i32 {
     a + b
 }
 ```
+
+Only the outer fence needs `no_run`, because it is a complete item that must
+compile but is not a program to execute; the inner doctest compiles and runs.
 
 ## Diagrams and images
 
