@@ -86,17 +86,6 @@ EXPECTED_BUILD_MATRIX = [
 ]
 
 
-def test_comment_job_stays_on_github_hosted_linux() -> None:
-    """Keep API-bound delay work off paid Linux compute."""
-    job = _job("delayed-pr-comment.yml", "delay_and_comment")
-    assert job.get("runs-on") == GITHUB_HOSTED_LINUX, (
-        f"delayed-pr-comment.yml:delay_and_comment must use {GITHUB_HOSTED_LINUX}"
-    )
-    assert job.get("timeout-minutes") == 65, (
-        "delayed-pr-comment.yml:delay_and_comment must bound runner occupancy"
-    )
-
-
 def test_build_matrix_uses_exact_runner_labels() -> None:
     """Keep Linux lanes on Ubicloud and Windows lanes on GitHub-hosted."""
     build_test = _job("ci.yml", "build-test")
@@ -316,6 +305,7 @@ def test_external_reusable_workflows_keep_callee_owned_runners() -> None:
     for workflow_name, job_name in (
         ("mutation-testing.yml", "mutation"),
         ("dependabot-automerge.yml", "automerge"),
+        ("delayed-pr-comment.yml", "delayed-comment"),
     ):
         job = _job(workflow_name, job_name)
         uses = str(job.get("uses", ""))
@@ -331,7 +321,6 @@ def test_scheduled_and_administrative_jobs_stay_github_hosted() -> None:
     """Non-blocking work must not consume paid Ubicloud capacity."""
     for workflow_name, job_name in (
         ("refresh-derived-fixture-lockfiles.yml", "refresh-lockfiles"),
-        ("delayed-pr-comment.yml", "delay_and_comment"),
     ):
         job = _job(workflow_name, job_name)
         assert job.get("runs-on") == GITHUB_HOSTED_LINUX, (
