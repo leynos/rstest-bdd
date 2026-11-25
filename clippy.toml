@@ -1,5 +1,6 @@
-# Align with CodeScene’s ceiling
-cognitive-complexity-threshold = 12     # default is 25
+# Cognitive complexity is not gated by Clippy: it scores code after macro
+# expansion, so it counts branching a macro generated. Whitaker's
+# `macro_aware_cognitive_complexity` gates it at 9 (see `dylint.toml`).
 
 # Tests may use `.expect(...)` or `panic!(...)` for fallible setup at their
 # own boundary. This applies to built-in `#[test]` and `rstest` cases.
