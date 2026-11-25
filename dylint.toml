@@ -1,5 +1,15 @@
 # Configuration for the Whitaker Dylint suite (see `make lint-whitaker`).
 
+# `macro_aware_cognitive_complexity` gates cognitive complexity. It skips
+# branching a macro generated and holds CodeScene's ceiling of 9. It is
+# experimental, so the suite loads it only on request. The tracker is
+# https://github.com/leynos/whitaker/issues/504.
+[whitaker]
+experimental = ["macro_aware_cognitive_complexity"]
+
+[macro_aware_cognitive_complexity]
+max_complexity = 9
+
 [no_std_fs_operations]
 excluded_crates = [
     # Test support utilities: rstest-bdd-harness stages trybuild and
