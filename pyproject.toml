@@ -16,7 +16,7 @@ default-groups = ["python-tools"]
 python-tools = [
     "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@v0.3.0",
     "hypothesis",
-    "lading @ git+https://github.com/leynos/lading@b771852411b428ff6fc779cc3a68b153a8f2439a",
+    "lading @ git+https://github.com/leynos/lading@f2a24c51a59783318f76182053ade0ed1e1cd329",
     "pathspec==1.1.1",
     "pylint",
     "pytest",

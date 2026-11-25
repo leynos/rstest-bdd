@@ -69,7 +69,7 @@ TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 	typos-config-builder
 # Shared Markdown file list used by markdownlint and the spelling gate.
 MD_FILES_FIND = find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -not -path './.vtcode/*' -print0
-LADING_REF ?= b771852411b428ff6fc779cc3a68b153a8f2439a
+LADING_REF ?= f2a24c51a59783318f76182053ade0ed1e1cd329
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
 # Interrogate measures docstring presence over every Python file the repository
 # owns: the maintenance scripts, their tests and the workflow-contract suite.
