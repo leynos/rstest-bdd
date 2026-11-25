@@ -7,7 +7,7 @@ on:
         required: true
         type: number
       delay_minutes:
-        description: 'Minutes to wait before commenting'
+        description: 'Minutes to wait before commenting (0 to 345)'
         required: true
         type: number
       message:
@@ -15,37 +15,12 @@ on:
         required: true
         type: string
 
-permissions: {}
-
 jobs:
-  delay_and_comment:
-    runs-on: ubuntu-latest
-    timeout-minutes: 65
+  delayed-comment:
     permissions:
-      pull-requests: write   # needed to post comments
-    steps:
-      - name: Convert minutes to seconds
-        id: calc
-        env:
-          DELAY_MINUTES: ${{ github.event.inputs.delay_minutes }}
-        run: |
-          set -euo pipefail
-          case "$DELAY_MINUTES" in
-            ''|*[!0-9]*)
-              echo 'delay_minutes must be a whole number' >&2
-              exit 1
-              ;;
-          esac
-          if (( 10#$DELAY_MINUTES < 1 || 10#$DELAY_MINUTES > 60 )); then
-            echo 'delay_minutes must be between 1 and 60' >&2
-            exit 1
-          fi
-          echo "secs=$(( 10#$DELAY_MINUTES * 60 ))" >> "$GITHUB_OUTPUT"
-      - name: Wait requested time
-        run: sleep "${{ steps.calc.outputs.secs }}"
-        shell: bash
-      - name: Comment PR
-        uses: thollander/actions-comment-pull-request@v3
-        with:
-          pr-number: ${{ github.event.inputs.pr_number }}
-          message: ${{ github.event.inputs.message }}
+      pull-requests: write # needed to post comments
+    uses: leynos/shared-actions/.github/workflows/delayed-pr-comment.yml@8091b7cb5f9bab2d4a76ced2e749fd4c1bccdb02 # shared-actions PR 706 merge, 2026-11-24
+    with:
+      pr_number: ${{ inputs.pr_number }}
+      delay_minutes: ${{ inputs.delay_minutes }}
+      message: ${{ inputs.message }}
