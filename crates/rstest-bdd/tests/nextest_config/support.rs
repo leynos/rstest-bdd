@@ -56,6 +56,24 @@ struct ProfileKey<'k> {
     key: &'k str,
 }
 
+impl<'k> ProfileKey<'k> {
+    /// The named profile's run-level `global-timeout`.
+    const fn global_timeout(profile: &'k str) -> Self {
+        Self {
+            profile,
+            key: "global-timeout",
+        }
+    }
+
+    /// The named profile's ordered `overrides` list.
+    const fn overrides(profile: &'k str) -> Self {
+        Self {
+            profile,
+            key: "overrides",
+        }
+    }
+}
+
 impl std::fmt::Display for ProfileKey<'_> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "profile.{}.{}", self.profile, self.key)
@@ -96,11 +114,11 @@ pub(super) fn profile_global_timeout<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a str, io::Error> {
-    let at = ProfileKey {
-        profile: profile_name,
-        key: "global-timeout",
-    };
-    required_profile_key(configuration, at, Value::as_str)
+    required_profile_key(
+        configuration,
+        ProfileKey::global_timeout(profile_name),
+        Value::as_str,
+    )
 }
 
 /// The default profile's run-level `global-timeout`.
@@ -182,13 +200,8 @@ pub(super) fn profile_overrides<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a [Value], io::Error> {
-    let at = ProfileKey {
-        profile: profile_name,
-        key: "overrides",
-    };
-    required_profile_key(configuration, at, |value| {
-        value.as_array().map(Vec::as_slice)
-    })
+    let read = |value: &'a Value| value.as_array().map(Vec::as_slice);
+    required_profile_key(configuration, ProfileKey::overrides(profile_name), read)
 }
 
 /// The default profile's ordered overrides.
