@@ -46,34 +46,45 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-/// The value of `key` in the named profile, if that profile sets it.
-fn profile_key<'a>(configuration: &'a Value, profile_name: &str, key: &str) -> Option<&'a Value> {
+/// A key inside one nextest profile, such as `profile.default.global-timeout`.
+///
+/// The profile and key travel together because every lookup and every error
+/// names both; `Display` renders the dotted path the error reports.
+#[derive(Clone, Copy)]
+struct ProfileKey<'k> {
+    profile: &'k str,
+    key: &'k str,
+}
+
+impl std::fmt::Display for ProfileKey<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "profile.{}.{}", self.profile, self.key)
+    }
+}
+
+/// The value at `at`, if the configuration sets it.
+fn profile_key<'a>(configuration: &'a Value, at: ProfileKey<'_>) -> Option<&'a Value> {
     configuration
         .get("profile")
         .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get(profile_name))
+        .and_then(|profiles| profiles.get(at.profile))
         .and_then(Value::as_table)
-        .and_then(|profile| profile.get(key))
+        .and_then(|profile| profile.get(at.key))
 }
 
-/// The value of `key` in the named profile, read as `T` by `read`.
+/// The value at `at`, read as `T` by `read`.
 ///
 /// A missing profile, a missing key and a key of the wrong type all report the
 /// same dotted path, because to the reader of a failure they are one mistake:
 /// the configuration does not say what the contract needs it to say.
 fn required_profile_key<'a, T>(
     configuration: &'a Value,
-    profile_name: &str,
-    key: &str,
+    at: ProfileKey<'_>,
     read: impl FnOnce(&'a Value) -> Option<T>,
 ) -> Result<T, io::Error> {
-    profile_key(configuration, profile_name, key)
+    profile_key(configuration, at)
         .and_then(read)
-        .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must set profile.{profile_name}.{key}"
-            ))
-        })
+        .ok_or_else(|| io::Error::other(format!("nextest configuration must set {at}")))
 }
 
 /// The named profile's run-level `global-timeout`.
@@ -85,7 +96,11 @@ pub(super) fn profile_global_timeout<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a str, io::Error> {
-    required_profile_key(configuration, profile_name, "global-timeout", Value::as_str)
+    let at = ProfileKey {
+        profile: profile_name,
+        key: "global-timeout",
+    };
+    required_profile_key(configuration, at, Value::as_str)
 }
 
 /// The default profile's run-level `global-timeout`.
@@ -167,7 +182,11 @@ pub(super) fn profile_overrides<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a [Value], io::Error> {
-    required_profile_key(configuration, profile_name, "overrides", |value| {
+    let at = ProfileKey {
+        profile: profile_name,
+        key: "overrides",
+    };
+    required_profile_key(configuration, at, |value| {
         value.as_array().map(Vec::as_slice)
     })
 }
