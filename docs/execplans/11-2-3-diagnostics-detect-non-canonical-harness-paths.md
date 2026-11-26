@@ -5,12 +5,13 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: DRAFT (revised after community-of-experts review; observations
-re-verified against `origin/main` at `0df7fbec` on 2026-11-24; restacked on
-pull request #986 at `5dbc2fb5`, over `main` at `6308b9af`, on 2026-11-26)
+Status: APPROVED (2026-11-26). Revised after community-of-experts review;
+observations re-verified against `origin/main` at `0df7fbec` on 2026-11-24;
+restacked on pull request #986 at `5dbc2fb5`, over `main` at `6308b9af`, on
+2026-11-26. Implementation started 2026-11-26.
 
-Approval: not yet approved. Implementation must not begin until the user
-explicitly approves this plan.
+Approval: approved by the user on 2026-11-26, who instructed implementation to
+begin and to carry the pull request through babysitting to equilibrium.
 
 ## Purpose / big picture
 
@@ -258,7 +259,8 @@ conflict in `Decision log`, and escalate.
   from this revision. Only #980 bears on the plan, through C13 and D28. The
   user confirmed D26 and accepted CI as the gate evidence for this plan-only
   pull request.
-- [ ] Plan approved by the user.
+- [x] (2026-11-26) Plan approved by the user, who instructed implementation to
+  begin and to carry the pull request through babysitting to equilibrium.
 - [ ] EP-M0: baseline, fixture-host spike, and channel experiments.
 - [ ] EP-M1: behaviour-preserving extraction of `policy_diagnostics`.
 - [ ] EP-M2: W001 and W002 (non-canonical paths and missing policy).
