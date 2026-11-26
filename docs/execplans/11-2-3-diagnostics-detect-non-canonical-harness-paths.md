@@ -6,7 +6,8 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 be kept up to date as work proceeds.
 
 Status: DRAFT (revised after community-of-experts review; observations
-re-verified against `origin/main` at `0df7fbec` on 2026-11-24)
+re-verified against `origin/main` at `0df7fbec` on 2026-11-24; restacked on
+pull request #986 at `5dbc2fb5`, over `main` at `6308b9af`, on 2026-11-26)
 
 Approval: not yet approved. Implementation must not begin until the user
 explicitly approves this plan.
@@ -120,6 +121,12 @@ These are hard invariants. Violating one requires escalation, not a workaround.
   test relies on `#[serial]` or another process-wide lock, or changes the
   process environment. New trybuild cases therefore join the existing timed
   test functions (D27).
+
+- C13 (cognitive complexity, `dylint.toml` at `6308b9af`): `make lint` gates
+  cognitive complexity with Whitaker's `macro_aware_cognitive_complexity` at a
+  maximum of 9, replacing Clippy's former threshold of 12. Every new or edited
+  function in the macro crate must score 9 or less; extract helpers rather than
+  suppress the lint (D28).
 
 If satisfying the objective requires violating a constraint, stop, record the
 conflict in `Decision log`, and escalate.
@@ -245,6 +252,12 @@ conflict in `Decision log`, and escalate.
   commits, no conflicts). The code anchors, documentation anchors, open pull
   requests, gate commands, and convention files listed under the 2026-11-24
   discoveries were re-measured; see D24 to D27.
+- [x] (2026-11-26) Restacked onto #986 (`raise-nested-preparation-limits` at
+  `5dbc2fb5`), which sits on `origin/main` at `6308b9af` (four further `main`
+  commits, #980 to #984; no conflicts). The plan's commits are unchanged apart
+  from this revision. Only #980 bears on the plan, through C13 and D28. The
+  user confirmed D26 and accepted CI as the gate evidence for this plan-only
+  pull request.
 - [ ] Plan approved by the user.
 - [ ] EP-M0: baseline, fixture-host spike, and channel experiments.
 - [ ] EP-M1: behaviour-preserving extraction of `policy_diagnostics`.
@@ -593,11 +606,20 @@ earlier one, the earlier entry says so.
   roadmap does not request. C1 to C3 are stricter than 0.7.0 requires, and are
   kept. User-facing guidance goes to `docs/v0-7-0-migration-guide.md`; the
   v0.6.0 guide receives only the correction of its false statement.
-  Date/Author: 2026-11-24 / Claude.
+  Date/Author: 2026-11-24 / Claude. Confirmed by the user on 2026-11-25: target
+  v0.7.0, with no v0.6.1 backport.
 - Decision D27: new trybuild cases join the existing timed test functions, and
   the plan adds no new `#[serial]` test. Rationale: AGENTS.md no longer accepts
   process-wide locks as a fallback. If a nightly function's name stops
   describing its contents, rename it. Date/Author: 2026-11-24 / Claude.
+- Decision D28: new and edited functions are held to the macro-aware cognitive
+  complexity gate of 9 (C13), and the plan's local test commands run under pull
+  request #986's `local` nextest profile. Rationale: #980 moved the complexity
+  gate from Clippy (12) to Whitaker (9), so a helper sized against the old
+  threshold would fail `make lint`. #986 makes every Makefile nextest recipe
+  select `--profile local`, whose longer limits let `make test` finish on a
+  loaded development host; CI keeps the default profile. Date/Author:
+  2026-11-26 / Claude.
 
 ## Outcomes & retrospective
 
@@ -859,7 +881,8 @@ Read:
 - `docs/rust-testing-with-rstest-fixtures.md`: fixture and table idioms;
 - `docs/rust-doctest-dry-guide.md`: doctest style for new rustdoc examples;
 - `docs/complexity-antipatterns-and-refactoring-strategies.md`: keep
-  `try_scenario` and `scenarios` from growing, and extract helpers instead;
+  `try_scenario` and `scenarios` from growing, and extract helpers instead,
+  within the cognitive complexity limit of 9 (C13);
 - `docs/gherkin-syntax.md`: feature-file syntax for EP-M5;
 - `docs/documentation-style-guide.md`: the ADR template and
   en-GB-oxendict spelling.
@@ -1843,3 +1866,11 @@ existing dev-dependencies of `rstest-bdd-macros`), plus `trybuild` and
   Effect on remaining work: EP-M2 changes where the opt-out is tested and may
   drop one nightly fixture; EP-M6 gains the v0.7.0 migration guidance. The
   taxonomy, model, and obligations are unchanged.
+- 2026-11-26: restacked onto #986 at `5dbc2fb5`, over `origin/main` at
+  `6308b9af`. Changes:
+  - C13 and D28 record #980's macro-aware cognitive complexity gate at 9;
+  - D28 records that local test commands run under #986's `local` profile;
+  - D26 is confirmed by the user: target v0.7.0, with no v0.6.1 backport.
+
+  Effect on remaining work: helpers extracted in EP-M1 to EP-M4 must score 9 or
+  less. The design, taxonomy, and obligations are unchanged.
