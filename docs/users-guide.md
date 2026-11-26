@@ -2994,8 +2994,10 @@ preparation has **no per-command bound at all**. It is limited only by the test
 runner, which is a distinction that matters in both directions:
 
 - Under `cargo nextest`, `.config/nextest.toml` gives the compile-test binaries
-  a 20-minute `slow-timeout` and the preparation tests a 30-minute one. That
-  runner period is the only limit a trybuild preparation has.
+  a 20-minute `slow-timeout` and the preparation tests an 80-minute one. The
+  `local` profile that every Makefile nextest recipe selects raises them to 120
+  and 240 minutes, for hosts whose compile queue is deep. That runner period is
+  the only limit a trybuild preparation has.
 - Under plain `cargo test` there is no per-command bound *and* no per-test
   bound, so a wedged trybuild child is limited only by whatever the invocation
   itself supplies.
@@ -3062,7 +3064,7 @@ keeps a gate's behaviour a property of its arguments rather than of the ambient
 process, which is what lets a test exercise both runners in one binary.
 
 The runner limits differ, and a suite that relies on preparing lazily should
-expect that. `.config/nextest.toml` gives the preparation tests a 30-minute
+expect that. `.config/nextest.toml` gives the preparation tests an 80-minute
 `slow-timeout` — the budget `PREPARATION_COMMAND_TIMEOUT` and
 `MAX_SEQUENTIAL_COMMANDS` are sized to stay inside. Plain `cargo test` imposes
 no such bound: it has no per-test timeout at all, so a lazy preparation there

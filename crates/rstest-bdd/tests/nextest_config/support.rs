@@ -144,26 +144,28 @@ pub(super) fn duration_seconds(duration: &str) -> Result<u64, io::Error> {
         .ok_or_else(|| io::Error::other(format!("duration {duration} overflows")))
 }
 
-/// The default profile's ordered overrides.
-pub(super) fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
-    let overrides = default_profile(configuration)?
-        .get("overrides")
+/// The named profile's ordered overrides.
+///
+/// A profile other than `default` lists only its own overrides here; nextest
+/// checks them before `profile.default.overrides`, so a caller asking what
+/// governs a test under that profile reads this list first.
+pub(super) fn profile_overrides<'a>(
+    configuration: &'a Value,
+    profile_name: &str,
+) -> Result<&'a [Value], io::Error> {
+    profile_key(configuration, profile_name, "overrides")
         .and_then(Value::as_array)
+        .map(Vec::as_slice)
         .ok_or_else(|| {
-            io::Error::other("nextest configuration must contain profile.default.overrides")
-        })?;
-
-    Ok(overrides)
+            io::Error::other(format!(
+                "nextest configuration must contain profile.{profile_name}.overrides"
+            ))
+        })
 }
 
-/// The default profile's table.
-fn default_profile(configuration: &Value) -> Result<&toml::value::Table, io::Error> {
-    configuration
-        .get("profile")
-        .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get("default"))
-        .and_then(Value::as_table)
-        .ok_or_else(|| io::Error::other("nextest configuration must contain profile.default"))
+/// The default profile's ordered overrides.
+pub(super) fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
+    profile_overrides(configuration, "default")
 }
 
 /// Indices of the overrides whose filter names a trybuild test binary.

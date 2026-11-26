@@ -55,14 +55,22 @@ max-threads = 1
 # development host with every nested target empty, the two most expensive
 # families were the server crate's trybuild tree at 864.239 s and the
 # `rstest-bdd` trybuild binary's two graphs at 645.412 s, so a fully cold
-# preparation is comfortably inside 30 minutes. (Those two are single-host
-# figures taken behind a shared compile-admission pool, so they overstate the
-# compiler time and understate a two-vCPU lane's queueing.) The four trybuild
+# preparation is comfortably inside 30 minutes on an idle host. (Those two are
+# single-host figures taken behind a shared compile-admission pool, so they
+# overstate the compiler time and understate a two-vCPU lane's queueing.) On a
+# loaded development host they are not: `make test` failed five times running
+# in `rstest-bdd::trybuild_macros` preparation, twice at the old 30 m period and
+# three times at the old 9 m command bound, with up to 464 compile requests
+# queued ahead of it. Both budgets count time spent waiting for a compile slot.
+# This period is therefore 80 m, the most the 90 m `global-timeout` leaves room
+# for, and the Makefile's nextest recipes run under `profile.local` below,
+# which gives the preparation lane longer limits still without moving any
+# budget a coverage lane depends on. The four trybuild
 # binaries share one generated-crate directory, so whichever prepares first
 # warms the dependency graph and the rest stamp it in seconds.
 #
 # The preparation commands this repository spawns itself carry their own bound
-# (`nested_cargo::PREPARATION_COMMAND_TIMEOUT`, 9 m), and
+# (`nested_cargo::PREPARATION_COMMAND_TIMEOUT`, 25 m), and
 # `nested_cargo::MAX_SEQUENTIAL_COMMANDS` of them stay inside this period, so a
 # wedged command is reported by name with its captured output rather than as a
 # runner slow-timeout. One command is not bounded that way: `trybuild` spawns its
@@ -71,7 +79,7 @@ max-threads = 1
 # bounds the whole preparation *test*; an overrun spanning several commands is
 # reported by nextest as a slow-timeout rather than by name.
 filter = "test(/nested_fixture_preparation$/)"
-slow-timeout = { period = "30m", terminate-after = 1, grace-period = "5s" }
+slow-timeout = { period = "80m", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 priority = 100
 
@@ -128,6 +136,12 @@ test-group = "cargo-spawning"
 # the run it rescues, and `terminate-after` stays the hang detector it is meant
 # to be. The preparation override above keeps its longer period because it is
 # the one that compiles.
+#
+# This period stays the CI detector. On a development host whose compile queue
+# is hundreds of requests deep, even the warm body's per-fixture `rustc` calls
+# each wait for a slot, and `step_macros_compile` was measured still compiling
+# steadily when 20 m expired; the `local` profile below gives the Makefile's
+# passes 120 m instead.
 filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros) | binary_id(rstest-bdd-server::workspace_discovery_compile)"
 slow-timeout = { period = "20m", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
@@ -153,6 +167,49 @@ test-group = "cargo-spawning"
 # which the first override schedules ahead of these assertions.
 filter = "binary_id(rstest-bdd::prelude_fixture)"
 slow-timeout = { period = "600s", terminate-after = 1, grace-period = "5s" }
+test-group = "cargo-spawning"
+
+[profile.local]
+# The profile every nextest invocation in the Makefile selects: `make test`'s
+# two passes, `make prepare-nested-fixtures` and `make nextest-run`. It exists
+# for development hosts whose shared compile-admission queue is hundreds of
+# requests deep, where every nested `rustc` waits for a slot and the waiting
+# counts against nextest's clocks. Measured on such a host with up to 359
+# requests queued ahead: the preparation pass took 8,807 s, the
+# `rstest-bdd::trybuild_macros` preparation alone 3,292 s, and the warm, timed
+# `step_macros_compile` was still compiling fixtures, steadily, when the default
+# 20 m period ended it.
+#
+# The default profile cannot absorb that: its `global-timeout` is pinned by the
+# CI watchdog and job timeouts (see "Test timeouts: four tiers, outermost last"
+# in docs/developers-guide.md), and its 20 m compile-test period is the
+# detector for a timed body that has started cold-compiling again. Neither
+# coverage workflow runs `make`'s nextest recipes, so these limits move none of
+# those tiers, and the default profile keeps both detectors in CI.
+#
+# nextest checks this profile's overrides before `profile.default.overrides`,
+# so the entries below take precedence over the default ones for the tests they
+# match. Everything else is inherited from the default profile, including the
+# 60 s hang detector, the other per-binary periods and the `cargo-spawning`
+# group. The per-command preparation bound (25 m, compiled into the harness) is
+# unchanged; the longer preparation period matters for the trybuild families,
+# whose own nested `cargo` has no per-command bound, and it still keeps three
+# sequential bounded commands (75 m) well inside the test's budget. All of these
+# limits remain hang detectors, not targets: a warm tree stamps in seconds, and
+# an idle host finishes the compile tests in minutes.
+global-timeout = "360m"
+
+[[profile.local.overrides]]
+# Must stay first, for the same reason as the default preparation override: a
+# preparation test lives in the same binary as the compile tests below.
+filter = "test(/nested_fixture_preparation$/)"
+slow-timeout = { period = "240m", terminate-after = 1, grace-period = "5s" }
+test-group = "cargo-spawning"
+priority = 100
+
+[[profile.local.overrides]]
+filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros) | binary_id(rstest-bdd-server::workspace_discovery_compile)"
+slow-timeout = { period = "120m", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 
 [profile.long]

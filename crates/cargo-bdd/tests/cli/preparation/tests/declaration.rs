@@ -143,7 +143,7 @@ fn the_workspace_cargo_configuration_is_an_input() {
 fn the_timed_graph_query_keeps_its_own_smaller_budget() {
     // The graph query runs before the gate has read the stamp, so a timed
     // assertion pays for it even when the fixture is prepared. The preparation
-    // budget is nine minutes, and this binary's period is 180 s: under the
+    // budget is 25 minutes, and this binary's period is 180 s: under the
     // preparation bound a contended query could not return before nextest
     // killed the test, discarding the captured child output that names the
     // wait. The two bounds must therefore stay distinct, and this is the

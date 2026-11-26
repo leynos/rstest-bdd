@@ -126,7 +126,7 @@ test: build-python ## Run tests with warnings treated as errors
 	# pass's package selection and features (see `prepare-nested-fixtures`).
 	$(MAKE) prepare-nested-fixtures
 	if command -v cargo-nextest >/dev/null 2>&1; then \
-		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS); \
+		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run --profile local $(CARGO_FLAGS) $(BUILD_JOBS); \
 	else \
 		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS); \
 	fi
@@ -152,7 +152,7 @@ test: build-python ## Run tests with warnings treated as errors
 	# pass's preparation warms nothing here: prepare it with its own flags.
 	$(MAKE) prepare-nested-fixtures PREPARE_FLAGS="-p rstest-bdd --all-targets --no-default-features"
 	if command -v cargo-nextest >/dev/null 2>&1; then \
-		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
+		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run --profile local -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
 	else \
 		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) test -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
 	fi
@@ -372,10 +372,17 @@ prefetch-fixture-deps: ## Warm the Cargo cache for the mutation lane's offline f
 # `$(CARGO_FLAGS)`; the D4 leg of `test` overrides it. Without `cargo-nextest`
 # the same selection runs under `cargo test`, which is the lazy-preparation
 # path the timed tests take anyway.
+#
+# Every nextest invocation in this Makefile — this pass, both passes of `test`
+# and `nextest-run` — selects `--profile local`, whose run, preparation and
+# compile-test limits are sized for a development host where nested builds
+# queue behind hundreds of other compile requests. The default profile's limits
+# are tied to the CI watchdog and job timeouts and cannot grow that far; see
+# `profile.local` in `.config/nextest.toml`.
 PREPARE_FLAGS ?= $(CARGO_FLAGS)
 prepare-nested-fixtures: ## Prepare the nested-Cargo fixture build trees before a test pass
 	if command -v cargo-nextest >/dev/null 2>&1; then \
-		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(PREPARE_FLAGS) $(BUILD_JOBS) \
+		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run --profile local $(PREPARE_FLAGS) $(BUILD_JOBS) \
 			-E 'test(/nested_fixture_preparation$$/)'; \
 	else \
 		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) test $(PREPARE_FLAGS) $(BUILD_JOBS) \
@@ -404,7 +411,7 @@ prepare-nested-fixtures: ## Prepare the nested-Cargo fixture build trees before 
 # `test(=name)` operator avoids it.
 nextest-run: ## Run a filtered nextest selection in the preparation's build environment
 	$(if $(EXPR),,$(error nextest-run: set EXPR to a nextest filter expression, e.g. EXPR='test(=list_steps_runs)'))
-	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS) \
+	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run --profile local $(CARGO_FLAGS) $(BUILD_JOBS) \
 		-E '$(EXPR)'
 
 # Prove the two halves above compose, as a runnable target rather than a

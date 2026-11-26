@@ -1538,9 +1538,12 @@ The file sets the timeout policy for the test suite:
   without relaxing any per-test limit. The global timeout must stay above the
   largest per-test budget below, or the run is killed before a test with that
   budget can finish; `trybuild_nextest_override_preserves_timeout_contract`
-  enforces the ordering.
+  enforces the ordering. The workflow contract that compares it with the
+  largest per-test budget reads only the default profile and its overrides,
+  because a profile's overrides apply only to runs under that profile, and
+  those runs carry the profile's own `global-timeout`.
 - The first `[[profile.default.overrides]]` entry gives the named
-  `nested_fixture_preparation` tests a 30 m `slow-timeout` and the highest
+  `nested_fixture_preparation` tests an 80 m `slow-timeout` and the highest
   scheduling `priority`, `100`. Those tests compile the dependency graphs the
   nested-Cargo suites would otherwise compile inside their own timed bodies: the
   `cargo-bdd` fixture, the trybuild tree, the UI-lint tree, and the
@@ -1551,6 +1554,13 @@ The file sets the timeout policy for the test suite:
   development host, and the trybuild binary's two graphs took 645.412 s. Both
   figures sit behind a shared compile-admission pool that the CI runner does
   not use, so they bound compiler time rather than a two-vCPU lane's queueing.
+  They were taken on an idle host. On a loaded one the queueing dominates:
+  `make test` failed five times running in the `rstest-bdd::trybuild_macros`
+  preparation, twice at the former 30-minute period and three times at the
+  former nine-minute command bound, with up to 464 compile requests queued
+  ahead of it. The period is therefore 80 m, the most the 90 m `global-timeout`
+  leaves room for, and every nextest pass the Makefile runs uses the longer
+  `local` profile described below.
 
   Two properties of nextest make its position load-bearing. Override precedence
   is first match in file order, not `priority`, so the entry must come before
@@ -1565,11 +1575,11 @@ The file sets the timeout policy for the test suite:
 
   Inside that period, each nested preparation command the repository spawns
   itself carries its own bound, `nested_cargo::PREPARATION_COMMAND_TIMEOUT`,
-  currently 9 minutes. The two are ordered deliberately: the worst preparation
+  currently 25 minutes. The two are ordered deliberately: the worst preparation
   test runs `nested_cargo::MAX_SEQUENTIAL_COMMANDS` (three) commands in
   sequence — the rebuild-invalidation test compiles one fixture, then runs the
-  addition fixture's metadata preflight and its compile — so `3 × 9 m = 27 m`
-  must stay below the 30 m period, and
+  addition fixture's metadata preflight and its compile — so `3 × 25 m = 75 m`
+  must stay below the 80 m period, and
   `preparation_command_bound_fires_before_the_runner_kills_the_test` recomputes
   that inequality from the parsed configuration and both constants. The reason
   the ordering matters is diagnostic: the per-command path is the only one that
@@ -1579,8 +1589,9 @@ The file sets the timeout policy for the test suite:
 
   One preparation path is not bounded this way. `trybuild` spawns its own nested
   `cargo`, and its API offers no hook to bound or capture that child, so for
-  the trybuild families the 30 m period is the only bound and a wedged build is
-  reported as a runner slow-timeout without captured output.
+  the trybuild families the preparation period (80 m, or 240 m under the
+  `local` profile) is the only bound and a wedged build is reported as a runner
+  slow-timeout without captured output.
 - The second override raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli` and `cargo-bdd::invocation`. The smoke tests spawn
   `cargo` to build fixture crates and can legitimately exceed 60 s on cold
@@ -1605,7 +1616,12 @@ The file sets the timeout policy for the test suite:
   saturated, capacity 4 and all held — was *cold compile* work, which is
   exactly what moved. It sizes the preparation period rather than this one, and
   widening this period would hide a timed body that had started compiling again
-  instead of reporting it. The strict 60 s default remains in force elsewhere.
+  instead of reporting it. That holds for CI, which keeps the 20 m period. On a
+  development host whose compile queue is hundreds of requests deep it does
+  not: each warm fixture's `rustc` call still waits for a compile slot, and
+  `step_macros_compile` was measured compiling steadily when 20 m expired. The
+  `local` profile below gives the Makefile's passes 120 m instead. The strict
+  60 s default remains in force elsewhere.
 - A fourth override raises the `slow-timeout` to 600 s for
   `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition.
@@ -1646,12 +1662,39 @@ Windows; use a TOML serializer for any broader configuration-writing need.
 
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
+- A `local` profile (`--profile local`) is the one every nextest invocation
+  in the Makefile selects: both passes of `make test`,
+  `make prepare-nested-fixtures` and `make nextest-run`. Neither coverage
+  workflow runs those recipes. The profile raises the run's `global-timeout` to
+  360 m and, through its own `[[profile.local.overrides]]` entries, the
+  preparation tests' `slow-timeout` to 240 m and the four compile-test
+  binaries' to 120 m. nextest checks a profile's own overrides before
+  `profile.default.overrides`, so those entries win over the default ones for
+  the tests they match; everything else, including the 60 s hang detector, the
+  other per-binary periods and the `cargo-spawning` group, is inherited from
+  the default profile.
+
+  The profile exists for development hosts whose shared compile-admission queue
+  is hundreds of requests deep. Every nested `rustc` waits there for a slot,
+  and nextest counts the wait. Measured on such a host with up to 359 requests
+  queued ahead, the preparation pass took 8,807 s, the
+  `rstest-bdd::trybuild_macros` preparation alone took 3,292 s, and the warm
+  `step_macros_compile` timed out at the default 20 m while still compiling.
+  The default profile cannot carry these limits itself, because its
+  `global-timeout` is the innermost of the four CI tiers described in the next
+  section, and raising it would move the CI watchdog and job timeouts with it.
+  The local limits remain hang detectors rather than targets: a warm tree
+  stamps in seconds, and an idle host finishes the compile tests in minutes.
+  `local_profile_outlasts_the_default_preparation_budget` and
+  `local_profile_outlasts_the_default_compile_test_budget` pin the values and
+  require each to exceed the default profile's.
 
 The `nextest_config` integration contract reads profiles through one generalized
 `profile_global_timeout` reader in its support module, which serves the
-default and long profiles and builds the dotted-path error a missing or
-mistyped key needs. Keep that reader within the test module rather than reusing
-it for unrelated configuration or production code.
+default, long and local profiles and builds the dotted-path error a missing or
+mistyped key needs. `profile_overrides` reads a named profile's override list
+the same way. Keep those readers within the test module rather than reusing
+them for unrelated configuration or production code.
 
 When adding a test binary that shells out to `cargo`, extend the relevant
 override's `filter` expression rather than raising the default `slow-timeout`:
@@ -1665,16 +1708,20 @@ so it is worth knowing which is which and in what order they can fire.
 
 The preparation budget is not a fifth tier in that ladder: it bounds a
 different test, and it sits below the global timeout rather than above the
-assertion budget. It is listed so that a reader who meets the 30 m period in
+assertion budget. It is listed so that a reader who meets the 80 m period in
 `.config/nextest.toml` can see that no assertion inherited it.
 
-| Tier                     | What it bounds                     | Where it is set                                                                         | Current value                                          |
-| ------------------------ | ---------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                                                  | 60 s default; 20 m, 600 s or 180 s under the overrides |
-| Preparation budget       | one preparation test               | `.config/nextest.toml`                                                                  | 30 m                                                   |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                                                  | 90 m                                                   |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` and `coverage-main.yml` | 9,900 s (165 m)                                        |
-| Job `timeout-minutes`    | the whole job                      | the coverage jobs in `ci.yml` and `coverage-main.yml`                                   | 240 m                                                  |
+| Tier                     | What it bounds                     | Where it is set                                                                         | Current value                                                                |
+| ------------------------ | ---------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Per-test `slow-timeout`  | one assertion                      | `.config/nextest.toml`                                                                  | 60 s default; 20 m (120 m under `local`), 600 s or 180 s under the overrides |
+| Preparation budget       | one preparation test               | `.config/nextest.toml`                                                                  | 80 m; 240 m under the `local` profile                                        |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                                                  | 90 m; 360 m under the `local` profile                                        |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` and `coverage-main.yml` | 9,900 s (165 m)                                                              |
+| Job `timeout-minutes`    | the whole job                      | the coverage jobs in `ci.yml` and `coverage-main.yml`                                   | 240 m                                                                        |
+
+The `local` values apply only to the Makefile's own nextest runs, which no
+coverage lane makes, so the watchdog and job tiers are sized against the
+default-profile values alone.
 
 Each tier must sit above the one before it. If the watchdog sits below the
 nextest global timeout, as it did until this was written, the run is killed
