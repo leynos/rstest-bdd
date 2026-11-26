@@ -56,6 +56,26 @@ fn profile_key<'a>(configuration: &'a Value, profile_name: &str, key: &str) -> O
         .and_then(|profile| profile.get(key))
 }
 
+/// The value of `key` in the named profile, read as `T` by `read`.
+///
+/// A missing profile, a missing key and a key of the wrong type all report the
+/// same dotted path, because to the reader of a failure they are one mistake:
+/// the configuration does not say what the contract needs it to say.
+fn required_profile_key<'a, T>(
+    configuration: &'a Value,
+    profile_name: &str,
+    key: &str,
+    read: impl FnOnce(&'a Value) -> Option<T>,
+) -> Result<T, io::Error> {
+    profile_key(configuration, profile_name, key)
+        .and_then(read)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "nextest configuration must set profile.{profile_name}.{key}"
+            ))
+        })
+}
+
 /// The named profile's run-level `global-timeout`.
 ///
 /// Generalizing the default-profile reader is what lets the long profile be
@@ -65,13 +85,7 @@ pub(super) fn profile_global_timeout<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a str, io::Error> {
-    profile_key(configuration, profile_name, "global-timeout")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must set profile.{profile_name}.global-timeout"
-            ))
-        })
+    required_profile_key(configuration, profile_name, "global-timeout", Value::as_str)
 }
 
 /// The default profile's run-level `global-timeout`.
@@ -153,14 +167,9 @@ pub(super) fn profile_overrides<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a [Value], io::Error> {
-    profile_key(configuration, profile_name, "overrides")
-        .and_then(Value::as_array)
-        .map(Vec::as_slice)
-        .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must contain profile.{profile_name}.overrides"
-            ))
-        })
+    required_profile_key(configuration, profile_name, "overrides", |value| {
+        value.as_array().map(Vec::as_slice)
+    })
 }
 
 /// The default profile's ordered overrides.
