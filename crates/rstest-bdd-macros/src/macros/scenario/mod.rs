@@ -228,7 +228,7 @@ fn try_scenario(
     let path = PathBuf::from(path_lit.value());
     // `#[scenario]` owns this expansion boundary, so it emits each fallback
     // diagnostic once before its generated code consumes the shared decision.
-    let resolutions = crate::codegen::SharedAdapterResolutions::resolve(
+    let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenario(
         args.harness.as_ref(),
         args.attributes.as_ref(),
     );

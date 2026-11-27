@@ -267,7 +267,12 @@ conflict in `Decision log`, and escalate.
   three experiments answered (see `Surprises & discoveries` and D29 to D33).
   The throwaway fixtures and the one manifest change were reverted; the
   dev-dependency returns with the EP-M3 fixture that needs it.
-- [ ] EP-M1: behaviour-preserving extraction of `policy_diagnostics`.
+- [x] (2026-11-27) EP-M1 implemented: `codegen::adapter_fallback` is replaced by
+  `codegen::policy_diagnostics/`; `test_attrs::resolve_attribute_policy`
+  delegates to `selected_hint`; the classifier takes an injected
+  `CrateResolver`. Every fixture, `.stderr`, macrotest snapshot and
+  `harness_defaults` case is unchanged, and both harness `macro_compile` suites
+  pass against the untouched snapshots (D34 to D36).
 - [ ] EP-M2: W001 and W002 (non-canonical paths and missing policy).
 - [ ] EP-M3: W003 and E002 (ambiguous selectors).
 - [ ] EP-M4: E001 (missing executor).
@@ -412,8 +417,8 @@ conflict in `Decision log`, and escalate.
   fixture. A throwaway `compile_fail` fixture combining
   `harness = rstest_bdd_harness_gpui::GpuiHarness` with
   `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy` compiled with
-  only its own `compile_error!` sentinel in stderr — no resolution errors —
-  once `rstest-bdd-harness-tokio` was a dev-dependency of
+  only its own `compile_error!` sentinel in stderr — no resolution errors — once
+  `rstest-bdd-harness-tokio` was a dev-dependency of
   `rstest-bdd-harness-gpui`. The suite reported 3 tests passed. The Tokio suite
   was not tried with GPUI as a dev-dependency, because that would put the
   vendored GPUI stack in a second trybuild tree for no extra evidence. Impact:
@@ -441,6 +446,14 @@ conflict in `Decision log`, and escalate.
   therefore invalidates the other suite's stamp. Impact: batch fixture edits,
   then prepare once, then run each suite; do not interleave snapshot writes
   with a second suite's run.
+- Observation (EP-M1, 2026-11-27): `quote_spanned!` does not re-span an
+  interpolated `Ident`. Building the marker name with
+  `Ident::new(name, Span::call_site())` and interpolating it moved every stable
+  warning's span to the macro call site and added an "originates in the
+  attribute macro" note, which the trybuild snapshots rejected. The span must
+  be given to `Ident::new`. Impact: the emitters construct each marker ident
+  from the warning's own span; the six stable fallback fixtures then matched
+  byte for byte.
 
 ## Decision log
 
@@ -662,12 +675,13 @@ earlier one, the earlier entry says so.
   2026-11-26 / Claude.
 - Decision D29 (EP-M0): the W003 fixture is hosted by the GPUI suite, and
   `rstest-bdd-harness-tokio` becomes a dev-dependency of
-  `rstest-bdd-harness-gpui` — C10's single permitted manifest change. Rationale:
-  a fixture that names both adapter crates needs both in the generated
-  `trybuild` crate's dependency graph, which `trybuild` builds from the source
-  manifest's dependencies and dev-dependencies. The GPUI suite already pays for
-  GPUI; adding the Tokio harness is the cheap direction, and experiment 1
-  confirmed it produces no unrelated errors. Date/Author: 2026-11-27 / Claude.
+  `rstest-bdd-harness-gpui` — C10's single permitted manifest change.
+  Rationale: a fixture that names both adapter crates needs both in the
+  generated `trybuild` crate's dependency graph, which `trybuild` builds from
+  the source manifest's dependencies and dev-dependencies. The GPUI suite
+  already pays for GPUI; adding the Tokio harness is the cheap direction, and
+  experiment 1 confirmed it produces no unrelated errors. Date/Author:
+  2026-11-27 / Claude.
 - Decision D30 (EP-M0): W003's "remove `attributes`" fix is modelled as the
   composite `attributes := Absent; harness := canon(harness)`, and its message
   says so when the harness path is non-canonical. Rationale: with a
@@ -675,9 +689,9 @@ earlier one, the earlier entry says so.
   squarely in W002's antecedent, so the fix would *introduce* a finding and
   falsify `LEM-FIX-CONVERGES`. Working the lemma over the model found this
   while implementing the obligation; the composite is the union of the two
-  fixes the user is already being told to make. For a recognized harness or
-  the alias, `canon` is the identity and the wording is the drafted
-  "Remove `attributes = ...`". Date/Author: 2026-11-27 / Claude.
+  fixes the user is already being told to make. For a recognized harness or the
+  alias, `canon` is the identity and the wording is the drafted "Remove
+  `attributes = ...`". Date/Author: 2026-11-27 / Claude.
 - Decision D31 (EP-M0, refines D11): `has_user_test_attr` arrives in EP-M2, and
   every "was not applied" claim — W001's attribute clause and W002 in its
   entirety — additionally requires `!has_user_test_attr`. Rationale: the model
@@ -687,8 +701,8 @@ earlier one, the earlier entry says so.
   would be told the attribute "was not applied" when it is present, violating
   `LEM-CONSEQUENCE-TRUE`. One flag is deliberately conservative: it silences
   the claim whenever *any* executor attribute is user-written, rather than
-  growing a per-framework pair the plan does not need. Date/Author: 2026-11-27 /
-  Claude.
+  growing a per-framework pair the plan does not need. Date/Author: 2026-11-27
+  / Claude.
 - Decision D32 (EP-M0, corrects `LEM-CARDINALITY`'s non-vacuity witness): the
   three-warning witness is `W001(harness) + W001(attributes) + W003`, not the
   plan's `W001(attributes) + W002 + W003`. Rationale: W002 requires
@@ -703,6 +717,28 @@ earlier one, the earlier entry says so.
   `compile_error!` diagnostics into one, so the observable defect is the
   message and span, not the count. `LEM-ERR-REPLACES` is unaffected: the
   program still fails to compile today. Date/Author: 2026-11-27 / Claude.
+- Decision D34 (EP-M1): `codegen/mod.rs`'s unit-test module moves to
+  `codegen/tests/mod.rs` (`#[path = "tests/mod.rs"]`), matching the
+  `codegen/scenario/tests` layout. Rationale: threading the resolver and adding
+  the derived-diagnostic case took the file past 400 lines (C7). No test case
+  or assertion changed; only its file and the resolver argument sites did.
+  Date/Author: 2026-11-27 / Claude.
+- Decision D35 (EP-M1): `CrateResolver` answers two questions, and they are not
+  interchangeable. `resolved_root` decides recognition of renamed roots and
+  bare imports; `is_direct_dependency` decides whether syntactic evidence is
+  admissible. The unit-test resolver reports `None` for the first and `true`
+  for the second, which is exactly the split the pre-refactor `cfg(test)` stubs
+  had (`try_resolve_crate_path` was real Cargo state, while
+  `fallback_crate_is_resolvable` was forced true). Collapsing them into one
+  method made five single-segment-import tests and two `harness_defaults` cases
+  recognise imports that the real macros cannot, which the unit suite caught.
+  Date/Author: 2026-11-27 / Claude.
+- Decision D36 (EP-M1): the boundary type is constructed by `for_scenario`,
+  `for_scenarios`, or `resolve_api`, rather than by a public `resolve`. The
+  first two record a diagnosed boundary; `resolve_api` exists only for direct
+  code generation and carries no findings, so a value that never diagnoses
+  cannot pretend it did. Field and function names otherwise follow the plan's
+  `Interfaces` section. Date/Author: 2026-11-27 / Claude.
 
 ## Outcomes & retrospective
 
@@ -1852,13 +1888,13 @@ none of the plan's effort tolerances.
   - GPUI: 610.290 s total; fixture compilation 607.355 s, snapshot assertions
     0.017 s.
 - current stderr of `scenario_default_policy_async_no_harness_rejected`: one
-  `rstest` error whose text is "async test requires either explicit
-  `test_attr` or implicit (attribute path ends with `test`)", spanned at the
-  generated function name.
+  `rstest` error whose text is "async test requires either explicit `test_attr`
+  or implicit (attribute path ends with `test`)", spanned at the generated
+  function name.
 - CI lane list (`.github/workflows/ci.yml`): one stable Linux lane and two
-  stable Windows lanes. A nightly toolchain is installed only for `rustfmt`
-  and the published-GPUI end-to-end fixture, so Risk R4 stands: the native
-  warning channel is verified locally only.
+  stable Windows lanes. A nightly toolchain is installed only for `rustfmt` and
+  the published-GPUI end-to-end fixture, so Risk R4 stands: the native warning
+  channel is verified locally only.
 
 ### EP-M0 experiment transcripts (2026-11-27)
 
@@ -1896,10 +1932,10 @@ with its `.stderr`. The logs are `/tmp/epm0-exp-tokio6.out`,
    The token stream holds one such error per generated scenario; all share the
    call-site span and text, so rustc collapses them (D33).
 
-3. Channel behaviour: the expansion carrying both `compile_error!("epm0
-   sentinel")` and the generated marker, under `#![deny(deprecated)]`,
-   reported both. The module-level opt-out fixture compiled and passed under
-   the same crate-level deny.
+3. Channel behaviour: the expansion carrying both
+   `compile_error!("epm0 sentinel")` and the generated marker, under
+   `#![deny(deprecated)]`, reported both. The module-level opt-out fixture
+   compiled and passed under the same crate-level deny.
 
 To be filled during implementation:
 

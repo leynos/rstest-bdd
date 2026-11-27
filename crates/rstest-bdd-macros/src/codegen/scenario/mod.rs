@@ -112,7 +112,7 @@ pub(crate) struct ScenarioConfig<'a> {
     /// Optional attribute policy type path for compile-time trait assertion.
     pub(crate) attributes: Option<&'a syn::Path>,
     /// Boundary resolution; direct code-generation tests may use the pure local resolver.
-    pub(crate) resolutions: Option<&'a crate::codegen::SharedAdapterResolutions>,
+    pub(crate) resolutions: Option<&'a crate::codegen::SharedPolicyDiagnostics>,
     /// Boundary tokens for `#[scenario]`; `scenarios!` emits around its module.
     pub(crate) fallback_diagnostics: Option<&'a TokenStream2>,
     /// Closed step-library scope emitted into the executor.

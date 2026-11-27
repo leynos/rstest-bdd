@@ -63,7 +63,7 @@ pub(super) struct ScenarioTestContext<'a> {
     /// Locally visible library identities for compile-time step validation.
     pub(super) library_validation_names: Option<&'a [Box<str>]>,
     /// Adapter API paths resolved once for the whole `scenarios!` expansion.
-    pub(super) resolutions: &'a crate::codegen::SharedAdapterResolutions,
+    pub(super) resolutions: &'a crate::codegen::SharedPolicyDiagnostics,
 }
 
 /// Resolves which harness path should be used for code generation.

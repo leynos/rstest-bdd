@@ -34,6 +34,7 @@ macro_rules! parse_attr {
 mod adapter_sharing;
 mod gpui_policy;
 mod harness_defaults;
+mod reported_attributes;
 mod runtime_split;
 mod trait_assertions;
 

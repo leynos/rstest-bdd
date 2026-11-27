@@ -7,7 +7,7 @@
 //! 1. An explicit `attributes = …` path supplied to the `#[scenario]` or `#[scenarios]` macro takes
 //!    highest precedence.
 //! 2. A `harness = …` path is consulted next; first-party adapter types (`TokioHarness`,
-//!    `GpuiHarness`) are recognized via [`crate::codegen::first_party_adapter_attribute_hint`].
+//!    `GpuiHarness`) are recognized by `codegen::policy_diagnostics`'s classifier.
 //! 3. The `RuntimeMode` derived from `runtime = …` or the macro's defaults provides the final
 //!    fallback.
 //!
@@ -18,13 +18,15 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use rstest_bdd_policy::{
-    resolve_test_attribute_hint_for_harness_path,
-    resolve_test_attribute_hint_for_policy_path,
-};
 
 use super::{RuntimeMode, TestAttributeHint};
-use crate::codegen::first_party_adapter_attribute_hint;
+use crate::codegen::{
+    SlotClass,
+    classify_harness_path,
+    classify_policy_path,
+    default_resolver,
+    selected_hint,
+};
 
 /// Returns `true` when `attr` is exactly `<crate_name>::<fn_name>`.
 fn is_two_segment_attr(attr: &syn::Attribute, crate_name: &str, fn_name: &str) -> bool {
@@ -82,32 +84,6 @@ impl ResolvedAttributePolicy {
     }
 }
 
-/// Provides the internal `resolve_attribute_hint_from_policy_path` operation.
-fn resolve_attribute_hint_from_policy_path(path: &syn::Path) -> Option<TestAttributeHint> {
-    resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_policy_path)
-        .or_else(|| first_party_adapter_attribute_hint(path))
-}
-
-/// Provides the internal `resolve_attribute_hint_from_harness_path` operation.
-fn resolve_attribute_hint_from_harness_path(path: &syn::Path) -> Option<TestAttributeHint> {
-    resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_harness_path)
-        .or_else(|| first_party_adapter_attribute_hint(path))
-}
-
-/// Provides the internal `resolve_attribute_hint_from_path` operation.
-fn resolve_attribute_hint_from_path(
-    path: &syn::Path,
-    resolver: fn(&[&str]) -> Option<TestAttributeHint>,
-) -> Option<TestAttributeHint> {
-    let segment_names: Vec<_> = path
-        .segments
-        .iter()
-        .map(|segment| segment.ident.to_string())
-        .collect();
-    let segment_refs: Vec<_> = segment_names.iter().map(String::as_str).collect();
-    resolver(&segment_refs)
-}
-
 /// Policy-resolution inputs bundled for ADR-0008 precedence.
 pub(super) struct TestAttrPolicy<'a> {
     /// Attribute-resolution fallback `RuntimeMode` used when no higher-priority
@@ -122,21 +98,19 @@ pub(super) struct TestAttrPolicy<'a> {
 }
 
 /// Provides the internal `resolve_attribute_policy` operation.
+///
+/// Classification and the precedence ladder both live in
+/// `codegen::policy_diagnostics`, so the hint a diagnostic reasons about is by
+/// construction the hint the generated test is built with.
 fn resolve_attribute_policy(policy: &TestAttrPolicy<'_>) -> ResolvedAttributePolicy {
-    let hint = policy.attributes.map_or_else(
-        || {
-            policy.harness.map_or_else(
-                || policy.runtime.test_attribute_hint(),
-                |path| {
-                    resolve_attribute_hint_from_harness_path(path)
-                        .unwrap_or_else(|| policy.runtime.test_attribute_hint())
-                },
-            )
-        },
-        |path| {
-            resolve_attribute_hint_from_policy_path(path).unwrap_or(TestAttributeHint::RstestOnly)
-        },
-    );
+    let resolver = default_resolver();
+    let harness = policy.harness.map_or(SlotClass::Absent, |path| {
+        classify_harness_path(path, resolver)
+    });
+    let attributes = policy.attributes.map_or(SlotClass::Absent, |path| {
+        classify_policy_path(path, resolver)
+    });
+    let hint = selected_hint(harness, attributes, policy.runtime);
     match hint {
         TestAttributeHint::RstestOnly => ResolvedAttributePolicy::Default,
         TestAttributeHint::RstestWithTokioCurrentThread => {

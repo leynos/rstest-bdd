@@ -33,7 +33,7 @@ use crate::{
     },
 };
 use crate::{
-    codegen::SharedAdapterResolutions,
+    codegen::SharedPolicyDiagnostics,
     parsing::{feature::parse_and_load_feature, tags::TagExpression},
 };
 
@@ -67,7 +67,7 @@ struct TestContextArgs<'a> {
     /// Optional closed scope for compile-time validation.
     library_validation_names: Option<&'a [Box<str>]>,
     /// Resolved runtime adapter information.
-    resolutions: &'a SharedAdapterResolutions,
+    resolutions: &'a SharedPolicyDiagnostics,
 }
 
 fn test_context(args: TestContextArgs<'_>) -> ScenarioTestContext<'_> {
@@ -213,7 +213,7 @@ fn process_scenario_skips_filtered_out_scenarios() -> Result<(), String> {
     let feature =
         parse_and_load_feature(feature_path.as_path()).map_err(|error| error.to_string())?;
     let filter = TagExpression::parse("@selected").map_err(|error| error.to_string())?;
-    let resolutions = SharedAdapterResolutions::resolve(None, None);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(None, None);
     let context = test_context(TestContextArgs {
         feature_path: feature_path.as_path(),
         tag_filter: Some(&filter),
@@ -242,7 +242,7 @@ fn process_scenario_returns_validation_errors_without_generating_a_test() -> Res
     register_step_in_library(StepKeyword::Given, &pattern, "accounts");
     register_step_in_library(StepKeyword::Given, &pattern, "accounts");
     let libraries = vec![Box::<str>::from("accounts")];
-    let resolutions = SharedAdapterResolutions::resolve(None, None);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(None, None);
     let context = test_context(TestContextArgs {
         feature_path: feature_path.as_path(),
         tag_filter: None,
@@ -278,7 +278,7 @@ fn process_scenario_generates_a_test_when_validation_succeeds() -> Result<(), St
         StepKeyword::Given,
         &LitStr::new("the system works", Span::call_site()),
     );
-    let resolutions = SharedAdapterResolutions::resolve(None, None);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(None, None);
     let context = test_context(TestContextArgs {
         feature_path: feature_path.as_path(),
         tag_filter: None,

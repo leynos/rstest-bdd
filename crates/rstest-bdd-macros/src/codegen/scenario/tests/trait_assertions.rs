@@ -2,6 +2,11 @@
 
 use super::super::adapters::generate_trait_assertions;
 
+/// Resolve one adapter path with the unit-test resolver.
+fn resolve_adapter(path: &syn::Path) -> crate::codegen::HarnessApiResolution {
+    crate::codegen::resolve_harness_api_with(path, crate::codegen::default_resolver())
+}
+
 #[derive(Clone, Copy)]
 enum ParamKind {
     Harness,
@@ -46,7 +51,7 @@ fn assert_single_trait_assertion(
     expected_trait: TraitName,
     excluded_trait: TraitName,
 ) {
-    let resolution = crate::codegen::resolve_harness_api(path);
+    let resolution = resolve_adapter(path);
     let (harness, attributes) = match param_kind {
         ParamKind::Harness => (Some((path, &resolution)), None),
         ParamKind::Attributes => (None, Some((path, &resolution))),
@@ -77,7 +82,7 @@ fn assert_trait_assertion_crate_path(
     expected_trait: TraitName,
     expected_crate: ExpectedCrate,
 ) {
-    let resolution = crate::codegen::resolve_harness_api(path);
+    let resolution = resolve_adapter(path);
     let (harness, attributes) = match param_kind {
         ParamKind::Harness => (Some((path, &resolution)), None),
         ParamKind::Attributes => (None, Some((path, &resolution))),
@@ -163,8 +168,8 @@ fn trait_assertions_single_param(
 fn trait_assertions_with_both() {
     let harness_path = parse_path!("my::Harness");
     let policy_path = parse_path!("my::Policy");
-    let harness_resolution = crate::codegen::resolve_harness_api(&harness_path);
-    let policy_resolution = crate::codegen::resolve_harness_api(&policy_path);
+    let harness_resolution = resolve_adapter(&harness_path);
+    let policy_resolution = resolve_adapter(&policy_path);
     let tokens = generate_trait_assertions(
         Some((&harness_path, &harness_resolution)),
         Some((&policy_path, &policy_resolution)),
@@ -199,7 +204,7 @@ fn trait_assertions_with_neither() {
 #[test]
 fn trait_assertions_harness_includes_default_bound() {
     let harness_path = parse_path!("my::Harness");
-    let resolution = crate::codegen::resolve_harness_api(&harness_path);
+    let resolution = resolve_adapter(&harness_path);
     let tokens = generate_trait_assertions(Some((&harness_path, &resolution)), None);
     let output = tokens.to_string();
 

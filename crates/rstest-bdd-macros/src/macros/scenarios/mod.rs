@@ -86,7 +86,7 @@ struct FeatureProcessingContext<'a> {
     /// Locally visible identities for compile-time step validation.
     library_validation_names: Option<&'a [Box<str>]>,
     /// Adapter API paths resolved once for the whole `scenarios!` expansion.
-    resolutions: &'a crate::codegen::SharedAdapterResolutions,
+    resolutions: &'a crate::codegen::SharedPolicyDiagnostics,
 }
 
 /// Provides the internal `resolve_manifest_directory` operation.
@@ -325,7 +325,8 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
     // generated test.
     let effective_harness =
         resolve_harness_path(harness.as_ref(), runtime_compatibility_alias(runtime));
-    let resolutions = crate::codegen::SharedAdapterResolutions::resolve(
+    let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenarios(
+        harness.as_ref(),
         effective_harness.as_ref(),
         attributes.as_ref(),
     );
