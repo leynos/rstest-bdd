@@ -22,6 +22,7 @@ mod classify;
 mod emit;
 mod message;
 mod model;
+mod render;
 mod resolution;
 
 #[cfg(test)]
@@ -30,17 +31,13 @@ mod tests;
 
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 
-#[cfg(not(rstest_bdd_nightly))]
-use self::emit::Marker;
+#[cfg(test)]
+pub(crate) use self::model::Framework;
+use self::model::{PolicyInputs, diagnose};
 pub(crate) use self::{
     classify::{CrateResolver, classify_harness_path, classify_policy_path, default_resolver},
-    model::{Framework, PolicyFindings, SlotClass},
+    model::{PolicyFindings, SlotClass},
     resolution::selected_hint,
-};
-use self::{
-    emit::RenderedWarning,
-    model::{PolicyInputs, diagnose},
-    resolution::emitted_attributes,
 };
 use crate::codegen::{HarnessApiResolution, resolve_harness_api_with};
 
@@ -212,125 +209,45 @@ impl SharedPolicyDiagnostics {
     /// Emit the diagnostics this boundary owns.
     ///
     /// Call this only from the boundary that built the value: nightly emission
-    /// is a side effect, so a second call would duplicate the warning.
-    pub(crate) fn emit_diagnostics(&self) -> TokenStream2 {
+    /// is a side effect, so a second call would duplicate the warning. When any
+    /// error fires, only errors are returned: rustc's handling of lints beside
+    /// a `compile_error!` varies, and both messages already carry the fix where
+    /// one applies (decision D9).
+    pub(crate) fn emit_diagnostics(&self) -> BoundaryDiagnostics {
         let Some(state) = self.state.as_ref() else {
-            return TokenStream2::new();
+            return BoundaryDiagnostics::Warnings(TokenStream2::new());
         };
-        let warnings = render(state);
+        if let Some(errors) = render::errors(state) {
+            return BoundaryDiagnostics::Errors(errors);
+        }
+        let warnings = render::warnings(state);
         emit::emit_native(&warnings);
-        emit::warning_tokens(&warnings)
+        BoundaryDiagnostics::Warnings(emit::warning_tokens(&warnings))
     }
+
+    /// The warning tokens one diagnosed boundary renders.
+    ///
+    /// Verification uses this for configurations that must not error; a
+    /// boundary reaches the real entry point through [`Self::emit_diagnostics`].
+    #[cfg(test)]
+    pub(crate) fn emitted_warning_tokens(&self) -> TokenStream2 {
+        match self.emit_diagnostics() {
+            BoundaryDiagnostics::Warnings(tokens) => tokens,
+            BoundaryDiagnostics::Errors(_) => panic!("this configuration must not error"),
+        }
+    }
+}
+
+/// What one expansion boundary emits.
+#[derive(Debug)]
+pub(crate) enum BoundaryDiagnostics {
+    /// Errors replace every generated test.
+    Errors(TokenStream2),
+    /// Warnings are spliced beside the generated tests.
+    Warnings(TokenStream2),
 }
 
 /// The terminal identifier of a supplied path.
 fn terminal_ident(path: &syn::Path) -> Option<Ident> {
     path.segments.last().map(|segment| segment.ident.clone())
-}
-
-/// Turn the findings into channel-neutral warnings.
-///
-/// A finding can hold only for an evidenced slot, whose path is by definition
-/// present; a missing slot therefore means the model and the stored inputs
-/// disagree, and dropping the warning keeps the renderer total without a
-/// panic.
-fn render(state: &DiagnosticState) -> Vec<RenderedWarning> {
-    [harness_warning(state), attributes_warning(state)]
-        .into_iter()
-        .flatten()
-        .collect()
-}
-
-/// Build the harness slot's warning, W002 taking the place of W001.
-fn harness_warning(state: &DiagnosticState) -> Option<RenderedWarning> {
-    let ident = state.slots.harness.as_ref()?;
-    let SlotClass::Evidenced(framework) = state.inputs.harness() else {
-        return None;
-    };
-    let written = ident.to_string();
-    let canonical_harness = canonical_adapter_path(state.resolver, framework, &written);
-    let canonicalized = state
-        .inputs
-        .with_harness(SlotClass::Recognized(framework.into()));
-    let dropped = lost_attributes(state.inputs, canonicalized);
-    let message = if state.findings.missing_attribute_policy {
-        let canonical_policy = canonical_policy_path(state.resolver, framework);
-        message::missing_attribute_policy(&canonical_harness, &canonical_policy, &dropped)
-    } else {
-        message::unrecognized_adapter_path(&written, &canonical_harness, &dropped)
-    };
-    #[cfg(not(rstest_bdd_nightly))]
-    let marker = if state.findings.missing_attribute_policy {
-        Marker::MissingAttributePolicy
-    } else {
-        Marker::UnrecognizedAdapterPath
-    };
-    Some(RenderedWarning {
-        message,
-        span: ident.span(),
-        #[cfg(not(rstest_bdd_nightly))]
-        marker,
-    })
-}
-
-/// Build the attributes slot's warning, which is always W001.
-fn attributes_warning(state: &DiagnosticState) -> Option<RenderedWarning> {
-    let ident = state.slots.attributes.as_ref()?;
-    let SlotClass::Evidenced(framework) = state.inputs.attributes() else {
-        return None;
-    };
-    let written = ident.to_string();
-    let canonical = canonical_adapter_path(state.resolver, framework, &written);
-    let canonicalized = state
-        .inputs
-        .with_attributes(SlotClass::Recognized(framework.into()));
-    let dropped = lost_attributes(state.inputs, canonicalized);
-    Some(RenderedWarning {
-        message: message::unrecognized_adapter_path(&written, &canonical, &dropped),
-        span: ident.span(),
-        #[cfg(not(rstest_bdd_nightly))]
-        marker: Marker::UnrecognizedAdapterPath,
-    })
-}
-
-/// The attributes the canonical spelling adds and the actual expansion omits.
-///
-/// A user-written executor attribute suppresses every "was not applied" claim,
-/// because the generator deduplicates against it (decision D31).
-fn lost_attributes(actual: PolicyInputs, canonical: PolicyInputs) -> Vec<&'static str> {
-    if actual.has_user_test_attr() {
-        return Vec::new();
-    }
-    emitted_attributes(canonical).difference(emitted_attributes(actual))
-}
-
-/// A resolver-rooted canonical adapter path for the type the user wrote.
-fn canonical_adapter_path(
-    resolver: &dyn CrateResolver,
-    framework: Framework,
-    written: &str,
-) -> String {
-    format!("{}::{written}", canonical_root(resolver, framework))
-}
-
-/// A resolver-rooted canonical attribute-policy path for one framework.
-fn canonical_policy_path(resolver: &dyn CrateResolver, framework: Framework) -> String {
-    format!(
-        "{}::{}",
-        canonical_root(resolver, framework),
-        framework.attribute_policy_type()
-    )
-}
-
-/// The crate root a suggested path must use.
-///
-/// The resolver's answer keeps a renamed dependency compilable: a crate that
-/// depends on `tok = { package = "rstest-bdd-harness-tokio" }` must be told to
-/// write `tok::TokioHarness`, not the name it does not have.
-fn canonical_root(resolver: &dyn CrateResolver, framework: Framework) -> String {
-    let spec = classify::adapter_spec(framework);
-    resolver.resolved_root(spec.package_name).map_or_else(
-        || spec.default_crate_name.to_owned(),
-        |ident| ident.to_string(),
-    )
 }

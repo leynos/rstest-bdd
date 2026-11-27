@@ -91,7 +91,7 @@ fn boundary_emits_one_diagnostic_per_qualifying_path() {
     let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, false, false);
 
     assert_eq!(
-        marker_count(&resolutions.emit_diagnostics()),
+        marker_count(&resolutions.emitted_warning_tokens()),
         1,
         "one supplied path must yield one diagnostic"
     );
@@ -106,7 +106,7 @@ fn boundary_emits_two_diagnostics_for_combined_harness_and_attributes() {
         SharedPolicyDiagnostics::for_scenario(Some(&harness), Some(&attributes), false, false);
 
     assert_eq!(
-        marker_count(&resolutions.emit_diagnostics()),
+        marker_count(&resolutions.emitted_warning_tokens()),
         2,
         "harness and attributes are independent supplied paths"
     );
@@ -136,7 +136,7 @@ fn canonical_path_yields_no_diagnostic() {
     let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, false, false);
 
     assert_eq!(
-        marker_count(&resolutions.emit_diagnostics()),
+        marker_count(&resolutions.emitted_warning_tokens()),
         0,
         "canonical first-party paths must stay diagnostic-free"
     );

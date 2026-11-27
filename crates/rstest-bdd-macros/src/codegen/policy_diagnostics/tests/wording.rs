@@ -18,7 +18,7 @@ use super::super::{
     default_resolver,
     emit::RenderedWarning,
     model::{Framework, SlotClass, diagnose},
-    render,
+    render::warnings as render,
 };
 
 /// A resolver for a renamed dependency, used to pin rename-aware fixes.
@@ -187,9 +187,12 @@ fn suggested_paths(message: &str) -> Vec<String> {
 /// `LEM-FIX-CANONICAL`: a suggested path is itself a recognized first-party
 /// path under the same resolver that rendered it.
 #[rstest]
-#[case::default(default_resolver())]
-#[case::renamed(&RenamedResolver)]
-fn every_suggested_path_is_recognized(#[case] resolver: &'static dyn CrateResolver) {
+#[case::default(default_resolver(), false)]
+#[case::renamed(&RenamedResolver, true)]
+fn every_suggested_path_is_recognized(
+    #[case] resolver: &'static dyn CrateResolver,
+    #[case] expects_renamed: bool,
+) {
     let mut checked = 0_usize;
     let mut renamed_roots = 0_usize;
     for (inputs, written) in fix_states() {
@@ -219,7 +222,7 @@ fn every_suggested_path_is_recognized(#[case] resolver: &'static dyn CrateResolv
     assert!(checked > 0, "the messages must suggest at least one path");
     assert_eq!(
         renamed_roots > 0,
-        std::ptr::eq(resolver, &RenamedResolver),
+        expects_renamed,
         "a renamed resolver must render its own root"
     );
 }

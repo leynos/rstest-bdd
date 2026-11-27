@@ -24,6 +24,8 @@ pub(crate) enum Marker {
     UnrecognizedAdapterPath,
     /// W002, the evidenced harness path with no attribute policy.
     MissingAttributePolicy,
+    /// W003, two selectors naming different frameworks.
+    ConflictingHarnessAndPolicy,
 }
 
 #[cfg(not(rstest_bdd_nightly))]
@@ -36,6 +38,7 @@ impl Marker {
         let name = match self {
             Self::UnrecognizedAdapterPath => "RstestBddUnrecognizedAdapterPath",
             Self::MissingAttributePolicy => "RstestBddMissingAttributePolicy",
+            Self::ConflictingHarnessAndPolicy => "RstestBddConflictingHarnessAndPolicy",
         };
         Ident::new(name, span)
     }

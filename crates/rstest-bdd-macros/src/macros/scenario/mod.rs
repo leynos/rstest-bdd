@@ -240,7 +240,10 @@ fn try_scenario(
         is_async,
         has_user_test_attr,
     );
-    let fallback_diagnostics = resolutions.emit_diagnostics();
+    let fallback_diagnostics = match resolutions.emit_diagnostics() {
+        crate::codegen::BoundaryDiagnostics::Warnings(tokens) => tokens,
+        crate::codegen::BoundaryDiagnostics::Errors(errors) => return Err(errors.into()),
+    };
     let ScenarioData {
         name: scenario_name,
         steps,

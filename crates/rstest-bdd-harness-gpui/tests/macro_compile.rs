@@ -57,6 +57,7 @@ fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
 fn compile_fail_stable_fallback_warning(tests: &trybuild::TestCases) {
     tests.compile_fail("tests/fixtures_macros/scenario_harness_gpui_alias_fallback_warning.rs");
     tests.compile_fail("tests/fixtures_macros/policy_w002_missing_policy.rs");
+    tests.compile_fail("tests/fixtures_macros/policy_w003_conflicting_frameworks.rs");
 }
 
 #[rustversion::nightly]
@@ -72,6 +73,7 @@ fn nightly_gpui_fallback_emits_one_proc_macro_warning() -> Result<(), Box<dyn st
     stage_trybuild_support_files()?;
     let tests = trybuild::TestCases::new();
     tests.compile_fail("tests/fixtures_macros/nightly_gpui_adapter_fallback_warning.rs");
+    tests.compile_fail("tests/fixtures_macros/nightly_policy_w003_warning.rs");
     Ok(())
 }
 

@@ -8,7 +8,14 @@
 //! the underlying W001.
 
 use super::{
-    super::model::{Framework, PolicyFindings, PolicyInputs, SlotClass, diagnose},
+    super::model::{
+        PolicyFindings,
+        PolicyInputs,
+        SlotClass,
+        diagnose,
+        framework_of,
+        implied_harness_family,
+    },
     enumerator::{all_inputs, class_name},
 };
 
@@ -21,18 +28,30 @@ enum Finding {
     AttributesPath,
     /// W002, the missing attribute policy.
     MissingPolicy,
+    /// W003, two selectors naming different frameworks.
+    Conflict,
+    /// E002, the deprecated alias combined with a harness.
+    AliasWithHarness,
 }
 
 impl Finding {
     /// Every finding kind, in a stable order.
-    const ALL: [Self; 3] = [Self::HarnessPath, Self::AttributesPath, Self::MissingPolicy];
+    const ALL: [Self; 5] = [
+        Self::HarnessPath,
+        Self::AttributesPath,
+        Self::MissingPolicy,
+        Self::Conflict,
+        Self::AliasWithHarness,
+    ];
 
     /// Whether this finding holds in `findings`.
     fn holds(self, findings: PolicyFindings) -> bool {
         match self {
-            Self::HarnessPath => findings.harness_unrecognized_path,
-            Self::AttributesPath => findings.attributes_unrecognized_path,
+            Self::HarnessPath => findings.slots.harness,
+            Self::AttributesPath => findings.slots.attributes,
             Self::MissingPolicy => findings.missing_attribute_policy,
+            Self::Conflict => findings.conflicting_frameworks.is_some(),
+            Self::AliasWithHarness => findings.runtime_alias_with_harness,
         }
     }
 
@@ -42,6 +61,8 @@ impl Finding {
             Self::HarnessPath => 0b001,
             Self::AttributesPath => 0b010,
             Self::MissingPolicy => 0b100,
+            Self::Conflict => 0b1000,
+            Self::AliasWithHarness => 0b1_0000,
         }
     }
 }
@@ -54,32 +75,78 @@ fn mask(findings: PolicyFindings) -> u8 {
         .fold(0, |mask, finding| mask | finding.bit())
 }
 
-/// The framework a slot evidences, if it evidences one.
-fn framework(class: SlotClass) -> Option<Framework> {
-    match class {
-        SlotClass::Evidenced(framework) => Some(framework),
-        SlotClass::Absent | SlotClass::Recognized(_) | SlotClass::Foreign => None,
-    }
-}
-
 /// The states the messages offer as fixes for one finding.
 fn fixes(finding: Finding, inputs: PolicyInputs) -> Vec<PolicyInputs> {
     match finding {
-        Finding::HarnessPath => framework(inputs.harness())
-            .map(|family| vec![inputs.with_harness(SlotClass::Recognized(family.into()))])
-            .unwrap_or_default(),
-        Finding::AttributesPath => framework(inputs.attributes())
-            .map(|family| vec![inputs.with_attributes(SlotClass::Recognized(family.into()))])
-            .unwrap_or_default(),
-        Finding::MissingPolicy => {
-            let SlotClass::Evidenced(family) = inputs.harness() else {
-                return Vec::new();
-            };
-            vec![
-                inputs.with_harness(SlotClass::Recognized(family.into())),
-                inputs.with_attributes(SlotClass::Recognized(family.into())),
-            ]
+        Finding::HarnessPath => canonicalize(inputs, Slot::Harness).into_iter().collect(),
+        Finding::AttributesPath => canonicalize(inputs, Slot::Attributes).into_iter().collect(),
+        Finding::MissingPolicy => missing_policy_fixes(inputs),
+        Finding::Conflict => conflict_fixes(inputs),
+        Finding::AliasWithHarness => alias_fixes(inputs),
+    }
+}
+
+/// Which slot a fix canonicalizes.
+#[derive(Clone, Copy)]
+enum Slot {
+    /// The harness slot.
+    Harness,
+    /// The attributes slot.
+    Attributes,
+}
+
+/// The state with one evidenced slot replaced by its canonical spelling.
+fn canonicalize(inputs: PolicyInputs, slot: Slot) -> Option<PolicyInputs> {
+    match slot {
+        Slot::Harness => framework_of(inputs.harness())
+            .map(|family| inputs.with_harness(SlotClass::Recognized(family.into()))),
+        Slot::Attributes => framework_of(inputs.attributes())
+            .map(|family| inputs.with_attributes(SlotClass::Recognized(family.into()))),
+    }
+}
+
+/// W002's two fixes: the canonical harness, or the matching policy.
+fn missing_policy_fixes(inputs: PolicyInputs) -> Vec<PolicyInputs> {
+    let SlotClass::Evidenced(family) = inputs.harness() else {
+        return Vec::new();
+    };
+    vec![
+        inputs.with_harness(SlotClass::Recognized(family.into())),
+        inputs.with_attributes(SlotClass::Recognized(family.into())),
+    ]
+}
+
+/// W003's two fixes: the matching policy, or removing the override.
+fn conflict_fixes(inputs: PolicyInputs) -> Vec<PolicyInputs> {
+    let Some(harness) = implied_harness_family(inputs) else {
+        return Vec::new();
+    };
+    let matching = inputs.with_attributes(SlotClass::Recognized(harness.into()));
+    vec![remove_attributes(inputs), matching]
+}
+
+/// Remove the override, canonicalizing an evidenced harness as well.
+///
+/// Removing `attributes` alone would land in W002's antecedent, so the remedy
+/// is the union of the two fixes the user is already being told to make
+/// (decision D30).
+fn remove_attributes(inputs: PolicyInputs) -> PolicyInputs {
+    let removed = inputs.with_attributes(SlotClass::Absent);
+    match removed.harness() {
+        SlotClass::Evidenced(family) => removed.with_harness(SlotClass::Recognized(family.into())),
+        SlotClass::Absent | SlotClass::Recognized(_) | SlotClass::Foreign => removed,
+    }
+}
+
+/// E002's fix: clear the alias, canonicalizing an evidenced harness as well
+/// (decision D41).
+fn alias_fixes(inputs: PolicyInputs) -> Vec<PolicyInputs> {
+    let cleared = inputs.without_runtime_alias();
+    match cleared.harness() {
+        SlotClass::Evidenced(family) => {
+            vec![cleared.with_harness(SlotClass::Recognized(family.into()))]
         }
+        SlotClass::Absent | SlotClass::Recognized(_) | SlotClass::Foreign => vec![cleared],
     }
 }
 
@@ -92,6 +159,10 @@ struct Tally {
     attributes: usize,
     /// W002.
     policy: usize,
+    /// W003.
+    conflict: usize,
+    /// E002.
+    alias: usize,
 }
 
 impl Tally {
@@ -104,6 +175,8 @@ impl Tally {
             Finding::HarnessPath => &mut self.harness,
             Finding::AttributesPath => &mut self.attributes,
             Finding::MissingPolicy => &mut self.policy,
+            Finding::Conflict => &mut self.conflict,
+            Finding::AliasWithHarness => &mut self.alias,
         }
     }
 
@@ -111,11 +184,17 @@ impl Tally {
     /// lemma vacuous for it.
     fn assert_not_vacuous(&self) {
         assert!(
-            self.harness > 0 && self.attributes > 0 && self.policy > 0,
-            "every finding kind must contribute checked fixes, got {}, {}, {}",
+            self.harness > 0
+                && self.attributes > 0
+                && self.policy > 0
+                && self.conflict > 0
+                && self.alias > 0,
+            "every finding kind must contribute checked fixes, got {}, {}, {}, {}, {}",
             self.harness,
             self.attributes,
-            self.policy
+            self.policy,
+            self.conflict,
+            self.alias
         );
     }
 }

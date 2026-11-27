@@ -20,6 +20,14 @@ pub(crate) enum Framework {
 }
 
 impl Framework {
+    /// The framework's name as a message spells it.
+    pub(crate) fn display_name(self) -> &'static str {
+        match self {
+            Self::Tokio => "Tokio",
+            Self::Gpui => "GPUI",
+        }
+    }
+
     /// The attribute-policy type the first-party crate exports.
     pub(crate) fn attribute_policy_type(self) -> &'static str {
         match self {
@@ -172,6 +180,23 @@ impl PolicyInputs {
         }
     }
 
+    /// The same configuration with the deprecated alias cleared.
+    #[cfg(test)]
+    pub(crate) fn without_runtime_alias(self) -> Self {
+        match self {
+            Self::Scenarios {
+                harness,
+                attributes,
+                ..
+            } => Self::Scenarios {
+                harness,
+                attributes,
+                runtime_alias: false,
+            },
+            Self::Scenario { .. } => self,
+        }
+    }
+
     /// The same configuration with the attributes slot replaced.
     pub(crate) fn with_attributes(self, class: SlotClass) -> Self {
         match self {
@@ -199,6 +224,15 @@ impl PolicyInputs {
     }
 }
 
+/// Two selectors that name different frameworks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct FrameworkConflict {
+    /// The framework the harness slot implies.
+    pub(crate) harness: Framework,
+    /// The framework the attributes slot selects.
+    pub(crate) attributes: Framework,
+}
+
 /// Every finding for one expansion boundary.
 ///
 /// A fixed-shape record makes a duplicated finding unrepresentable, which is
@@ -206,14 +240,25 @@ impl PolicyInputs {
 /// by counting.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct PolicyFindings {
-    /// W001: the harness path has first-party evidence but is not canonical.
-    pub(crate) harness_unrecognized_path: bool,
-    /// W001: the attributes path has first-party evidence but is not
-    /// canonical.
-    pub(crate) attributes_unrecognized_path: bool,
+    /// W001, per slot.
+    pub(crate) slots: SlotWarnings,
     /// W002: the harness path has evidence and a policy that should have been
     /// inferred is missing.
     pub(crate) missing_attribute_policy: bool,
+    /// W003: the two selectors name different frameworks.
+    pub(crate) conflicting_frameworks: Option<FrameworkConflict>,
+    /// E002: `scenarios!` combines the deprecated alias with a harness.
+    pub(crate) runtime_alias_with_harness: bool,
+}
+
+/// The per-slot W001 findings.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SlotWarnings {
+    /// W001: the harness path has first-party evidence but is not canonical.
+    pub(crate) harness: bool,
+    /// W001: the attributes path has first-party evidence but is not
+    /// canonical.
+    pub(crate) attributes: bool,
 }
 
 /// Decide every finding for one boundary.
@@ -235,9 +280,68 @@ pub(crate) struct PolicyFindings {
 /// ```
 pub(crate) fn diagnose(inputs: PolicyInputs) -> PolicyFindings {
     PolicyFindings {
-        harness_unrecognized_path: has_evidence(inputs.harness()),
-        attributes_unrecognized_path: has_evidence(inputs.attributes()),
+        slots: SlotWarnings {
+            harness: has_evidence(inputs.harness()),
+            attributes: has_evidence(inputs.attributes()),
+        },
         missing_attribute_policy: has_missing_policy(inputs),
+        conflicting_frameworks: framework_conflict(inputs),
+        runtime_alias_with_harness: runtime_alias_conflict(inputs),
+    }
+}
+
+/// The framework a class contributes to a conflict, if it contributes one.
+///
+/// `Recognized(RstestOnly)` is a deliberate downgrade rather than a framework,
+/// so it never conflicts with anything.
+pub(crate) fn framework_of(class: SlotClass) -> Option<Framework> {
+    match class {
+        SlotClass::Recognized(TestAttributeHint::RstestWithTokioCurrentThread) => {
+            Some(Framework::Tokio)
+        }
+        SlotClass::Recognized(TestAttributeHint::RstestWithGpuiTest) => Some(Framework::Gpui),
+        SlotClass::Evidenced(framework) => Some(framework),
+        SlotClass::Recognized(TestAttributeHint::RstestOnly)
+        | SlotClass::Absent
+        | SlotClass::Foreign => None,
+    }
+}
+
+/// The framework the harness selection implies, including the alias.
+///
+/// The alias is only an implied harness when no explicit harness was given;
+/// with one, E002 reports the combination instead.
+pub(crate) fn implied_harness_family(inputs: PolicyInputs) -> Option<Framework> {
+    if let Some(family) = framework_of(inputs.harness()) {
+        return Some(family);
+    }
+    match inputs {
+        PolicyInputs::Scenarios {
+            harness: SlotClass::Absent,
+            runtime_alias: true,
+            ..
+        } => Some(Framework::Tokio),
+        _ => None,
+    }
+}
+
+/// W003: two selectors that name different frameworks.
+fn framework_conflict(inputs: PolicyInputs) -> Option<FrameworkConflict> {
+    let harness = implied_harness_family(inputs)?;
+    let attributes = framework_of(inputs.attributes())?;
+    (harness != attributes).then_some(FrameworkConflict {
+        harness,
+        attributes,
+    })
+}
+
+/// E002: the deprecated alias cannot be combined with an explicit harness.
+fn runtime_alias_conflict(inputs: PolicyInputs) -> bool {
+    match inputs {
+        PolicyInputs::Scenarios { runtime_alias, .. } => {
+            runtime_alias && !matches!(inputs.harness(), SlotClass::Absent)
+        }
+        PolicyInputs::Scenario { .. } => false,
     }
 }
 

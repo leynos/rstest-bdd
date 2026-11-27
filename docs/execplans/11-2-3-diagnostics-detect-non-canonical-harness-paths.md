@@ -291,9 +291,17 @@ conflict in `Decision log`, and escalate.
   `make lint` (all 11 steps), `make typecheck` and `make test` (2627 and 838
   nextest cases, 180 doctests, 7 lockfiles, 398 pytest) all exit 0. Two
   Whitaker rounds were needed: the first flagged cognitive complexity in
-  `attribute_runtime` and the convergence tests plus an `unwrap_or_else`
-  panic, all fixed by extraction rather than suppression (D40).
-- [ ] EP-M3: W003 and E002 (ambiguous selectors).
+  `attribute_runtime` and the convergence tests plus an `unwrap_or_else` panic,
+  all fixed by extraction rather than suppression (D40).
+- [x] (2026-11-27) EP-M3 implemented: W003 and E002. The model gained the
+  implied-family rule (including the alias), the conflict finding and the alias
+  error; the renderer moved to `policy_diagnostics/render.rs` when the module
+  passed Whitaker's 400-line gate. `policy_w003_conflicting_frameworks` pins
+  one W003 block spanned at the `attributes` path and
+  `scenarios_policy_e002_runtime_alias_with_harness` pins exactly one E002
+  error spanned at the harness path; a nightly twin pins the native W003
+  warning. The alias-plus-harness branch of the deprecation warning is gone
+  (D41, D42).
 - [ ] EP-M4: E001 (missing executor).
 - [ ] EP-M5: behavioural scenarios for silence and suggested fixes.
 - [ ] EP-M6: documentation, ADR-0029, CHANGELOG.
@@ -751,6 +759,17 @@ earlier one, the earlier entry says so.
   `fallback_crate_is_resolvable` was forced true). Collapsing them into one
   method made five single-segment-import tests and two `harness_defaults` cases
   recognize imports that the real macros cannot, which the unit suite caught.
+  Date/Author: 2026-11-27 / Claude.
+- Decision D41 (EP-M3): E002's fix is composite for the same reason D30's is.
+  `LEM-FIX-CONVERGES` found that clearing the alias from
+  `(Evidenced(GPUI), Absent, alias)` reveals W002. Because errors suppress
+  warnings (D9), the harness slot's own fix is never shown beside E002, so the
+  E002 message names the canonical harness path itself when the harness is
+  non-canonical. Date/Author: 2026-11-27 / Claude.
+- Decision D42 (EP-M3): the renderer moves from `policy_diagnostics/mod.rs` to
+  `render.rs` when Whitaker's module-length lint measured the module at 407
+  lines. Rationale: C7's 400-line cap applies to the module tree, not only to
+  one file, so the split is the required remedy rather than an optional tidy.
   Date/Author: 2026-11-27 / Claude.
 - Decision D40 (EP-M2): the Whitaker findings were answered by extraction,
   not by suppression: `attribute_runtime` asks one named question

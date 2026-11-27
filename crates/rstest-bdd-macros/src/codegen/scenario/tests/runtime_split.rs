@@ -77,7 +77,7 @@ fn aliased_harness_scenario_output() -> String {
     let harness: syn::Path = syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
     let resolutions =
         crate::codegen::SharedPolicyDiagnostics::for_scenario(Some(&harness), None, false, false);
-    let fallback_diagnostics = resolutions.emit_diagnostics();
+    let fallback_diagnostics = resolutions.emitted_warning_tokens();
     let config = ScenarioConfig {
         attrs: &attrs,
         vis: &vis,

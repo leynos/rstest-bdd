@@ -1,0 +1,11 @@
+warning: rstest-bdd[W003]: `harness` selects Tokio, but `attributes` selects GPUI; the explicit `attributes` takes precedence. Remove `attributes = ...`, or write `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy`.
+  --> tests/fixtures_macros/nightly_policy_w003_warning.rs:17:43
+   |
+17 |     attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
+   |                                           ^^^^^^^^^^^^^^^^^^^
+
+error: nightly W003 warning snapshot sentinel
+  --> tests/fixtures_macros/nightly_policy_w003_warning.rs:21:1
+   |
+21 | compile_error!("nightly W003 warning snapshot sentinel");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

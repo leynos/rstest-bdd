@@ -50,6 +50,7 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
     for case in [
         "tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs",
         "tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs",
+        "tests/fixtures_macros/scenarios_policy_e002_runtime_alias_with_harness.rs",
     ] {
         tests.compile_fail(case);
     }

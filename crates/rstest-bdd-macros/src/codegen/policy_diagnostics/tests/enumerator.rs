@@ -9,7 +9,16 @@
 use rstest_bdd_policy::TestAttributeHint;
 
 use super::super::{
-    model::{Framework, PolicyFindings, PolicyInputs, SlotClass, diagnose, has_evidence},
+    model::{
+        Framework,
+        PolicyFindings,
+        PolicyInputs,
+        SlotClass,
+        diagnose,
+        framework_of,
+        has_evidence,
+        implied_harness_family,
+    },
     resolution::{emitted_attributes, selected_hint},
 };
 
@@ -148,11 +157,31 @@ fn the_state_space_holds_two_hundred_and_ninety_four_distinct_states() {
     );
 }
 
+/// Whether the configuration is one the silence contract speaks about.
+///
+/// The antecedent is written from the classified slots, not from `diagnose`,
+/// so it cannot restate the clauses it is meant to constrain.
+fn expects_silence(inputs: PolicyInputs) -> bool {
+    let conflict = implied_harness_family(inputs).is_some_and(|harness| {
+        framework_of(inputs.attributes()).is_some_and(|attributes| harness != attributes)
+    });
+    let alias_error = match inputs {
+        PolicyInputs::Scenarios { runtime_alias, .. } => {
+            runtime_alias && !matches!(inputs.harness(), SlotClass::Absent)
+        }
+        PolicyInputs::Scenario { .. } => false,
+    };
+    !has_evidence(inputs.harness())
+        && !has_evidence(inputs.attributes())
+        && !conflict
+        && !alias_error
+}
+
 #[test]
 fn no_evidenced_slot_and_no_framework_conflict_means_no_finding() {
     let silent: Vec<PolicyInputs> = all_inputs()
         .into_iter()
-        .filter(|inputs| !has_evidence(inputs.harness()) && !has_evidence(inputs.attributes()))
+        .filter(|inputs| expects_silence(*inputs))
         .collect();
 
     assert!(
@@ -178,9 +207,8 @@ fn each_slot_contributes_at_most_one_rendered_finding() {
     let mut two = 0_usize;
     for inputs in all_inputs() {
         let findings = diagnose(inputs);
-        let harness_slot = findings.missing_attribute_policy || findings.harness_unrecognized_path;
-        let rendered =
-            usize::from(harness_slot) + usize::from(findings.attributes_unrecognized_path);
+        let harness_slot = findings.missing_attribute_policy || findings.slots.harness;
+        let rendered = usize::from(harness_slot) + usize::from(findings.slots.attributes);
         match rendered {
             0 => none += 1,
             1 => one += 1,
@@ -209,7 +237,7 @@ fn a_replaced_framework_attribute_is_not_a_missing_policy() {
         "an async GPUI harness replaces the Tokio attribute rather than losing one"
     );
     assert!(
-        diagnose(inputs).harness_unrecognized_path,
+        diagnose(inputs).slots.harness,
         "the non-canonical harness is still reported as W001"
     );
 }

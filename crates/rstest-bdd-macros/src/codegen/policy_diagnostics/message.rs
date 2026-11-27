@@ -70,3 +70,46 @@ fn not_applied(dropped: &[&str]) -> String {
         }
     }
 }
+
+/// The text for two selectors that name different frameworks.
+///
+/// When the harness slot is non-canonical, removing `attributes` alone would
+/// land in W002's antecedent, so the removal remedy says to apply the harness
+/// fix as well (decision D30).
+pub(crate) fn conflicting_selectors(
+    harness: &str,
+    attributes: &str,
+    matching_policy: &str,
+    harness_needs_fixing: bool,
+) -> String {
+    let removal = if harness_needs_fixing {
+        "Remove `attributes = ...` and apply the harness-path fix"
+    } else {
+        "Remove `attributes = ...`"
+    };
+    format!(
+        concat!(
+            "rstest-bdd[W003]: `harness` selects {}, but `attributes` selects {}; the explicit ",
+            "`attributes` takes precedence. {}, or write `attributes = {}`."
+        ),
+        harness, attributes, removal, matching_policy
+    )
+}
+
+/// The text for the deprecated alias combined with an explicit harness.
+///
+/// A non-canonical harness also needs the canonical path here: errors suppress
+/// warnings (decision D9), so the harness slot's own fix is never shown, and
+/// clearing the alias alone would reveal a missing-policy warning (D41).
+pub(crate) fn runtime_alias_with_harness(canonical_harness: Option<&str>) -> String {
+    let harness_fix = canonical_harness.map_or_else(String::new, |path| {
+        format!(", and write `harness = {path}`")
+    });
+    format!(
+        concat!(
+            "rstest-bdd[E002]: `runtime = \"tokio-current-thread\"` cannot be combined with ",
+            "`harness = ...`; the harness already selects the runtime. Remove `runtime = ...`{}."
+        ),
+        harness_fix
+    )
+}

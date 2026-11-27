@@ -17,7 +17,7 @@ use super::super::{
     default_resolver,
     emit::RenderedWarning,
     model::{Framework, SlotClass, diagnose},
-    render,
+    render::warnings as render,
 };
 
 /// Build a state for one input pair, with both slots spelled `written`.

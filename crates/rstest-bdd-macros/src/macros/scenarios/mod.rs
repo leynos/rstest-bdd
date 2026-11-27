@@ -231,34 +231,24 @@ fn check_empty_results(
     }
 }
 
-/// Provides the internal `emit_runtime_deprecation_warning` operation.
-fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::Path>) {
+/// Warn about the deprecated `runtime` compatibility alias.
+///
+/// The alias combined with an explicit harness is an error decided before this
+/// runs, so this only ever describes the alias on its own.
+fn emit_runtime_deprecation_warning(runtime: RuntimeMode) {
     if runtime != RuntimeMode::TokioCurrentThread {
         return;
     }
-    if harness.is_some() {
-        emit_warning(
-            Span::call_site(),
-            concat!(
-                "the `runtime = \"tokio-current-thread\"` argument is ",
-                "deprecated and redundant when an explicit `harness` is set; ",
-                "remove the `runtime` argument"
-            )
-            .to_owned(),
-            None,
-        );
-    } else {
-        emit_warning(
-            Span::call_site(),
-            concat!(
-                "the `runtime = \"tokio-current-thread\"` syntax is ",
-                "deprecated; use ",
-                "`harness = rstest_bdd_harness_tokio::TokioHarness` instead"
-            )
-            .to_owned(),
-            None,
-        );
-    }
+    emit_warning(
+        Span::call_site(),
+        concat!(
+            "the `runtime = \"tokio-current-thread\"` syntax is ",
+            "deprecated; use ",
+            "`harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+        )
+        .to_owned(),
+        None,
+    );
 }
 /// Provides the internal `scenarios` operation.
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
@@ -296,8 +286,23 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
         libraries,
     } = args;
     let dir = PathBuf::from(dir_lit.value());
+    // The alias plus an explicit harness is E002. Deciding it first means the
+    // error replaces both the per-scenario rejections and the nightly
+    // "redundant" warning that used to describe a fatal configuration.
+    let effective_harness =
+        resolve_harness_path(harness.as_ref(), runtime_compatibility_alias(runtime));
+    let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenarios(
+        harness.as_ref(),
+        effective_harness.as_ref(),
+        attributes.as_ref(),
+        runtime_compatibility_alias(runtime).is_some(),
+    );
+    let fallback_diagnostics = match resolutions.emit_diagnostics() {
+        crate::codegen::BoundaryDiagnostics::Warnings(tokens) => tokens,
+        crate::codegen::BoundaryDiagnostics::Errors(errors) => return errors,
+    };
 
-    emit_runtime_deprecation_warning(runtime, harness.as_ref());
+    emit_runtime_deprecation_warning(runtime);
 
     let tag_filter = match parse_tag_filter(tag_lit) {
         Ok(filter) => filter,
@@ -319,21 +324,11 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
         }
     };
 
-    // Resolve the supplied adapter paths once for the whole expansion. Every
-    // generated scenario reuses this decision, so a feature directory with many
-    // scenarios reports one diagnostic per supplied path instead of one per
-    // generated test.
-    let effective_harness =
-        resolve_harness_path(harness.as_ref(), runtime_compatibility_alias(runtime));
-    let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenarios(
-        harness.as_ref(),
-        effective_harness.as_ref(),
-        attributes.as_ref(),
-        runtime_compatibility_alias(runtime).is_some(),
-    );
+    // Every generated scenario reuses the resolution decided above, so a
+    // feature directory with many scenarios still reports one diagnostic per
+    // supplied path rather than one per generated test.
     let scope = library_scope_tokens(libraries.as_deref());
     let library_validation_names = libraries.as_deref().map(library_validation_names);
-    let fallback_diagnostics = resolutions.emit_diagnostics();
 
     let ctx = FeatureProcessingContext {
         manifest_dir: &manifest_dir,

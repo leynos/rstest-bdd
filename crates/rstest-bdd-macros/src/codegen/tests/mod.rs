@@ -118,7 +118,7 @@ fn pure_resolution_selects_path_and_diagnostic_state(
 
     assert_eq!(resolution.api_path.to_string(), expected_path);
     assert_eq!(
-        findings.harness_unrecognized_path, has_finding,
+        findings.slots.harness, has_finding,
         "the harness slot finding must match the expectation"
     );
 }
