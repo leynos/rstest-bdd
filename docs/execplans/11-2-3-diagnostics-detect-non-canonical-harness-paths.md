@@ -307,17 +307,17 @@ conflict in `Decision log`, and escalate.
   `attributes` path, offering its three remedies and naming the third-party
   limitation when the policy is foreign. The existing rejection fixture now
   carries three blocks (default, foreign, non-canonical policy); two
-  `rstest`-only canaries pin `AX-RSTEST-ASYNC`, and
-  `policy_user_executor.rs` keeps a user-written `#[tokio::test]` and
-  `#[test_attr(...)]` compiling. The model split `model.rs` into `model.rs`
-  plus `inputs.rs` when Whitaker measured the module at 412 lines (D43).
+  `rstest`-only canaries pin `AX-RSTEST-ASYNC`, and `policy_user_executor.rs`
+  keeps a user-written `#[tokio::test]` and `#[test_attr(...)]` compiling. The
+  model split `model.rs` into `model.rs` plus `inputs.rs` when Whitaker
+  measured the module at 412 lines (D43).
 - [ ] EP-M5: behavioural scenarios for silence and suggested fixes. Add the
   three scenarios drafted above to
   `crates/rstest-bdd-harness-tokio/tests/features/harness_led_defaults.feature`
   and bind them in `harness_led_defaults.rs`.
 - [ ] EP-M4 and EP-M3 full gates: focused evidence is recorded (565 unit
-  tests, both `macro_compile` suites on stable and on `nightly-2026-08-16`,
-  the new `policy_user_executor` integration test, Clippy, and Whitaker run to
+  tests, both `macro_compile` suites on stable and on `nightly-2026-08-16`, the
+  new `policy_user_executor` integration test, Clippy, and Whitaker run to
   completion on the full workspace). `make lint`, `make check-fmt` and
   `make markdownlint` were run at the EP-M3 tree; run all four full gates at
   the pushed head `222e1355` before calling the milestone complete.
