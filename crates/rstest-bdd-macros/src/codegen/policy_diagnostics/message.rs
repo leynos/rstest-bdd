@@ -76,7 +76,7 @@ fn not_applied(dropped: &[&str]) -> String {
 /// When the harness slot is non-canonical, removing `attributes` alone would
 /// land in W002's antecedent, so the removal remedy says to apply the harness
 /// fix as well (decision D30).
-pub(crate) fn conflicting_selectors(wording: ConflictWording<'_>) -> String {
+pub(crate) fn conflicting_selectors(wording: &ConflictWording<'_>) -> String {
     let removal = if wording.harness_needs_fixing {
         "Remove `attributes = ...` and apply the harness-path fix"
     } else {
