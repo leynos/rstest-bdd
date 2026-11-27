@@ -63,6 +63,15 @@ fn scenario(harness: SlotClass, attributes: SlotClass, is_async: bool) -> Policy
 
 /// Every wording variant the matrix covers.
 fn cases() -> Vec<Case> {
+    let mut cases = harness_cases();
+    cases.extend(attributes_cases());
+    cases.extend(resolver_cases());
+    cases
+}
+
+/// Warnings for the harness slot, across both frameworks and both signature
+/// shapes.
+fn harness_cases() -> Vec<Case> {
     let tokio = SlotClass::Evidenced(Framework::Tokio);
     let gpui = SlotClass::Evidenced(Framework::Gpui);
     let absent = SlotClass::Absent;
@@ -84,18 +93,28 @@ fn cases() -> Vec<Case> {
             ),
         ),
         (
-            "W001 attributes (tokio)",
-            render_with(
-                scenario(absent, tokio, false),
-                "TokioAttributePolicy",
-                default_resolver(),
-            ),
-        ),
-        (
             "W002 scenario harness (gpui)",
             render_with(
                 scenario(gpui, absent, false),
                 "GpuiHarness",
+                default_resolver(),
+            ),
+        ),
+        the_user_attribute_case(),
+    ]
+}
+
+/// Warnings for the attributes slot.
+fn attributes_cases() -> Vec<Case> {
+    let tokio = SlotClass::Evidenced(Framework::Tokio);
+    let gpui = SlotClass::Evidenced(Framework::Gpui);
+    let absent = SlotClass::Absent;
+    vec![
+        (
+            "W001 attributes (tokio)",
+            render_with(
+                scenario(absent, tokio, false),
+                "TokioAttributePolicy",
                 default_resolver(),
             ),
         ),
@@ -107,23 +126,20 @@ fn cases() -> Vec<Case> {
                 default_resolver(),
             ),
         ),
-        (
-            "W001 scenario harness (gpui, user attribute present)",
-            render_with(
-                PolicyInputs::Scenario {
-                    harness: gpui,
-                    attributes: absent,
-                    is_async: false,
-                    has_user_test_attr: true,
-                },
-                "GpuiHarness",
-                default_resolver(),
-            ),
-        ),
+    ]
+}
+
+/// Warnings whose suggested paths depend on the resolver or the macro shape.
+fn resolver_cases() -> Vec<Case> {
+    vec![
         (
             "W002 renamed resolver",
             render_with(
-                scenario(gpui, absent, false),
+                scenario(
+                    SlotClass::Evidenced(Framework::Gpui),
+                    SlotClass::Absent,
+                    false,
+                ),
                 "GpuiHarness",
                 &RenamedResolver,
             ),
@@ -132,8 +148,8 @@ fn cases() -> Vec<Case> {
             "W002 scenarios shape, no alias",
             render_with(
                 PolicyInputs::Scenarios {
-                    harness: gpui,
-                    attributes: absent,
+                    harness: SlotClass::Evidenced(Framework::Gpui),
+                    attributes: SlotClass::Absent,
                     runtime_alias: false,
                 },
                 "GpuiHarness",
@@ -141,6 +157,25 @@ fn cases() -> Vec<Case> {
             ),
         ),
     ]
+}
+
+/// A non-canonical GPUI harness where the user wrote the executor attribute.
+///
+/// The claim must be absent: the generator deduplicates against it.
+fn the_user_attribute_case() -> Case {
+    (
+        "W001 scenario harness (gpui, user attribute present)",
+        render_with(
+            PolicyInputs::Scenario {
+                harness: SlotClass::Evidenced(Framework::Gpui),
+                attributes: SlotClass::Absent,
+                is_async: false,
+                has_user_test_attr: true,
+            },
+            "GpuiHarness",
+            default_resolver(),
+        ),
+    )
 }
 
 #[test]
@@ -184,6 +219,15 @@ fn suggested_paths(message: &str) -> Vec<String> {
         .collect()
 }
 
+/// What one `LEM-FIX-CANONICAL` run observed.
+#[derive(Default)]
+struct FixPaths {
+    /// Suggested paths classified, in total.
+    checked: usize,
+    /// Suggested paths rooted at the renamed crate's root.
+    renamed_roots: usize,
+}
+
 /// `LEM-FIX-CANONICAL`: a suggested path is itself a recognized first-party
 /// path under the same resolver that rendered it.
 #[rstest]
@@ -193,36 +237,49 @@ fn every_suggested_path_is_recognized(
     #[case] resolver: &'static dyn CrateResolver,
     #[case] expects_renamed: bool,
 ) {
-    let mut checked = 0_usize;
-    let mut renamed_roots = 0_usize;
+    let observed = check_suggested_paths(resolver);
+
+    assert!(
+        observed.checked > 0,
+        "the messages must suggest at least one path"
+    );
+    assert_eq!(
+        observed.renamed_roots > 0,
+        expects_renamed,
+        "a renamed resolver must render its own root"
+    );
+}
+
+/// Check every suggested path in every message `resolver` renders.
+fn check_suggested_paths(resolver: &'static dyn CrateResolver) -> FixPaths {
+    let mut observed = FixPaths::default();
     for (inputs, written) in fix_states() {
         for warning in render_with(inputs, written, resolver) {
             for path in suggested_paths(&warning.message) {
-                let parsed = match syn::parse_str::<syn::Path>(&path) {
-                    Ok(parsed) => parsed,
-                    Err(error) => panic!("suggested path {path} must parse: {error}"),
-                };
-                let class = if path.ends_with("Policy") {
-                    classify_policy_path(&parsed, resolver)
-                } else {
-                    classify_harness_path(&parsed, resolver)
-                };
-                assert!(
-                    matches!(class, SlotClass::Recognized(_)),
-                    "suggested path {path} must be recognized, got {class:?}"
-                );
-                checked += 1;
+                assert_recognized(&path, resolver);
+                observed.checked += 1;
                 if path.starts_with("tok::") {
-                    renamed_roots += 1;
+                    observed.renamed_roots += 1;
                 }
             }
         }
     }
+    observed
+}
 
-    assert!(checked > 0, "the messages must suggest at least one path");
-    assert_eq!(
-        renamed_roots > 0,
-        expects_renamed,
-        "a renamed resolver must render its own root"
+/// Assert that one suggested path classifies as a recognized first-party path.
+fn assert_recognized(path: &str, resolver: &'static dyn CrateResolver) {
+    let parsed = match syn::parse_str::<syn::Path>(path) {
+        Ok(parsed) => parsed,
+        Err(error) => panic!("suggested path {path} must parse: {error}"),
+    };
+    let class = if path.ends_with("Policy") {
+        classify_policy_path(&parsed, resolver)
+    } else {
+        classify_harness_path(&parsed, resolver)
+    };
+    assert!(
+        matches!(class, SlotClass::Recognized(_)),
+        "suggested path {path} must be recognized, got {class:?}"
     );
 }

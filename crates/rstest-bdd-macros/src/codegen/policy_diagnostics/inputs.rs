@@ -101,91 +101,149 @@ impl PolicyInputs {
         }
     }
 
-    /// The same configuration with the harness slot replaced.
-    pub(crate) fn with_harness(self, class: SlotClass) -> Self {
+    /// Every field this configuration carries, whichever shape it is.
+    ///
+    /// One rebuilder over this record replaces four near-identical `match`
+    /// arms per accessor: each shape fills only the fields it has.
+    fn parts(self) -> Parts {
         match self {
             Self::Scenario {
+                harness,
                 attributes,
                 is_async,
                 has_user_test_attr,
-                ..
-            } => Self::Scenario {
-                harness: class,
+            } => Parts {
+                harness,
                 attributes,
-                is_async,
-                has_user_test_attr,
+                shape: Shape::Scenario {
+                    is_async,
+                    has_user_test_attr,
+                },
             },
             Self::Scenarios {
+                harness,
                 attributes,
                 runtime_alias,
-                ..
-            } => Self::Scenarios {
-                harness: class,
+            } => Parts {
+                harness,
                 attributes,
-                runtime_alias,
+                shape: Shape::Scenarios { runtime_alias },
             },
         }
+    }
+
+    /// The same configuration with the harness slot replaced.
+    pub(crate) fn with_harness(self, harness: SlotClass) -> Self {
+        Self::from_parts(self.parts().with_harness(harness))
+    }
+
+    /// The same configuration with the attributes slot replaced.
+    pub(crate) fn with_attributes(self, attributes: SlotClass) -> Self {
+        Self::from_parts(self.parts().with_attributes(attributes))
     }
 
     /// The same scenario with the user-attribute flag set.
     #[cfg(test)]
     pub(crate) fn with_user_test_attr(self, has_user_test_attr: bool) -> Self {
-        match self {
-            Self::Scenario {
-                harness,
-                attributes,
-                is_async,
-                ..
-            } => Self::Scenario {
-                harness,
-                attributes,
-                is_async,
-                has_user_test_attr,
-            },
-            Self::Scenarios { .. } => self,
-        }
+        Self::from_parts(self.parts().with_user_test_attr(has_user_test_attr))
     }
 
     /// The same configuration with the deprecated alias cleared.
     #[cfg(test)]
     pub(crate) fn without_runtime_alias(self) -> Self {
-        match self {
-            Self::Scenarios {
-                harness,
-                attributes,
-                ..
-            } => Self::Scenarios {
-                harness,
-                attributes,
-                runtime_alias: false,
+        Self::from_parts(self.parts().without_runtime_alias())
+    }
+
+    /// Rebuild the shape this record describes.
+    fn from_parts(parts: Parts) -> Self {
+        match parts.shape {
+            Shape::Scenario {
+                is_async,
+                has_user_test_attr,
+            } => Self::Scenario {
+                harness: parts.harness,
+                attributes: parts.attributes,
+                is_async,
+                has_user_test_attr,
             },
-            Self::Scenario { .. } => self,
+            Shape::Scenarios { runtime_alias } => Self::Scenarios {
+                harness: parts.harness,
+                attributes: parts.attributes,
+                runtime_alias,
+            },
+        }
+    }
+}
+
+/// The shape-specific fields, so a rebuilder never has to match twice.
+#[derive(Clone, Copy)]
+enum Shape {
+    /// A `#[scenario]` expansion.
+    Scenario {
+        /// Whether the annotated function is `async`.
+        is_async: bool,
+        /// Whether the function already carries an executor attribute.
+        has_user_test_attr: bool,
+    },
+    /// A `scenarios!` expansion.
+    Scenarios {
+        /// Whether the deprecated `runtime` alias was supplied.
+        runtime_alias: bool,
+    },
+}
+
+/// The fields of one configuration, shape included.
+#[derive(Clone, Copy)]
+struct Parts {
+    /// Classification of the explicit `harness` argument.
+    harness: SlotClass,
+    /// Classification of the explicit `attributes` argument.
+    attributes: SlotClass,
+    /// The shape-specific fields.
+    shape: Shape,
+}
+
+impl Parts {
+    /// The same parts with the harness slot replaced.
+    fn with_harness(mut self, harness: SlotClass) -> Self {
+        self.harness = harness;
+        self
+    }
+
+    /// The same parts with the attributes slot replaced.
+    fn with_attributes(mut self, attributes: SlotClass) -> Self {
+        self.attributes = attributes;
+        self
+    }
+
+    /// The same parts with the user-attribute flag set, when they are a
+    /// scenario.
+    #[cfg(test)]
+    fn with_user_test_attr(self, has_user_test_attr: bool) -> Self {
+        match self.shape {
+            Shape::Scenario { is_async, .. } => Self {
+                shape: Shape::Scenario {
+                    is_async,
+                    has_user_test_attr,
+                },
+                ..self
+            },
+            Shape::Scenarios { .. } => self,
         }
     }
 
-    /// The same configuration with the attributes slot replaced.
-    pub(crate) fn with_attributes(self, class: SlotClass) -> Self {
-        match self {
-            Self::Scenario {
-                harness,
-                is_async,
-                has_user_test_attr,
-                ..
-            } => Self::Scenario {
-                harness,
-                attributes: class,
-                is_async,
-                has_user_test_attr,
+    /// The same parts with the deprecated alias cleared, when they are a
+    /// `scenarios!` expansion.
+    #[cfg(test)]
+    fn without_runtime_alias(self) -> Self {
+        match self.shape {
+            Shape::Scenarios { .. } => Self {
+                shape: Shape::Scenarios {
+                    runtime_alias: false,
+                },
+                ..self
             },
-            Self::Scenarios {
-                harness,
-                runtime_alias,
-                ..
-            } => Self::Scenarios {
-                harness,
-                attributes: class,
-                runtime_alias,
-            },
+            Shape::Scenario { .. } => self,
         }
     }
 }
