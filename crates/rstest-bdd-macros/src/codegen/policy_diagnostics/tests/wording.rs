@@ -250,19 +250,26 @@ fn every_suggested_path_is_recognized(
     );
 }
 
+impl FixPaths {
+    /// Record every path the supplied messages suggest.
+    fn record(&mut self, warnings: Vec<RenderedWarning>, resolver: &'static dyn CrateResolver) {
+        for warning in warnings {
+            for path in suggested_paths(&warning.message) {
+                assert_recognized(&path, resolver);
+                self.checked += 1;
+                if path.starts_with("tok::") {
+                    self.renamed_roots += 1;
+                }
+            }
+        }
+    }
+}
+
 /// Check every suggested path in every message `resolver` renders.
 fn check_suggested_paths(resolver: &'static dyn CrateResolver) -> FixPaths {
     let mut observed = FixPaths::default();
     for (inputs, written) in fix_states() {
-        for warning in render_with(inputs, written, resolver) {
-            for path in suggested_paths(&warning.message) {
-                assert_recognized(&path, resolver);
-                observed.checked += 1;
-                if path.starts_with("tok::") {
-                    observed.renamed_roots += 1;
-                }
-            }
-        }
+        observed.record(render_with(inputs, written, resolver), resolver);
     }
     observed
 }

@@ -144,14 +144,14 @@ impl PolicyInputs {
 
     /// The same scenario with the user-attribute flag set.
     #[cfg(test)]
-    pub(crate) fn with_user_test_attr(self, has_user_test_attr: bool) -> Self {
-        Self::from_parts(self.parts().with_user_test_attr(has_user_test_attr))
+    pub(crate) fn with_user_test_attr(self, value: bool) -> Self {
+        Self::from_parts(self.parts().with(ShapeEdit::UserTestAttr(value)))
     }
 
     /// The same configuration with the deprecated alias cleared.
     #[cfg(test)]
     pub(crate) fn without_runtime_alias(self) -> Self {
-        Self::from_parts(self.parts().without_runtime_alias())
+        Self::from_parts(self.parts().with(ShapeEdit::RuntimeAlias(false)))
     }
 
     /// Rebuild the shape this record describes.
@@ -216,34 +216,38 @@ impl Parts {
         self
     }
 
-    /// The same parts with the user-attribute flag set, when they are a
-    /// scenario.
+    /// The same parts with a test-only shape field replaced.
+    ///
+    /// `edit` names the field and its new value; a shape that does not carry
+    /// that field comes back unchanged, which is why one setter serves both
+    /// test-only accessors.
     #[cfg(test)]
-    fn with_user_test_attr(self, has_user_test_attr: bool) -> Self {
-        match self.shape {
-            Shape::Scenario { is_async, .. } => Self {
-                shape: Shape::Scenario {
-                    is_async,
-                    has_user_test_attr,
-                },
+    fn with(self, edit: ShapeEdit) -> Self {
+        match (self.shape, edit) {
+            (Shape::Scenario { is_async, .. }, ShapeEdit::UserTestAttr(has_user_test_attr)) => {
+                Self {
+                    shape: Shape::Scenario {
+                        is_async,
+                        has_user_test_attr,
+                    },
+                    ..self
+                }
+            }
+            (Shape::Scenarios { .. }, ShapeEdit::RuntimeAlias(runtime_alias)) => Self {
+                shape: Shape::Scenarios { runtime_alias },
                 ..self
             },
-            Shape::Scenarios { .. } => self,
+            (shape, _) => Self { shape, ..self },
         }
     }
+}
 
-    /// The same parts with the deprecated alias cleared, when they are a
-    /// `scenarios!` expansion.
-    #[cfg(test)]
-    fn without_runtime_alias(self) -> Self {
-        match self.shape {
-            Shape::Scenarios { .. } => Self {
-                shape: Shape::Scenarios {
-                    runtime_alias: false,
-                },
-                ..self
-            },
-            Shape::Scenario { .. } => self,
-        }
-    }
+/// One test-only shape-field replacement.
+#[cfg(test)]
+#[derive(Clone, Copy)]
+enum ShapeEdit {
+    /// Set the user-attribute flag of a scenario.
+    UserTestAttr(bool),
+    /// Set the deprecated-alias flag of a `scenarios!` expansion.
+    RuntimeAlias(bool),
 }
