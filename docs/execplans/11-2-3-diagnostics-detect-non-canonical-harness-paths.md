@@ -5,10 +5,11 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: IN PROGRESS (EP-M0). Approved 2026-11-26; implementation started the
-same day. Revised after community-of-experts review; observations re-verified
-against `origin/main` at `0df7fbec` on 2026-11-24; restacked on pull request
-986 at `5dbc2fb5`, over `main` at `6308b9af`, on 2026-11-26.
+Status: COMPLETE (2026-11-27). Approved 2026-11-26. Revised after
+community-of-experts review; observations re-verified against `origin/main` at
+`0df7fbec` on 2026-11-24; restacked on pull request 986 at `5dbc2fb5`, over
+`main` at `6308b9af`, on 2026-11-26. EP-M0 through EP-M7 delivered; the final
+gate record and the deferred items are under `Outcomes & retrospective`.
 
 Approval: approved by the user on 2026-11-26, who instructed implementation to
 begin and to carry the pull request through babysitting to equilibrium.
@@ -317,7 +318,14 @@ conflict in `Decision log`, and escalate.
   policy, and the harness default restored after removing an override. That
   binary reports 9 passed under `-D warnings`, so any stray marker would break
   it.
-- [ ] EP-M6: documentation (ADR-0029 written; the guides are being updated).
+- [x] (2026-11-27) EP-M6 implemented: ADR-0029 written and indexed;
+  ADR-0017 amended; the design document's §2.7.3 fallback paragraphs replaced
+  by the evidence-based taxonomy; the users' guide's section rewritten around
+  the five codes; the developers' guide's ownership and adding-a-finding recipe
+  written; both migration guides and the changelog updated; and the three false
+  "add a dev-dependency for recognition" statements corrected.
+- [x] (2026-11-27) EP-M7: roadmap 11.2.3 ticked with a completion note naming
+  this plan and ADR-0029; the plan set to `COMPLETE`.
 - [ ] EP-M4 and EP-M3 full gates: focused evidence is recorded (565 unit
   tests, both `macro_compile` suites on stable and on `nightly-2026-08-16`, the
   new `policy_user_executor` integration test, Clippy, and Whitaker run to
