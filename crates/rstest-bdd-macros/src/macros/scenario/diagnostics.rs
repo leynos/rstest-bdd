@@ -38,9 +38,11 @@ mod tests {
     use super::has_executor_attr;
 
     fn attrs(attribute: &str) -> Vec<syn::Attribute> {
-        let item: syn::ItemFn = syn::parse_str(&format!("{attribute} fn example() {{}}"))
-            .unwrap_or_else(|error| panic!("{attribute} should parse: {error}"));
-        item.attrs
+        let source = format!("{attribute} fn example() {{}}");
+        match syn::parse_str::<syn::ItemFn>(&source) {
+            Ok(item) => item.attrs,
+            Err(error) => panic!("{source} should parse: {error}"),
+        }
     }
 
     #[rstest]

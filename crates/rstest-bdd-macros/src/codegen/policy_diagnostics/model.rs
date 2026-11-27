@@ -99,21 +99,23 @@ impl PolicyInputs {
 
     /// The runtime the selected hint falls back to.
     pub(crate) fn attribute_runtime(self) -> RuntimeMode {
+        if self.implies_tokio_runtime() {
+            RuntimeMode::TokioCurrentThread
+        } else {
+            RuntimeMode::Sync
+        }
+    }
+
+    /// Whether the caller asked for a Tokio runtime by any spelling.
+    ///
+    /// `#[scenario]` asks with an `async fn`; `scenarios!` asks with the
+    /// deprecated alias. Reading the question once, rather than nesting a
+    /// conditional inside each shape, keeps the two spellings visibly the same
+    /// policy.
+    fn implies_tokio_runtime(self) -> bool {
         match self {
-            Self::Scenario { is_async, .. } => {
-                if is_async {
-                    RuntimeMode::TokioCurrentThread
-                } else {
-                    RuntimeMode::Sync
-                }
-            }
-            Self::Scenarios { runtime_alias, .. } => {
-                if runtime_alias {
-                    RuntimeMode::TokioCurrentThread
-                } else {
-                    RuntimeMode::Sync
-                }
-            }
+            Self::Scenario { is_async, .. } => is_async,
+            Self::Scenarios { runtime_alias, .. } => runtime_alias,
         }
     }
 

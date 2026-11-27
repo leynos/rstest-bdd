@@ -83,73 +83,107 @@ fn fixes(finding: Finding, inputs: PolicyInputs) -> Vec<PolicyInputs> {
     }
 }
 
-#[test]
-fn every_suggested_fix_removes_its_finding_and_adds_none() {
-    let (mut harness_checked, mut attributes_checked, mut policy_checked) =
-        (0_usize, 0_usize, 0_usize);
-    for inputs in all_inputs() {
-        let before = diagnose(inputs);
-        for finding in Finding::ALL {
-            if !finding.holds(before) {
-                continue;
-            }
-            let offered = fixes(finding, inputs);
-            assert!(
-                !offered.is_empty(),
-                "a reported {finding:?} must offer at least one fix"
-            );
-            for fixed in offered {
-                match finding {
-                    Finding::HarnessPath => harness_checked += 1,
-                    Finding::AttributesPath => attributes_checked += 1,
-                    Finding::MissingPolicy => policy_checked += 1,
-                }
-                let after = diagnose(fixed);
-                assert!(
-                    !finding.holds(after),
-                    "{finding:?} must clear for {} / {}",
-                    class_name(inputs.harness()),
-                    class_name(inputs.attributes())
-                );
-                let allowed = mask(before) & !finding.bit();
-                assert_eq!(
-                    mask(after) & !allowed,
-                    0,
-                    "{finding:?} fix on {} / {} introduced a finding: {after:?}",
-                    class_name(inputs.harness()),
-                    class_name(inputs.attributes())
-                );
-            }
+/// How many `(state, finding, fix)` triples each finding kind has checked.
+#[derive(Default)]
+struct Tally {
+    /// W001 on the harness slot.
+    harness: usize,
+    /// W001 on the attributes slot.
+    attributes: usize,
+    /// W002.
+    policy: usize,
+}
+
+impl Tally {
+    /// Count one checked fix for `finding`.
+    fn record(&mut self, finding: Finding) { *self.slot(finding) += 1 }
+
+    /// The counter belonging to `finding`.
+    fn slot(&mut self, finding: Finding) -> &mut usize {
+        match finding {
+            Finding::HarnessPath => &mut self.harness,
+            Finding::AttributesPath => &mut self.attributes,
+            Finding::MissingPolicy => &mut self.policy,
         }
     }
 
+    /// Fail when a finding kind contributed nothing, which would make the
+    /// lemma vacuous for it.
+    fn assert_not_vacuous(&self) {
+        assert!(
+            self.harness > 0 && self.attributes > 0 && self.policy > 0,
+            "every finding kind must contribute checked fixes, got {}, {}, {}",
+            self.harness,
+            self.attributes,
+            self.policy
+        );
+    }
+}
+
+/// Check every fix one state's findings offer.
+fn check_state(inputs: PolicyInputs, tally: &mut Tally) {
+    let before = diagnose(inputs);
+    for finding in Finding::ALL {
+        if !finding.holds(before) {
+            continue;
+        }
+        let offered = fixes(finding, inputs);
+        assert!(
+            !offered.is_empty(),
+            "a reported {finding:?} must offer at least one fix"
+        );
+        for fixed in offered {
+            tally.record(finding);
+            assert_fix_converges(finding, inputs, before, fixed);
+        }
+    }
+}
+
+/// Assert one fix clears its own finding and introduces no other.
+fn assert_fix_converges(
+    finding: Finding,
+    inputs: PolicyInputs,
+    before: PolicyFindings,
+    fixed: PolicyInputs,
+) {
+    let after = diagnose(fixed);
     assert!(
-        harness_checked > 0 && attributes_checked > 0 && policy_checked > 0,
-        "every finding kind must contribute checked fixes, got {harness_checked}, {attributes_checked}, {policy_checked}"
+        !finding.holds(after),
+        "{finding:?} must clear for {} / {}",
+        class_name(inputs.harness()),
+        class_name(inputs.attributes())
+    );
+    let allowed = mask(before) & !finding.bit();
+    assert_eq!(
+        mask(after) & !allowed,
+        0,
+        "{finding:?} fix on {} / {} introduced a finding: {after:?}",
+        class_name(inputs.harness()),
+        class_name(inputs.attributes())
     );
 }
 
 #[test]
+fn every_suggested_fix_removes_its_finding_and_adds_none() {
+    let mut tally = Tally::default();
+    for inputs in all_inputs() {
+        check_state(inputs, &mut tally);
+    }
+
+    tally.assert_not_vacuous();
+}
+
+#[test]
 fn the_lemma_is_not_vacuous_for_any_finding_kind() {
-    let (mut harness_total, mut attributes_total, mut policy_total) = (0_usize, 0_usize, 0_usize);
+    let mut tally = Tally::default();
     for inputs in all_inputs() {
         let findings = diagnose(inputs);
         for finding in Finding::ALL {
-            if !finding.holds(findings) {
-                continue;
-            }
-            let offered = fixes(finding, inputs).len();
-            match finding {
-                Finding::HarnessPath => harness_total += offered,
-                Finding::AttributesPath => attributes_total += offered,
-                Finding::MissingPolicy => policy_total += offered,
+            if finding.holds(findings) {
+                *tally.slot(finding) += fixes(finding, inputs).len();
             }
         }
     }
 
-    assert!(
-        harness_total > 0 && attributes_total > 0 && policy_total > 0,
-        "the lemma is vacuous for a finding kind with no fixes: \
-         {harness_total}, {attributes_total}, {policy_total}"
-    );
+    tally.assert_not_vacuous();
 }
