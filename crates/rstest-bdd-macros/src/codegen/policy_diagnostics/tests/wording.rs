@@ -101,8 +101,8 @@ fn harness_cases() -> Vec<Case> {
                 default_resolver(),
             ),
         ),
-        the_user_attribute_case(),
-        the_executor_only_case(),
+        the_user_attribute_case(true),
+        the_user_attribute_case(false),
     ]
 }
 
@@ -161,44 +161,45 @@ fn resolver_cases() -> Vec<Case> {
     ]
 }
 
-/// A non-canonical GPUI harness where the user wrote the executor attribute.
+/// A non-canonical GPUI harness, with and without `#[gpui::test]` written.
 ///
-/// The claim must be absent: the generator deduplicates against it.
-fn the_user_attribute_case() -> Case {
-    (
-        "W001 scenario harness (gpui, user gpui attribute present)",
+/// `has_gpui_test_attr` decides whether the attribute claim is truthful: the
+/// generator deduplicates that attribute and no other.
+fn the_user_attribute_case(has_gpui_test_attr: bool) -> Case {
+    let (label, code) = if has_gpui_test_attr {
+        (
+            "W001 scenario harness (gpui, user gpui attribute present)",
+            "W001",
+        )
+    } else {
+        (
+            "W002 scenario harness (gpui, executor attribute only)",
+            "W002",
+        )
+    };
+    let case = (
+        label,
         render_with(
             PolicyInputs::Scenario {
                 harness: SlotClass::Evidenced(Framework::Gpui),
                 attributes: SlotClass::Absent,
                 is_async: false,
                 has_executor_attr: true,
-                has_gpui_test_attr: true,
+                has_gpui_test_attr,
             },
             "GpuiHarness",
             default_resolver(),
         ),
-    )
-}
-
-/// An executor attribute that is not `#[gpui::test]`.
-///
-/// The GPUI attribute is genuinely missing, so the claim must stay.
-fn the_executor_only_case() -> Case {
-    (
-        "W002 scenario harness (gpui, executor attribute only)",
-        render_with(
-            PolicyInputs::Scenario {
-                harness: SlotClass::Evidenced(Framework::Gpui),
-                attributes: SlotClass::Absent,
-                is_async: false,
-                has_executor_attr: true,
-                has_gpui_test_attr: false,
-            },
-            "GpuiHarness",
-            default_resolver(),
-        ),
-    )
+    );
+    let rendered = case
+        .1
+        .first()
+        .map_or_else(String::new, |warning| warning.message.clone());
+    assert!(
+        rendered.starts_with(&format!("rstest-bdd[{code}]")),
+        "{label} must render {code}: {rendered}"
+    );
+    case
 }
 
 #[test]

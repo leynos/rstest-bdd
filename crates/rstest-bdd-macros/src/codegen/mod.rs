@@ -21,6 +21,7 @@ pub(crate) mod wrapper;
 pub(crate) use policy_diagnostics::Framework;
 pub(crate) use policy_diagnostics::{
     CrateResolver,
+    ScenarioFacts,
     SharedPolicyDiagnostics,
     SlotClass,
     classify_harness_path,

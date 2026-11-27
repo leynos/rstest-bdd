@@ -38,7 +38,7 @@ fn deduplicates_duplicate_titles() {
 fn generated_scenario_metadata_uses_portable_feature_separators() {
     let rel_path = Path::new("tests").join("x.feature");
     let scope = quote!(::rstest_bdd::StepScope::global());
-    let resolutions = SharedPolicyDiagnostics::for_scenario(None, None, false, false, false);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(None, None, scenario_facts());
     let ctx = ScenarioTestContext {
         feature_stem: "x",
         rel_path: &rel_path,
@@ -340,3 +340,12 @@ fn runtime_harness_signature_pipeline(
 }
 
 mod fixture_error_type;
+
+/// Diagnostic facts for a test scenario with no user attributes.
+fn scenario_facts() -> crate::codegen::ScenarioFacts {
+    crate::codegen::ScenarioFacts {
+        is_async: false,
+        has_executor_attr: false,
+        has_gpui_test_attr: false,
+    }
+}

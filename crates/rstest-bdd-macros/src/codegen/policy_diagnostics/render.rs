@@ -46,13 +46,13 @@ fn conflict_warning(state: &DiagnosticState) -> Option<RenderedWarning> {
     let harness_needs_fixing = matches!(state.inputs.harness(), SlotClass::Evidenced(_));
     let attributes_recognized = matches!(state.inputs.attributes(), SlotClass::Recognized(_));
     Some(RenderedWarning {
-        message: message::conflicting_selectors(
-            conflict.harness.display_name(),
-            conflict.attributes.display_name(),
+        message: message::conflicting_selectors(message::ConflictWording {
+            harness: conflict.harness.display_name(),
+            attributes: conflict.attributes.display_name(),
             attributes_recognized,
-            &matching_policy,
+            matching_policy: &matching_policy,
             harness_needs_fixing,
-        ),
+        }),
         span: ident.span(),
         #[cfg(not(rstest_bdd_nightly))]
         marker: Marker::ConflictingHarnessAndPolicy,

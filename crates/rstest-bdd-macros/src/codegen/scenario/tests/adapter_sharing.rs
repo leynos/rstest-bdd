@@ -88,8 +88,7 @@ fn scenario_output_with_shared_resolutions(
 #[test]
 fn boundary_emits_one_diagnostic_per_qualifying_path() {
     let harness = aliased_harness();
-    let resolutions =
-        SharedPolicyDiagnostics::for_scenario(Some(&harness), None, false, false, false);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, scenario_facts());
 
     assert_eq!(
         marker_count(&resolutions.emit_warnings()),
@@ -103,13 +102,8 @@ fn boundary_emits_one_diagnostic_per_qualifying_path() {
 fn boundary_emits_two_diagnostics_for_combined_harness_and_attributes() {
     let harness = aliased_harness();
     let attributes = aliased_attributes();
-    let resolutions = SharedPolicyDiagnostics::for_scenario(
-        Some(&harness),
-        Some(&attributes),
-        false,
-        false,
-        false,
-    );
+    let resolutions =
+        SharedPolicyDiagnostics::for_scenario(Some(&harness), Some(&attributes), scenario_facts());
 
     assert_eq!(
         marker_count(&resolutions.emit_warnings()),
@@ -123,8 +117,7 @@ fn boundary_emits_two_diagnostics_for_combined_harness_and_attributes() {
 #[test]
 fn scenario_generated_from_shared_resolution_emits_no_diagnostic() {
     let harness = aliased_harness();
-    let resolutions =
-        SharedPolicyDiagnostics::for_scenario(Some(&harness), None, false, false, false);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, scenario_facts());
 
     let output = scenario_output_with_shared_resolutions(Some(&harness), &resolutions);
 
@@ -140,12 +133,20 @@ fn scenario_generated_from_shared_resolution_emits_no_diagnostic() {
 #[test]
 fn canonical_path_yields_no_diagnostic() {
     let harness: syn::Path = syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness);
-    let resolutions =
-        SharedPolicyDiagnostics::for_scenario(Some(&harness), None, false, false, false);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, scenario_facts());
 
     assert_eq!(
         marker_count(&resolutions.emit_warnings()),
         0,
         "canonical first-party paths must stay diagnostic-free"
     );
+}
+
+/// Diagnostic facts for a test scenario with no user attributes.
+fn scenario_facts() -> crate::codegen::ScenarioFacts {
+    crate::codegen::ScenarioFacts {
+        is_async: false,
+        has_executor_attr: false,
+        has_gpui_test_attr: false,
+    }
 }

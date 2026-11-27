@@ -224,29 +224,13 @@ fn try_scenario(
         allow_skipped,
     } = resolve_scenario(args, &mut item_fn)?;
 
-    // Diagnostic inputs are read before the signature is borrowed mutably; the
-    // macro cannot evaluate trait methods, so these facts are all it has.
-    let is_async = item_fn.sig.asyncness.is_some();
-    let has_executor = has_executor_attr(&item_fn.attrs);
-    let has_gpui = has_gpui_test_attr(&item_fn.attrs);
+    // Diagnostics are built before the signature is borrowed mutably, and
+    // `#[scenario]` always generates one test, so an error may replace it.
+    let (resolutions, fallback_diagnostics) = scenario_diagnostics(args, &item_fn)?;
     let sig = &mut item_fn.sig;
     let fixture_setup = resolve_fixture_setup(sig, return_kind)?;
 
     let path = PathBuf::from(path_lit.value());
-    // `#[scenario]` owns this expansion boundary, so it emits each fallback
-    // diagnostic once before its generated code consumes the shared decision.
-    let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenario(
-        args.harness.as_ref(),
-        args.attributes.as_ref(),
-        is_async,
-        has_executor,
-        has_gpui,
-    );
-    // `#[scenario]` always generates one test, so an error may replace it here.
-    if let Some(errors) = resolutions.errors() {
-        return Err(errors.into());
-    }
-    let fallback_diagnostics = resolutions.emit_warnings();
     let ScenarioData {
         name: scenario_name,
         steps,
@@ -296,6 +280,38 @@ fn try_scenario(
         #tracking
         #generated
     }))
+}
+
+/// Build and emit the diagnostics this `#[scenario]` expansion owns.
+///
+/// The macro cannot evaluate trait methods, so the function's signature and
+/// attributes are all the evidence the decision has. An error replaces the
+/// generated test, because `#[scenario]` always generates exactly one.
+fn scenario_diagnostics(
+    args: &ScenarioArgs,
+    item_fn: &syn::ItemFn,
+) -> std::result::Result<
+    (
+        crate::codegen::SharedPolicyDiagnostics,
+        proc_macro2::TokenStream,
+    ),
+    TokenStream,
+> {
+    let facts = crate::codegen::ScenarioFacts {
+        is_async: item_fn.sig.asyncness.is_some(),
+        has_executor_attr: has_executor_attr(&item_fn.attrs),
+        has_gpui_test_attr: has_gpui_test_attr(&item_fn.attrs),
+    };
+    let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenario(
+        args.harness.as_ref(),
+        args.attributes.as_ref(),
+        facts,
+    );
+    if let Some(errors) = resolutions.errors() {
+        return Err(errors.into());
+    }
+    let warnings = resolutions.emit_warnings();
+    Ok((resolutions, warnings))
 }
 
 /// Provides the internal `parse_tag_filter` operation.

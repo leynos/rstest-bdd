@@ -80,6 +80,17 @@ struct SlotIdents {
     attributes: Option<Ident>,
 }
 
+/// The facts the `#[scenario]` boundary knows about its function.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ScenarioFacts {
+    /// Whether the annotated function is `async`.
+    pub(crate) is_async: bool,
+    /// Whether the function already carries an executor attribute.
+    pub(crate) has_executor_attr: bool,
+    /// Whether the function already carries `#[gpui::test]`.
+    pub(crate) has_gpui_test_attr: bool,
+}
+
 /// The shape one boundary diagnoses.
 #[derive(Clone, Copy)]
 enum Shape {
@@ -104,18 +115,16 @@ impl SharedPolicyDiagnostics {
     pub(crate) fn for_scenario(
         harness: Option<&syn::Path>,
         attributes: Option<&syn::Path>,
-        is_async: bool,
-        has_executor_attr: bool,
-        has_gpui_test_attr: bool,
+        facts: ScenarioFacts,
     ) -> Self {
         Self::resolve(
             harness,
             harness,
             attributes,
             Shape::Scenario {
-                is_async,
-                has_executor_attr,
-                has_gpui_test_attr,
+                is_async: facts.is_async,
+                has_executor_attr: facts.has_executor_attr,
+                has_gpui_test_attr: facts.has_gpui_test_attr,
             },
         )
     }

@@ -76,19 +76,14 @@ fn not_applied(dropped: &[&str]) -> String {
 /// When the harness slot is non-canonical, removing `attributes` alone would
 /// land in W002's antecedent, so the removal remedy says to apply the harness
 /// fix as well (decision D30).
-pub(crate) fn conflicting_selectors(
-    harness: &str,
-    attributes: &str,
-    attributes_recognized: bool,
-    matching_policy: &str,
-    harness_needs_fixing: bool,
-) -> String {
-    let removal = if harness_needs_fixing {
+pub(crate) fn conflicting_selectors(wording: ConflictWording<'_>) -> String {
+    let removal = if wording.harness_needs_fixing {
         "Remove `attributes = ...` and apply the harness-path fix"
     } else {
         "Remove `attributes = ...`"
     };
-    let selection = if attributes_recognized {
+    let attributes = wording.attributes;
+    let selection = if wording.attributes_recognized {
         format!("`attributes` selects {attributes}")
     } else {
         // A non-canonical policy is not recognized, so it overrides the harness
@@ -100,8 +95,22 @@ pub(crate) fn conflicting_selectors(
             "rstest-bdd[W003]: `harness` selects {}, but {}; the explicit `attributes` takes ",
             "precedence. {}, or write `attributes = {}`."
         ),
-        harness, selection, removal, matching_policy
+        wording.harness, selection, removal, wording.matching_policy
     )
+}
+
+/// The facts the W003 message needs.
+pub(crate) struct ConflictWording<'a> {
+    /// The framework the harness selection implies.
+    pub(crate) harness: &'a str,
+    /// The framework the explicit policy names.
+    pub(crate) attributes: &'a str,
+    /// Whether that policy is a recognized first-party spelling.
+    pub(crate) attributes_recognized: bool,
+    /// The canonical policy that matches the harness.
+    pub(crate) matching_policy: &'a str,
+    /// Whether the harness path itself needs its own fix.
+    pub(crate) harness_needs_fixing: bool,
 }
 
 /// The text for the deprecated alias combined with an explicit harness.

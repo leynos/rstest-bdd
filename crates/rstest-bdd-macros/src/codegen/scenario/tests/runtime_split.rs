@@ -78,9 +78,7 @@ fn aliased_harness_scenario_output() -> String {
     let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenario(
         Some(&harness),
         None,
-        false,
-        false,
-        false,
+        scenario_facts(),
     );
     let fallback_diagnostics = resolutions.emit_warnings();
     let config = ScenarioConfig {
@@ -187,4 +185,13 @@ fn aliased_harness_scenario_omits_stable_fallback_marker_on_nightly() {
         0,
         "nightly emits a native diagnostic instead of the marker: {output}"
     );
+}
+
+/// Diagnostic facts for a test scenario with no user attributes.
+fn scenario_facts() -> crate::codegen::ScenarioFacts {
+    crate::codegen::ScenarioFacts {
+        is_async: false,
+        has_executor_attr: false,
+        has_gpui_test_attr: false,
+    }
 }

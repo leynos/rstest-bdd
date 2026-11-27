@@ -156,9 +156,7 @@ fn pure_resolution_selects_path_and_diagnostic_state(
     let findings = super::SharedPolicyDiagnostics::for_scenario(
         Some(adapter_path.parsed()),
         None,
-        false,
-        false,
-        false,
+        scenario_facts(),
     )
     .findings();
 
@@ -240,5 +238,14 @@ proptest! {
                 prop_assert!(!super::first_party_adapter_path_matches(aliased.parsed(), spec, resolver));
             }
         }
+    }
+}
+
+/// Diagnostic facts for a test scenario with no user attributes.
+fn scenario_facts() -> crate::codegen::ScenarioFacts {
+    crate::codegen::ScenarioFacts {
+        is_async: false,
+        has_executor_attr: false,
+        has_gpui_test_attr: false,
     }
 }
