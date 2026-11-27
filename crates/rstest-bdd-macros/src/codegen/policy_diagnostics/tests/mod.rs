@@ -6,3 +6,4 @@
 //! being introduced without a property that reads it.
 
 mod enumerator;
+mod messages;
