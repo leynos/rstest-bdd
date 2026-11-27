@@ -287,8 +287,12 @@ conflict in `Decision log`, and escalate.
   consequence), `policy_opt_out` (`pass`, the documented opt-out). The nine
   existing `.stderr` files were regenerated on stable and on
   `nightly-2026-08-16` (D37 to D39).
-- [ ] EP-M2 gates: `make check-fmt`, `make lint`, `make typecheck`,
-  `make test` at the EP-M2 commit.
+- [x] (2026-11-27) EP-M2 gates green at `61f1eacc`: `make check-fmt`,
+  `make lint` (all 11 steps), `make typecheck` and `make test` (2627 and 838
+  nextest cases, 180 doctests, 7 lockfiles, 398 pytest) all exit 0. Two
+  Whitaker rounds were needed: the first flagged cognitive complexity in
+  `attribute_runtime` and the convergence tests plus an `unwrap_or_else`
+  panic, all fixed by extraction rather than suppression (D40).
 - [ ] EP-M3: W003 and E002 (ambiguous selectors).
 - [ ] EP-M4: E001 (missing executor).
 - [ ] EP-M5: behavioural scenarios for silence and suggested fixes.
@@ -748,6 +752,12 @@ earlier one, the earlier entry says so.
   method made five single-segment-import tests and two `harness_defaults` cases
   recognize imports that the real macros cannot, which the unit suite caught.
   Date/Author: 2026-11-27 / Claude.
+- Decision D40 (EP-M2): the Whitaker findings were answered by extraction,
+  not by suppression: `attribute_runtime` asks one named question
+  (`implies_tokio_runtime`), and the convergence checks share a per-state
+  helper with an explicit `Tally`. Rationale: C8 forbids new suppressions, and
+  the clustered-conditional lint was pointing at real nesting. Date/Author:
+  2026-11-27 / Claude.
 - Decision D37 (EP-M2): a suggested canonical path renders the *written*
   terminal type under the resolver's root, rather than a fixed first-party type
   name. Rationale: it keeps the suggestion exact for a path that named, say,
