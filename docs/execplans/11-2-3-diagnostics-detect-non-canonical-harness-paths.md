@@ -219,8 +219,9 @@ conflict in `Decision log`, and escalate.
 - Risk R6: the conflicting-framework fixture may need both adapter crates
   resolvable in one trybuild scratch crate, and may produce extra rustc errors
   from combining the GPUI attribute with the Tokio harness. Severity: low.
-  Likelihood: medium. Mitigation: the EP-M0 spike decides the host suite before
-  any production code is written.
+  Likelihood: medium. Resolved by EP-M0 experiment 1 (D29): the GPUI suite with
+  the Tokio harness as a dev-dependency produced only the fixture's own
+  sentinel.
 - Risk R7: harness-crate trybuild registration files and
   `crates/rstest-bdd/tests/trybuild_macros.rs` (373 lines at `0df7fbec`) may
   approach the 400-line cap. Severity: low. Likelihood: low; the plan adds five
@@ -230,9 +231,10 @@ conflict in `Decision log`, and escalate.
 - Risk R8: rustc may not run the `deprecated` lint when the same expansion
   also contains a `compile_error!`. Stable warnings would then vanish beside
   errors while nightly still printed them. Severity: low. Likelihood: medium.
-  Mitigation: decision D9 suppresses warnings in both channels whenever an
-  error fires at the same boundary, so the outcome no longer depends on this
-  rustc detail.
+  Resolved by EP-M0 experiment 3: on stable, both the `compile_error!` and the
+  generated marker were reported. Decision D9's suppression is therefore a
+  deliberate message-quality choice, not a workaround for uncertain rustc
+  behaviour.
 - Risk R9: the `deprecated` lint may not fire for spans produced by another
   crate's `macro_rules!` expansion. A facade macro would then be silent on
   stable while nightly warned. Severity: low. Likelihood: unknown. Mitigation:
@@ -261,7 +263,10 @@ conflict in `Decision log`, and escalate.
   pull request.
 - [x] (2026-11-26) Plan approved by the user, who instructed implementation to
   begin and to carry the pull request through babysitting to equilibrium.
-- [ ] EP-M0: baseline, fixture-host spike, and channel experiments.
+- [x] (2026-11-27) EP-M0 complete: baselines recorded at `b55bd2c1`, and the
+  three experiments answered (see `Surprises & discoveries` and D29 to D33).
+  The throwaway fixtures and the one manifest change were reverted; the
+  dev-dependency returns with the EP-M3 fixture that needs it.
 - [ ] EP-M1: behaviour-preserving extraction of `policy_diagnostics`.
 - [ ] EP-M2: W001 and W002 (non-canonical paths and missing policy).
 - [ ] EP-M3: W003 and E002 (ambiguous selectors).
@@ -403,6 +408,39 @@ conflict in `Decision log`, and escalate.
 - Observation (2026-11-24 rebase): `rstest_bdd::prelude` (#773) re-exports no
   harness adapter or attribute policy, so it adds no new non-canonical path.
   Impact: none.
+- Observation (EP-M0 experiment 1, 2026-11-27): the GPUI suite hosts the W003
+  fixture. A throwaway `compile_fail` fixture combining
+  `harness = rstest_bdd_harness_gpui::GpuiHarness` with
+  `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy` compiled with
+  only its own `compile_error!` sentinel in stderr — no resolution errors —
+  once `rstest-bdd-harness-tokio` was a dev-dependency of
+  `rstest-bdd-harness-gpui`. The suite reported 3 tests passed. The Tokio suite
+  was not tried with GPUI as a dev-dependency, because that would put the
+  vendored GPUI stack in a second trybuild tree for no extra evidence. Impact:
+  D29; the manifest change is C10's single permitted one.
+- Observation (EP-M0 experiment 2, 2026-11-27): the alias-plus-harness
+  rejection is *reported once*, not once per scenario. The fixture's token
+  stream carries one `reject_async_harness` error per generated scenario, but
+  every one is `Span::call_site()` on the same `scenarios!` invocation with
+  identical text, so rustc collapses them into one diagnostic. Impact: D33 and
+  the E002 acceptance criterion, which must be phrased as "one accurate error
+  spanned at the harness path", not as a reduction in error count.
+- Observation (EP-M0 experiment 3, 2026-11-27): the stable channel and errors
+  are independent. A fixture whose expansion emitted both a `compile_error!`
+  and the generated `#[deprecated]` marker, under `#![deny(deprecated)]`,
+  reported both errors. Separately, a `#[allow(deprecated)]` on the enclosing
+  `mod` silenced the marker under a crate-level `#![deny(deprecated)]`, and the
+  `pass` fixture succeeded. Impact: Risk R8 is resolved for stable — rustc does
+  run the lint beside an error — so decision D9's suppression is a deliberate
+  message-quality choice rather than a workaround for uncertain rustc
+  behaviour. Decision D10's documented opt-out works as promised.
+- Observation (EP-M0 operations, 2026-11-27): the nested-fixture fingerprint
+  hashes `Cargo.toml`, `Cargo.lock`, `crates/`, and `vendor/`, so *any* edit
+  under `crates/` — including writing a new `trybuild` `.stderr` file — makes
+  every harness family's stamp stale. A `TRYBUILD=overwrite` run for one suite
+  therefore invalidates the other suite's stamp. Impact: batch fixture edits,
+  then prepare once, then run each suite; do not interleave snapshot writes
+  with a second suite's run.
 
 ## Decision log
 
@@ -622,6 +660,49 @@ earlier one, the earlier entry says so.
   select `--profile local`, whose longer limits let `make test` finish on a
   loaded development host; CI keeps the default profile. Date/Author:
   2026-11-26 / Claude.
+- Decision D29 (EP-M0): the W003 fixture is hosted by the GPUI suite, and
+  `rstest-bdd-harness-tokio` becomes a dev-dependency of
+  `rstest-bdd-harness-gpui` — C10's single permitted manifest change. Rationale:
+  a fixture that names both adapter crates needs both in the generated
+  `trybuild` crate's dependency graph, which `trybuild` builds from the source
+  manifest's dependencies and dev-dependencies. The GPUI suite already pays for
+  GPUI; adding the Tokio harness is the cheap direction, and experiment 1
+  confirmed it produces no unrelated errors. Date/Author: 2026-11-27 / Claude.
+- Decision D30 (EP-M0): W003's "remove `attributes`" fix is modelled as the
+  composite `attributes := Absent; harness := canon(harness)`, and its message
+  says so when the harness path is non-canonical. Rationale: with a
+  non-canonical harness (`Evidenced`), removing `attributes` alone lands
+  squarely in W002's antecedent, so the fix would *introduce* a finding and
+  falsify `LEM-FIX-CONVERGES`. Working the lemma over the model found this
+  while implementing the obligation; the composite is the union of the two
+  fixes the user is already being told to make. For a recognized harness or
+  the alias, `canon` is the identity and the wording is the drafted
+  "Remove `attributes = ...`". Date/Author: 2026-11-27 / Claude.
+- Decision D31 (EP-M0, refines D11): `has_user_test_attr` arrives in EP-M2, and
+  every "was not applied" claim — W001's attribute clause and W002 in its
+  entirety — additionally requires `!has_user_test_attr`. Rationale: the model
+  computes emitted attributes from the resolved policy, while the real code
+  generator drops an attribute the user already wrote. Without this conjunct, a
+  user who writes `#[gpui::test]` by hand beside a non-canonical GPUI harness
+  would be told the attribute "was not applied" when it is present, violating
+  `LEM-CONSEQUENCE-TRUE`. One flag is deliberately conservative: it silences
+  the claim whenever *any* executor attribute is user-written, rather than
+  growing a per-framework pair the plan does not need. Date/Author: 2026-11-27 /
+  Claude.
+- Decision D32 (EP-M0, corrects `LEM-CARDINALITY`'s non-vacuity witness): the
+  three-warning witness is `W001(harness) + W001(attributes) + W003`, not the
+  plan's `W001(attributes) + W002 + W003`. Rationale: W002 requires
+  `attributes = Absent` and W003 requires `family(attributes)` to be defined,
+  so no state can carry both; the drafted witness is unrepresentable. The
+  replacement exists (non-canonical harness and non-canonical, conflicting
+  policy) and pins the same three-marker count. Date/Author: 2026-11-27 /
+  Claude.
+- Decision D33 (EP-M0): E002's acceptance is "one accurate error spanned at the
+  harness path, replacing today's message", not "fewer errors". Rationale:
+  experiment 2 showed rustc already collapses the identical per-scenario
+  `compile_error!` diagnostics into one, so the observable defect is the
+  message and span, not the count. `LEM-ERR-REPLACES` is unaffected: the
+  program still fails to compile today. Date/Author: 2026-11-27 / Claude.
 
 ## Outcomes & retrospective
 
@@ -1103,9 +1184,11 @@ independently falsifiable.
   generates. Method: the fixed-shape record makes duplication unrepresentable.
   Boundary behaviour is checked by extending
   `codegen/scenario/tests/adapter_sharing.rs` marker counts to the new marker
-  structs, using a two-scenario feature. Non-vacuity: a witness that reaches
-  W001(attributes), W002, and W003 together is asserted to emit exactly three
-  markers.
+  structs, using a two-scenario feature. Non-vacuity: three markers come from
+  the witness that carries a non-canonical, conflicting policy *and* a
+  non-canonical harness — `W001(harness) + W001(attributes) + W003` — because
+  W002 requires `attributes = Absent` and so can never co-occur with W003
+  (decision D32).
 - Obligation `LEM-FIX-CONVERGES` (`REQ-FIX`): for every state `c`, every
   finding `d` of `c`, and every fix `φ` suggested for `d`: `d` is not a finding
   of `φ(c)`, and the findings of `φ(c)` are a subset of the findings of `c`
@@ -1429,7 +1512,8 @@ Green:
   - the fixtures pass;
   - the existing GPUI and Tokio `*_override_default.rs` fixtures are
     unchanged;
-  - the E002 fixture shows one error, not one per scenario.
+  - the E002 fixture shows exactly one `rstest-bdd[E002]` error spanned at the
+    harness path, and no "combining `harness` with `async fn`" text (D33).
 - Conformance check:
   - REQ-AMB is satisfied;
   - the precedence order is unchanged (C4);
@@ -1776,9 +1860,49 @@ none of the plan's effort tolerances.
   and the published-GPUI end-to-end fixture, so Risk R4 stands: the native
   warning channel is verified locally only.
 
+### EP-M0 experiment transcripts (2026-11-27)
+
+Each experiment was a throwaway fixture registered in the existing timed test,
+run with `TRYBUILD=overwrite` under `make nextest-run`, then deleted together
+with its `.stderr`. The logs are `/tmp/epm0-exp-tokio6.out`,
+`/tmp/epm0-exp-gpui2.out`, and `/tmp/epm0-exp-prepare*.out`.
+
+1. Fixture host: `zz_epm0_w003_host.rs` in the GPUI suite, with
+   `rstest-bdd-harness-tokio` added to that crate's dev-dependencies. Its
+   stderr was the sentinel alone:
+
+   ```plaintext
+   error: epm0 w003 sentinel
+     --> tests/fixtures_macros/zz_epm0_w003_host.rs:27:1
+   ```
+
+   The suite reported `Summary [...] 3 tests run: 3 passed, 1 skipped`.
+
+2. `AX-EXISTING-REJECT`: `scenarios!` with
+   `runtime = "tokio-current-thread"` plus
+   `harness = rstest_bdd_harness_tokio::TokioHarness` over the two-scenario
+   `scenarios_multi_fallback.feature` produced exactly one error:
+
+   ```plaintext
+   error: combining `harness` with `async fn` scenarios is not supported; use a
+   synchronous scenario function with `TokioHarness` instead (the harness
+   provides the Tokio runtime for step functions)
+     --> tests/fixtures_macros/zz_epm0_alias_with_harness.rs:18:1
+   ```
+
+   (The compiler prints that message on one line; it is wrapped here only to
+   satisfy the documentation line limit.)
+
+   The token stream holds one such error per generated scenario; all share the
+   call-site span and text, so rustc collapses them (D33).
+
+3. Channel behaviour: the expansion carrying both `compile_error!("epm0
+   sentinel")` and the generated marker, under `#![deny(deprecated)]`,
+   reported both. The module-level opt-out fixture compiled and passed under
+   the same crate-level deny.
+
 To be filled during implementation:
 
-- the EP-M0 experiment transcripts;
 - red and green transcripts per milestone;
 - nightly transcripts with the toolchain version;
 - seeded-fault diffs and the tests that reject them;
