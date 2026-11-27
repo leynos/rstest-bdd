@@ -5,10 +5,10 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: APPROVED (2026-11-26). Revised after community-of-experts review;
-observations re-verified against `origin/main` at `0df7fbec` on 2026-11-24;
-restacked on pull request #986 at `5dbc2fb5`, over `main` at `6308b9af`, on
-2026-11-26. Implementation started 2026-11-26.
+Status: IN PROGRESS (EP-M0). Approved 2026-11-26; implementation started the
+same day. Revised after community-of-experts review; observations re-verified
+against `origin/main` at `0df7fbec` on 2026-11-24; restacked on pull request
+986 at `5dbc2fb5`, over `main` at `6308b9af`, on 2026-11-26.
 
 Approval: approved by the user on 2026-11-26, who instructed implementation to
 begin and to carry the pull request through babysitting to equilibrium.
@@ -1742,14 +1742,47 @@ print(len(rows), "non-first-party harness uses;", rows.count(False), "without at
 EOF
 ```
 
+### EP-M0 baselines (recorded 2026-11-27 at `b55bd2c1`)
+
+All figures below were measured on this development host with the shared
+compile-admission pool roughly 120 to 200 requests deep, so they are
+*contended-host* figures. Time spent waiting for a compile slot counts against
+none of the plan's effort tolerances.
+
+- `make test` (three processes: attempt 2's first pass and doctests, then a
+  resumed second pass and trailing steps; every step exited 0, and the working
+  tree was clean at every checkpoint with `HEAD` unmoved):
+  - preparation lane: 7 tests run, 7 passed, 2592 skipped;
+  - first nextest pass (`--workspace --all-targets --all-features`): 2592
+    tests run, 2592 passed, 7 skipped, 3782.750 s;
+  - doctests: 180 passed, 0 failed;
+  - second-leg preparation: 3 run, 3 passed, 842 skipped;
+  - second nextest pass (`-p rstest-bdd --all-targets
+    --no-default-features`): 838 run, 838 passed, 7 skipped, 3487.356 s;
+  - `make check-fixture-lockfiles`: 7 fixture lockfiles up to date;
+  - `pytest scripts/tests`: 398 passed.
+- warm (contended) `macro_compile` wall-clock, which is the test-cost
+  tolerance's baseline:
+  - Tokio: 408.080 s total; fixture compilation 400.384 s, snapshot assertions
+    0.017 s;
+  - GPUI: 610.290 s total; fixture compilation 607.355 s, snapshot assertions
+    0.017 s.
+- current stderr of `scenario_default_policy_async_no_harness_rejected`: one
+  `rstest` error whose text is "async test requires either explicit
+  `test_attr` or implicit (attribute path ends with `test`)", spanned at the
+  generated function name.
+- CI lane list (`.github/workflows/ci.yml`): one stable Linux lane and two
+  stable Windows lanes. A nightly toolchain is installed only for `rustfmt`
+  and the published-GPUI end-to-end fixture, so Risk R4 stands: the native
+  warning channel is verified locally only.
+
 To be filled during implementation:
 
-- the EP-M0 baselines and experiment transcripts;
+- the EP-M0 experiment transcripts;
 - red and green transcripts per milestone;
 - nightly transcripts with the toolchain version;
 - seeded-fault diffs and the tests that reject them;
-- generator seeds;
-- warm suite durations.
+- generator seeds.
 
 ## Interfaces and dependencies
 
