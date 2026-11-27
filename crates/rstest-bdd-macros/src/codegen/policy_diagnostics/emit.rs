@@ -9,18 +9,22 @@
 //! This module is not `codegen::scenario::emit`, which assembles the generated
 //! test item; this one owns only diagnostic rendering.
 
-use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
+#[cfg(not(rstest_bdd_nightly))]
+use proc_macro2::Ident;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 
 /// The stable marker a rendered warning uses.
 ///
 /// The marker name is the first thing a user reads in the compiler output, so
 /// each code gets a headline of its own rather than a shared name.
+#[cfg(not(rstest_bdd_nightly))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Marker {
     /// W001, the non-canonical first-party path.
     UnrecognizedAdapterPath,
 }
 
+#[cfg(not(rstest_bdd_nightly))]
 impl Marker {
     /// The private generated struct that carries the deprecated note.
     ///
@@ -41,6 +45,7 @@ pub(crate) struct RenderedWarning {
     /// The span the warning points at.
     pub(crate) span: Span,
     /// The stable marker this warning uses.
+    #[cfg(not(rstest_bdd_nightly))]
     pub(crate) marker: Marker,
 }
 

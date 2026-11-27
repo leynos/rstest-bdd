@@ -29,6 +29,8 @@ mod tests;
 
 use proc_macro2::{Span, TokenStream as TokenStream2};
 
+#[cfg(not(rstest_bdd_nightly))]
+use self::emit::Marker;
 #[cfg(test)]
 pub(crate) use self::model::Framework;
 pub(crate) use self::{
@@ -37,7 +39,7 @@ pub(crate) use self::{
     resolution::selected_hint,
 };
 use self::{
-    emit::{Marker, RenderedWarning},
+    emit::RenderedWarning,
     model::{PolicyInputs, diagnose},
 };
 use crate::codegen::{HarnessApiResolution, resolve_harness_api_with};
@@ -207,6 +209,7 @@ fn evidenced_warning(class: SlotClass, span: Option<Span>) -> Option<RenderedWar
     Some(RenderedWarning {
         message: message::unrecognized_adapter_path(framework),
         span: span?,
+        #[cfg(not(rstest_bdd_nightly))]
         marker: Marker::UnrecognizedAdapterPath,
     })
 }
