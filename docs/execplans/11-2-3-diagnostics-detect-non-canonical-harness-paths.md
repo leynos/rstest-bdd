@@ -788,6 +788,20 @@ earlier one, the earlier entry says so.
   method made five single-segment-import tests and two `harness_defaults` cases
   recognize imports that the real macros cannot, which the unit suite caught.
   Date/Author: 2026-11-27 / Claude.
+- Decision D44 (post-implementation review): CodeScene's findings on the new
+  code were answered by decomposition, not suppression: `PolicyInputs` rebuilds
+  from one `Parts` record, the wording matrix is built per slot, the
+  suggested-path check records through a named accumulator, and the codegen
+  test helpers take a parsed `TestPath` and a crate spec instead of bare
+  strings. The wording snapshot changed only in section order. Date/Author:
+  2026-11-27 / Claude.
+- Decision D45 (post-implementation review): the GPUI adapter's new
+  dev-dependency on the Tokio adapter is patched during packaged-fixture
+  staging. Cargo resolves a package's dev-dependencies while preparing it, even
+  though they are stripped from the published manifest, so packaging the
+  adapter failed until `PUBLISHED_GPUI_E2E_PACKAGE_PATCHES` included the crate.
+  It is patched for resolution but stays out of the packaged set, because the
+  fixture does not depend on it. Date/Author: 2026-11-27 / Claude.
 - Decision D43 (EP-M4): `PolicyInputs` moves to `inputs.rs` when the model
   module reached 412 lines. Rationale: C7's module-length gate again, split
   along the seam between "what the boundary knows" and "what the decision
