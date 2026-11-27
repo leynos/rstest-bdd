@@ -130,19 +130,37 @@ fn segment_names(path: &syn::Path) -> Vec<String> {
 
 /// The framework a path evidences, when it evidences one.
 ///
-/// Today's rule is deliberately narrow: the adapter crate identifier must be
-/// the segment immediately before the adapter type, and the crate must be a
-/// direct dependency. A path that merely ends in `TokioHarness` is a custom
-/// type (ADR-0017).
+/// Evidence needs three things together: the adapter type name in the final
+/// position, the crate's identifier somewhere below the root, and the crate
+/// resolvable as a direct dependency. A path that merely ends in
+/// `TokioHarness` is a custom type (ADR-0017), and a canonical root is
+/// recognition rather than evidence, so it never reaches this function.
 fn evidence_framework(path: &syn::Path, resolver: &dyn CrateResolver) -> Option<Framework> {
     [Framework::Tokio, Framework::Gpui]
         .into_iter()
         .find(|framework| {
             let spec = adapter_spec(*framework);
             path_last_ident_matches(path, spec.adapter_type_names)
-                && penultimate_ident_matches(path, spec.default_crate_name)
+                && crate_identifier_below_root(path, spec, resolver)
                 && resolver.is_direct_dependency(spec.package_name)
         })
+}
+
+/// Whether the adapter crate's identifier appears anywhere below the root.
+///
+/// Both spellings count: the canonical crate identifier, and — for a renamed
+/// dependency — the root identifier Cargo resolved it to, so a nested path
+/// such as `a::tok::TokioHarness` still carries evidence.
+fn crate_identifier_below_root(
+    path: &syn::Path,
+    spec: &CrateSpec,
+    resolver: &dyn CrateResolver,
+) -> bool {
+    let renamed = resolver.resolved_root(spec.package_name);
+    path.segments.iter().skip(1).any(|segment| {
+        segment.ident == spec.default_crate_name
+            || renamed.as_ref().is_some_and(|root| segment.ident == *root)
+    })
 }
 
 /// The crate specification for a framework.
@@ -151,13 +169,4 @@ pub(super) fn adapter_spec(framework: Framework) -> &'static CrateSpec {
         Framework::Tokio => &TOKIO_HARNESS,
         Framework::Gpui => &GPUI_HARNESS,
     }
-}
-
-/// Whether a path's penultimate segment is the expected crate identifier.
-fn penultimate_ident_matches(path: &syn::Path, expected: &str) -> bool {
-    let mut segments = path.segments.iter().rev();
-    let _adapter_type = segments.next();
-    segments
-        .next()
-        .is_some_and(|segment| segment.ident == expected)
 }

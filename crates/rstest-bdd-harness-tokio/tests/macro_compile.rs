@@ -43,6 +43,7 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         "tests/fixtures_macros/scenario_custom_tokio_harness_name.rs",
         "tests/fixtures_macros/scenarios_attributes_tokio.rs",
         "tests/fixtures_macros/scenarios_harness_tokio_default.rs",
+        "tests/fixtures_macros/policy_opt_out.rs",
     ] {
         tests.pass(case);
     }
@@ -65,6 +66,7 @@ fn compile_fail_stable_fallback_warnings(tests: &trybuild::TestCases) {
         "tests/fixtures_macros/scenarios_attributes_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenarios_multi_scenario_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenarios_combined_alias_fallback_warning.rs",
+        "tests/fixtures_macros/policy_w001_noncanonical.rs",
     ] {
         tests.compile_fail(case);
     }

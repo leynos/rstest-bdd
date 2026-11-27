@@ -1,4 +1,4 @@
-//! Exhaustive enumeration of the W001 state space.
+//! Exhaustive enumeration of the W001 and W002 state space.
 //!
 //! The properties here are stated over the classified slots rather than over
 //! the clauses of `diagnose`, so they constrain the implementation instead of
@@ -9,12 +9,12 @@
 use rstest_bdd_policy::TestAttributeHint;
 
 use super::super::{
-    model::{Framework, PolicyInputs, SlotClass, diagnose, has_evidence},
-    resolution::selected_hint,
+    model::{Framework, PolicyFindings, PolicyInputs, SlotClass, diagnose, has_evidence},
+    resolution::{emitted_attributes, selected_hint},
 };
 
 /// Every slot class the classifier can produce.
-const CLASSES: [SlotClass; 7] = [
+pub(super) const CLASSES: [SlotClass; 7] = [
     SlotClass::Absent,
     SlotClass::Recognized(TestAttributeHint::RstestOnly),
     SlotClass::Recognized(TestAttributeHint::RstestWithTokioCurrentThread),
@@ -30,7 +30,7 @@ const FRAMEWORKS: [Framework; 2] = [Framework::Tokio, Framework::Gpui];
 /// Name one slot class for failure messages.
 ///
 /// The match is exhaustive on purpose; see the module documentation.
-fn class_name(class: SlotClass) -> &'static str {
+pub(super) fn class_name(class: SlotClass) -> &'static str {
     match class {
         SlotClass::Absent => "absent",
         SlotClass::Recognized(hint) => match hint {
@@ -53,17 +53,50 @@ fn framework_name(framework: Framework) -> &'static str {
     }
 }
 
-/// Every classified input pair, in a stable order.
-fn all_inputs() -> Vec<PolicyInputs> {
+/// Every classified `#[scenario]` input.
+fn scenario_inputs() -> Vec<PolicyInputs> {
     CLASSES
         .iter()
         .flat_map(|&harness| {
-            CLASSES.iter().map(move |&attributes| PolicyInputs {
-                harness,
-                attributes,
+            CLASSES.iter().flat_map(move |&attributes| {
+                [false, true].into_iter().flat_map(move |is_async| {
+                    [false, true].into_iter().map(move |has_user_test_attr| {
+                        PolicyInputs::Scenario {
+                            harness,
+                            attributes,
+                            is_async,
+                            has_user_test_attr,
+                        }
+                    })
+                })
             })
         })
         .collect()
+}
+
+/// Every classified `scenarios!` input.
+fn scenarios_inputs() -> Vec<PolicyInputs> {
+    CLASSES
+        .iter()
+        .flat_map(|&harness| {
+            CLASSES.iter().flat_map(move |&attributes| {
+                [false, true]
+                    .into_iter()
+                    .map(move |runtime_alias| PolicyInputs::Scenarios {
+                        harness,
+                        attributes,
+                        runtime_alias,
+                    })
+            })
+        })
+        .collect()
+}
+
+/// Every classified input, in a stable order.
+pub(super) fn all_inputs() -> Vec<PolicyInputs> {
+    let mut inputs = scenario_inputs();
+    inputs.extend(scenarios_inputs());
+    inputs
 }
 
 #[test]
@@ -88,7 +121,7 @@ fn the_model_covers_every_variant_at_least_once() {
 }
 
 #[test]
-fn the_w001_state_space_holds_forty_nine_distinct_states() {
+fn the_state_space_holds_two_hundred_and_ninety_four_distinct_states() {
     let inputs = all_inputs();
     let mut distinct: Vec<PolicyInputs> = Vec::new();
     for input in &inputs {
@@ -98,22 +131,28 @@ fn the_w001_state_space_holds_forty_nine_distinct_states() {
     }
 
     assert_eq!(
-        inputs.len(),
-        49,
-        "seven harness classes by seven attributes classes is 49 states"
+        scenario_inputs().len(),
+        196,
+        "seven classes by seven classes by two signature shapes by two attribute states"
     );
     assert_eq!(
+        scenarios_inputs().len(),
+        98,
+        "seven classes by seven classes by two alias states"
+    );
+    assert_eq!(inputs.len(), 294, "the domain is the sum of both shapes");
+    assert_eq!(
         distinct.len(),
-        49,
-        "the enumerator must yield 49 distinct states, not 49 yielded values"
+        294,
+        "the enumerator must yield 294 distinct states, not 294 yielded values"
     );
 }
 
 #[test]
-fn no_evidenced_slot_means_no_finding() {
+fn no_evidenced_slot_and_no_framework_conflict_means_no_finding() {
     let silent: Vec<PolicyInputs> = all_inputs()
         .into_iter()
-        .filter(|inputs| !has_evidence(inputs.harness) && !has_evidence(inputs.attributes))
+        .filter(|inputs| !has_evidence(inputs.harness()) && !has_evidence(inputs.attributes()))
         .collect();
 
     assert!(
@@ -122,25 +161,27 @@ fn no_evidenced_slot_means_no_finding() {
     );
     for inputs in silent {
         let findings = diagnose(inputs);
-        assert!(
-            !findings.harness_unrecognized_path && !findings.attributes_unrecognized_path,
+        assert_eq!(
+            findings,
+            PolicyFindings::default(),
             "no evidenced slot may warn: {} / {} -> {findings:?}",
-            class_name(inputs.harness),
-            class_name(inputs.attributes)
+            class_name(inputs.harness()),
+            class_name(inputs.attributes())
         );
     }
 }
 
 #[test]
-fn each_slot_contributes_at_most_one_finding() {
+fn each_slot_contributes_at_most_one_rendered_finding() {
     let mut none = 0_usize;
     let mut one = 0_usize;
     let mut two = 0_usize;
     for inputs in all_inputs() {
         let findings = diagnose(inputs);
-        let count = usize::from(findings.harness_unrecognized_path)
-            + usize::from(findings.attributes_unrecognized_path);
-        match count {
+        let harness_slot = findings.missing_attribute_policy || findings.harness_unrecognized_path;
+        let rendered =
+            usize::from(harness_slot) + usize::from(findings.attributes_unrecognized_path);
+        match rendered {
             0 => none += 1,
             1 => one += 1,
             _ => two += 1,
@@ -149,20 +190,70 @@ fn each_slot_contributes_at_most_one_finding() {
 
     assert!(
         none > 0 && one > 0 && two > 0,
-        "every finding count must be reachable, got none={none}, one={one}, two={two}"
+        "every rendered count must be reachable, got none={none}, one={one}, two={two}"
+    );
+}
+
+/// W002 must be a *strict* addition, not a swap between frameworks.
+#[test]
+fn a_replaced_framework_attribute_is_not_a_missing_policy() {
+    let inputs = PolicyInputs::Scenario {
+        harness: SlotClass::Evidenced(Framework::Gpui),
+        attributes: SlotClass::Absent,
+        is_async: true,
+        has_user_test_attr: false,
+    };
+
+    assert!(
+        !diagnose(inputs).missing_attribute_policy,
+        "an async GPUI harness replaces the Tokio attribute rather than losing one"
+    );
+    assert!(
+        diagnose(inputs).harness_unrecognized_path,
+        "the non-canonical harness is still reported as W001"
+    );
+}
+
+#[test]
+fn a_user_executor_attribute_suppresses_the_missing_policy_claim() {
+    let base = PolicyInputs::Scenario {
+        harness: SlotClass::Evidenced(Framework::Gpui),
+        attributes: SlotClass::Absent,
+        is_async: false,
+        has_user_test_attr: false,
+    };
+    let PolicyInputs::Scenario {
+        harness,
+        attributes,
+        is_async,
+        ..
+    } = base
+    else {
+        panic!("the base state is a scenario state");
+    };
+    let with_user_attr = PolicyInputs::Scenario {
+        harness,
+        attributes,
+        is_async,
+        has_user_test_attr: true,
+    };
+
+    assert!(
+        diagnose(base).missing_attribute_policy,
+        "the base state loses the GPUI attribute"
+    );
+    assert!(
+        !diagnose(with_user_attr).missing_attribute_policy,
+        "a user-written executor attribute makes the claim false, so it is suppressed"
     );
 }
 
 #[test]
 fn evidence_alone_selects_the_runtime_fallback() {
     for framework in FRAMEWORKS {
-        let inputs = PolicyInputs {
-            harness: SlotClass::Evidenced(framework),
-            attributes: SlotClass::Absent,
-        };
         let hint = selected_hint(
-            inputs.harness,
-            inputs.attributes,
+            SlotClass::Evidenced(framework),
+            SlotClass::Absent,
             rstest_bdd_policy::RuntimeMode::Sync,
         );
 
@@ -171,6 +262,24 @@ fn evidence_alone_selects_the_runtime_fallback() {
             TestAttributeHint::RstestOnly,
             "an evidenced {} harness selects no attribute of its own",
             framework_name(framework)
+        );
+    }
+}
+
+#[test]
+fn a_missing_policy_always_means_a_strictly_larger_canonical_set() {
+    for inputs in all_inputs() {
+        if !diagnose(inputs).missing_attribute_policy {
+            continue;
+        }
+        let SlotClass::Evidenced(framework) = inputs.harness() else {
+            panic!("W002 requires an evidenced harness");
+        };
+        let canonical = inputs.with_harness(SlotClass::Recognized(framework.into()));
+
+        assert!(
+            emitted_attributes(canonical).is_strict_superset_of(emitted_attributes(inputs)),
+            "W002 must hold only where canonicalizing strictly adds an attribute"
         );
     }
 }

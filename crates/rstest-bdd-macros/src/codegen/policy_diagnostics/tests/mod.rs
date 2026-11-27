@@ -5,5 +5,8 @@
 //! enumerator's asserted state count (decision D19), which keeps a field from
 //! being introduced without a property that reads it.
 
+mod classify_props;
+mod convergence;
 mod enumerator;
 mod messages;
+mod wording;

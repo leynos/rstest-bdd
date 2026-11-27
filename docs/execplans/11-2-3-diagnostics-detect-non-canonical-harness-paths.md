@@ -273,7 +273,22 @@ conflict in `Decision log`, and escalate.
   `CrateResolver`. Every fixture, `.stderr`, macrotest snapshot and
   `harness_defaults` case is unchanged, and both harness `macro_compile` suites
   pass against the untouched snapshots (D34 to D36).
-- [ ] EP-M2: W001 and W002 (non-canonical paths and missing policy).
+- [x] (2026-11-27) EP-M1 gates green at `e0f8cfec`: `make check-fmt` (exit 0),
+  `make lint` (all 11 steps, exit 0, including Clippy, rustdoc, Whitaker and
+  the seven script checks), `make typecheck` (exit 0) and `make test` (exit 0:
+  2598 and 838 nextest cases passed, doctests 180 passed, 7 fixture lockfiles
+  current, pytest 398 passed). Windows CI is left to the pull request's hosted
+  lanes.
+- [x] (2026-11-27) EP-M2 implemented: W001 and W002. The classifier's
+  evidence rule widens to any non-root crate identifier, the model gains the
+  two shape variants and W002, and both channels render the same code-prefixed
+  text. Fixtures: `policy_w001_noncanonical` (two W001 blocks, no attribute
+  claim), `policy_w002_missing_policy` (W002 plus the W001 attribute
+  consequence), `policy_opt_out` (`pass`, the documented opt-out). The nine
+  existing `.stderr` files were regenerated on stable and on
+  `nightly-2026-08-16` (D37 to D39).
+- [ ] EP-M2 gates: `make check-fmt`, `make lint`, `make typecheck`,
+  `make test` at the EP-M2 commit.
 - [ ] EP-M3: W003 and E002 (ambiguous selectors).
 - [ ] EP-M4: E001 (missing executor).
 - [ ] EP-M5: behavioural scenarios for silence and suggested fixes.
@@ -731,7 +746,29 @@ earlier one, the earlier entry says so.
   had (`try_resolve_crate_path` was real Cargo state, while
   `fallback_crate_is_resolvable` was forced true). Collapsing them into one
   method made five single-segment-import tests and two `harness_defaults` cases
-  recognise imports that the real macros cannot, which the unit suite caught.
+  recognize imports that the real macros cannot, which the unit suite caught.
+  Date/Author: 2026-11-27 / Claude.
+- Decision D37 (EP-M2): a suggested canonical path renders the *written*
+  terminal type under the resolver's root, rather than a fixed first-party type
+  name. Rationale: it keeps the suggestion exact for a path that named, say,
+  `TokioAttributePolicy` in the `harness` slot, and `LEM-FIX-CANONICAL` is
+  pinned by extracting every backticked path from the rendered messages and
+  classifying it under the default and renamed resolvers. The plan's "(for
+  W001) unresolvable-adapter resolver" row is unreachable: evidence requires
+  the adapter crate to be resolvable, so W001 cannot fire without one. The
+  unresolvable case is covered instead by `classify_props`. Date/Author:
+  2026-11-27 / Claude.
+- Decision D38 (EP-M2): the exhaustive wording matrix is an `insta` file
+  snapshot (`wording_matrix`), not one assertion per message. Rationale:
+  diagnostics are user-visible text with a stable contract, which is what
+  snapshots are for (AGENTS.md), and the matrix covers code, slot, framework,
+  signature shape, user-attribute suppression and a renamed resolver in one
+  reviewable artefact. `trybuild` still pins one representative per channel and
+  the spans. Date/Author: 2026-11-27 / Claude.
+- Decision D39 (EP-M2): W002 keeps the plan's draft text and does not repeat
+  W001's base-harness-API clause; W001 always states it. Rationale: W002's
+  finding is the lost policy, and its own second fix already has to explain
+  that W001 survives, so repeating the fallback would bury the remedies.
   Date/Author: 2026-11-27 / Claude.
 - Decision D36 (EP-M1): the boundary type is constructed by `for_scenario`,
   `for_scenarios`, or `resolve_api`, rather than by a public `resolve`. The
@@ -1941,6 +1978,11 @@ To be filled during implementation:
 
 - red and green transcripts per milestone;
 - nightly transcripts with the toolchain version;
+- EP-M2 snapshot regeneration: stable runs repaired the six stable markers and
+  created `policy_w001_noncanonical.stderr` and
+  `policy_w002_missing_policy.stderr`; `nightly-2026-08-16` runs repaired the
+  three nightly `.stderr` files, and the native warnings carry the same codes
+  and text as the stable markers;
 - seeded-fault diffs and the tests that reject them;
 - generator seeds.
 

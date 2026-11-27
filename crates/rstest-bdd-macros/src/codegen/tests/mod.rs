@@ -113,7 +113,8 @@ fn pure_resolution_selects_path_and_diagnostic_state(
     let adapter_path = parse_path(adapter_path);
     let resolution = resolve_harness_api(&adapter_path);
     let findings =
-        super::SharedPolicyDiagnostics::for_scenario(Some(&adapter_path), None).findings();
+        super::SharedPolicyDiagnostics::for_scenario(Some(&adapter_path), None, false, false)
+            .findings();
 
     assert_eq!(resolution.api_path.to_string(), expected_path);
     assert_eq!(

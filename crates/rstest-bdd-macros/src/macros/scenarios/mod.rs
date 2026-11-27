@@ -329,6 +329,7 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
         harness.as_ref(),
         effective_harness.as_ref(),
         attributes.as_ref(),
+        runtime_compatibility_alias(runtime).is_some(),
     );
     let scope = library_scope_tokens(libraries.as_deref());
     let library_validation_names = libraries.as_deref().map(library_validation_names);

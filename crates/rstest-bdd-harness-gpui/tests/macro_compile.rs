@@ -56,6 +56,7 @@ fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
 #[rustversion::not(nightly)]
 fn compile_fail_stable_fallback_warning(tests: &trybuild::TestCases) {
     tests.compile_fail("tests/fixtures_macros/scenario_harness_gpui_alias_fallback_warning.rs");
+    tests.compile_fail("tests/fixtures_macros/policy_w002_missing_policy.rs");
 }
 
 #[rustversion::nightly]

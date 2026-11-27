@@ -22,18 +22,22 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 pub(crate) enum Marker {
     /// W001, the non-canonical first-party path.
     UnrecognizedAdapterPath,
+    /// W002, the evidenced harness path with no attribute policy.
+    MissingAttributePolicy,
 }
 
 #[cfg(not(rstest_bdd_nightly))]
 impl Marker {
     /// The private generated struct that carries the deprecated note.
     ///
-    /// This name is the pre-existing ADR-0017 one while the module is
-    /// extracted; a later milestone gives each code its own headline.
+    /// Each code gets its own headline because the name is the first thing a
+    /// user reads after the words "use of deprecated unit struct".
     fn struct_ident(self, span: Span) -> Ident {
-        match self {
-            Self::UnrecognizedAdapterPath => Ident::new("RstestBddFirstPartyAdapterFallback", span),
-        }
+        let name = match self {
+            Self::UnrecognizedAdapterPath => "RstestBddUnrecognizedAdapterPath",
+            Self::MissingAttributePolicy => "RstestBddMissingAttributePolicy",
+        };
+        Ident::new(name, span)
     }
 }
 

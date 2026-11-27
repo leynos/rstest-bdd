@@ -20,7 +20,9 @@ use super::{
 };
 use crate::codegen::SharedPolicyDiagnostics;
 
-const MARKER: &str = "struct RstestBddFirstPartyAdapterFallback";
+// Every diagnostic marker shares this prefix, so the counts below stay
+// correct as codes gain their own headline names.
+const MARKER: &str = "struct RstestBdd";
 
 /// A path reaching the adapter crate through a local re-export, so first-party
 /// detection cannot match it and the fallback qualifies.
@@ -86,7 +88,7 @@ fn scenario_output_with_shared_resolutions(
 #[test]
 fn boundary_emits_one_diagnostic_per_qualifying_path() {
     let harness = aliased_harness();
-    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, false, false);
 
     assert_eq!(
         marker_count(&resolutions.emit_diagnostics()),
@@ -100,7 +102,8 @@ fn boundary_emits_one_diagnostic_per_qualifying_path() {
 fn boundary_emits_two_diagnostics_for_combined_harness_and_attributes() {
     let harness = aliased_harness();
     let attributes = aliased_attributes();
-    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), Some(&attributes));
+    let resolutions =
+        SharedPolicyDiagnostics::for_scenario(Some(&harness), Some(&attributes), false, false);
 
     assert_eq!(
         marker_count(&resolutions.emit_diagnostics()),
@@ -114,7 +117,7 @@ fn boundary_emits_two_diagnostics_for_combined_harness_and_attributes() {
 #[test]
 fn scenario_generated_from_shared_resolution_emits_no_diagnostic() {
     let harness = aliased_harness();
-    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, false, false);
 
     let output = scenario_output_with_shared_resolutions(Some(&harness), &resolutions);
 
@@ -130,7 +133,7 @@ fn scenario_generated_from_shared_resolution_emits_no_diagnostic() {
 #[test]
 fn canonical_path_yields_no_diagnostic() {
     let harness: syn::Path = syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness);
-    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, false, false);
 
     assert_eq!(
         marker_count(&resolutions.emit_diagnostics()),

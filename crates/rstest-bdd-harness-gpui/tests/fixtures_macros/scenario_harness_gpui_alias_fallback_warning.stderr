@@ -1,4 +1,4 @@
-error: use of deprecated unit struct `_::RstestBddFirstPartyAdapterFallback`: rstest-bdd could not identify this harness or attribute-policy path as a first-party adapter; falling back to `rstest-bdd-harness` for base harness API types. Use the canonical crate-root path, ensure `rstest-bdd-harness-gpui` is directly resolvable as `rstest_bdd_harness_gpui`, or add `rstest-bdd-harness` as a direct dev-dependency.
+error: use of deprecated unit struct `_::RstestBddMissingAttributePolicy`: rstest-bdd[W002]: no attribute policy could be inferred from this harness path and `#[gpui::test]` was not applied. Write `rstest_bdd_harness_gpui::GpuiHarness`, or add `attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy` (which restores the attribute but leaves warning W001 for the harness path).
   --> tests/fixtures_macros/scenario_harness_gpui_alias_fallback_warning.rs:26:47
    |
 26 |     harness = alias::rstest_bdd_harness_gpui::GpuiHarness,

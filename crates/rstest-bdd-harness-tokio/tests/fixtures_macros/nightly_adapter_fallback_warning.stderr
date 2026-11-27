@@ -1,4 +1,4 @@
-warning: rstest-bdd could not identify this harness or attribute-policy path as a first-party adapter; falling back to `rstest-bdd-harness` for base harness API types. Use the canonical crate-root path, ensure `rstest-bdd-harness-tokio` is directly resolvable as `rstest_bdd_harness_tokio`, or add `rstest-bdd-harness` as a direct dev-dependency.
+warning: rstest-bdd[W001]: this path was not recognized as the first-party `TokioHarness`, so base harness API types were used. Write `rstest_bdd_harness_tokio::TokioHarness`.
   --> tests/fixtures_macros/nightly_adapter_fallback_warning.rs:23:48
    |
 23 |     harness = alias::rstest_bdd_harness_tokio::TokioHarness,

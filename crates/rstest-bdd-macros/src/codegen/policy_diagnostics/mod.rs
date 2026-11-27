@@ -8,10 +8,11 @@
 //!
 //! This module owns that diagnosis end to end. A boundary supplies the paths
 //! it was given, [`classify`](classify) turns each into a [`SlotClass`],
-//! [`diagnose`](model::diagnose) decides the findings, and [`emit`] renders
-//! them. Resolution is pure and side-effect free: only the owning boundary
-//! calls [`SharedPolicyDiagnostics::emit_diagnostics`], and `scenarios!` calls
-//! it once however many tests it generates, so the cardinality contract is
+//! [`diagnose`](model::diagnose) decides the findings, and the renderer turns
+//! them into warnings carrying a stable code and a fix. Resolution is pure and
+//! side-effect free: only the owning boundary calls
+//! [`SharedPolicyDiagnostics::emit_diagnostics`], and `scenarios!` calls it
+//! once however many tests it generates, so the cardinality contract is
 //! structural rather than counted.
 //!
 //! The module is deliberately separate from `codegen::scenario::emit`, which
@@ -27,20 +28,19 @@ mod resolution;
 #[path = "tests/mod.rs"]
 mod tests;
 
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::{Ident, TokenStream as TokenStream2};
 
 #[cfg(not(rstest_bdd_nightly))]
 use self::emit::Marker;
-#[cfg(test)]
-pub(crate) use self::model::Framework;
 pub(crate) use self::{
     classify::{CrateResolver, classify_harness_path, classify_policy_path, default_resolver},
-    model::{PolicyFindings, SlotClass},
+    model::{Framework, PolicyFindings, SlotClass},
     resolution::selected_hint,
 };
 use self::{
     emit::RenderedWarning,
     model::{PolicyInputs, diagnose},
+    resolution::emitted_attributes,
 };
 use crate::codegen::{HarnessApiResolution, resolve_harness_api_with};
 
@@ -61,23 +61,42 @@ pub(crate) struct SharedPolicyDiagnostics {
 }
 
 /// The classified inputs and decided findings for one boundary.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct DiagnosticState {
     /// The explicit user arguments, already classified.
     inputs: PolicyInputs,
-    /// The terminal identifier span of each explicit path.
-    spans: SlotSpans,
+    /// The terminal identifier of each explicit path.
+    slots: SlotIdents,
     /// What the classifier found.
     findings: PolicyFindings,
+    /// The resolver suggested paths are rendered against.
+    resolver: &'static dyn CrateResolver,
 }
 
-/// The spans a rendered diagnostic can point at.
+/// The terminal identifiers a rendered diagnostic can point at.
+#[derive(Clone)]
+struct SlotIdents {
+    /// Terminal identifier of the explicit `harness` path.
+    harness: Option<Ident>,
+    /// Terminal identifier of the explicit `attributes` path.
+    attributes: Option<Ident>,
+}
+
+/// The shape one boundary diagnoses.
 #[derive(Clone, Copy)]
-struct SlotSpans {
-    /// Span of the explicit `harness` path's terminal identifier.
-    harness: Option<Span>,
-    /// Span of the explicit `attributes` path's terminal identifier.
-    attributes: Option<Span>,
+enum Shape {
+    /// A `#[scenario]` expansion.
+    Scenario {
+        /// Whether the annotated function is `async`.
+        is_async: bool,
+        /// Whether the function already carries an executor attribute.
+        has_user_test_attr: bool,
+    },
+    /// A `scenarios!` expansion.
+    Scenarios {
+        /// Whether the deprecated `runtime` alias was supplied.
+        runtime_alias: bool,
+    },
 }
 
 impl SharedPolicyDiagnostics {
@@ -85,8 +104,18 @@ impl SharedPolicyDiagnostics {
     pub(crate) fn for_scenario(
         harness: Option<&syn::Path>,
         attributes: Option<&syn::Path>,
+        is_async: bool,
+        has_user_test_attr: bool,
     ) -> Self {
-        Self::resolve(harness, harness, attributes)
+        Self::resolve(
+            harness,
+            harness,
+            attributes,
+            Shape::Scenario {
+                is_async,
+                has_user_test_attr,
+            },
+        )
     }
 
     /// Resolve the inputs of a `scenarios!` expansion.
@@ -99,8 +128,14 @@ impl SharedPolicyDiagnostics {
         harness: Option<&syn::Path>,
         effective_harness: Option<&syn::Path>,
         attributes: Option<&syn::Path>,
+        runtime_alias: bool,
     ) -> Self {
-        Self::resolve(harness, effective_harness, attributes)
+        Self::resolve(
+            harness,
+            effective_harness,
+            attributes,
+            Shape::Scenarios { runtime_alias },
+        )
     }
 
     /// Resolve API paths only, for direct code generation.
@@ -122,26 +157,42 @@ impl SharedPolicyDiagnostics {
         explicit_harness: Option<&syn::Path>,
         effective_harness: Option<&syn::Path>,
         attributes: Option<&syn::Path>,
+        shape: Shape,
     ) -> Self {
         let resolver = default_resolver();
-        let inputs = PolicyInputs {
-            harness: explicit_harness.map_or(SlotClass::Absent, |path| {
-                classify_harness_path(path, resolver)
-            }),
-            attributes: attributes.map_or(SlotClass::Absent, |path| {
-                classify_policy_path(path, resolver)
-            }),
+        let harness = explicit_harness.map_or(SlotClass::Absent, |path| {
+            classify_harness_path(path, resolver)
+        });
+        let attribute_slot = attributes.map_or(SlotClass::Absent, |path| {
+            classify_policy_path(path, resolver)
+        });
+        let inputs = match shape {
+            Shape::Scenario {
+                is_async,
+                has_user_test_attr,
+            } => PolicyInputs::Scenario {
+                harness,
+                attributes: attribute_slot,
+                is_async,
+                has_user_test_attr,
+            },
+            Shape::Scenarios { runtime_alias } => PolicyInputs::Scenarios {
+                harness,
+                attributes: attribute_slot,
+                runtime_alias,
+            },
         };
         Self {
             harness: effective_harness.map(|path| resolve_harness_api_with(path, resolver)),
             attributes: attributes.map(|path| resolve_harness_api_with(path, resolver)),
             state: Some(DiagnosticState {
                 inputs,
-                spans: SlotSpans {
-                    harness: explicit_harness.and_then(terminal_ident_span),
-                    attributes: attributes.and_then(terminal_ident_span),
+                slots: SlotIdents {
+                    harness: explicit_harness.and_then(terminal_ident),
+                    attributes: attributes.and_then(terminal_ident),
                 },
                 findings: diagnose(inputs),
+                resolver,
             }),
         }
     }
@@ -154,6 +205,7 @@ impl SharedPolicyDiagnostics {
     #[cfg(test)]
     pub(crate) fn findings(&self) -> PolicyFindings {
         self.state
+            .as_ref()
             .map_or_else(PolicyFindings::default, |state| state.findings)
     }
 
@@ -171,45 +223,114 @@ impl SharedPolicyDiagnostics {
     }
 }
 
-/// The span a generated marker points at.
-fn terminal_ident_span(path: &syn::Path) -> Option<Span> {
-    path.segments.last().map(|segment| segment.ident.span())
+/// The terminal identifier of a supplied path.
+fn terminal_ident(path: &syn::Path) -> Option<Ident> {
+    path.segments.last().map(|segment| segment.ident.clone())
 }
 
 /// Turn the findings into channel-neutral warnings.
 ///
 /// A finding can hold only for an evidenced slot, whose path is by definition
-/// present, so a missing span or a non-evidenced class means the model and the
-/// stored inputs disagree; dropping the warning keeps the renderer total
-/// without a panic.
+/// present; a missing slot therefore means the model and the stored inputs
+/// disagree, and dropping the warning keeps the renderer total without a
+/// panic.
 fn render(state: &DiagnosticState) -> Vec<RenderedWarning> {
-    [
-        (
-            state.findings.harness_unrecognized_path,
-            state.inputs.harness,
-            state.spans.harness,
-        ),
-        (
-            state.findings.attributes_unrecognized_path,
-            state.inputs.attributes,
-            state.spans.attributes,
-        ),
-    ]
-    .into_iter()
-    .filter(|(holds, ..)| *holds)
-    .filter_map(|(_, class, span)| evidenced_warning(class, span))
-    .collect()
+    [harness_warning(state), attributes_warning(state)]
+        .into_iter()
+        .flatten()
+        .collect()
 }
 
-/// Build the W001 warning for one evidenced slot.
-fn evidenced_warning(class: SlotClass, span: Option<Span>) -> Option<RenderedWarning> {
-    let SlotClass::Evidenced(framework) = class else {
+/// Build the harness slot's warning, W002 taking the place of W001.
+fn harness_warning(state: &DiagnosticState) -> Option<RenderedWarning> {
+    let ident = state.slots.harness.as_ref()?;
+    let SlotClass::Evidenced(framework) = state.inputs.harness() else {
         return None;
     };
+    let written = ident.to_string();
+    let canonical_harness = canonical_adapter_path(state.resolver, framework, &written);
+    let canonicalized = state
+        .inputs
+        .with_harness(SlotClass::Recognized(framework.into()));
+    let dropped = lost_attributes(state.inputs, canonicalized);
+    let message = if state.findings.missing_attribute_policy {
+        let canonical_policy = canonical_policy_path(state.resolver, framework);
+        message::missing_attribute_policy(&canonical_harness, &canonical_policy, &dropped)
+    } else {
+        message::unrecognized_adapter_path(&written, &canonical_harness, &dropped)
+    };
+    #[cfg(not(rstest_bdd_nightly))]
+    let marker = if state.findings.missing_attribute_policy {
+        Marker::MissingAttributePolicy
+    } else {
+        Marker::UnrecognizedAdapterPath
+    };
     Some(RenderedWarning {
-        message: message::unrecognized_adapter_path(framework),
-        span: span?,
+        message,
+        span: ident.span(),
+        #[cfg(not(rstest_bdd_nightly))]
+        marker,
+    })
+}
+
+/// Build the attributes slot's warning, which is always W001.
+fn attributes_warning(state: &DiagnosticState) -> Option<RenderedWarning> {
+    let ident = state.slots.attributes.as_ref()?;
+    let SlotClass::Evidenced(framework) = state.inputs.attributes() else {
+        return None;
+    };
+    let written = ident.to_string();
+    let canonical = canonical_adapter_path(state.resolver, framework, &written);
+    let canonicalized = state
+        .inputs
+        .with_attributes(SlotClass::Recognized(framework.into()));
+    let dropped = lost_attributes(state.inputs, canonicalized);
+    Some(RenderedWarning {
+        message: message::unrecognized_adapter_path(&written, &canonical, &dropped),
+        span: ident.span(),
         #[cfg(not(rstest_bdd_nightly))]
         marker: Marker::UnrecognizedAdapterPath,
     })
+}
+
+/// The attributes the canonical spelling adds and the actual expansion omits.
+///
+/// A user-written executor attribute suppresses every "was not applied" claim,
+/// because the generator deduplicates against it (decision D31).
+fn lost_attributes(actual: PolicyInputs, canonical: PolicyInputs) -> Vec<&'static str> {
+    if actual.has_user_test_attr() {
+        return Vec::new();
+    }
+    emitted_attributes(canonical).difference(emitted_attributes(actual))
+}
+
+/// A resolver-rooted canonical adapter path for the type the user wrote.
+fn canonical_adapter_path(
+    resolver: &dyn CrateResolver,
+    framework: Framework,
+    written: &str,
+) -> String {
+    format!("{}::{written}", canonical_root(resolver, framework))
+}
+
+/// A resolver-rooted canonical attribute-policy path for one framework.
+fn canonical_policy_path(resolver: &dyn CrateResolver, framework: Framework) -> String {
+    format!(
+        "{}::{}",
+        canonical_root(resolver, framework),
+        framework.attribute_policy_type()
+    )
+}
+
+/// The crate root a suggested path must use.
+///
+/// The resolver's answer keeps a renamed dependency compilable: a crate that
+/// depends on `tok = { package = "rstest-bdd-harness-tokio" }` must be told to
+/// write `tok::TokioHarness`, not the name it does not have.
+fn canonical_root(resolver: &dyn CrateResolver, framework: Framework) -> String {
+    let spec = classify::adapter_spec(framework);
+    resolver.resolved_root(spec.package_name).map_or_else(
+        || spec.default_crate_name.to_owned(),
+        |ident| ident.to_string(),
+    )
 }

@@ -21,6 +21,7 @@
 //! ```
 
 mod args;
+mod diagnostics;
 pub(super) mod paths;
 mod return_kind;
 mod selection;
@@ -40,6 +41,7 @@ use crate::parsing::feature::{
 };
 use self::{
     args::{ScenarioArgs, library_scope_tokens, library_validation_names},
+    diagnostics::has_executor_attr,
     paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
@@ -222,6 +224,10 @@ fn try_scenario(
         allow_skipped,
     } = resolve_scenario(args, &mut item_fn)?;
 
+    // Diagnostic inputs are read before the signature is borrowed mutably; the
+    // macro cannot evaluate trait methods, so these facts are all it has.
+    let is_async = item_fn.sig.asyncness.is_some();
+    let has_user_test_attr = has_executor_attr(&item_fn.attrs);
     let sig = &mut item_fn.sig;
     let fixture_setup = resolve_fixture_setup(sig, return_kind)?;
 
@@ -231,6 +237,8 @@ fn try_scenario(
     let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenario(
         args.harness.as_ref(),
         args.attributes.as_ref(),
+        is_async,
+        has_user_test_attr,
     );
     let fallback_diagnostics = resolutions.emit_diagnostics();
     let ScenarioData {
