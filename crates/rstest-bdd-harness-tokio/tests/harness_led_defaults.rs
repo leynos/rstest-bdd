@@ -13,10 +13,14 @@
 //! - Pairing steps that rely on the harness contract with an attribute policy alone fails loudly (a
 //!   `LocalSet` panic from `spawn_local`), not silently.
 
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use rstest::fixture;
 use rstest_bdd::Slot;
+use rstest_bdd_harness::{HarnessAdapter, HarnessError, StdScenarioRunRequest};
 use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{ScenarioState, given, scenario, then, when};
 use tokio::sync::Notify;
@@ -157,3 +161,85 @@ fn step_spawning_local_task() {
 )]
 #[should_panic(expected = "LocalSet")]
 fn attribute_policy_without_harness_fails_loudly() {}
+
+// --- Silence for the configurations the diagnostics recommend ------------
+
+/// How many times the local harness has run in this binary.
+static LOCAL_HARNESS_RUNS: AtomicUsize = AtomicUsize::new(0);
+
+/// A harness with no first-party spelling and no attribute policy.
+///
+/// ADR-0008 keeps this valid: a third-party harness needs no policy, so the
+/// macros must stay silent about it.
+#[derive(Default)]
+struct LocalHarness;
+
+impl HarnessAdapter for LocalHarness {
+    type Context = ();
+
+    fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
+        LOCAL_HARNESS_RUNS.fetch_add(1, Ordering::SeqCst);
+        Ok(request.run_without_context())
+    }
+}
+
+#[given("a scenario bound with the Tokio harness and the default attribute policy")]
+fn default_policy_downgrade_bound() {}
+
+#[given("a scenario bound with a local harness and no attribute policy")]
+fn local_harness_bound() {}
+
+#[given("a scenario bound with the Tokio harness and no attribute policy")]
+fn tokio_harness_without_attributes_bound() {}
+
+#[when("the scenario body checks for a Tokio runtime")]
+fn body_checks_for_tokio_runtime(#[from(rstest_bdd_harness_context)] context: &TokioTestContext) {
+    assert_eq!(
+        context.handle().runtime_flavor(),
+        tokio::runtime::RuntimeFlavor::CurrentThread,
+        "the harness must provide the runtime even with no attribute policy"
+    );
+}
+
+#[then("a Tokio runtime handle is available")]
+fn tokio_runtime_handle_available() { let _ = tokio::runtime::Handle::current(); }
+
+#[when("the scenario body runs")]
+fn body_runs() {}
+
+#[then("the local harness recorded one run")]
+fn local_harness_recorded_one_run() {
+    assert_eq!(
+        LOCAL_HARNESS_RUNS.load(Ordering::SeqCst),
+        1,
+        "the local harness must have run the scenario exactly once"
+    );
+}
+
+/// A documented override: the Tokio harness with the base policy.
+///
+/// The explicit downgrade is valid, so nothing may be reported. The harness
+/// still stands up the runtime for the steps.
+#[scenario(
+    path = "tests/features/harness_led_defaults.feature",
+    name = "An explicit default-policy downgrade stays silent",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+    attributes = rstest_bdd_harness::DefaultAttributePolicy,
+)]
+fn default_policy_downgrade_stays_silent() {}
+
+/// A third-party harness with no `attributes = ...` stays silent.
+#[scenario(
+    path = "tests/features/harness_led_defaults.feature",
+    name = "A third-party harness without an attribute policy stays silent",
+    harness = LocalHarness,
+)]
+fn local_harness_without_policy_stays_silent() {}
+
+/// W003's first fix: removing the conflicting override restores the default.
+#[scenario(
+    path = "tests/features/harness_led_defaults.feature",
+    name = "Removing a conflicting attribute override restores the harness default",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+)]
+fn harness_default_after_removing_override() {}
