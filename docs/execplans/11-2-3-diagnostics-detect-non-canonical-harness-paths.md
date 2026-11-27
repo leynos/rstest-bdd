@@ -311,7 +311,16 @@ conflict in `Decision log`, and escalate.
   `policy_user_executor.rs` keeps a user-written `#[tokio::test]` and
   `#[test_attr(...)]` compiling. The model split `model.rs` into `model.rs`
   plus `inputs.rs` when Whitaker measured the module at 412 lines (D43).
-- [ ] EP-M5: behavioural scenarios for silence and suggested fixes.
+- [ ] EP-M5: behavioural scenarios for silence and suggested fixes. Add the
+  three scenarios drafted above to
+  `crates/rstest-bdd-harness-tokio/tests/features/harness_led_defaults.feature`
+  and bind them in `harness_led_defaults.rs`.
+- [ ] EP-M4 and EP-M3 full gates: focused evidence is recorded (565 unit
+  tests, both `macro_compile` suites on stable and on `nightly-2026-08-16`,
+  the new `policy_user_executor` integration test, Clippy, and Whitaker run to
+  completion on the full workspace). `make lint`, `make check-fmt` and
+  `make markdownlint` were run at the EP-M3 tree; run all four full gates at
+  the pushed head `222e1355` before calling the milestone complete.
 - [ ] EP-M6: documentation, ADR-0029, CHANGELOG.
 - [ ] EP-M7: roadmap tick, final gates, plan marked `COMPLETE`.
 
