@@ -3427,63 +3427,146 @@ wrong prefixes, extra segments, or partial matches all return `None`. Use
 type path; use `resolve_test_attribute_hint_for_policy_path` when it has an
 attribute-policy type path.
 
-#### Adapter fallback diagnostics
+#### Policy diagnostics
 
 The accepted toolchain and ownership contract for this boundary is recorded in
-[ADR-0017](adrs/adr-0017-toolchain-aware-adapter-fallback-diagnostics.md).
+[ADR-0017](adrs/adr-0017-toolchain-aware-adapter-fallback-diagnostics.md), and
+the evidence rule, code set, and fix-convergence lemma are recorded in
+[ADR-0029](adrs/adr-0029-evidence-based-harness-and-policy-diagnostics.md).
 
-The macro code-generation layer owns first-party adapter fallback diagnostics in
-`codegen::adapter_fallback`. An unresolved path qualifies only when the
-segment immediately before the adapter type is the canonical Tokio or GPUI
-crate identifier. A path such as
-`alias::rstest_bdd_harness_tokio::TokioHarness` qualifies, while
-`custom::TokioHarness` must remain warning-free even when the Tokio adapter
-crate is present.
+`codegen::policy_diagnostics` is the only emitter of harness and
+attribute-policy diagnostics. It owns path classification, the finding model
+and its messages, and both channels. Two further pieces have a single owner
+each. `selected_hint`, re-exported from the module, is the only implementation
+of ADR-0008 precedence; code generation calls it too, so a diagnostic can never
+describe a precedence different from the one the generated test used. The
+`classify` submodule is the only path classifier. Its entry points,
+`classify_harness_path` and `classify_policy_path`, take an injected
+`CrateResolver` rather than reading Cargo state directly, so tests reach the
+renamed-dependency and unresolvable branches without a real manifest.
 
-Fallback resolution is pure: one resolution value holds the selected base API
-crate path and optional first-party fallback metadata. Each macro expansion
-resolves the supplied `harness` and `attributes` paths once at its own
-boundary, then reuses that decision for runtime generation, trait assertions,
-and diagnostic emission. The two supplied paths remain independent, so each
-qualifying fallback reports exactly one diagnostic.
+Keep each helper single-purpose by preserving that split. Classification turns
+one supplied `syn::Path` into a `SlotClass`; the model decides findings from
+the classified inputs; the renderer turns findings into channel-neutral
+warnings; and the emitters carry them.
 
-`#[scenario]` and `scenarios!` are separate boundaries.
-`SharedAdapterResolutions` carries the resolved pair, and only the owning
-boundary calls `emit_diagnostics`. `scenarios!` resolves before iterating the
-discovered scenarios and threads the result through `ScenarioConfig`, so a
-feature directory holding many scenarios still reports one diagnostic per
-supplied path rather than one per generated test. Scenario generation beneath a
-boundary must never re-resolve or re-emit: on nightly the emission is a
-side-effecting `.emit()` call, so a second one would duplicate the warning
-rather than be collapsed.
+##### Permitted call sites
 
-On nightly, the expansion boundary calls `proc_macro::Diagnostic::spanned` with
+`emit_diagnostics` may be called from exactly two places, the two expansion
+boundaries:
+
+- `try_scenario` in `crates/rstest-bdd-macros/src/macros/scenario/mod.rs`, and
+- `expand_scenarios_tokens` in
+  `crates/rstest-bdd-macros/src/macros/scenarios/mod.rs`.
+
+Direct code generation never emits. Where `codegen::scenario` needs the API
+paths a caller supplied, it uses `SharedPolicyDiagnostics::resolve_api`, which
+resolves the harness and attribute-policy API paths without producing findings.
+
+Scenario generation beneath a boundary must never re-resolve or re-emit: on
+nightly the emission is a side-effecting `.emit()` call, so a second one would
+duplicate the warning rather than be collapsed.
+
+##### Composition
+
+`SharedPolicyDiagnostics` composes each boundary's work. The value carries the
+two `HarnessApiResolution`s that generated code consumes and, separately, the
+classified inputs and decided findings that diagnostics consume. They are
+separate because `scenarios!` classifies the *explicit* `harness` argument but
+generates against the path the runtime alias supplies.
+
+Three constructors cover the permitted uses:
+
+- `for_scenario(harness, attributes, is_async, has_user_test_attr)` resolves a
+  `#[scenario]` expansion.
+- `for_scenarios(harness, effective_harness, attributes, runtime_alias)`
+  resolves a `scenarios!` expansion. `effective_harness` is the path the
+  generated tests run against, which the deprecated `runtime` alias supplies
+  when the user wrote no harness; classification deliberately uses the explicit
+  `harness` instead, because an alias is not a supplied harness.
+- `resolve_api(harness, attributes)` resolves API paths only, for direct code
+  generation. Such a value carries no findings, which is truthful: no boundary
+  diagnosed it.
+
+`scenarios!` builds the value once before iterating the discovered scenarios
+and threads it through `ScenarioConfig`, so a feature directory holding many
+scenarios still reports one diagnostic per supplied path rather than one per
+generated test.
+
+##### Errors and warnings
+
+`emit_diagnostics` returns `BoundaryDiagnostics`, which is either `Errors` or
+`Warnings`. The split implements the rule that errors suppress warnings at a
+boundary. When any error fires, only errors are returned: rustc's handling of
+lints beside a `compile_error!` varies, and both error messages already carry
+the fix where one applies.
+
+##### Channels
+
+On nightly, the boundary calls `proc_macro::Diagnostic::spanned` with
 `proc_macro::Level::Warning`, then calls `.emit()`. Stable toolchains receive
 the same message through a generated deprecated item because procedural-macro
-warnings are not available there. The stable diagnostic is a warning by
-default, while `#![deny(deprecated)]` escalates it to an error. Keep the
-diagnostic text and the stable warning, stable error, and nightly warning
-user-interface tests synchronized when changing this path.
+warnings are not available there. Each code gets its own headline marker name,
+because the name is the first thing a user reads in the compiler output. The
+stable diagnostic is a warning by default, while `#![deny(deprecated)]`
+escalates it to an error. The two channels are mutually exclusive by
+construction: on nightly the stable token builder returns nothing, and on
+stable the native emitter is a no-op.
 
 `crates/rstest-bdd-macros/build.rs` calls `rustc_version::version_meta()` and
 compares its channel with `rustc_version::Channel::Nightly` before setting
 `rstest_bdd_nightly`. `crates/rstest-bdd-macros/src/lib.rs` enables
-`proc_macro_diagnostic` only for non-test nightly builds. The Tokio fixture
-runner uses `rustversion` attributes in
-`crates/rstest-bdd-harness-tokio/tests/macro_compile.rs` to register stable and
+`proc_macro_diagnostic` only for non-test nightly builds. The fixture runners
+use `rustversion` attributes in
+`crates/rstest-bdd-harness-tokio/tests/macro_compile.rs` and
+`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs` to register stable and
 nightly `trybuild` cases separately.
 
 `utils::warnings::emit_warning` is the single internal warning boundary for
 runtime-deprecation and registry diagnostics. It uses native
 `proc_macro::Diagnostic` emission on nightly toolchains and is deliberately a
 no-op on stable toolchains and in tests. Keep those call sites behind this
-wrapper; adapter fallback diagnostics retain their separate generated
-deprecated-item path on stable toolchains. `proc-macro-error3` supports other
-fatal macro errors through `abort!`, `entry_point`, and `proc_macro_error`; it
-does not emit adapter fallback warnings. ADR-0017 records why
-`proc-macro-error2` is not reintroduced: review identified it as unmaintained,
-and it cannot provide the stable warning channel that the generated deprecation
-diagnostic supplies.
+wrapper; policy diagnostics retain their separate generated deprecated-item
+path on stable toolchains. `proc-macro-error3` supports other fatal macro
+errors through `abort!`, `entry_point`, and `proc_macro_error`; it does not
+emit policy diagnostics. ADR-0017 records why `proc-macro-error2` is not
+reintroduced: review identified it as unmaintained, and it cannot provide the
+stable warning channel that the generated deprecation diagnostic supplies.
+
+##### Adding a diagnostic finding
+
+Adding a finding touches the same set of places every time:
+
+1. Add the model case and its fixes to the finding model, and decide when the
+   new case fires from the classified inputs.
+2. Add the message to the wording module, beginning with the new stable code.
+   Every suggested remedy must remove the finding it is attached to.
+3. Add the stable marker, with its own headline name, so the user sees a
+   distinct headline for the new code.
+4. Add the case to the exhaustive enumeration in `tests/enumerator.rs` so the
+   finite state space still covers the model, and to the fix-convergence lemma
+   in `tests/convergence.rs` so no fix introduces a new finding.
+5. Add the wording to the `insta` snapshot in `tests/wording.rs`, which pins
+   every variant of the matrix.
+6. Add one stable and one nightly `trybuild` representative: the stable case
+   pins the generated deprecated marker and its span, the nightly case pins the
+   native warning.
+
+The wording snapshot and the `trybuild` fixtures pin different things. The
+`trybuild` case proves the wiring and the span, while the snapshot pins every
+combination of code, slot, framework, signature shape, and resolver that
+`trybuild` cannot economically cover. A wording change anywhere in the matrix
+fails the snapshot.
+
+Refresh `.stderr` snapshots after a deliberate message change with
+`TRYBUILD=overwrite`, then review the diff before staging:
+
+```sh
+TRYBUILD=overwrite cargo test -p rstest-bdd-harness-tokio --test macro_compile
+TRYBUILD=overwrite cargo test -p rstest-bdd-harness-gpui --all-features --test macro_compile
+git diff -- crates/rstest-bdd-harness-tokio/tests/fixtures_macros/ \
+  crates/rstest-bdd-harness-gpui/tests/fixtures_macros/
+```
 
 ### Third-party adapter crates
 

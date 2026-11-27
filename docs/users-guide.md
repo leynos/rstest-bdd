@@ -1169,35 +1169,133 @@ Imported single-segment recognition only applies to unaliased first-party
 names. If the adapter crates are renamed or aliased, or the policy types are
 re-exported under different identifiers, use the canonical crate-root path (
 `rstest_bdd_harness_tokio::TokioAttributePolicy` or
-`rstest_bdd_harness_gpui::GpuiAttributePolicy`) or add a direct
-`rstest-bdd-harness` dependency to get the same attribute recognition.
+`rstest_bdd_harness_gpui::GpuiAttributePolicy`); the macro reports a diagnostic
+when it cannot recognize the path. See
+[the diagnostics section](#harness-and-attribute-policy-diagnostics).
 
-#### First-party adapter fallback diagnostics
+#### Harness and attribute-policy diagnostics
 
-The macros emit one diagnostic when an unresolved Tokio or GPUI adapter path
-preserves the canonical first-party crate identifier immediately before the
-adapter type, as in `alias::rstest_bdd_harness_tokio::TokioHarness`. This can
-happen when a first-party adapter is re-exported through another module.
-Nightly emits a native warning. Stable emits a deprecated-item warning by
-default, and `#![deny(deprecated)]` escalates that diagnostic to an error.
-Unrelated third-party paths such as `custom::TokioHarness` do not trigger the
-diagnostic, even when the Tokio adapter crate is also a dependency.
+`#[scenario]` and `scenarios!` diagnose five conditions under which a `harness`
+or `attributes` path, or a combination of selectors, silently changes the shape
+of the generated test. Every message begins with a stable code, so the code can
+be searched for and quoted in a migration guide. The three `W` codes have two
+channels: on stable Rust each is a `deprecated` warning whose message begins
+with the code, and on nightly Rust each is a native warning. A build that sets
+`-D warnings`, or a crate that enables `#![deny(deprecated)]`, turns those
+warnings into compile errors. The two `E` codes are `compile_error!`s on both
+channels, because each fires only on a configuration that already fails to
+compile. The [developers' guide][developers-guide-policy-diagnostics] documents
+the implementation.
 
-The macro resolves each supplied adapter path once and emits at most one
-diagnostic for that resolution. See the
-[developers' guide][developers-guide-adapter-fallback] for the nightly and
-stable implementation details.
+The macros can act only on what the tokens prove. A path carries first-party
+evidence when three things hold together: the terminal segment is a first-party
+adapter type name, the adapter crate's identifier appears anywhere below the
+root segment, and the crate is a direct dependency. A custom type such as
+`custom::TokioHarness` has no evidence and stays silent, because harness-only
+third-party usage is valid.
 
-Prefer the canonical paths:
+##### W001: a non-canonical first-party path
 
-- `rstest_bdd_harness_tokio::{TokioHarness, TokioAttributePolicy}`
-- `rstest_bdd_harness_gpui::{GpuiHarness, GpuiAttributePolicy}`
+Trigger: a `harness` or `attributes` path has first-party evidence but is not
+the canonical spelling, so base harness API types were used. For example,
+`attributes = alias::rstest_bdd_harness_tokio::TokioAttributePolicy`.
 
-If the adapter path must remain re-exported, add `rstest-bdd-harness` as a
-direct development dependency under its canonical crate resolution name,
-`rstest_bdd_harness`. Do not rename the dependency key: the generated fallback
-code resolves `HarnessAdapter` and `AttributePolicy` through that exact crate
-name rather than through the first-party adapter crate.
+Message, for that example:
+
+> rstest-bdd[W001]: this path was not recognized as the first-party
+> `TokioAttributePolicy`, so base harness API types were used. Write
+> `rstest_bdd_harness_tokio::TokioAttributePolicy`.
+
+Fix: write the canonical path.
+
+##### W002: a first-party harness without an attribute policy
+
+Trigger: an evidenced harness has no `attributes = ...`, and the canonical
+spelling would emit an attribute that the actual expansion does not. In
+practice this is the GPUI harness, whose `#[gpui::test]` is unconditional.
+
+Message (GPUI):
+
+> rstest-bdd[W002]: no attribute policy could be inferred from this harness
+> path and `#[gpui::test]` was not applied. Write
+> `rstest_bdd_harness_gpui::GpuiHarness`, or add
+> `attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy` (which restores
+> the attribute but leaves warning W001 for the harness path).
+
+Fix: write the canonical harness path, or add
+`attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy`. The second fix
+restores the attribute but leaves W001 for the harness path.
+
+##### W003: harness and attributes select different frameworks
+
+Trigger: the harness selection and the explicit `attributes` policy name
+different frameworks. The explicit `attributes` takes precedence, so the
+generated test uses the policy's attributes rather than the harness's.
+
+Message (a Tokio harness with a GPUI policy):
+
+> rstest-bdd[W003]: `harness` selects Tokio, but `attributes` selects GPUI; the
+> explicit `attributes` takes precedence. Remove `attributes = ...`, or write
+> `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy`.
+
+Fix: remove `attributes = ...`, or write the policy matching the harness. When
+the harness path is non-canonical, apply the harness fix as well; the message
+then says so.
+
+##### E001: an async scenario has no executor
+
+Trigger: an `async fn` scenario has no executor. `attributes = ...` adds none,
+and no `harness` provides one.
+
+Message:
+
+> rstest-bdd[E001]: this `async fn` scenario has no executor:
+> `attributes = ...` adds none, and no `harness` provides one. Remove
+> `attributes = ...` (async scenarios default to Tokio), write
+> `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy`, or add an
+> executor attribute such as `#[tokio::test]`.
+
+Fix: remove `attributes = ...` (async scenarios default to Tokio), write
+`attributes = rstest_bdd_harness_tokio::TokioAttributePolicy`, or add an
+executor attribute such as `#[tokio::test]`. For a third-party policy the
+message also says `rstest-bdd cannot read third-party attribute policies`.
+
+##### E002: the runtime alias combined with a harness
+
+Trigger: `scenarios!` combines `runtime = "tokio-current-thread"` with
+`harness = ...`. The harness already selects the runtime.
+
+Message:
+
+> rstest-bdd[E002]: `runtime = "tokio-current-thread"` cannot be combined with
+> `harness = ...`; the harness already selects the runtime. Remove
+> `runtime = ...`.
+
+Fix: remove `runtime = ...`. When the harness path is non-canonical, write the
+canonical harness path too.
+
+##### Opting out and known limitations
+
+On stable Rust, the three warnings can be opted out with a module-level
+`#[allow(deprecated)]`. The marker is rendered as a sibling item of the
+generated test, so a function-level allow cannot reach it. Nightly native
+warnings cannot be suppressed. The two `E` codes are compile errors and cannot
+be suppressed.
+
+A renamed import such as
+`use rstest_bdd_harness_tokio::TokioHarness as MyHarness` leaves no first-party
+evidence, so it stays silent. A bare `TokioHarness` that is actually a local
+type is indistinguishable from the adapter. A warning emitted through a
+`macro_rules!` facade may not be reported by the `deprecated` lint.
+
+Adding `rstest-bdd-harness` as a direct development dependency makes
+re-exported paths compile. It is a workaround for compilation, not a fix for
+any diagnostic: the finding remains.
+
+Valid configurations stay silent: no selector at all, a third-party harness
+without `attributes`, an explicit downgrade such as `harness = TokioHarness`
+with `attributes = rstest_bdd_harness::DefaultAttributePolicy`, and the
+deprecated alias on its own, whose deprecation warning remains nightly-only.
 
 When `attributes` is omitted, known first-party harnesses infer matching
 default attribute policies:
@@ -4074,7 +4172,7 @@ three amigos in the specification process.
 [v0-7-0-migration-guide]: https://github.com/leynos/rstest-bdd/blob/main/docs/v0-7-0-migration-guide.md
 [rstest-bdd-design]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md
 [design-runner-parallelism]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#2767-test-runner-parallelism-and-scenario-state
-[developers-guide-adapter-fallback]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#adapter-fallback-diagnostics
+[developers-guide-policy-diagnostics]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#policy-diagnostics
 [developer-serial-nextest]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#serial-file_serial-and-nextest-test-groups
 [developers-guide]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md
 [nextest-test-groups]: https://nexte.st/docs/configuration/test-groups/

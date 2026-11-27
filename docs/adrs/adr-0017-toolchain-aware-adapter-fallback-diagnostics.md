@@ -5,6 +5,9 @@
 Accepted (2026-08-15): keep fatal macro-error handling in `proc-macro-error3`,
 and use toolchain-specific emission for first-party adapter fallback warnings.
 
+Amended by [ADR-0029](adr-0029-evidence-based-harness-and-policy-diagnostics.md)
+(2026-11-27).
+
 ## Date
 
 2026-08-15.
@@ -122,9 +125,34 @@ pin exactly one native warning, including a multi-scenario expansion.
 ## References
 
 - Issue [#489][issue-489]: adapter fallback warning behaviour and diagnostics.
-- [Developer guide: adapter fallback diagnostics][developers-fallback].
+- [Developer guide: policy diagnostics][developers-policy].
 - [Design: harness adapters and attribute policies][design-harness].
 
 [issue-489]: https://github.com/leynos/rstest-bdd/issues/489
-[developers-fallback]: ../developers-guide.md#adapter-fallback-diagnostics
+[developers-policy]: ../developers-guide.md#policy-diagnostics
 [design-harness]: ../rstest-bdd-design.md#27-harness-adapters-and-attribute-policy-plugins-adr-0025-adr-0007
+
+## Amendments
+
+### 2026-11-27: five code-prefixed diagnostics (ADR-0029)
+
+The single first-party adapter fallback diagnostic became five diagnostics,
+each prefixed with a stable code: `W001` (a non-canonical first-party path),
+`W002` (a missing attribute policy), `W003` (conflicting framework selectors),
+`E001` (a missing executor), and `E002` (the runtime alias combined with a
+harness).
+
+Classification is now evidence-based. A path carries evidence when the terminal
+segment is a first-party adapter type name, the adapter crate's identifier
+appears anywhere below the root segment, and the crate is a direct dependency
+of the caller. The owning module moved from `codegen::adapter_fallback` to
+`codegen::policy_diagnostics`.
+
+The warning channel and ownership contract are unchanged: resolution is pure,
+only the two expansion boundaries emit, stable uses a generated deprecated
+item, and nightly uses `proc_macro::Diagnostic`. The stable channel now carries
+one headline marker per code. `E001` and `E002` are `compile_error!`s on both
+channels, because each fires only on a configuration that already fails to
+compile. Every fix is modelled as a transformation on the diagnostic state, and
+fix convergence — a fix never introduces a new finding — is checked
+exhaustively. Errors suppress warnings at a boundary.

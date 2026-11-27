@@ -150,6 +150,10 @@
 - [ADR 0028: publish a facade prelude][adr-0028] records the decision to
   re-export the procedural macros from `rstest-bdd` and to publish
   `rstest_bdd::prelude` as a gated subset of the crate root.
+- [ADR 0029: evidence-based harness and attribute-policy diagnostics][adr-0029]
+  records the five code-prefixed diagnostics for non-canonical paths, missing
+  policies, conflicting selectors, a missing executor, and the runtime alias
+  combined with a harness.
 
 ## Execution plans
 
@@ -178,6 +182,7 @@
 [adr-0026]: adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md
 [adr-0027-harness]: adrs/adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md
 [adr-0028]: adrs/adr-0028-publish-a-facade-prelude.md
+[adr-0029]: adrs/adr-0029-evidence-based-harness-and-policy-diagnostics.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md

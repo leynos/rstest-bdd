@@ -304,6 +304,29 @@ it is not a prelude item. Everything else is in the prelude: `given`, `when`,
 `StepContext`, `StepResult` and `StepError`. See
 [the users' guide](users-guide.md#importing-rstest-bdd).
 
+## Policy diagnostics
+
+The scenario macros now report five conditions that previously changed the
+generated test silently. Every message begins with a stable code:
+`rstest-bdd[W001]` for a non-canonical first-party path, `rstest-bdd[W002]` for
+a first-party harness with no attribute policy, `rstest-bdd[W003]` for a
+harness and an explicit policy naming different frameworks, `rstest-bdd[E001]`
+for an `async fn` scenario with no executor, and `rstest-bdd[E002]` for the
+runtime alias combined with a harness. The
+[users' guide](users-guide.md#harness-and-attribute-policy-diagnostics) gives
+each trigger, message, and fix.
+
+The change is additive: without `-D warnings`, no program that compiled before
+stops compiling. `E001` and `E002` fire only on configurations that already
+failed to compile. The warnings are new, so a crate that builds with
+`-D warnings` or `#![deny(deprecated)]` sees a build failure until it resolves
+the finding. On stable Rust a warning arrives through the `deprecated` lint; on
+nightly it is a native warning. The documented stable opt-out is a module-level
+`#[allow(deprecated)]`, because the marker is a sibling item of the generated
+test that a function-level allow cannot reach. Nightly native warnings cannot
+be suppressed. `E001` and `E002` are `compile_error!`s on both channels and
+cannot be suppressed.
+
 ## Migration checklist
 
 - [ ] Replace `use rstest_bdd_macros::{...}` in tests and examples with

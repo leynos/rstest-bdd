@@ -315,8 +315,8 @@ conflict in `Decision log`, and escalate.
   `harness_led_defaults.feature` and bound in `harness_led_defaults.rs` — the
   explicit default-policy downgrade, a local third-party harness with no
   policy, and the harness default restored after removing an override. That
-  binary reports 9 passed under `-D warnings`, so any stray marker would
-  break it.
+  binary reports 9 passed under `-D warnings`, so any stray marker would break
+  it.
 - [ ] EP-M6: documentation (ADR-0029 written; the guides are being updated).
 - [ ] EP-M4 and EP-M3 full gates: focused evidence is recorded (565 unit
   tests, both `macro_compile` suites on stable and on `nightly-2026-08-16`, the

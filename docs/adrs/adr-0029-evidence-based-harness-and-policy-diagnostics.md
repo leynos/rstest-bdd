@@ -3,9 +3,9 @@
 ## Status
 
 Accepted (2026-11-27): diagnose non-canonical first-party paths, missing
-attribute policies, conflicting framework selectors, a missing executor, and the
-runtime alias combined with a harness, each with a stable code, the consequence
-that actually occurred, and a fix that removes the finding.
+attribute policies, conflicting framework selectors, a missing executor, and
+the runtime alias combined with a harness, each with a stable code, the
+consequence that actually occurred, and a fix that removes the finding.
 
 ## Date
 
@@ -17,8 +17,8 @@ that actually occurred, and a fix that removes the finding.
 (`harness = ...`) and an attribute policy (`attributes = ...`). Procedural
 macros cannot call trait methods, so the macros recognize first-party adapters
 by the *spelling* of the supplied path. When the spelling is not the one they
-expect, the generated test quietly changes shape: `#[gpui::test]` disappears, or
-the build fails with an error that names neither the cause nor the fix.
+expect, the generated test quietly changes shape: `#[gpui::test]` disappears,
+or the build fails with an error that names neither the cause nor the fix.
 
 ADR-0017 introduced one diagnostic for this family: a path that retained the
 canonical adapter-crate identifier was reported, and the generated code fell
@@ -50,13 +50,13 @@ back to base harness API types. Three gaps remained:
 
 Five diagnostics, each prefixed with a stable code:
 
-| Code | Fires when |
-| ---- | ---------- |
-| W001 | a `harness` or `attributes` path has first-party evidence but is not recognized |
+| Code | Fires when                                                                                                               |
+| ---- | ------------------------------------------------------------------------------------------------------------------------ |
+| W001 | a `harness` or `attributes` path has first-party evidence but is not recognized                                          |
 | W002 | an evidenced harness has no `attributes = ...` and the canonical spelling would emit an attribute the expansion does not |
-| W003 | the harness selection and the explicit policy name different frameworks |
-| E001 | an `async fn` scenario has no executor: no policy adds one and no harness provides one |
-| E002 | `scenarios!` combines `runtime = "tokio-current-thread"` with a harness |
+| W003 | the harness selection and the explicit policy name different frameworks                                                  |
+| E001 | an `async fn` scenario has no executor: no policy adds one and no harness provides one                                   |
+| E002 | `scenarios!` combines `runtime = "tokio-current-thread"` with a harness                                                  |
 
 *Evidence* is three things together: the terminal segment is a first-party
 adapter type name, the adapter crate's identifier appears anywhere below the
@@ -85,9 +85,9 @@ clearing the runtime alias from the same shape, each land in `W002`'s
 antecedent. Both remedies are therefore composite — they also canonicalize the
 harness — and the messages say so.
 
-The messages never claim an attribute "was not applied" when the user wrote one.
-The generator deduplicates against user attributes, so a user-written executor
-attribute suppresses that claim and `W002` entirely.
+The messages never claim an attribute "was not applied" when the user wrote
+one. The generator deduplicates against user attributes, so a user-written
+executor attribute suppresses that claim and `W002` entirely.
 
 The stable channel is unchanged from ADR-0017: a generated deprecated unit
 struct whose note carries the message, one headline name per code. The nightly
@@ -126,8 +126,8 @@ a single owner.
 ### Warn on every third-party harness without an attribute policy
 
 Rejected. ADR-0008 declares harness-only usage valid; the repository's own
-tests use synchronous harnesses that need no attribute. Under `-D warnings` that
-warning would be a build failure for a patch upgrade. The only fix such a
+tests use synchronous harnesses that need no attribute. Under `-D warnings`
+that warning would be a build failure for a patch upgrade. The only fix such a
 warning could offer is a custom policy, which the macros cannot evaluate.
 Roadmap 12.2.3 owns the policy-extension question and may supersede this rule.
 
@@ -164,8 +164,9 @@ cardinality and fix-convergence lemmas are checked exhaustively in the unit
 suite. Path classification is property-tested over an unbounded path space,
 with named cases for custom, renamed, nested and unresolvable paths. A witness
 table compares the real generated attributes with the model across both runtime
-modes and both signature shapes. `trybuild` pins one representative per code and
-channel, including the spans; an `insta` snapshot pins every wording variant.
+modes and both signature shapes. `trybuild` pins one representative per code
+and channel, including the spans; an `insta` snapshot pins every wording
+variant.
 
 ## References
 

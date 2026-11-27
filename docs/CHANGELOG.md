@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- Added `rstest-bdd[W001]`: a `harness` or `attributes` path that carries
+  first-party evidence but is not the canonical spelling now reports that base
+  harness API types were used, and names the canonical path. On stable it is a
+  `deprecated` warning, so `-D warnings` or `#![deny(deprecated)]` makes it a
+  build failure; the documented opt-out is a module-level
+  `#[allow(deprecated)]`. The warning is additive: without that opt-in, no
+  program that compiled before stops compiling. See ADR-0029.
+
+- Added `rstest-bdd[W002]`: a first-party harness with no `attributes = ...`
+  whose canonical spelling would emit an attribute the expansion omits now
+  reports the attribute that was not applied. In practice this is the GPUI
+  harness's `#[gpui::test]`. The fixes are the canonical harness path or the
+  matching attribute policy. The same `-D warnings` consequence and module-level
+  `#[allow(deprecated)]` opt-out apply; without that opt-in, no program that
+  compiled before stops compiling.
+
+- Added `rstest-bdd[W003]`: a harness selection and an explicit `attributes`
+  policy that name different frameworks now report the conflict and that the
+  explicit policy takes precedence. Remove `attributes = ...` or name the
+  matching policy. The same `-D warnings` consequence and module-level
+  `#[allow(deprecated)]` opt-out apply; without that opt-in, no program that
+  compiled before stops compiling.
+
+- Added `rstest-bdd[E001]`: an `async fn` scenario with no executor now reports
+  that `attributes = ...` adds none and no `harness` provides one. It is a
+  `compile_error!`, so `-D warnings` and `#[allow(deprecated)]` do not change
+  it; it fires only where compilation already failed, so no program that
+  compiled before stops compiling.
+
+- Added `rstest-bdd[E002]`: `scenarios!` combining
+  `runtime = "tokio-current-thread"` with `harness = ...` now reports that the
+  harness already selects the runtime. It is a `compile_error!`, so
+  `-D warnings` and `#[allow(deprecated)]` do not change it; it fires only
+  where compilation already failed, so no program that compiled before stops
+  compiling.
+
 - `rstest-bdd-harness::binary_test_support`, a `#[doc(hidden)]` test-support
   module, gained `target_directory_of`. It returns the target root of a test
   executable by finding Cargo's `CACHEDIR.TAG`, or `None` when no ancestor
