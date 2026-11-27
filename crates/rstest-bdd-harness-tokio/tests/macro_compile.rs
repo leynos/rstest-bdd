@@ -44,6 +44,7 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         "tests/fixtures_macros/scenarios_attributes_tokio.rs",
         "tests/fixtures_macros/scenarios_harness_tokio_default.rs",
         "tests/fixtures_macros/policy_opt_out.rs",
+        "tests/fixtures_macros/rstest_async_test_attr_accepted_canary.rs",
     ] {
         tests.pass(case);
     }
@@ -51,6 +52,7 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         "tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs",
         "tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs",
         "tests/fixtures_macros/scenarios_policy_e002_runtime_alias_with_harness.rs",
+        "tests/fixtures_macros/rstest_async_requires_test_attr_canary.rs",
     ] {
         tests.compile_fail(case);
     }

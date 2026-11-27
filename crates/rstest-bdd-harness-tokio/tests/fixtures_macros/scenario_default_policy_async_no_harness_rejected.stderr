@@ -1,5 +1,25 @@
-error: async test requires either explicit `test_attr` or implicit (attribute path ends with `test`)
-  --> tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs:20:10
+error: rstest-bdd[E001]: this `async fn` scenario has no executor: `attributes = ...` adds none, and no `harness` provides one. Remove `attributes = ...` (async scenarios default to Tokio), write `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy`, or add an executor attribute such as `#[tokio::test]`.
+  --> tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs:18:38
    |
-20 | async fn with_default_policy_only_async() {}
-   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+18 |     attributes = rstest_bdd_harness::DefaultAttributePolicy,
+   |                                      ^^^^^^^^^^^^^^^^^^^^^^
+
+error: rstest-bdd[E001]: this `async fn` scenario has no executor: `attributes = ...` adds none, and no `harness` provides one. Remove `attributes = ...` (async scenarios default to Tokio), write `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy`, or add an executor attribute such as `#[tokio::test]`. rstest-bdd cannot read third-party attribute policies.
+  --> tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs:35:53
+   |
+35 | #[scenario(path = "basic.feature", attributes = my::Policy)]
+   |                                                     ^^^^^^
+
+error: rstest-bdd[E001]: this `async fn` scenario has no executor: `attributes = ...` adds none, and no `harness` provides one. Remove `attributes = ...` (async scenarios default to Tokio), write `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy`, or add an executor attribute such as `#[tokio::test]`.
+  --> tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs:41:51
+   |
+41 |     attributes = alias::rstest_bdd_harness_tokio::TokioAttributePolicy,
+   |                                                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rstest_bdd_harness_tokio`
+  --> tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs:31:13
+   |
+31 |     pub use rstest_bdd_harness_tokio;
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

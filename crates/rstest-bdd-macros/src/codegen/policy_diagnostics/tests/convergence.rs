@@ -9,6 +9,7 @@
 
 use super::{
     super::model::{
+        Framework,
         PolicyFindings,
         PolicyInputs,
         SlotClass,
@@ -32,16 +33,19 @@ enum Finding {
     Conflict,
     /// E002, the deprecated alias combined with a harness.
     AliasWithHarness,
+    /// E001, an async scenario with no executor.
+    MissingExecutor,
 }
 
 impl Finding {
     /// Every finding kind, in a stable order.
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::HarnessPath,
         Self::AttributesPath,
         Self::MissingPolicy,
         Self::Conflict,
         Self::AliasWithHarness,
+        Self::MissingExecutor,
     ];
 
     /// Whether this finding holds in `findings`.
@@ -52,6 +56,7 @@ impl Finding {
             Self::MissingPolicy => findings.missing_attribute_policy,
             Self::Conflict => findings.conflicting_frameworks.is_some(),
             Self::AliasWithHarness => findings.runtime_alias_with_harness,
+            Self::MissingExecutor => findings.missing_executor,
         }
     }
 
@@ -63,6 +68,7 @@ impl Finding {
             Self::MissingPolicy => 0b100,
             Self::Conflict => 0b1000,
             Self::AliasWithHarness => 0b1_0000,
+            Self::MissingExecutor => 0b10_0000,
         }
     }
 }
@@ -83,6 +89,7 @@ fn fixes(finding: Finding, inputs: PolicyInputs) -> Vec<PolicyInputs> {
         Finding::MissingPolicy => missing_policy_fixes(inputs),
         Finding::Conflict => conflict_fixes(inputs),
         Finding::AliasWithHarness => alias_fixes(inputs),
+        Finding::MissingExecutor => executor_fixes(inputs),
     }
 }
 
@@ -150,6 +157,16 @@ fn alias_fixes(inputs: PolicyInputs) -> Vec<PolicyInputs> {
     }
 }
 
+/// E001's three fixes: drop the policy, adopt the Tokio policy, or write an
+/// executor attribute.
+fn executor_fixes(inputs: PolicyInputs) -> Vec<PolicyInputs> {
+    vec![
+        inputs.with_attributes(SlotClass::Absent),
+        inputs.with_attributes(SlotClass::Recognized(Framework::Tokio.into())),
+        inputs.with_user_test_attr(true),
+    ]
+}
+
 /// How many `(state, finding, fix)` triples each finding kind has checked.
 #[derive(Default)]
 struct Tally {
@@ -163,6 +180,8 @@ struct Tally {
     conflict: usize,
     /// E002.
     alias: usize,
+    /// E001.
+    executor: usize,
 }
 
 impl Tally {
@@ -177,6 +196,7 @@ impl Tally {
             Finding::MissingPolicy => &mut self.policy,
             Finding::Conflict => &mut self.conflict,
             Finding::AliasWithHarness => &mut self.alias,
+            Finding::MissingExecutor => &mut self.executor,
         }
     }
 
@@ -188,13 +208,15 @@ impl Tally {
                 && self.attributes > 0
                 && self.policy > 0
                 && self.conflict > 0
-                && self.alias > 0,
-            "every finding kind must contribute checked fixes, got {}, {}, {}, {}, {}",
+                && self.alias > 0
+                && self.executor > 0,
+            "every finding kind must contribute checked fixes, got {}, {}, {}, {}, {}, {}",
             self.harness,
             self.attributes,
             self.policy,
             self.conflict,
-            self.alias
+            self.alias,
+            self.executor
         );
     }
 }

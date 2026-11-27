@@ -20,6 +20,7 @@
 
 mod classify;
 mod emit;
+mod inputs;
 mod message;
 mod model;
 mod render;

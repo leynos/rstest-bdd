@@ -1,0 +1,5 @@
+error: async test requires either explicit `test_attr` or implicit (attribute path ends with `test`)
+ --> tests/fixtures_macros/rstest_async_requires_test_attr_canary.rs:5:10
+  |
+5 | async fn async_without_executor() {}
+  |          ^^^^^^^^^^^^^^^^^^^^^^

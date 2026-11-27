@@ -175,6 +175,30 @@ fn expects_silence(inputs: PolicyInputs) -> bool {
         && !has_evidence(inputs.attributes())
         && !conflict
         && !alias_error
+        && !no_executor(inputs)
+}
+
+/// Whether the configuration is one `rstest` rejects for lacking an executor.
+///
+/// Stated through the precedence ladder rather than through the emitted set,
+/// so it does not restate `has_missing_executor`.
+fn no_executor(inputs: PolicyInputs) -> bool {
+    let PolicyInputs::Scenario {
+        is_async: true,
+        has_user_test_attr: false,
+        ..
+    } = inputs
+    else {
+        return false;
+    };
+    let selected = selected_hint(
+        inputs.harness(),
+        inputs.attributes(),
+        inputs.attribute_runtime(),
+    );
+    matches!(inputs.harness(), SlotClass::Absent)
+        && !matches!(inputs.attributes(), SlotClass::Absent)
+        && selected == TestAttributeHint::RstestOnly
 }
 
 #[test]

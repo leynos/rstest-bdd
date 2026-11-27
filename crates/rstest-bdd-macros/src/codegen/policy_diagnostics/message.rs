@@ -113,3 +113,25 @@ pub(crate) fn runtime_alias_with_harness(canonical_harness: Option<&str>) -> Str
         harness_fix
     )
 }
+
+/// The text for an `async fn` scenario that has no executor.
+///
+/// The last sentence appears only for a third-party policy: the macros cannot
+/// read its `test_attributes()` implementation, which is why it adds no
+/// executor (ADR-0008).
+pub(crate) fn missing_executor(tokio_policy: &str, third_party: bool) -> String {
+    let limitation = if third_party {
+        " rstest-bdd cannot read third-party attribute policies."
+    } else {
+        ""
+    };
+    format!(
+        concat!(
+            "rstest-bdd[E001]: this `async fn` scenario has no executor: `attributes = ...` adds ",
+            "none, and no `harness` provides one. Remove `attributes = ...` (async scenarios ",
+            "default to Tokio), write `attributes = {}`, or add an executor attribute such as ",
+            "`#[tokio::test]`.{}"
+        ),
+        tokio_policy, limitation
+    )
+}

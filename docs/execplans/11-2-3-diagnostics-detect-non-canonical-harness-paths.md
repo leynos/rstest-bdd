@@ -302,7 +302,15 @@ conflict in `Decision log`, and escalate.
   error spanned at the harness path; a nightly twin pins the native W003
   warning. The alias-plus-harness branch of the deprecation warning is gone
   (D41, D42).
-- [ ] EP-M4: E001 (missing executor).
+- [x] (2026-11-27) EP-M4 implemented: E001 replaces `rstest`'s generic
+  "async test requires" error with a code-prefixed error spanned at the
+  `attributes` path, offering its three remedies and naming the third-party
+  limitation when the policy is foreign. The existing rejection fixture now
+  carries three blocks (default, foreign, non-canonical policy); two
+  `rstest`-only canaries pin `AX-RSTEST-ASYNC`, and
+  `policy_user_executor.rs` keeps a user-written `#[tokio::test]` and
+  `#[test_attr(...)]` compiling. The model split `model.rs` into `model.rs`
+  plus `inputs.rs` when Whitaker measured the module at 412 lines (D43).
 - [ ] EP-M5: behavioural scenarios for silence and suggested fixes.
 - [ ] EP-M6: documentation, ADR-0029, CHANGELOG.
 - [ ] EP-M7: roadmap tick, final gates, plan marked `COMPLETE`.
@@ -760,6 +768,10 @@ earlier one, the earlier entry says so.
   method made five single-segment-import tests and two `harness_defaults` cases
   recognize imports that the real macros cannot, which the unit suite caught.
   Date/Author: 2026-11-27 / Claude.
+- Decision D43 (EP-M4): `PolicyInputs` moves to `inputs.rs` when the model
+  module reached 412 lines. Rationale: C7's module-length gate again, split
+  along the seam between "what the boundary knows" and "what the decision
+  concludes". Date/Author: 2026-11-27 / Claude.
 - Decision D41 (EP-M3): E002's fix is composite for the same reason D30's is.
   `LEM-FIX-CONVERGES` found that clearing the alias from
   `(Evidenced(GPUI), Absent, alias)` reveals W002. Because errors suppress

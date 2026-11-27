@@ -59,6 +59,9 @@ fn conflict_warning(state: &DiagnosticState) -> Option<RenderedWarning> {
 
 /// Build the errors this boundary must report, if any.
 pub(super) fn errors(state: &DiagnosticState) -> Option<TokenStream2> {
+    if state.findings.missing_executor {
+        return executor_error(state);
+    }
     if !state.findings.runtime_alias_with_harness {
         return None;
     }
@@ -170,4 +173,16 @@ fn canonical_root(resolver: &dyn CrateResolver, framework: Framework) -> String 
         || spec.default_crate_name.to_owned(),
         |ident| ident.to_string(),
     )
+}
+
+/// E001, spanned at the `attributes` path that adds no executor.
+fn executor_error(state: &DiagnosticState) -> Option<TokenStream2> {
+    let ident = state.slots.attributes.as_ref()?;
+    let tokio_policy = canonical_policy_path(state.resolver, Framework::Tokio);
+    let third_party = matches!(state.inputs.attributes(), SlotClass::Foreign);
+    let error = syn::Error::new(
+        ident.span(),
+        message::missing_executor(&tokio_policy, third_party),
+    );
+    Some(error.into_compile_error())
 }
