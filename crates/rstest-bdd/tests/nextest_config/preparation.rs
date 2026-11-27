@@ -26,12 +26,16 @@ use super::support::{default_overrides, duration_seconds, nextest_configuration,
 /// The filter every preparation override must carry.
 const PREPARATION_FILTER: &str = "test(/nested_fixture_preparation$/)";
 
+/// The default profile's preparation period: the most its 90 m
+/// `global-timeout` leaves room for.
+pub(super) const DEFAULT_PREPARATION_PERIOD: &str = "80m";
+
 #[test]
 fn preparation_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;
     let overrides = default_overrides(&configuration)?;
     let override_value = single_preparation_override(overrides)?;
-    assert_preparation_budget(override_value)?;
+    assert_preparation_budget(override_value, DEFAULT_PREPARATION_PERIOD)?;
     assert_preparation_scheduling(&configuration, overrides, override_value)?;
     Ok(())
 }
@@ -43,7 +47,7 @@ fn preparation_nextest_override_preserves_timeout_contract() -> Result<(), Box<d
 /// setting, so both are part of the contract: a second matching override would
 /// be dead policy, and a later position would silently defer to an earlier
 /// match.
-fn single_preparation_override(overrides: &[Value]) -> Result<&Value, Box<dyn Error>> {
+pub(super) fn single_preparation_override(overrides: &[Value]) -> Result<&Value, Box<dyn Error>> {
     let candidates = overrides
         .iter()
         .enumerate()
@@ -77,10 +81,13 @@ fn single_preparation_override(overrides: &[Value]) -> Result<&Value, Box<dyn Er
 
 /// The preparation override's time budget and serialization group.
 ///
-/// The 30-minute period is where a cold dependency build belongs. A timed
-/// assertion has no budget for one, so this is the only override in the file
-/// whose period may be sized for a build rather than an assertion.
-fn assert_preparation_budget(override_value: &Value) -> Result<(), Box<dyn Error>> {
+/// The period is where a cold dependency build belongs. A timed assertion has
+/// no budget for one, so the preparation overrides are the only ones in the
+/// file whose period may be sized for a build rather than an assertion.
+pub(super) fn assert_preparation_budget(
+    override_value: &Value,
+    expected_period: &str,
+) -> Result<(), Box<dyn Error>> {
     let slow_timeout = override_value
         .get("slow-timeout")
         .and_then(Value::as_table)
@@ -89,12 +96,9 @@ fn assert_preparation_budget(override_value: &Value) -> Result<(), Box<dyn Error
         })?;
     assert_eq!(
         slow_timeout.get("period").and_then(Value::as_str),
-        Some("30m"),
-        concat!(
-            "the preparation override must allow a 30-minute period, which is where a cold \
-             dependency ",
-            "build belongs; a timed assertion has no budget for one",
-        ),
+        Some(expected_period),
+        "the preparation override must allow a {expected_period} period, which is where a cold \
+         dependency build belongs; a timed assertion has no budget for one",
     );
     assert_eq!(
         slow_timeout

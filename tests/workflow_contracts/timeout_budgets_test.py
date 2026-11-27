@@ -157,6 +157,31 @@ def test_the_largest_slow_timeout_takes_the_longest_of_several() -> None:
     )
 
 
+def test_the_largest_slow_timeout_reads_only_the_default_profile() -> None:
+    """Another profile's override runs under that profile's own budget.
+
+    The Makefile's nextest recipes select a ``local`` profile whose
+    preparation override is far longer than the default profile's
+    ``global-timeout``. Counting it here would demand a CI budget for a
+    profile no coverage lane runs; the override in the default profile is still
+    read, so a long default override is not hidden by the scoping.
+    """
+    config_text = _DEFAULT_PROFILE + (
+        "\n[[profile.default.overrides]]\n"
+        "filter = 'binary(slow)'\n"
+        'slow-timeout = { period = "20m", terminate-after = 1 }\n'
+        "\n[profile.local]\n"
+        'global-timeout = "360m"\n'
+        "\n[[profile.local.overrides]]\n"
+        "filter = 'binary(slow)'\n"
+        'slow-timeout = { period = "240m", terminate-after = 1 }\n'
+    )
+    assert reading.largest_slow_timeout(config_text) == pytest.approx(20 * 60.0), (
+        "the local profile's 240m override was read as a per-test budget the "
+        "default profile's global timeout must clear"
+    )
+
+
 def test_a_configuration_with_no_per_test_budget_is_rejected() -> None:
     """Nothing bounds a single test without one, so this is not a default."""
     with pytest.raises(budgets.MissingSlowTimeoutError):

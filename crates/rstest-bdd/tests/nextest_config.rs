@@ -4,10 +4,10 @@
 //! The suite parses `.config/nextest.toml` with `toml` and asserts its timeout
 //! policy, including `global-timeout` and the `cargo-spawning` thread limit.
 //!
-//! Five contracts are pinned:
+//! Five contracts are pinned here, and the `local` profile's in `local_profile`:
 //!
 //! * `preparation_nextest_override_preserves_timeout_contract` requires exactly one override to
-//!   match `test(/nested_fixture_preparation$/)`, at a 30 m period with the same termination
+//!   match `test(/nested_fixture_preparation$/)`, at an 80 m period with the same termination
 //!   settings and group, and to be scheduled ahead of every other override (`priority` 100 against
 //!   the default 0). It also requires the top-level `nextest-version` that `priority` needs, and
 //!   that the preparation override is the first one in the file, so the first-match precedence rule
@@ -91,6 +91,9 @@ use support::{
 
 #[path = "nextest_config/preparation.rs"]
 mod preparation;
+
+#[path = "nextest_config/local_profile.rs"]
+mod local_profile;
 
 const FEATURE_REBUILD_FILTER: &str = "binary_id(rstest-bdd::feature_rebuild_invalidation)";
 const PRELUDE_FIXTURE_FILTER: &str = "binary_id(rstest-bdd::prelude_fixture)";

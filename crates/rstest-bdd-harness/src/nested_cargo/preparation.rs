@@ -91,26 +91,36 @@ use super::{NestedCargoEnv, ProfileDestination};
 ///
 /// A preparation command compiles what the timed tests would otherwise
 /// compile inside their own deadlines, so its bound is sized for a queued cold
-/// build on a two-vCPU CI runner rather than for a warm assertion. It is not,
-/// and must not become, the deadline of any test.
+/// build rather than for a warm assertion. It is not, and must not become, the
+/// deadline of any test.
 ///
-/// It must stay **below** the 30-minute `slow-timeout` that `.config/nextest.toml`
+/// The bound counts time a command spends waiting for a compile slot, not only
+/// compiling, so it is sized for a loaded development host whose shared
+/// compile-admission queue is hundreds of requests deep. The former nine-minute
+/// bound expired three times running there on the `trybuild_macros` UI-lint
+/// clippy build, with up to 464 requests queued ahead, while the build was still
+/// making progress.
+///
+/// It must stay **below** the 80-minute `slow-timeout` that `.config/nextest.toml`
 /// gives `nested_fixture_preparation`, even when a preparation test runs several
 /// commands in sequence: a combined bound at or above the test's own budget
 /// would let nextest kill the test first, discarding the captured child output
 /// that [`run_bounded_with_timeout`] puts in the error. The worst case is
 /// [`MAX_SEQUENTIAL_COMMANDS`] commands — the rebuild-invalidation preparation
 /// compiles one fixture, then runs a metadata preflight and a second compile —
-/// so nine minutes keeps three of them at 27 minutes, under the 30-minute
-/// period.
+/// so 25 minutes keeps three of them at 75 minutes, under the 80-minute
+/// period, and that period is itself the most the default profile's 90-minute
+/// `global-timeout` leaves room for. A longer bound would have to move that
+/// run-level budget, and with it the CI watchdog and job timeouts that are
+/// sized against it.
 ///
-/// Nine minutes is still far above any command measured on CI. The whole
+/// Twenty-five minutes is still far above any command measured on CI. The whole
 /// three-command preparation test took 31.154 s on the cold run
 /// `41981885921`, and a command cannot outlast the test that runs it, so every
 /// command inside that test is covered many times over.
 ///
 /// [`run_bounded_with_timeout`]: super::run_bounded_with_timeout
-pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(9 * 60);
+pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(25 * 60);
 
 /// The most bounded commands one preparation test runs in sequence.
 ///

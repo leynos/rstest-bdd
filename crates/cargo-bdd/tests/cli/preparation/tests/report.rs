@@ -121,7 +121,7 @@ fn a_real_cargo_build_is_counted_and_filed_as_a_rebuild() {
     //
     // The bound is the graph-query figure, not the preparation's: this binary
     // is given a 180 s period by `.config/nextest.toml`, and the preparation's
-    // nine minutes would let the runner kill the test before the bound
+    // 25-minute bound would let the runner kill the test before the bound
     // reported. A scratch crate with no dependencies compiles in seconds on
     // any host that can build this workspace, so the smaller figure is
     // generous against the work and still inside the period that contains it.

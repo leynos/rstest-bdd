@@ -46,14 +46,63 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-/// The value of `key` in the named profile, if that profile sets it.
-fn profile_key<'a>(configuration: &'a Value, profile_name: &str, key: &str) -> Option<&'a Value> {
+/// A key inside one nextest profile, such as `profile.default.global-timeout`.
+///
+/// The profile and key travel together because every lookup and every error
+/// names both; `Display` renders the dotted path the error reports.
+#[derive(Clone, Copy)]
+struct ProfileKey<'k> {
+    profile: &'k str,
+    key: &'k str,
+}
+
+impl<'k> ProfileKey<'k> {
+    /// The named profile's run-level `global-timeout`.
+    const fn global_timeout(profile: &'k str) -> Self {
+        Self {
+            profile,
+            key: "global-timeout",
+        }
+    }
+
+    /// The named profile's ordered `overrides` list.
+    const fn overrides(profile: &'k str) -> Self {
+        Self {
+            profile,
+            key: "overrides",
+        }
+    }
+}
+
+impl std::fmt::Display for ProfileKey<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "profile.{}.{}", self.profile, self.key)
+    }
+}
+
+/// The value at `at`, if the configuration sets it.
+fn profile_key<'a>(configuration: &'a Value, at: ProfileKey<'_>) -> Option<&'a Value> {
     configuration
         .get("profile")
         .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get(profile_name))
+        .and_then(|profiles| profiles.get(at.profile))
         .and_then(Value::as_table)
-        .and_then(|profile| profile.get(key))
+        .and_then(|profile| profile.get(at.key))
+}
+
+/// The value at `at`, read as `T` by `read`.
+///
+/// A missing profile, a missing key and a key of the wrong type all report the
+/// same dotted path, because to the reader of a failure they are one mistake:
+/// the configuration does not say what the contract needs it to say.
+fn required_profile_key<'a, T>(
+    configuration: &'a Value,
+    at: ProfileKey<'_>,
+    read: impl FnOnce(&'a Value) -> Option<T>,
+) -> Result<T, io::Error> {
+    profile_key(configuration, at)
+        .and_then(read)
+        .ok_or_else(|| io::Error::other(format!("nextest configuration must set {at}")))
 }
 
 /// The named profile's run-level `global-timeout`.
@@ -65,13 +114,11 @@ pub(super) fn profile_global_timeout<'a>(
     configuration: &'a Value,
     profile_name: &str,
 ) -> Result<&'a str, io::Error> {
-    profile_key(configuration, profile_name, "global-timeout")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must set profile.{profile_name}.global-timeout"
-            ))
-        })
+    required_profile_key(
+        configuration,
+        ProfileKey::global_timeout(profile_name),
+        Value::as_str,
+    )
 }
 
 /// The default profile's run-level `global-timeout`.
@@ -144,26 +191,22 @@ pub(super) fn duration_seconds(duration: &str) -> Result<u64, io::Error> {
         .ok_or_else(|| io::Error::other(format!("duration {duration} overflows")))
 }
 
-/// The default profile's ordered overrides.
-pub(super) fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
-    let overrides = default_profile(configuration)?
-        .get("overrides")
-        .and_then(Value::as_array)
-        .ok_or_else(|| {
-            io::Error::other("nextest configuration must contain profile.default.overrides")
-        })?;
-
-    Ok(overrides)
+/// The named profile's ordered overrides.
+///
+/// A profile other than `default` lists only its own overrides here; nextest
+/// checks them before `profile.default.overrides`, so a caller asking what
+/// governs a test under that profile reads this list first.
+pub(super) fn profile_overrides<'a>(
+    configuration: &'a Value,
+    profile_name: &str,
+) -> Result<&'a [Value], io::Error> {
+    let read = |value: &'a Value| value.as_array().map(Vec::as_slice);
+    required_profile_key(configuration, ProfileKey::overrides(profile_name), read)
 }
 
-/// The default profile's table.
-fn default_profile(configuration: &Value) -> Result<&toml::value::Table, io::Error> {
-    configuration
-        .get("profile")
-        .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get("default"))
-        .and_then(Value::as_table)
-        .ok_or_else(|| io::Error::other("nextest configuration must contain profile.default"))
+/// The default profile's ordered overrides.
+pub(super) fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
+    profile_overrides(configuration, "default")
 }
 
 /// Indices of the overrides whose filter names a trybuild test binary.

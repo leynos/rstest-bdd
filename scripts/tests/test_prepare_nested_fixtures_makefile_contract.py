@@ -2,7 +2,8 @@
 
 The target and the ``nested_fixture_preparation`` override in
 ``.config/nextest.toml`` are two halves of one policy. The override gives those
-tests a 30-minute budget; the target is what selects and runs them before a
+tests their budget, and the ``local`` profile every Makefile nextest pass
+selects lengthens it; the target is what selects and runs them before a
 filtered suite. Only the override was pinned, by
 ``crates/rstest-bdd/tests/nextest_config.rs``.
 
@@ -109,6 +110,29 @@ def test_the_run_half_refuses_an_absent_filter_expression() -> None:
 
     assert any("$(if $(EXPR)" in line for line in lines), (
         f"{RUNNER} must refuse an absent EXPR, got {lines!r}"
+    )
+
+
+#: The target whose two timed passes the preparation exists to serve.
+SUITE = "test"
+
+
+@pytest.mark.parametrize("target", [TARGET, RUNNER, SUITE])
+def test_every_nextest_pass_runs_under_the_local_profile(target: str) -> None:
+    """Each nextest invocation must select the profile sized for a queued host.
+
+    Without ``--profile local`` a pass falls back to the default profile,
+    whose limits are tied to the CI watchdog and are too short for nested
+    builds queued behind hundreds of compile requests. Every pass still
+    succeeds on an idle host, so only this assertion notices the flag going
+    missing before a loaded host does. ``test`` has two nextest passes, and
+    each needs it.
+    """
+    nextest_lines = [line for line in recipe(target) if "nextest run" in line]
+
+    assert nextest_lines, f"{target} must run cargo nextest, got {recipe(target)!r}"
+    assert all("nextest run --profile local " in line for line in nextest_lines), (
+        f"{target} must run nextest with --profile local, got {nextest_lines!r}"
     )
 
 

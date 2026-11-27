@@ -321,6 +321,8 @@ def largest_slow_timeout(config_text: str) -> float:
     ``slow-timeout = "60s"`` as a period with no termination policy,
     exactly as if the table form had left ``terminate-after`` out.
 
+    Only the default profile counts; others run under their own budgets.
+
     Parameters
     ----------
     config_text : str
@@ -344,10 +346,11 @@ def largest_slow_timeout(config_text: str) -> float:
     ... )
     1200.0
     """
-    budgets: list[float] = []
-    for path, table in _slow_timeouts(config_text):
-        period = seconds(_period(table, path))
-        budgets.append(period * _terminate_after(table, path))
+    budgets = [
+        seconds(_period(table, path)) * _terminate_after(table, path)
+        for path, table in _slow_timeouts(config_text)
+        if path.split(".")[1].split("[")[0] == "default"
+    ]
     if not budgets:
         raise MissingSlowTimeoutError
     return max(budgets)
