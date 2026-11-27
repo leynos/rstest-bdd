@@ -9,3 +9,9 @@ note: the lint level is defined here
    |
  7 | #![deny(deprecated)]
    |         ^^^^^^^^^^
+
+error: use of deprecated unit struct `alias_shape::auto_scenarios::_::RstestBddConflictingHarnessAndPolicy`: rstest-bdd[W003]: `harness` selects Tokio, but `attributes` selects GPUI; the explicit `attributes` takes precedence. Remove `attributes = ...`, or write `attributes = rstest_bdd_harness_tokio::TokioAttributePolicy`.
+  --> tests/fixtures_macros/policy_w003_conflicting_frameworks.rs:36:47
+   |
+36 |         attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
+   |                                               ^^^^^^^^^^^^^^^^^^^

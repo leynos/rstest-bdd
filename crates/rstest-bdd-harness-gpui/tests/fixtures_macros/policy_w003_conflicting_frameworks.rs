@@ -24,6 +24,19 @@ fn result() {}
 )]
 fn tokio_harness_with_gpui_policy() {}
 
+/// The `scenarios!` shape: the alias implies Tokio, the policy names GPUI.
+mod alias_shape {
+    //! A separate module keeps the two W003 blocks apart in stderr.
+
+    use rstest_bdd_macros::scenarios;
+
+    scenarios!(
+        "tests/features/auto",
+        runtime = "tokio-current-thread",
+        attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy,
+    );
+}
+
 const _: &str = include_str!("basic.feature");
 
 fn main() {}

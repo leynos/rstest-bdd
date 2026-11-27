@@ -41,7 +41,11 @@ pub(super) fn has_executor_attr(attrs: &[syn::Attribute]) -> bool {
 /// assert!(has_gpui_test_attr(&attrs));
 /// ```
 pub(super) fn has_gpui_test_attr(attrs: &[syn::Attribute]) -> bool {
-    attrs.iter().any(|attr| attr.path().is_ident("gpui::test"))
+    // Reuse the generator's predicate, so the deduplication this suppresses a
+    // claim for is by construction the deduplication that will happen.
+    attrs
+        .iter()
+        .any(crate::codegen::scenario::test_attrs::is_gpui_test_attr)
 }
 
 #[cfg(test)]
@@ -50,7 +54,7 @@ mod tests {
 
     use rstest::rstest;
 
-    use super::has_executor_attr;
+    use super::{has_executor_attr, has_gpui_test_attr};
 
     fn attrs(attribute: &str) -> Vec<syn::Attribute> {
         let source = format!("{attribute} fn example() {{}}");
@@ -62,6 +66,7 @@ mod tests {
 
     #[rstest]
     #[case("#[gpui::test]", true)]
+    #[case("#[gpui::test(flavor = \"current_thread\")]", true)]
     #[case("#[test]", true)]
     #[case("#[tokio::test]", true)]
     #[case("#[gpui::test]", true)]
@@ -75,6 +80,19 @@ mod tests {
             has_executor_attr(&attrs(attribute)),
             expected,
             "{attribute} must be classified as an executor attribute: {expected}"
+        );
+    }
+
+    #[rstest]
+    #[case("#[gpui::test]", true)]
+    #[case("#[test]", false)]
+    #[case("#[tokio::test]", false)]
+    #[case("#[should_panic]", false)]
+    fn recognizes_a_user_gpui_test(#[case] attribute: &str, #[case] expected: bool) {
+        assert_eq!(
+            has_gpui_test_attr(&attrs(attribute)),
+            expected,
+            "{attribute} GPUI-attribute classification must be {expected}"
         );
     }
 

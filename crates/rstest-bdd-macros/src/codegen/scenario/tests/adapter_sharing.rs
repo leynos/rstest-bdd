@@ -128,6 +128,34 @@ fn scenario_generated_from_shared_resolution_emits_no_diagnostic() {
     );
 }
 
+/// The three-marker witness: a non-canonical harness and a non-canonical,
+/// conflicting policy.
+///
+/// W002 cannot co-occur with W003 (it requires no policy), so this is the only
+/// shape that renders three warnings at one boundary (decision D32).
+#[cfg(not(rstest_bdd_nightly))]
+#[test]
+fn boundary_emits_three_diagnostics_for_evidence_and_conflict() {
+    let harness: syn::Path = syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
+    let attributes: syn::Path =
+        syn::parse_quote!(alias::rstest_bdd_harness_gpui::GpuiAttributePolicy);
+    let resolutions = SharedPolicyDiagnostics::for_scenario(
+        Some(&harness),
+        Some(&attributes),
+        crate::codegen::ScenarioFacts {
+            is_async: false,
+            has_executor_attr: false,
+            has_gpui_test_attr: false,
+        },
+    );
+
+    assert_eq!(
+        marker_count(&resolutions.emit_warnings()),
+        3,
+        "two evidenced slots and a framework conflict render three warnings"
+    );
+}
+
 /// A canonical crate-root path is not a fallback, so nothing is emitted.
 #[cfg(not(rstest_bdd_nightly))]
 #[test]

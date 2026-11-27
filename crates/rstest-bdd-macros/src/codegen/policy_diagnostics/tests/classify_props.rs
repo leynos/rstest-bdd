@@ -93,6 +93,42 @@ fn parse(text: &str) -> Result<syn::Path, TestCaseError> {
     syn::parse_str::<syn::Path>(text).map_err(|error| TestCaseError::fail(error.to_string()))
 }
 
+/// A concrete harness path that classifies to `class` when resolvable.
+///
+/// Class-first generation makes each class's frequency a property of the
+/// strategy rather than of chance, which is what the plan asks for.
+fn harness_witness(class: SlotClass) -> Option<syn::Path> {
+    match class {
+        SlotClass::Absent => None,
+        SlotClass::Recognized(TestAttributeHint::RstestOnly) => {
+            Some(syn::parse_quote!(rstest_bdd_harness::StdHarness))
+        }
+        SlotClass::Recognized(TestAttributeHint::RstestWithTokioCurrentThread) => {
+            Some(syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness))
+        }
+        SlotClass::Recognized(TestAttributeHint::RstestWithGpuiTest) => {
+            Some(syn::parse_quote!(rstest_bdd_harness_gpui::GpuiHarness))
+        }
+        SlotClass::Evidenced(Framework::Tokio) => Some(syn::parse_quote!(
+            alias::rstest_bdd_harness_tokio::TokioHarness
+        )),
+        SlotClass::Evidenced(Framework::Gpui) => Some(syn::parse_quote!(
+            alias::rstest_bdd_harness_gpui::GpuiHarness
+        )),
+        SlotClass::Foreign => Some(syn::parse_quote!(custom::TokioHarness)),
+    }
+}
+
+/// Every class a generated witness can reproduce, `Absent` excluded.
+const WITNESS_CLASSES: [SlotClass; 6] = [
+    SlotClass::Recognized(TestAttributeHint::RstestOnly),
+    SlotClass::Recognized(TestAttributeHint::RstestWithTokioCurrentThread),
+    SlotClass::Recognized(TestAttributeHint::RstestWithGpuiTest),
+    SlotClass::Evidenced(Framework::Tokio),
+    SlotClass::Evidenced(Framework::Gpui),
+    SlotClass::Foreign,
+];
+
 proptest! {
     #[test]
     fn classification_obeys_the_evidence_contract(
@@ -158,6 +194,16 @@ proptest! {
             class,
             "a leading `::` must not change the classification"
         );
+    }
+}
+
+proptest! {
+    #[test]
+    fn class_first_witnesses_round_trip(class in prop::sample::select(&WITNESS_CLASSES[..])) {
+        let Some(path) = harness_witness(class) else {
+            return Err(TestCaseError::fail("a witness class must have a path"));
+        };
+        prop_assert_eq!(classify_harness_path(&path, &TestResolver::resolvable()), class);
     }
 }
 

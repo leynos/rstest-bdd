@@ -302,6 +302,11 @@ fn scenario_diagnostics(
         has_executor_attr: has_executor_attr(&item_fn.attrs),
         has_gpui_test_attr: has_gpui_test_attr(&item_fn.attrs),
     };
+    // This rejection predates the diagnostics and is an error, so it must be
+    // decided before either channel speaks (decision D9).
+    if facts.is_async && args.harness.is_some() {
+        return Err(crate::codegen::scenario::reject_async_harness_error().into());
+    }
     let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenario(
         args.harness.as_ref(),
         args.attributes.as_ref(),

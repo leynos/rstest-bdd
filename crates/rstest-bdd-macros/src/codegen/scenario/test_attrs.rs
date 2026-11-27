@@ -44,7 +44,9 @@ fn is_two_segment_attr(attr: &syn::Attribute, crate_name: &str, fn_name: &str) -
 fn is_tokio_test_attr(attr: &syn::Attribute) -> bool { is_two_segment_attr(attr, "tokio", "test") }
 
 /// Provides the internal `is_gpui_test_attr` operation.
-fn is_gpui_test_attr(attr: &syn::Attribute) -> bool { is_two_segment_attr(attr, "gpui", "test") }
+pub(crate) fn is_gpui_test_attr(attr: &syn::Attribute) -> bool {
+    is_two_segment_attr(attr, "gpui", "test")
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Documents the internal `PolicyAttribute` item.

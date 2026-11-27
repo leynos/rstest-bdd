@@ -2094,6 +2094,10 @@ To be filled during implementation:
 
 - red and green transcripts per milestone;
 - nightly transcripts with the toolchain version;
+- Final test-cost measurements at the implementation head: Tokio
+  `macro_compile` 545.6 s wall (542.1 s nextest) and GPUI 105.5 s wall on a
+  warm tree, against the EP-M0 408.1 s and 610.3 s contended baselines. Both
+  suites now host more fixtures; see `D48` for the overage.
 - EP-M2 snapshot regeneration: stable runs repaired the six stable markers and
   created `policy_w001_noncanonical.stderr` and
   `policy_w002_missing_policy.stderr`; `nightly-2026-08-16` runs repaired the
