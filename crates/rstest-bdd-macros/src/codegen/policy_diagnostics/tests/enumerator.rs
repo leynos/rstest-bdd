@@ -133,22 +133,23 @@ fn no_evidenced_slot_means_no_finding() {
 
 #[test]
 fn each_slot_contributes_at_most_one_finding() {
-    let mut counts = [0_usize; 3];
+    let mut none = 0_usize;
+    let mut one = 0_usize;
+    let mut two = 0_usize;
     for inputs in all_inputs() {
         let findings = diagnose(inputs);
         let count = usize::from(findings.harness_unrecognized_path)
             + usize::from(findings.attributes_unrecognized_path);
-        assert!(
-            count <= 2,
-            "two slots cannot produce more than two slot findings: {} covered",
-            count
-        );
-        counts[count] += 1;
+        match count {
+            0 => none += 1,
+            1 => one += 1,
+            _ => two += 1,
+        }
     }
 
     assert!(
-        counts.iter().all(|count| *count > 0),
-        "every finding count must be reachable, got {counts:?}"
+        none > 0 && one > 0 && two > 0,
+        "every finding count must be reachable, got none={none}, one={one}, two={two}"
     );
 }
 
