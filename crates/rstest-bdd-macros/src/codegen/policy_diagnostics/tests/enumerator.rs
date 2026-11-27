@@ -69,14 +69,19 @@ fn scenario_inputs() -> Vec<PolicyInputs> {
         .flat_map(|&harness| {
             CLASSES.iter().flat_map(move |&attributes| {
                 [false, true].into_iter().flat_map(move |is_async| {
-                    [false, true].into_iter().map(move |has_user_test_attr| {
-                        PolicyInputs::Scenario {
-                            harness,
-                            attributes,
-                            is_async,
-                            has_user_test_attr,
-                        }
-                    })
+                    [false, true]
+                        .into_iter()
+                        .flat_map(move |has_executor_attr| {
+                            [false, true].into_iter().map(move |has_gpui_test_attr| {
+                                PolicyInputs::Scenario {
+                                    harness,
+                                    attributes,
+                                    is_async,
+                                    has_executor_attr,
+                                    has_gpui_test_attr,
+                                }
+                            })
+                        })
                 })
             })
         })
@@ -130,7 +135,7 @@ fn the_model_covers_every_variant_at_least_once() {
 }
 
 #[test]
-fn the_state_space_holds_two_hundred_and_ninety_four_distinct_states() {
+fn the_state_space_holds_four_hundred_and_ninety_distinct_states() {
     let inputs = all_inputs();
     let mut distinct: Vec<PolicyInputs> = Vec::new();
     for input in &inputs {
@@ -141,19 +146,19 @@ fn the_state_space_holds_two_hundred_and_ninety_four_distinct_states() {
 
     assert_eq!(
         scenario_inputs().len(),
-        196,
-        "seven classes by seven classes by two signature shapes by two attribute states"
+        392,
+        "seven classes by seven classes by two signature shapes by two attribute axes"
     );
     assert_eq!(
         scenarios_inputs().len(),
         98,
         "seven classes by seven classes by two alias states"
     );
-    assert_eq!(inputs.len(), 294, "the domain is the sum of both shapes");
+    assert_eq!(inputs.len(), 490, "the domain is the sum of both shapes");
     assert_eq!(
         distinct.len(),
-        294,
-        "the enumerator must yield 294 distinct states, not 294 yielded values"
+        490,
+        "the enumerator must yield 490 distinct states, not 490 yielded values"
     );
 }
 
@@ -185,7 +190,7 @@ fn expects_silence(inputs: PolicyInputs) -> bool {
 fn no_executor(inputs: PolicyInputs) -> bool {
     let PolicyInputs::Scenario {
         is_async: true,
-        has_user_test_attr: false,
+        has_executor_attr: false,
         ..
     } = inputs
     else {
@@ -253,7 +258,8 @@ fn a_replaced_framework_attribute_is_not_a_missing_policy() {
         harness: SlotClass::Evidenced(Framework::Gpui),
         attributes: SlotClass::Absent,
         is_async: true,
-        has_user_test_attr: false,
+        has_executor_attr: false,
+        has_gpui_test_attr: false,
     };
 
     assert!(
@@ -267,27 +273,27 @@ fn a_replaced_framework_attribute_is_not_a_missing_policy() {
 }
 
 #[test]
-fn a_user_executor_attribute_suppresses_the_missing_policy_claim() {
+fn a_user_gpui_attribute_suppresses_the_missing_policy_claim() {
     let base = PolicyInputs::Scenario {
         harness: SlotClass::Evidenced(Framework::Gpui),
         attributes: SlotClass::Absent,
         is_async: false,
-        has_user_test_attr: false,
+        has_executor_attr: false,
+        has_gpui_test_attr: false,
     };
-    let PolicyInputs::Scenario {
-        harness,
-        attributes,
-        is_async,
-        ..
-    } = base
-    else {
-        panic!("the base state is a scenario state");
+    let with_gpui_attr = PolicyInputs::Scenario {
+        harness: SlotClass::Evidenced(Framework::Gpui),
+        attributes: SlotClass::Absent,
+        is_async: false,
+        has_executor_attr: true,
+        has_gpui_test_attr: true,
     };
-    let with_user_attr = PolicyInputs::Scenario {
-        harness,
-        attributes,
-        is_async,
-        has_user_test_attr: true,
+    let executor_only = PolicyInputs::Scenario {
+        harness: SlotClass::Evidenced(Framework::Gpui),
+        attributes: SlotClass::Absent,
+        is_async: false,
+        has_executor_attr: true,
+        has_gpui_test_attr: false,
     };
 
     assert!(
@@ -295,8 +301,12 @@ fn a_user_executor_attribute_suppresses_the_missing_policy_claim() {
         "the base state loses the GPUI attribute"
     );
     assert!(
-        !diagnose(with_user_attr).missing_attribute_policy,
-        "a user-written executor attribute makes the claim false, so it is suppressed"
+        !diagnose(with_gpui_attr).missing_attribute_policy,
+        "a user-written `#[gpui::test]` is deduplicated, so the claim is false"
+    );
+    assert!(
+        diagnose(executor_only).missing_attribute_policy,
+        "an executor attribute that is not `#[gpui::test]` leaves the GPUI attribute absent"
     );
 }
 

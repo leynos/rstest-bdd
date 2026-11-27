@@ -1,8 +1,14 @@
 //! The classified user arguments for one expansion boundary.
 //!
 //! A configuration is one of two shapes because the two macros expose
-//! different inputs: `#[scenario]` knows its signature and attributes,
-//! `scenarios!` knows only whether the deprecated runtime alias was supplied.
+//! different inputs: `#[scenario]` knows its signature and the attributes the
+//! author wrote, while `scenarios!` knows only whether the deprecated runtime
+//! alias was supplied.
+//!
+//! The two user-attribute facts are separate on purpose. `rstest` accepts an
+//! `async` test when any attribute's last segment is `test`, but the generator
+//! deduplicates only against the *same* framework's attribute, so `#[test]`
+//! satisfies the first and not the second.
 
 use rstest_bdd_policy::RuntimeMode;
 
@@ -24,7 +30,9 @@ pub(crate) enum PolicyInputs {
         /// Whether the annotated function is `async`.
         is_async: bool,
         /// Whether the function already carries an executor attribute.
-        has_user_test_attr: bool,
+        has_executor_attr: bool,
+        /// Whether the function already carries `#[gpui::test]`.
+        has_gpui_test_attr: bool,
     },
     /// One `scenarios!` expansion.
     Scenarios {
@@ -64,9 +72,7 @@ impl PolicyInputs {
     /// Whether the caller asked for a Tokio runtime by any spelling.
     ///
     /// `#[scenario]` asks with an `async fn`; `scenarios!` asks with the
-    /// deprecated alias. Reading the question once, rather than nesting a
-    /// conditional inside each shape, keeps the two spellings visibly the same
-    /// policy.
+    /// deprecated alias.
     fn implies_tokio_runtime(self) -> bool {
         match self {
             Self::Scenario { is_async, .. } => is_async,
@@ -92,13 +98,59 @@ impl PolicyInputs {
     /// Whether a user-written attribute already satisfies `rstest`'s rule.
     ///
     /// `scenarios!` generates its functions, so a user cannot write one there.
-    pub(crate) fn has_user_test_attr(self) -> bool {
+    pub(crate) fn has_executor_attr(self) -> bool {
         match self {
             Self::Scenario {
-                has_user_test_attr, ..
-            } => has_user_test_attr,
+                has_executor_attr, ..
+            } => has_executor_attr,
             Self::Scenarios { .. } => false,
         }
+    }
+
+    /// Whether the user already wrote `#[gpui::test]`.
+    ///
+    /// Distinct from [`Self::has_executor_attr`]: `#[test]` satisfies `rstest`
+    /// but does not deduplicate a GPUI attribute, so it must not suppress a
+    /// claim about the GPUI attribute.
+    pub(crate) fn has_gpui_test_attr(self) -> bool {
+        match self {
+            Self::Scenario {
+                has_gpui_test_attr, ..
+            } => has_gpui_test_attr,
+            Self::Scenarios { .. } => false,
+        }
+    }
+
+    /// The same configuration with the harness slot replaced.
+    pub(crate) fn with_harness(self, harness: SlotClass) -> Self {
+        let mut parts = self.parts();
+        parts.harness = harness;
+        Self::from_parts(parts)
+    }
+
+    /// The same configuration with the attributes slot replaced.
+    pub(crate) fn with_attributes(self, attributes: SlotClass) -> Self {
+        let mut parts = self.parts();
+        parts.attributes = attributes;
+        Self::from_parts(parts)
+    }
+
+    /// The same scenario with the executor-attribute flag set.
+    #[cfg(test)]
+    pub(crate) fn with_executor_attr(self, has_executor_attr: bool) -> Self {
+        let mut parts = self.parts();
+        parts.has_executor_attr = has_executor_attr;
+        Self::from_parts(parts)
+    }
+
+    /// The same configuration with the deprecated alias cleared.
+    #[cfg(test)]
+    pub(crate) fn without_runtime_alias(self) -> Self {
+        let mut parts = self.parts();
+        parts.shape = Shape::Scenarios {
+            runtime_alias: false,
+        };
+        Self::from_parts(parts)
     }
 
     /// Every field this configuration carries, whichever shape it is.
@@ -111,14 +163,14 @@ impl PolicyInputs {
                 harness,
                 attributes,
                 is_async,
-                has_user_test_attr,
+                has_executor_attr,
+                has_gpui_test_attr,
             } => Parts {
                 harness,
                 attributes,
-                shape: Shape::Scenario {
-                    is_async,
-                    has_user_test_attr,
-                },
+                shape: Shape::Scenario { is_async },
+                has_executor_attr,
+                has_gpui_test_attr,
             },
             Self::Scenarios {
                 harness,
@@ -128,43 +180,21 @@ impl PolicyInputs {
                 harness,
                 attributes,
                 shape: Shape::Scenarios { runtime_alias },
+                has_executor_attr: false,
+                has_gpui_test_attr: false,
             },
         }
-    }
-
-    /// The same configuration with the harness slot replaced.
-    pub(crate) fn with_harness(self, harness: SlotClass) -> Self {
-        Self::from_parts(self.parts().with_harness(harness))
-    }
-
-    /// The same configuration with the attributes slot replaced.
-    pub(crate) fn with_attributes(self, attributes: SlotClass) -> Self {
-        Self::from_parts(self.parts().with_attributes(attributes))
-    }
-
-    /// The same scenario with the user-attribute flag set.
-    #[cfg(test)]
-    pub(crate) fn with_user_test_attr(self, value: bool) -> Self {
-        Self::from_parts(self.parts().with(ShapeEdit::UserTestAttr(value)))
-    }
-
-    /// The same configuration with the deprecated alias cleared.
-    #[cfg(test)]
-    pub(crate) fn without_runtime_alias(self) -> Self {
-        Self::from_parts(self.parts().with(ShapeEdit::RuntimeAlias(false)))
     }
 
     /// Rebuild the shape this record describes.
     fn from_parts(parts: Parts) -> Self {
         match parts.shape {
-            Shape::Scenario {
-                is_async,
-                has_user_test_attr,
-            } => Self::Scenario {
+            Shape::Scenario { is_async } => Self::Scenario {
                 harness: parts.harness,
                 attributes: parts.attributes,
                 is_async,
-                has_user_test_attr,
+                has_executor_attr: parts.has_executor_attr,
+                has_gpui_test_attr: parts.has_gpui_test_attr,
             },
             Shape::Scenarios { runtime_alias } => Self::Scenarios {
                 harness: parts.harness,
@@ -175,15 +205,13 @@ impl PolicyInputs {
     }
 }
 
-/// The shape-specific fields, so a rebuilder never has to match twice.
-#[derive(Clone, Copy)]
+/// The shape-specific fields.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Shape {
     /// A `#[scenario]` expansion.
     Scenario {
         /// Whether the annotated function is `async`.
         is_async: bool,
-        /// Whether the function already carries an executor attribute.
-        has_user_test_attr: bool,
     },
     /// A `scenarios!` expansion.
     Scenarios {
@@ -201,53 +229,8 @@ struct Parts {
     attributes: SlotClass,
     /// The shape-specific fields.
     shape: Shape,
-}
-
-impl Parts {
-    /// The same parts with the harness slot replaced.
-    fn with_harness(mut self, harness: SlotClass) -> Self {
-        self.harness = harness;
-        self
-    }
-
-    /// The same parts with the attributes slot replaced.
-    fn with_attributes(mut self, attributes: SlotClass) -> Self {
-        self.attributes = attributes;
-        self
-    }
-
-    /// The same parts with a test-only shape field replaced.
-    ///
-    /// `edit` names the field and its new value; a shape that does not carry
-    /// that field comes back unchanged, which is why one setter serves both
-    /// test-only accessors.
-    #[cfg(test)]
-    fn with(self, edit: ShapeEdit) -> Self {
-        match (self.shape, edit) {
-            (Shape::Scenario { is_async, .. }, ShapeEdit::UserTestAttr(has_user_test_attr)) => {
-                Self {
-                    shape: Shape::Scenario {
-                        is_async,
-                        has_user_test_attr,
-                    },
-                    ..self
-                }
-            }
-            (Shape::Scenarios { .. }, ShapeEdit::RuntimeAlias(runtime_alias)) => Self {
-                shape: Shape::Scenarios { runtime_alias },
-                ..self
-            },
-            (shape, _) => Self { shape, ..self },
-        }
-    }
-}
-
-/// One test-only shape-field replacement.
-#[cfg(test)]
-#[derive(Clone, Copy)]
-enum ShapeEdit {
-    /// Set the user-attribute flag of a scenario.
-    UserTestAttr(bool),
-    /// Set the deprecated-alias flag of a `scenarios!` expansion.
-    RuntimeAlias(bool),
+    /// Whether the function already carries an executor attribute.
+    has_executor_attr: bool,
+    /// Whether the function already carries `#[gpui::test]`.
+    has_gpui_test_attr: bool,
 }

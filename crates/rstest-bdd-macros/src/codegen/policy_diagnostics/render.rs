@@ -44,10 +44,12 @@ fn conflict_warning(state: &DiagnosticState) -> Option<RenderedWarning> {
     let ident = state.slots.attributes.as_ref()?;
     let matching_policy = canonical_policy_path(state.resolver, conflict.harness);
     let harness_needs_fixing = matches!(state.inputs.harness(), SlotClass::Evidenced(_));
+    let attributes_recognized = matches!(state.inputs.attributes(), SlotClass::Recognized(_));
     Some(RenderedWarning {
         message: message::conflicting_selectors(
             conflict.harness.display_name(),
             conflict.attributes.display_name(),
+            attributes_recognized,
             &matching_policy,
             harness_needs_fixing,
         ),
@@ -135,10 +137,12 @@ fn attributes_warning(state: &DiagnosticState) -> Option<RenderedWarning> {
 
 /// The attributes the canonical spelling adds and the actual expansion omits.
 ///
-/// A user-written executor attribute suppresses every "was not applied" claim,
-/// because the generator deduplicates against it (decision D31).
+/// Only a user-written `#[gpui::test]` suppresses the claim: the generator
+/// deduplicates against that same attribute, and against nothing else. A
+/// `#[test]` satisfies `rstest` but leaves the GPUI attribute genuinely absent,
+/// so it must not silence the warning (decision D31).
 fn lost_attributes(actual: PolicyInputs, canonical: PolicyInputs) -> Vec<&'static str> {
-    if actual.has_user_test_attr() {
+    if actual.has_gpui_test_attr() {
         return Vec::new();
     }
     emitted_attributes(canonical).difference(emitted_attributes(actual))

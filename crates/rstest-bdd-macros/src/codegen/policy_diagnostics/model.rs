@@ -115,7 +115,8 @@ pub(crate) struct SlotWarnings {
 ///     harness: SlotClass::Evidenced(Framework::Tokio),
 ///     attributes: SlotClass::Absent,
 ///     is_async: false,
-///     has_user_test_attr: false,
+///     has_executor_attr: false,
+///     has_gpui_test_attr: false,
 /// };
 /// assert!(diagnose(inputs).harness_unrecognized_path);
 /// ```
@@ -139,21 +140,28 @@ pub(crate) fn diagnose(inputs: PolicyInputs) -> PolicyFindings {
 /// `rstest`'s: an explicit `test_attr`, or any attribute whose last segment is
 /// `test`, satisfies it, and a user-written one is counted separately.
 fn has_missing_executor(inputs: PolicyInputs) -> bool {
-    let PolicyInputs::Scenario {
-        is_async: true,
-        has_user_test_attr: false,
-        ..
-    } = inputs
-    else {
+    if !is_async_scenario(inputs) {
         return false;
-    };
-    if !matches!(inputs.harness(), SlotClass::Absent)
-        || matches!(inputs.attributes(), SlotClass::Absent)
-    {
+    }
+    if inputs.has_executor_attr() {
+        return false;
+    }
+    if !policy_supplied_without_harness(inputs) {
         return false;
     }
     let emitted = emitted_attributes(inputs);
     !emitted.tokio && !emitted.gpui
+}
+
+/// Whether the configuration is an `async fn` scenario.
+fn is_async_scenario(inputs: PolicyInputs) -> bool {
+    matches!(inputs, PolicyInputs::Scenario { is_async: true, .. })
+}
+
+/// Whether an explicit policy was supplied with no harness.
+fn policy_supplied_without_harness(inputs: PolicyInputs) -> bool {
+    matches!(inputs.harness(), SlotClass::Absent)
+        && !matches!(inputs.attributes(), SlotClass::Absent)
 }
 
 /// The framework a class contributes to a conflict, if it contributes one.
@@ -224,7 +232,7 @@ fn has_missing_policy(inputs: PolicyInputs) -> bool {
     let SlotClass::Evidenced(framework) = inputs.harness() else {
         return false;
     };
-    if !matches!(inputs.attributes(), SlotClass::Absent) || inputs.has_user_test_attr() {
+    if !matches!(inputs.attributes(), SlotClass::Absent) || inputs.has_gpui_test_attr() {
         return false;
     }
     let canonical = inputs.with_harness(SlotClass::Recognized(framework.into()));

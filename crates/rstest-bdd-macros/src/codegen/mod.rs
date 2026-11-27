@@ -20,7 +20,6 @@ pub(crate) mod wrapper;
 #[cfg(test)]
 pub(crate) use policy_diagnostics::Framework;
 pub(crate) use policy_diagnostics::{
-    BoundaryDiagnostics,
     CrateResolver,
     SharedPolicyDiagnostics,
     SlotClass,

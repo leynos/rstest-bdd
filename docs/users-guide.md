@@ -1180,12 +1180,14 @@ or `attributes` path, or a combination of selectors, silently changes the shape
 of the generated test. Every message begins with a stable code, so the code can
 be searched for and quoted in a migration guide. The three `W` codes have two
 channels: on stable Rust each is a `deprecated` warning whose message begins
-with the code, and on nightly Rust each is a native warning. A build that sets
-`-D warnings`, or a crate that enables `#![deny(deprecated)]`, turns those
-warnings into compile errors. The two `E` codes are `compile_error!`s on both
-channels, because each fires only on a configuration that already fails to
-compile. The [developers' guide][developers-guide-policy-diagnostics] documents
-the implementation.
+with the code, and on nightly Rust each is a native warning. On stable, a build
+that sets `-D warnings` or a crate that enables `#![deny(deprecated)]` turns
+one of those warnings into a compile error. Native nightly warnings are not
+lints, so neither setting escalates them; the opt-out below is a stable measure
+only. The two `E` codes are `compile_error!`s on both channels, because each
+fires only on a configuration that already fails to compile. The
+[developers' guide][developers-guide-policy-diagnostics] documents the
+implementation.
 
 The macros can act only on what the tokens prove. A path carries first-party
 evidence when three things hold together: the terminal segment is a first-party

@@ -29,6 +29,21 @@ pub(super) fn has_executor_attr(attrs: &[syn::Attribute]) -> bool {
     })
 }
 
+/// Whether the user already wrote `#[gpui::test]`.
+///
+/// The generator deduplicates against this attribute and no other, so it is
+/// the only user attribute that can make an "was not applied" claim false.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let attrs: Vec<syn::Attribute> = vec![syn::parse_quote!(#[gpui::test])];
+/// assert!(has_gpui_test_attr(&attrs));
+/// ```
+pub(super) fn has_gpui_test_attr(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| attr.path().is_ident("gpui::test"))
+}
+
 #[cfg(test)]
 mod tests {
     //! Table tests for the `rstest` executor-attribute rule.
@@ -46,6 +61,7 @@ mod tests {
     }
 
     #[rstest]
+    #[case("#[gpui::test]", true)]
     #[case("#[test]", true)]
     #[case("#[tokio::test]", true)]
     #[case("#[gpui::test]", true)]

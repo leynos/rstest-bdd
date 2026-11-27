@@ -158,6 +158,7 @@ fn pure_resolution_selects_path_and_diagnostic_state(
         None,
         false,
         false,
+        false,
     )
     .findings();
 

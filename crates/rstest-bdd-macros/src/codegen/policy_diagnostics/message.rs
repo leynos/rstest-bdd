@@ -79,6 +79,7 @@ fn not_applied(dropped: &[&str]) -> String {
 pub(crate) fn conflicting_selectors(
     harness: &str,
     attributes: &str,
+    attributes_recognized: bool,
     matching_policy: &str,
     harness_needs_fixing: bool,
 ) -> String {
@@ -87,12 +88,19 @@ pub(crate) fn conflicting_selectors(
     } else {
         "Remove `attributes = ...`"
     };
+    let selection = if attributes_recognized {
+        format!("`attributes` selects {attributes}")
+    } else {
+        // A non-canonical policy is not recognized, so it overrides the harness
+        // without adding its framework's attribute.
+        format!("`attributes` names {attributes} but is not recognized")
+    };
     format!(
         concat!(
-            "rstest-bdd[W003]: `harness` selects {}, but `attributes` selects {}; the explicit ",
-            "`attributes` takes precedence. {}, or write `attributes = {}`."
+            "rstest-bdd[W003]: `harness` selects {}, but {}; the explicit `attributes` takes ",
+            "precedence. {}, or write `attributes = {}`."
         ),
-        harness, attributes, removal, matching_policy
+        harness, selection, removal, matching_policy
     )
 }
 

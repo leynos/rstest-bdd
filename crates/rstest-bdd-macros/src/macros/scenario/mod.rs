@@ -41,7 +41,7 @@ use crate::parsing::feature::{
 };
 use self::{
     args::{ScenarioArgs, library_scope_tokens, library_validation_names},
-    diagnostics::has_executor_attr,
+    diagnostics::{has_executor_attr, has_gpui_test_attr},
     paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
@@ -227,7 +227,8 @@ fn try_scenario(
     // Diagnostic inputs are read before the signature is borrowed mutably; the
     // macro cannot evaluate trait methods, so these facts are all it has.
     let is_async = item_fn.sig.asyncness.is_some();
-    let has_user_test_attr = has_executor_attr(&item_fn.attrs);
+    let has_executor = has_executor_attr(&item_fn.attrs);
+    let has_gpui = has_gpui_test_attr(&item_fn.attrs);
     let sig = &mut item_fn.sig;
     let fixture_setup = resolve_fixture_setup(sig, return_kind)?;
 
@@ -238,12 +239,14 @@ fn try_scenario(
         args.harness.as_ref(),
         args.attributes.as_ref(),
         is_async,
-        has_user_test_attr,
+        has_executor,
+        has_gpui,
     );
-    let fallback_diagnostics = match resolutions.emit_diagnostics() {
-        crate::codegen::BoundaryDiagnostics::Warnings(tokens) => tokens,
-        crate::codegen::BoundaryDiagnostics::Errors(errors) => return Err(errors.into()),
-    };
+    // `#[scenario]` always generates one test, so an error may replace it here.
+    if let Some(errors) = resolutions.errors() {
+        return Err(errors.into());
+    }
+    let fallback_diagnostics = resolutions.emit_warnings();
     let ScenarioData {
         name: scenario_name,
         steps,

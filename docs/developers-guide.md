@@ -3564,6 +3564,8 @@ Refresh `.stderr` snapshots after a deliberate message change with
 ```sh
 TRYBUILD=overwrite cargo test -p rstest-bdd-harness-tokio --test macro_compile
 TRYBUILD=overwrite cargo test -p rstest-bdd-harness-gpui --all-features --test macro_compile
+TRYBUILD=overwrite cargo +nightly-2026-08-16 test -p rstest-bdd-harness-tokio --test macro_compile
+TRYBUILD=overwrite cargo +nightly-2026-08-16 test -p rstest-bdd-harness-gpui --all-features --test macro_compile
 git diff -- crates/rstest-bdd-harness-tokio/tests/fixtures_macros/ \
   crates/rstest-bdd-harness-gpui/tests/fixtures_macros/
 ```

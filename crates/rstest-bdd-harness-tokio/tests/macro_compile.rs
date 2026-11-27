@@ -45,6 +45,7 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         "tests/fixtures_macros/scenarios_harness_tokio_default.rs",
         "tests/fixtures_macros/policy_opt_out.rs",
         "tests/fixtures_macros/rstest_async_test_attr_accepted_canary.rs",
+        "tests/fixtures_macros/policy_e002_empty_expansion.rs",
     ] {
         tests.pass(case);
     }
@@ -148,6 +149,10 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
     copy_file(
         &crate_root.join("tests/fixtures_macros/scenarios_multi_fallback.feature"),
         &trybuild_root.join("scenarios_multi_fallback.feature"),
+    )?;
+    copy_file(
+        &crate_root.join("tests/fixtures_macros/empty_policy_e002.feature"),
+        &trybuild_root.join("empty_policy_e002.feature"),
     )?;
     Ok(())
 }

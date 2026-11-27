@@ -82,7 +82,9 @@ fn segment() -> impl Strategy<Value = String> {
         Just(crate_identifier(Framework::Gpui).to_owned()),
         Just(adapter_type_name(Framework::Tokio).to_owned()),
         Just(adapter_type_name(Framework::Gpui).to_owned()),
-        "[a-z][a-z0-9_]{0,7}".prop_map(|name| name.clone()),
+        // Prefixed so a generated name can never be a Rust keyword, which
+        // `syn` would reject before the classifier ever saw the path.
+        "[a-z][a-z0-9_]{0,7}".prop_map(|name| format!("segment_{name}")),
     ]
 }
 
@@ -140,6 +142,8 @@ proptest! {
         if !segments.iter().any(|segment| {
             segment.as_str() == crate_identifier(Framework::Tokio)
                 || segment.as_str() == crate_identifier(Framework::Gpui)
+                // A renamed dependency's own root identifier is evidence too.
+                || (renamed && segment == "tok")
         }) {
             prop_assert!(
                 !matches!(class, SlotClass::Evidenced(_)),

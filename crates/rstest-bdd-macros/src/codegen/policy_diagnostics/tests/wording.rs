@@ -57,7 +57,8 @@ fn scenario(harness: SlotClass, attributes: SlotClass, is_async: bool) -> Policy
         harness,
         attributes,
         is_async,
-        has_user_test_attr: false,
+        has_executor_attr: false,
+        has_gpui_test_attr: false,
     }
 }
 
@@ -101,6 +102,7 @@ fn harness_cases() -> Vec<Case> {
             ),
         ),
         the_user_attribute_case(),
+        the_executor_only_case(),
     ]
 }
 
@@ -164,13 +166,34 @@ fn resolver_cases() -> Vec<Case> {
 /// The claim must be absent: the generator deduplicates against it.
 fn the_user_attribute_case() -> Case {
     (
-        "W001 scenario harness (gpui, user attribute present)",
+        "W001 scenario harness (gpui, user gpui attribute present)",
         render_with(
             PolicyInputs::Scenario {
                 harness: SlotClass::Evidenced(Framework::Gpui),
                 attributes: SlotClass::Absent,
                 is_async: false,
-                has_user_test_attr: true,
+                has_executor_attr: true,
+                has_gpui_test_attr: true,
+            },
+            "GpuiHarness",
+            default_resolver(),
+        ),
+    )
+}
+
+/// An executor attribute that is not `#[gpui::test]`.
+///
+/// The GPUI attribute is genuinely missing, so the claim must stay.
+fn the_executor_only_case() -> Case {
+    (
+        "W002 scenario harness (gpui, executor attribute only)",
+        render_with(
+            PolicyInputs::Scenario {
+                harness: SlotClass::Evidenced(Framework::Gpui),
+                attributes: SlotClass::Absent,
+                is_async: false,
+                has_executor_attr: true,
+                has_gpui_test_attr: false,
             },
             "GpuiHarness",
             default_resolver(),

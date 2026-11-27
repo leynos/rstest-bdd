@@ -88,7 +88,9 @@ enum Shape {
         /// Whether the annotated function is `async`.
         is_async: bool,
         /// Whether the function already carries an executor attribute.
-        has_user_test_attr: bool,
+        has_executor_attr: bool,
+        /// Whether the function already carries `#[gpui::test]`.
+        has_gpui_test_attr: bool,
     },
     /// A `scenarios!` expansion.
     Scenarios {
@@ -103,7 +105,8 @@ impl SharedPolicyDiagnostics {
         harness: Option<&syn::Path>,
         attributes: Option<&syn::Path>,
         is_async: bool,
-        has_user_test_attr: bool,
+        has_executor_attr: bool,
+        has_gpui_test_attr: bool,
     ) -> Self {
         Self::resolve(
             harness,
@@ -111,7 +114,8 @@ impl SharedPolicyDiagnostics {
             attributes,
             Shape::Scenario {
                 is_async,
-                has_user_test_attr,
+                has_executor_attr,
+                has_gpui_test_attr,
             },
         )
     }
@@ -167,12 +171,14 @@ impl SharedPolicyDiagnostics {
         let inputs = match shape {
             Shape::Scenario {
                 is_async,
-                has_user_test_attr,
+                has_executor_attr,
+                has_gpui_test_attr,
             } => PolicyInputs::Scenario {
                 harness,
                 attributes: attribute_slot,
                 is_async,
-                has_user_test_attr,
+                has_executor_attr,
+                has_gpui_test_attr,
             },
             Shape::Scenarios { runtime_alias } => PolicyInputs::Scenarios {
                 harness,
@@ -207,45 +213,27 @@ impl SharedPolicyDiagnostics {
             .map_or_else(PolicyFindings::default, |state| state.findings)
     }
 
-    /// Emit the diagnostics this boundary owns.
+    /// The errors this boundary would report, without emitting anything.
     ///
-    /// Call this only from the boundary that built the value: nightly emission
-    /// is a side effect, so a second call would duplicate the warning. When any
-    /// error fires, only errors are returned: rustc's handling of lints beside
-    /// a `compile_error!` varies, and both messages already carry the fix where
-    /// one applies (decision D9).
-    pub(crate) fn emit_diagnostics(&self) -> BoundaryDiagnostics {
+    /// `scenarios!` needs this separately: an invocation that generates no test
+    /// cannot fail per scenario, and compiled before this diagnostic existed,
+    /// so the boundary decides whether the error applies after generation.
+    pub(crate) fn errors(&self) -> Option<TokenStream2> {
+        self.state.as_ref().and_then(render::errors)
+    }
+
+    /// Emit the warnings this boundary owns.
+    ///
+    /// Call this at most once per boundary and only when [`Self::errors`] is
+    /// `None`, because nightly emission is a side effect.
+    pub(crate) fn emit_warnings(&self) -> TokenStream2 {
         let Some(state) = self.state.as_ref() else {
-            return BoundaryDiagnostics::Warnings(TokenStream2::new());
+            return TokenStream2::new();
         };
-        if let Some(errors) = render::errors(state) {
-            return BoundaryDiagnostics::Errors(errors);
-        }
         let warnings = render::warnings(state);
         emit::emit_native(&warnings);
-        BoundaryDiagnostics::Warnings(emit::warning_tokens(&warnings))
+        emit::warning_tokens(&warnings)
     }
-
-    /// The warning tokens one diagnosed boundary renders.
-    ///
-    /// Verification uses this for configurations that must not error; a
-    /// boundary reaches the real entry point through [`Self::emit_diagnostics`].
-    #[cfg(test)]
-    pub(crate) fn emitted_warning_tokens(&self) -> TokenStream2 {
-        match self.emit_diagnostics() {
-            BoundaryDiagnostics::Warnings(tokens) => tokens,
-            BoundaryDiagnostics::Errors(_) => panic!("this configuration must not error"),
-        }
-    }
-}
-
-/// What one expansion boundary emits.
-#[derive(Debug)]
-pub(crate) enum BoundaryDiagnostics {
-    /// Errors replace every generated test.
-    Errors(TokenStream2),
-    /// Warnings are spliced beside the generated tests.
-    Warnings(TokenStream2),
 }
 
 /// The terminal identifier of a supplied path.

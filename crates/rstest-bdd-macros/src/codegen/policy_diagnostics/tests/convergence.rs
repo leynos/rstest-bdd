@@ -163,7 +163,7 @@ fn executor_fixes(inputs: PolicyInputs) -> Vec<PolicyInputs> {
     vec![
         inputs.with_attributes(SlotClass::Absent),
         inputs.with_attributes(SlotClass::Recognized(Framework::Tokio.into())),
-        inputs.with_user_test_attr(true),
+        inputs.with_executor_attr(true),
     ]
 }
 

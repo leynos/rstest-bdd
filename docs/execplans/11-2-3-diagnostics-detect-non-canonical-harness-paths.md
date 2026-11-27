@@ -854,8 +854,45 @@ earlier one, the earlier entry says so.
 
 ## Outcomes & retrospective
 
-Not started. Complete at each milestone boundary and at completion, reconciling
-every discovery against the artefacts listed in `Conformance basis`.
+Completed 2026-11-27 at pull request #887.
+
+Delivered: five code-prefixed diagnostics (`W001` to `W003`, `E001`, `E002`)
+emitted by `codegen::policy_diagnostics`, which replaced
+`codegen::adapter_fallback` and now owns classification, the single precedence
+implementation, wording, and both channels. Every acceptance criterion in
+`Validation and acceptance` is met: `trybuild` fixtures pin each code's text
+and span on both channels, an `insta` matrix pins every wording variant, the
+finite state space is enumerated exhaustively, and the three behavioural
+scenarios pass under `-D warnings`.
+
+Gate record. `make check-fmt`, `make lint` (all eleven steps), `make typecheck`,
+`make markdownlint` and `make nixie` are green at the EP-M6 commit;
+`make test` was green at `61f1eacc` (2627 nextest cases in the main pass, 838
+in the no-default-features pass, 180 doctests, 7 fixture lockfiles current, 398
+pytest cases) and at `4889ab38` (2626 and 838 cases, 180 doctests, 7 lockfiles,
+398 pytest). Hosted CI run 45973736509 was green for all three `build-test`
+lanes at `4889ab38`, including the Linux coverage and prepared-fixture steps,
+and CodeScene reported its quality gate passed.
+
+Deviations from the drafted design, each recorded above: `D30` and `D41` make
+two remedies composite because the fix-convergence lemma found that the drafted
+single-step fixes revealed `W002`; `D31` split the user-attribute facts so that
+`#[test]` satisfies `rstest` without suppressing a claim about `#[gpui::test]`;
+`D42` and `D43` split modules that crossed the 400-line gate; `D45` patches the
+adapter dev-dependency during packaged-fixture staging, which the hosted lanes
+proved necessary.
+
+Lessons. The finite model earned its cost twice: it falsified two remedies the
+draft had offered, and the exhaustive wording matrix caught a consequence claim
+that was false for a synchronous Tokio path. The channel-split dead code was
+the most expensive surprise: three lint rounds, because a nightly test build
+has no consumer for either channel, and the answer was to add the rendering
+tests that consume it rather than to gate more fields.
+
+Deferred, with reasons: the plan's `(for W001) unresolvable-adapter resolver`
+row is unreachable (`D37`), and a nightly twin for every warning beyond the
+three existing ones was judged redundant because the native channel renders the
+same text through the same emitter.
 
 ## Context and orientation
 
@@ -1844,6 +1881,7 @@ one worktree at the same time (the trybuild `wip` race described in the
 developers' guide).
 
 ```bash
+set -o pipefail   # `| tee` must not mask a failing gate
 BR=$(git branch --show-current | tr / -)
 ```
 
@@ -1894,6 +1932,9 @@ make test 2>&1 | tee "/tmp/test-rstest-bdd-$BR.out"
 make markdownlint 2>&1 | tee "/tmp/markdownlint-rstest-bdd-$BR.out"   # documentation milestones
 make nixie 2>&1 | tee "/tmp/nixie-rstest-bdd-$BR.out"                 # documentation milestones
 ```
+
+`set -o pipefail` matters: without it a failed `make` followed by a successful
+`tee` exits zero, so the acceptance check would accept a failed gate.
 
 Expected: each command exits 0. `make test` reports the EP-M0 baseline count
 plus the new tests, and zero failures. A gate log certifies only the revision

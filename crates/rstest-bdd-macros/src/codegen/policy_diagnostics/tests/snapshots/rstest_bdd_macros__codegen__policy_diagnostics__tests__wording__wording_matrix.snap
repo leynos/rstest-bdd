@@ -11,8 +11,11 @@ rstest-bdd[W001]: this path was not recognized as the first-party `TokioHarness`
 ## W002 scenario harness (gpui)
 rstest-bdd[W002]: no attribute policy could be inferred from this harness path and `#[gpui::test]` was not applied. Write `rstest_bdd_harness_gpui::GpuiHarness`, or add `attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy` (which restores the attribute but leaves warning W001 for the harness path).
 
-## W001 scenario harness (gpui, user attribute present)
+## W001 scenario harness (gpui, user gpui attribute present)
 rstest-bdd[W001]: this path was not recognized as the first-party `GpuiHarness`, so base harness API types were used. Write `rstest_bdd_harness_gpui::GpuiHarness`.
+
+## W002 scenario harness (gpui, executor attribute only)
+rstest-bdd[W002]: no attribute policy could be inferred from this harness path and `#[gpui::test]` was not applied. Write `rstest_bdd_harness_gpui::GpuiHarness`, or add `attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy` (which restores the attribute but leaves warning W001 for the harness path).
 
 ## W001 attributes (tokio)
 rstest-bdd[W001]: this path was not recognized as the first-party `TokioAttributePolicy`, so base harness API types were used. Write `rstest_bdd_harness_tokio::TokioAttributePolicy`.

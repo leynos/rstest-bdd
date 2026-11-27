@@ -297,13 +297,6 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
         attributes.as_ref(),
         runtime_compatibility_alias(runtime).is_some(),
     );
-    let fallback_diagnostics = match resolutions.emit_diagnostics() {
-        crate::codegen::BoundaryDiagnostics::Warnings(tokens) => tokens,
-        crate::codegen::BoundaryDiagnostics::Errors(errors) => return errors,
-    };
-
-    emit_runtime_deprecation_warning(runtime);
-
     let tag_filter = match parse_tag_filter(tag_lit) {
         Ok(filter) => filter,
         Err(err_tokens) => return err_tokens,
@@ -345,6 +338,20 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
     let (tests, mut errors) = generate_tests_from_features(&feature_paths, &ctx);
 
     check_empty_results(&tests, &mut errors, tag_filter.as_ref());
+
+    // E002 is decided after generation: an invocation that produces no test
+    // could not fail per scenario before this diagnostic existed, so it keeps
+    // compiling and keeps its warnings.
+    let fallback_diagnostics = if tests.is_empty() {
+        resolutions.emit_warnings()
+    } else if let Some(error_tokens) = resolutions.errors() {
+        return error_tokens;
+    } else {
+        resolutions.emit_warnings()
+    };
+    // Emitted after the error decision so E002 replaces this warning for the
+    // configuration it reports, on both channels.
+    emit_runtime_deprecation_warning(runtime);
 
     generate_scenarios_module(GeneratedScenariosModule {
         dir,

@@ -40,7 +40,8 @@ fn scenario(harness: SlotClass, attributes: SlotClass) -> PolicyInputs {
         harness,
         attributes,
         is_async: false,
-        has_user_test_attr: false,
+        has_executor_attr: false,
+        has_gpui_test_attr: false,
     }
 }
 
@@ -162,12 +163,13 @@ fn the_missing_policy_warning_offers_both_fixes() {
 }
 
 #[test]
-fn a_user_executor_attribute_removes_the_attribute_claim() {
+fn a_user_gpui_attribute_removes_the_attribute_claim() {
     let inputs = PolicyInputs::Scenario {
         harness: SlotClass::Evidenced(Framework::Gpui),
         attributes: SlotClass::Absent,
         is_async: false,
-        has_user_test_attr: true,
+        has_executor_attr: true,
+        has_gpui_test_attr: true,
     };
     let warning = only_warning(&state(inputs, "GpuiHarness"));
 
@@ -178,7 +180,32 @@ fn a_user_executor_attribute_removes_the_attribute_claim() {
     );
     assert!(
         !warning.message.contains("was not applied"),
-        "a user-written attribute makes the claim false: {}",
+        "a user-written GPUI attribute makes the claim false: {}",
+        warning.message
+    );
+}
+
+#[test]
+fn an_executor_attribute_alone_keeps_the_gpui_claim() {
+    // `#[test]` satisfies `rstest` but does not deduplicate `#[gpui::test]`,
+    // so the GPUI attribute really is missing and must still be reported.
+    let inputs = PolicyInputs::Scenario {
+        harness: SlotClass::Evidenced(Framework::Gpui),
+        attributes: SlotClass::Absent,
+        is_async: false,
+        has_executor_attr: true,
+        has_gpui_test_attr: false,
+    };
+    let warning = only_warning(&state(inputs, "GpuiHarness"));
+
+    assert!(
+        warning.message.starts_with("rstest-bdd[W002]"),
+        "the missing policy still holds: {}",
+        warning.message
+    );
+    assert!(
+        warning.message.contains("`#[gpui::test]` was not applied"),
+        "the GPUI attribute is genuinely absent: {}",
         warning.message
     );
 }

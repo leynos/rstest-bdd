@@ -316,16 +316,20 @@ runtime alias combined with a harness. The
 [users' guide](users-guide.md#harness-and-attribute-policy-diagnostics) gives
 each trigger, message, and fix.
 
-The change is additive: without `-D warnings`, no program that compiled before
-stops compiling. `E001` and `E002` fire only on configurations that already
-failed to compile. The warnings are new, so a crate that builds with
-`-D warnings` or `#![deny(deprecated)]` sees a build failure until it resolves
-the finding. On stable Rust a warning arrives through the `deprecated` lint; on
-nightly it is a native warning. The documented stable opt-out is a module-level
-`#[allow(deprecated)]`, because the marker is a sibling item of the generated
-test that a function-level allow cannot reach. Nightly native warnings cannot
-be suppressed. `E001` and `E002` are `compile_error!`s on both channels and
-cannot be suppressed.
+The change is additive: no program that compiled before stops compiling unless
+its build denies warnings. On stable Rust that denial can come from
+`-D warnings` or from a crate-level `#![deny(deprecated)]`; a native nightly
+warning is not a lint and is not escalated by either. An invocation that
+generates no test is never rejected, because nothing could have failed per
+scenario before the diagnostics existed. `E001` and `E002` fire only on
+configurations that already failed to compile. The warnings are new, so a crate
+that builds with stable build with `-D warnings` or `#![deny(deprecated)]` sees
+a build failure until it resolves the finding. On stable Rust a warning arrives
+through the `deprecated` lint; on nightly it is a native warning. The
+documented stable opt-out is a module-level `#[allow(deprecated)]`, because the
+marker is a sibling item of the generated test that a function-level allow
+cannot reach. Nightly native warnings cannot be suppressed. `E001` and `E002`
+are `compile_error!`s on both channels and cannot be suppressed.
 
 ## Migration checklist
 
