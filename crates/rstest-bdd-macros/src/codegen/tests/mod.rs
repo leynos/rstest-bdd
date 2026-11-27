@@ -17,9 +17,13 @@ use super::{
     resolve_harness_api_with,
 };
 
-fn not_found_error(crate_name: &str) -> Error {
+/// The error Cargo raises for a crate the caller does not depend on.
+///
+/// Derived from the spec so the helper takes a crate description rather than
+/// a bare string.
+fn not_found_error(spec: &super::CrateSpec) -> Error {
     Error::CrateNotFound {
-        crate_name: crate_name.to_owned(),
+        crate_name: spec.package_name.to_owned(),
         path: PathBuf::new(),
     }
 }
@@ -45,69 +49,84 @@ impl TestPath {
     fn parsed(&self) -> &syn::Path { &self.0 }
 }
 
-fn adapter_spec(is_tokio: bool) -> &'static super::CrateSpec {
-    if is_tokio {
-        &TOKIO_HARNESS
-    } else {
-        &GPUI_HARNESS
-    }
-}
+/// Every first-party adapter spec, with the two type names each exports.
+const SPECS: [(&super::CrateSpec, &str, &str); 2] = [
+    (&TOKIO_HARNESS, "TokioHarness", "TokioAttributePolicy"),
+    (&GPUI_HARNESS, "GpuiHarness", "GpuiAttributePolicy"),
+];
 
-fn known_adapter_type(spec: &super::CrateSpec, use_policy_type: bool) -> &'static str {
-    let [harness_type, policy_type] = spec.adapter_type_names else {
-        panic!("first-party adapter specs have harness and policy type names");
-    };
-    if use_policy_type {
-        policy_type
-    } else {
-        harness_type
+#[test]
+fn returns_fallback_path() {
+    for (spec, expected) in [
+        (&RSTEST_BDD, ":: rstest_bdd"),
+        (&RSTEST_BDD_HARNESS, ":: rstest_bdd_harness"),
+        (&TOKIO_HARNESS, ":: rstest_bdd_harness_tokio"),
+        (&GPUI_HARNESS, ":: rstest_bdd_harness_gpui"),
+    ] {
+        let tokens = handle_missing_crate(spec, &not_found_error(spec));
+        assert_eq!(
+            tokens.to_string(),
+            expected,
+            "{} must fall back to its own crate root",
+            spec.package_name
+        );
     }
-}
-
-#[rstest]
-#[case(&RSTEST_BDD, "rstest-bdd", ":: rstest_bdd")]
-#[case(&RSTEST_BDD_HARNESS, "rstest-bdd-harness", ":: rstest_bdd_harness")]
-#[case(&TOKIO_HARNESS, "rstest-bdd-harness-tokio", ":: rstest_bdd_harness_tokio")]
-#[case(&GPUI_HARNESS, "rstest-bdd-harness-gpui", ":: rstest_bdd_harness_gpui")]
-fn returns_fallback_path(
-    #[case] spec: &super::CrateSpec,
-    #[case] pkg: &str,
-    #[case] expected: &str,
-) {
-    let tokens = handle_missing_crate(spec, &not_found_error(pkg));
-    assert_eq!(tokens.to_string(), expected);
 }
 
 #[test]
 fn a_missing_crate_names_itself_in_the_error() {
-    let error = not_found_error("rstest-bdd-policy");
+    let error = not_found_error(&RSTEST_BDD_HARNESS);
     let Error::CrateNotFound { crate_name, .. } = error else {
         panic!("the helper must build the not-found variant");
     };
 
     assert_eq!(
-        crate_name, "rstest-bdd-policy",
+        crate_name, "rstest-bdd-harness",
         "the error must carry the crate it looked for"
     );
 }
 
-#[rstest]
-#[case::tokio_harness_canonical(
-    "rstest_bdd_harness_tokio::TokioHarness",
-    ":: rstest_bdd_harness_tokio"
-)]
-#[case::tokio_harness_imported("TokioHarness", ":: rstest_bdd_harness")]
-#[case::tokio_policy_imported("TokioAttributePolicy", ":: rstest_bdd_harness")]
-#[case::gpui_harness_imported("GpuiHarness", ":: rstest_bdd_harness")]
-#[case::gpui_policy_canonical(
-    "rstest_bdd_harness_gpui::GpuiAttributePolicy",
-    ":: rstest_bdd_harness_gpui"
-)]
-#[case::gpui_policy_imported("GpuiAttributePolicy", ":: rstest_bdd_harness")]
-fn adapter_api_path_uses_expected_crate(#[case] adapter_path: &str, #[case] expected: &str) {
-    let adapter_path = TestPath::new(adapter_path);
-    let resolution = resolve_harness_api(adapter_path.parsed());
-    assert_eq!(resolution.api_path.to_string(), expected);
+/// A table row for the API-path cases.
+struct ApiPathCase {
+    /// The supplied adapter path.
+    adapter: TestPath,
+    /// The crate path generated code must use.
+    expected: &'static str,
+}
+
+impl ApiPathCase {
+    /// Build one row from a source path and its expected crate path.
+    fn new(source: &str, expected: &'static str) -> Self {
+        Self {
+            adapter: TestPath::new(source),
+            expected,
+        }
+    }
+}
+
+#[test]
+fn adapter_api_path_uses_expected_crate() {
+    for case in [
+        ApiPathCase::new(
+            "rstest_bdd_harness_tokio::TokioHarness",
+            ":: rstest_bdd_harness_tokio",
+        ),
+        ApiPathCase::new("TokioHarness", ":: rstest_bdd_harness"),
+        ApiPathCase::new("TokioAttributePolicy", ":: rstest_bdd_harness"),
+        ApiPathCase::new("GpuiHarness", ":: rstest_bdd_harness"),
+        ApiPathCase::new(
+            "rstest_bdd_harness_gpui::GpuiAttributePolicy",
+            ":: rstest_bdd_harness_gpui",
+        ),
+        ApiPathCase::new("GpuiAttributePolicy", ":: rstest_bdd_harness"),
+    ] {
+        let resolution = resolve_harness_api(case.adapter.parsed());
+        assert_eq!(
+            resolution.api_path.to_string(),
+            case.expected,
+            "the generated crate path must match the case"
+        );
+    }
 }
 
 #[rstest]
@@ -185,39 +204,40 @@ fn custom_harness_api_path_uses_base_harness_crate() {
 
 proptest! {
     #[test]
-    fn path_root_matches_crate_depends_on_resolved_root(
-        is_tokio in any::<bool>(),
-        suffix in any::<u16>(),
-        use_policy_type in any::<bool>(),
-    ) {
-        let spec = adapter_spec(is_tokio);
-        let known_type = known_adapter_type(spec, use_policy_type);
-        let matching_path = TestPath::new(&format!("{}::{known_type}", spec.default_crate_name));
-        let renamed_path = TestPath::new(&format!("renamed_{suffix}::{known_type}"));
-
+    fn path_root_matches_crate_depends_on_resolved_root(suffix in any::<u16>()) {
         let resolver = super::default_resolver();
-        prop_assert!(super::path_root_matches_crate(matching_path.parsed(), spec, resolver));
-        prop_assert!(!super::path_root_matches_crate(renamed_path.parsed(), spec, resolver));
+        for (spec, harness_type, policy_type) in SPECS {
+            for known_type in [harness_type, policy_type] {
+                let matching =
+                    TestPath::new(&format!("{}::{known_type}", spec.default_crate_name));
+                let renamed = TestPath::new(&format!("renamed_{suffix}::{known_type}"));
+
+                prop_assert!(super::path_root_matches_crate(matching.parsed(), spec, resolver));
+                prop_assert!(!super::path_root_matches_crate(renamed.parsed(), spec, resolver));
+            }
+        }
     }
 
     #[test]
     fn first_party_adapter_path_matches_requires_known_type_and_valid_root(
-        is_tokio in any::<bool>(),
         suffix in any::<u16>(),
-        use_policy_type in any::<bool>(),
     ) {
-        let spec = adapter_spec(is_tokio);
-        let known_type = known_adapter_type(spec, use_policy_type);
-        let unknown_type = format!("Alias{suffix}");
-        let imported_path = TestPath::new(known_type);
-        let canonical_path = TestPath::new(&format!("{}::{known_type}", spec.default_crate_name));
-        let renamed_path = TestPath::new(&format!("renamed_{suffix}::{known_type}"));
-        let aliased_path = TestPath::new(&format!("{}::{unknown_type}", spec.default_crate_name));
-
         let resolver = super::default_resolver();
-        prop_assert!(!super::first_party_adapter_path_matches(imported_path.parsed(), spec, resolver));
-        prop_assert!(super::first_party_adapter_path_matches(canonical_path.parsed(), spec, resolver));
-        prop_assert!(!super::first_party_adapter_path_matches(renamed_path.parsed(), spec, resolver));
-        prop_assert!(!super::first_party_adapter_path_matches(aliased_path.parsed(), spec, resolver));
+        for (spec, harness_type, policy_type) in SPECS {
+            for known_type in [harness_type, policy_type] {
+                let unknown_type = format!("Alias{suffix}");
+                let imported = TestPath::new(known_type);
+                let canonical =
+                    TestPath::new(&format!("{}::{known_type}", spec.default_crate_name));
+                let renamed = TestPath::new(&format!("renamed_{suffix}::{known_type}"));
+                let aliased =
+                    TestPath::new(&format!("{}::{unknown_type}", spec.default_crate_name));
+
+                prop_assert!(!super::first_party_adapter_path_matches(imported.parsed(), spec, resolver));
+                prop_assert!(super::first_party_adapter_path_matches(canonical.parsed(), spec, resolver));
+                prop_assert!(!super::first_party_adapter_path_matches(renamed.parsed(), spec, resolver));
+                prop_assert!(!super::first_party_adapter_path_matches(aliased.parsed(), spec, resolver));
+            }
+        }
     }
 }
