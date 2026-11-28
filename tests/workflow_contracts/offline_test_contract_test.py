@@ -93,7 +93,7 @@ def _version_tuple(version: str) -> tuple[int, ...]:
     r"""Return *version* as comparable integers.
 
     A pre-release such as ``0.9.115-rc1`` is rejected by name rather than by a
-    bare ``ValueError`` from :func:`int`, so a pinned-but-unparseable version
+    bare ``ValueError`` from :func:`int`, so a pinned-but-unparsable version
     says which value broke the comparison. The digit class is ASCII-only
     because ``\d`` would accept digits :func:`int` cannot parse.
 
@@ -115,6 +115,11 @@ def _runs_the_suite(step: dict[str, typ.Any]) -> bool:
     ``build-only`` steps warm the compiler cache for another lane; nextest's
     timers never start and no test is executed, so neither a prefetch nor an
     offline proof means anything there.
+
+    Returns
+    -------
+    bool
+        True when the step starts the suite.
     """
     if not str(step.get("uses", "")).startswith(COVERAGE_ACTION):
         return False

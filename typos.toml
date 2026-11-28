@@ -60,6 +60,7 @@ extend-ignore-re = [
     "\\b(?:handle_initialise|handle_initialised)\\b",
     "\\b(?:is_initialised|mark_initialised)\\b",
     "\\b--color\\b",
+    "\\bAppArmor\\b",
     "\\bAppFactory<Ser\\b",
     "\\bCompilerArtifact\\b",
     "\\bFORCE_COLOR\\b",

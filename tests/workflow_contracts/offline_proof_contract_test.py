@@ -56,30 +56,46 @@ def _is_windows_step(step: dict[str, typ.Any]) -> bool:
     return "runner.os == 'Windows'" in str(step.get("if", ""))
 
 
+def _runs_the_suite_in(step: dict[str, typ.Any]) -> bool:
+    """Whether *step* runs the suite on a lane the wrapper can reach.
+
+    A step carrying ``build-only`` compiles the instrumented tests without
+    running them: nextest never starts, so the proof profile would reach
+    nothing there and the lane correctly leaves it alone. A step gated on
+    Windows is out of scope for the same reason the Windows jobs are.
+
+    Returns
+    -------
+    bool
+        True when the step starts the suite on a Linux-reachable lane.
+    """
+    if not str(step.get("uses", "")).startswith(COVERAGE_ACTION):
+        return False
+    if _is_windows_step(step):
+        return False
+    return str(step.get("with", {}).get("build-only", "")).lower() != "true"
+
+
 def _test_running_coverage_steps() -> list[
     tuple[str, str, dict[str, typ.Any], dict[str, typ.Any]]
 ]:
     """Return every ``(workflow, job, job document, step)`` that runs the suite.
 
-    A step carrying ``build-only`` compiles the instrumented tests without
-    running them: nextest never starts, so the proof profile would reach
-    nothing there and the lane correctly leaves it alone.
+    Returns
+    -------
+    list[tuple[str, str, dict[str, typ.Any], dict[str, typ.Any]]]
+        One entry per Linux coverage step that starts the suite.
     """
     found: list[tuple[str, str, dict[str, typ.Any], dict[str, typ.Any]]] = []
     for workflow_name in WORKFLOWS:
         for job_name, job_document in jobs(workflow_name).items():
-            if "steps" not in job_document:
+            if "steps" not in job_document or _is_windows_job(job_document):
                 continue
-            if _is_windows_job(job_document):
-                continue
-            for step in steps(job_document):
-                if not str(step.get("uses", "")).startswith(COVERAGE_ACTION):
-                    continue
-                if _is_windows_step(step):
-                    continue
-                if str(step.get("with", {}).get("build-only", "")).lower() == "true":
-                    continue
-                found.append((workflow_name, job_name, job_document, step))
+            found.extend(
+                (workflow_name, job_name, job_document, step)
+                for step in steps(job_document)
+                if _runs_the_suite_in(step)
+            )
     return found
 
 
@@ -88,7 +104,7 @@ def _test_running_coverage_steps() -> list[
 _LANES = _test_running_coverage_steps()
 
 
-def _lane_ids(value: typ.Any) -> str | None:
+def _lane_ids(value: object) -> str | None:
     """Render one lane as ``workflow:job`` for the test list."""
     if isinstance(value, tuple):
         return f"{value[0]}:{value[1]}:{value[3].get('name', '')}"
@@ -129,7 +145,10 @@ def test_the_proof_profile_wraps_every_linux_test(
         "lanes select a profile that does not exist"
     )
     rules = profile.get("scripts", [])
-    assert isinstance(rules, list) and rules, (
+    assert isinstance(rules, list), (
+        f"profile.{PROOF_PROFILE}.scripts must be a list, got {type(rules)}"
+    )
+    assert rules, (
         f"profile.{PROOF_PROFILE} must declare a scripts rule, or selecting it "
         "changes nothing"
     )

@@ -470,7 +470,7 @@ criteria are evidenced:
 What went well. The two-layer design survived contact with a base branch that
 had already implemented parts of it: main had split `staging.rs`, made the
 rebuild harness and the UI-lint Clippy command offline, and added a
-`cargo fetch --locked` warm line to `make test`. Recognising that early turned
+`cargo fetch --locked` warm line to `make test`. Recognizing that early turned
 six conflicted files into one obsolete commit and five genuine gaps.
 
 What cost time. The branch sat for three weeks, and rebasing was not a
