@@ -147,7 +147,12 @@ twice the expected net change to allow for tests.
       `make check-fmt` passed, `make lint` passed (including Whitaker), and
       `make test` passed (2595 nextest tests, 838 no-default-features tests,
       doctests, and 398 Python tests).
-- [ ] `EP-M2`: shared scenario assembly plus `insta` snapshots.
+- [x] (2026-11-28 04:40Z) `EP-M2` implementation: `ScenarioItem`,
+      `assemble_regular_scenario`, `assemble_outline_scenario`, and the shared
+      guard/resolution/metadata/emission path in `generate_scenario_code`.
+- [x] (2026-11-28 04:55Z) `EP-M2` gates: the two `insta` snapshots recorded
+      before the refactor were unchanged after it; `make check-fmt`,
+      `make lint`, and `make test` (2597 nextest tests) passed.
 - [ ] `EP-M3`: developer-guide correction and canonical-pattern documentation.
 - [ ] Delivery: push branch, open draft PR, CodeRabbit review, merge.
 
@@ -184,6 +189,13 @@ twice the expected net change to allow for tests.
   edit. Impact: they are regression pins, not red tests; the structural property
   (`L-SHARED-LITERALS`) is established by inspection and protected by the
   pins. Recorded in `Verification plan`.
+- Observation: the assembled-item snapshots recorded before the assembly
+  refactor matched byte-for-byte after it. Evidence:
+  `tests/assembly_snapshot.rs` ran with `INSTA_UPDATE=always` at commit
+  `d52e2d7d`, and the same two snapshots passed without an update after the
+  `mod.rs` restructure. Impact: the extraction preserved the generated item
+  exactly, including attribute order, the hidden case-index parameter, and the
+  substituted step constants.
 
 ## Decision log
 
@@ -564,3 +576,8 @@ block.
   correction that the step-token tests are regression pins rather than red
   tests. API, obligations, and milestone order are unchanged; EP-M2 and EP-M3
   remain as planned.
+- 2026-11-28: EP-M2 completion. The assembly extraction moved the guard,
+  adapter resolution, metadata projection, and item emission into
+  `generate_scenario_code`; the two shape functions now return a
+  `ScenarioItem`. Snapshots recorded before the change were unchanged after it.
+  EP-M3 remains as planned.

@@ -32,6 +32,7 @@ macro_rules! parse_attr {
     }};
 }
 mod adapter_sharing;
+mod assembly_snapshot;
 mod gpui_policy;
 mod harness_defaults;
 mod runtime_split;
