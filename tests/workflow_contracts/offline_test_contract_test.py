@@ -16,6 +16,7 @@ cannot be added without a matching prefetch.
 Run via ``make test-workflow-contracts``.
 """
 
+import importlib
 import re
 import sys
 import tomllib
@@ -24,7 +25,9 @@ import typing as typ
 import pytest
 from workflow_support import ROOT, jobs, repository_file, steps
 
-NEXTEST_CONFIG = ROOT / ".config" / "nextest.toml"
+if typ.TYPE_CHECKING:
+    import types
+
 SCRIPTS_DIR = ROOT / "scripts"
 
 #: The workspace manifest, which the ordinary build resolves but which the
@@ -57,10 +60,7 @@ def expected_manifests() -> set[str]:
     """Return the manifests a test route must have fetched before it runs.
 
     The set is derived from the repository rather than restated, so a new
-    standalone fixture enters it as soon as it is discoverable. The
-    discovery module lives under ``scripts/``, which is not on the import
-    path of this test tree, so the path is extended here rather than at
-    module scope where the import would follow executable code.
+    standalone fixture enters it as soon as it is discoverable.
 
     Returns
     -------
@@ -68,14 +68,30 @@ def expected_manifests() -> set[str]:
         The workspace root manifest plus every discovered fixture manifest,
         excluding the one fixture no test route builds.
     """
-    if str(SCRIPTS_DIR) not in sys.path:
-        sys.path.insert(0, str(SCRIPTS_DIR))
-    from fixture_lockfile_discovery import discover_fixture_manifests
-
+    discovery = _discovery_module()
     discovered = {
-        path.relative_to(ROOT).as_posix() for path in discover_fixture_manifests(ROOT)
+        path.relative_to(ROOT).as_posix()
+        for path in discovery.discover_fixture_manifests(ROOT)
     }
     return {ROOT_MANIFEST} | (discovered - {UNSPAWNED_FIXTURE})
+
+
+def _discovery_module() -> types.ModuleType:
+    """Import the fixture-discovery helper from ``scripts/``.
+
+    Extended at call time rather than at module scope, because the import must
+    follow the path change; ``importlib`` is what lets the type checker resolve
+    the module without following a computed ``sys.path`` entry. The sibling
+    tests under ``scripts/tests`` use the same idiom.
+
+    Returns
+    -------
+    types.ModuleType
+        The imported ``fixture_lockfile_discovery`` module.
+    """
+    if str(SCRIPTS_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPTS_DIR))
+    return importlib.import_module("fixture_lockfile_discovery")
 
 
 def _setup_scripts(
