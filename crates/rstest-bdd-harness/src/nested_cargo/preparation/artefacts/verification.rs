@@ -100,9 +100,11 @@ pub(in crate::nested_cargo::preparation) fn verify_declared(
     Err(io::Error::new(
         io::ErrorKind::InvalidInput,
         format!(
-            "preparation of family `{}` declares owned packages that contributed no recorded \
-             artefact: {}. A stamp that named them would vouch for units this preparation never \
-             built, so their eviction would pass the gate unnoticed",
+            concat!(
+                "preparation of family `{}` declares owned packages that contributed no recorded ",
+                "artefact: {}. A stamp that named them would vouch for units this preparation ",
+                "never built, so their eviction would pass the gate unnoticed",
+            ),
             preparation.family,
             unbuilt.join(", ")
         ),
