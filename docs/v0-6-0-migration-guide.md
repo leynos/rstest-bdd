@@ -284,14 +284,14 @@ assert_eq!(error.skip_message(), Some("fixture forced skip"));
 ```
 
 Replace `encode_skip_message(Some(message))` with
-`StepExecution::Skipped { message: Some(message) }` in the producer, and
-replace `decode_skip_message(encoded)` with `error.skip_message()` in the
-consumer. The replacement is not a drop-in decoder: `decode_skip_message`
-accepted an encoded `String`, while `skip_message()` reads an
-`ExecutionError` and returns `Option<&str>`. Change both ends to carry the
-structured error, and call `.map(str::to_owned)` when the consumer needs an
-owned message. Use `is_skip()` to tell a skip apart from a non-skip error;
-`skip_message()` returns `None` for a skip that carries no message.
+`StepExecution::Skipped { message: Some(message) }` in the producer, and replace
+`decode_skip_message(encoded)` with `error.skip_message()` in the consumer.
+The replacement is not a drop-in decoder: `decode_skip_message` accepted an
+encoded `String`, while `skip_message()` reads an `ExecutionError` and returns
+`Option<&str>`. Change both ends to carry the structured error, and call
+`.map(str::to_owned)` when the consumer needs an owned message. Use `is_skip()`
+to tell a skip apart from a non-skip error; `skip_message()` returns `None` for
+a skip that carries no message.
 
 ## New features available by extending existing practice
 
