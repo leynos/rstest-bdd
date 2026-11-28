@@ -317,3 +317,30 @@ fn preparation_accepts_an_unfiltered_run() {
         );
     }
 }
+
+#[test]
+fn the_target_root_query_is_offline_and_skips_dependencies() {
+    // The query reads only `target_directory`. Resolving the dependency graph
+    // would be pure cost, and an online resolution would make a preparation
+    // stamp depend on the network — the state this suite is meant to avoid.
+    let command = super::metadata_command(std::path::Path::new("Cargo.toml"));
+    let cargo = command.cargo_command();
+    let args = cargo
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    let offline = cargo
+        .get_envs()
+        .find(|(key, _)| *key == OsStr::new("CARGO_NET_OFFLINE"))
+        .and_then(|(_, value)| value);
+
+    assert!(
+        args.iter().any(|arg| arg == "--no-deps"),
+        "the target-root query must not resolve dependencies; got {args:?}"
+    );
+    assert_eq!(
+        offline,
+        Some(OsStr::new("true")),
+        "the target-root query must run offline"
+    );
+}

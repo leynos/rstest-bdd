@@ -47,7 +47,7 @@ fn target_directory_from_running_test_executable() -> Option<Utf8PathBuf> {
 }
 
 fn metadata_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
-    match MetadataCommand::new().current_dir(workspace_root).exec() {
+    match metadata_command(workspace_root).exec() {
         Ok(metadata) => metadata.target_directory,
         Err(error) => {
             // This fallback is only for environments where neither the test
@@ -61,6 +61,20 @@ fn metadata_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
             fallback
         }
     }
+}
+
+/// Build the `cargo metadata` query that resolves the workspace target root.
+///
+/// Only the target directory is read, so dependency resolution is pure cost
+/// here: `--no-deps` keeps the query from building a resolve graph, and
+/// offline mode keeps it from reaching the network to do so.
+fn metadata_command(workspace_root: &Utf8Path) -> MetadataCommand {
+    let mut command = MetadataCommand::new();
+    command
+        .current_dir(workspace_root)
+        .no_deps()
+        .env("CARGO_NET_OFFLINE", "true");
+    command
 }
 
 #[cfg(test)]

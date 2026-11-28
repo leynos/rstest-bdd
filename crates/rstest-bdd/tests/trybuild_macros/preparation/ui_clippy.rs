@@ -83,6 +83,7 @@ pub(crate) fn ui_clippy_command(bin: &str) -> io::Result<Command> {
         .env("CARGO_NET_OFFLINE", "true")
         .arg("clippy")
         .arg("--locked")
+        .arg("--offline")
         .arg("--manifest-path")
         .arg(manifest_path.as_str())
         .arg("--bin")

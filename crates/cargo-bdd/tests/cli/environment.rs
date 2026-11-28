@@ -284,3 +284,29 @@ fn cli_child_environment_keeps_names_that_do_not_carry_the_prefix() -> io::Resul
     }
     Ok(())
 }
+
+/// The child always runs offline, whatever the caller inherited.
+///
+/// The nested `cargo` behind the CLI would otherwise reach the registry on a
+/// cold cache, which makes a test run depend on the network for no benefit:
+/// the fixture's own graph is fetched by the Nextest setup scripts. The
+/// injected value is pushed last, so even an inherited `false` cannot win.
+#[rstest::rstest]
+#[case::absent(None)]
+#[case::false_value(Some("false"))]
+#[case::empty(Some(""))]
+#[case::true_value(Some("true"))]
+fn cli_child_environment_forces_offline_mode(#[case] inherited: Option<&str>) -> io::Result<()> {
+    let vars: Vec<(OsString, OsString)> = inherited
+        .map(|value| vec![(OsString::from("CARGO_NET_OFFLINE"), OsString::from(value))])
+        .unwrap_or_default();
+
+    let child = cli_child_environment(vars)?;
+
+    assert_eq!(
+        child.get("CARGO_NET_OFFLINE"),
+        Some(OsStr::new("true")),
+        "the CLI's nested Cargo must run offline whatever the caller inherited"
+    );
+    Ok(())
+}

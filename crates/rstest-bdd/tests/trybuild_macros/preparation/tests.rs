@@ -80,3 +80,36 @@ fn the_ui_lint_family_probes_from_its_manifest_directory() {
         "the stamped root keeps its own path, which is not the working directory"
     );
 }
+
+/// The UI-lint command locks and runs offline, so a lint case cannot fetch.
+///
+/// The fixture crate's lockfile is committed and its graph is prepared before
+/// the timed cases run. A lint case that resolved anything would be measuring
+/// the registry rather than the diagnostic under test, and would also take the
+/// shared package-cache lock for longer than the case is allowed to live.
+#[test]
+fn the_ui_lint_command_is_locked_and_offline() {
+    let command = super::ui_clippy_command("ui").expect("the UI-lint command");
+    let args = command
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    let offline = command
+        .get_envs()
+        .find(|(key, _)| *key == std::ffi::OsStr::new("CARGO_NET_OFFLINE"))
+        .and_then(|(_, value)| value);
+
+    assert!(
+        args.iter().any(|arg| arg == "--locked"),
+        "the UI-lint case must not re-resolve the fixture lockfile; got {args:?}"
+    );
+    assert!(
+        args.iter().any(|arg| arg == "--offline"),
+        "the UI-lint case must not reach the network; got {args:?}"
+    );
+    assert_eq!(
+        offline,
+        Some(std::ffi::OsStr::new("true")),
+        "the UI-lint child must be told offline mode explicitly"
+    );
+}

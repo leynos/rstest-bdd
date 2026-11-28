@@ -19,18 +19,12 @@
 //! process under test: redirecting that profile would report the lines it
 //! exercised as never executed.
 //!
-//! The nested-build target policy has behavioural coverage of its own in the
-//! `nested_target` submodule, attached with `#[path = "nested_target/mod.rs"]`
-//! so Cargo does not also compile it as a second test target.
-//!
 //! The tests that drive the binary each spawn a nested Cargo build against
 //! the shared workspace `target/`, so they carry `#[serial]`: under
 //! `cargo test` the annotation holds them one at a time in the shared test
 //! process, and `.config/nextest.toml` puts the binary in a `cargo-spawning`
 //! group with `max-threads = 1` under nextest. Either way they do not contend
-//! for the same target directory and the package-cache lock. The environment
-//! map's precedence is asserted separately by
-//! `cli_child_environment_reuses_target`.
+//! for the same target directory and the package-cache lock.
 
 use std::{env, path::PathBuf, process::ExitStatus, str};
 
@@ -157,6 +151,11 @@ mod discovery;
 // beside this target so Cargo does not also discover it as a test target.
 #[path = "cli/environment.rs"]
 mod environment;
+
+// The offline failure witness needs a scratch manifest of its own; it lives in
+// its own module so this target stays within the per-file line budget.
+#[path = "cli/offline_witness.rs"]
+mod offline_witness;
 
 /// Execute `cargo bdd` and capture its status and streams as text.
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {

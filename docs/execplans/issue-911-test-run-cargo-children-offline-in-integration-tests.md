@@ -183,7 +183,7 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   The `list_steps_runs` timeout is now measured rather than inferred: the same
   test passes in 371.75 s under `cargo test`, which imposes no per-test
   deadline.
-- [ ] `EP-M2`: explicit offline mode at every repository-owned spawn.
+- [x] `EP-M2`: explicit offline mode at every repository-owned spawn.
 - [ ] `EP-M3`: test-process offline default for third-party and indirect spawns.
 - [ ] `EP-M4`: CI network denial.
 - [ ] `EP-M5`: execution-trace audit, ADR and documentation.
@@ -673,6 +673,13 @@ Layer 1 row is enforced by a test. Conformance check: is
 `crates/cargo-bdd/src/registry/mod.rs` unchanged? Recovery: revert. Remaining
 gap: third-party and indirect spawns.
 
+Outcome (2026-11-28, after the rebase in the revision note):
+`verdict: compliant`; `registry/mod.rs` is byte-identical to `470c20ae`. Every
+row is covered by a builder test, except the two rows main had already fixed
+(the rebuild harness and the UI-lint Clippy command), which keep their own
+coverage there; `the_ui_lint_command_is_locked_and_offline` extends the second
+with the `--offline` flag the audit table asked for.
+
 ### `EP-M3`: Test-process default for spawns not owned here
 
 Assigned: AC-1. Red first: new
@@ -1105,3 +1112,27 @@ CI runners and deleted its probe workflow.
 every test route, the contract test pins it, and the local gates are green
 apart from the `cargo-bdd::cli list_steps_runs` timeout that `D12` leaves to CI.
 `EP-M2` is next.
+
+2026-11-28: rebased onto `470c20ae` after three weeks of drift, and re-derived
+`EP-M2` against the new tree. Main had already done part of the plan:
+
+- `staging.rs` was split (`staging/target_root.rs`, `staging/snapshot_io.rs`),
+  so `EP-M2`'s own refactoring commit was dropped as obsolete — the plan
+  anticipated exactly this ("unless PR 782 has already split the file").
+- The rebuild-invalidation harness, the UI-lint Clippy command, and two
+  cargo-bdd test helpers already set `CARGO_NET_OFFLINE=true`.
+- `make test` gained a `cargo fetch --locked` warm line; the conflict
+  resolution keeps it *and* the `prefetch-fixture-deps` prerequisite.
+
+What remained, and what `EP-M2` has now added: the trybuild target-root
+metadata query (`--no-deps` plus the variable), the Whitaker probe and gate,
+the macrotest target-root query, the binary helper's metadata query and
+`cargo build --bin --locked --offline`, and the cargo-bdd child environment
+with its scratch-manifest witness. The witness is mutation-checked: with
+`CARGO_NET_OFFLINE=false` the child prints `Updating crates.io index` and the
+test fails; with `true` it prints the offline-mode note and passes.
+
+Concordat `nested-cargo-offline-tests` at `075a69f3` reports
+`verdict: compliant`. Its first run reported `indeterminate` for the Whitaker
+probe: the probe was lent to a helper, and a handoff hides what the callee
+appends. Running the probe inline makes it visible and the finding disappears.

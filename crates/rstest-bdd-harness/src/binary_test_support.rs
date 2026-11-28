@@ -13,6 +13,10 @@ use std::{
 
 use thiserror::Error;
 
+mod cargo_commands;
+
+use cargo_commands::{build_command, metadata_command};
+
 /// The name of a workspace binary as passed to `cargo build --bin`.
 ///
 /// Wraps `&str` to distinguish binary names from arbitrary string arguments
@@ -225,10 +229,7 @@ pub fn binary_path_in_target_dir(target_directory: &Path, binary_name: BinaryNam
 pub fn target_directory_for_manifest(
     manifest_path: &Path,
 ) -> Result<PathBuf, cargo_metadata::Error> {
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .manifest_path(manifest_path)
-        .no_deps()
-        .exec()?;
+    let metadata = metadata_command(manifest_path).exec()?;
     Ok(metadata.target_directory.into_std_path_buf())
 }
 
@@ -301,11 +302,7 @@ pub fn locate_or_build_binary(
 /// assert!(output.status.success() || !output.stderr.is_empty());
 /// ```
 pub fn build_binary(workspace_root: &Path, binary_name: BinaryName<'_>) -> std::io::Result<Output> {
-    let cargo = option_env!("CARGO").unwrap_or("cargo");
-    Command::new(cargo)
-        .current_dir(workspace_root)
-        .args(["build", "--bin", binary_name.as_str()])
-        .output()
+    build_command(workspace_root, binary_name).output()
 }
 
 #[cfg(test)]
