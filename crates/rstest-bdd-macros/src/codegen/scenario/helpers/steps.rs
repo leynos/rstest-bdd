@@ -1,0 +1,303 @@
+//! Step token processing and placeholder substitution.
+//!
+//! A regular scenario converts the parsed steps directly, while a scenario
+//! outline substitutes each Examples row's values first. Both routes meet in
+//! [`step_to_tokens`], so the token shape of a step's value, docstring, and
+//! data table exists in one place.
+
+use proc_macro2::TokenStream as TokenStream2;
+use quote::{ToTokens, quote};
+
+use super::cell_to_lit;
+use crate::{
+    codegen::scenario::domain::{Docstring, ExampleHeaders, ExampleRow, StepText},
+    parsing::placeholder::substitute_placeholders,
+};
+
+/// Result type for substituted step content: (text, docstring, table).
+type SubstitutedStepContent = (String, Option<String>, Option<Vec<Vec<String>>>);
+
+/// Tokens for one step's value, docstring, and data table, in that order.
+type StepTokens = (TokenStream2, TokenStream2, TokenStream2);
+
+/// Result type for processed step tokens: (keywords, values, docstrings, tables).
+pub(crate) type ProcessedStepTokens = (
+    Vec<TokenStream2>,
+    Vec<TokenStream2>,
+    Vec<TokenStream2>,
+    Vec<TokenStream2>,
+);
+
+/// Context for placeholder substitution containing headers and row values.
+pub(crate) struct SubstitutionContext<'a> {
+    /// Column headers from the Examples table.
+    pub(crate) headers: &'a ExampleHeaders,
+    /// Row values aligned with headers.
+    pub(crate) row: &'a ExampleRow,
+}
+
+impl<'a> SubstitutionContext<'a> {
+    /// Creates a new substitution context.
+    pub(crate) fn new(headers: &'a ExampleHeaders, row: &'a ExampleRow) -> Self {
+        Self { headers, row }
+    }
+}
+
+/// Provides the internal `resolve_keyword_tokens` operation.
+fn resolve_keyword_tokens(steps: &[crate::parsing::feature::ParsedStep]) -> Vec<TokenStream2> {
+    // Resolve textual conjunctions (And/But) to the previous primary keyword
+    // without depending on the validation module, which is behind an optional
+    // feature. We seed with the first primary keyword or Given by default.
+    let mut prev = steps
+        .iter()
+        .find_map(|s| match s.keyword {
+            crate::StepKeyword::And | crate::StepKeyword::But => None,
+            other => Some(other),
+        })
+        .or(Some(crate::StepKeyword::Given));
+    steps
+        .iter()
+        .map(move |s| s.keyword.resolve(&mut prev))
+        .map(|kw| kw.to_token_stream())
+        .collect()
+}
+
+/// Provides the internal `generate_table_tokens` operation.
+fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
+    table.map_or_else(
+        || quote! { None },
+        |rows| {
+            if rows.is_empty() {
+                // Explicitly type the empty slice to avoid inference pitfalls when no rows exist.
+                quote! { Some(&[] as &[&[&str]]) }
+            } else {
+                let row_tokens = rows.iter().map(|row| {
+                    let cells = row.iter().map(|cell| {
+                        let lit = cell_to_lit(cell);
+                        quote! { #lit }
+                    });
+                    quote! { &[#(#cells),*][..] }
+                });
+                quote! { Some(&[#(#row_tokens),*][..]) }
+            }
+        },
+    )
+}
+
+/// Convert one step's content into value, docstring, and table tokens.
+///
+/// This is the single place step literals are built, so a regular scenario and
+/// a scenario outline cannot disagree about their shape. The value is always a
+/// string literal; the docstring is `None` or `Some("…")`; the table is `None`,
+/// `Some(&[])`, or `Some(&[&[…]][..])`.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let step = ParsedStep {
+///     keyword: StepKeyword::Given,
+///     text: "I have 5 apples".into(),
+///     docstring: None,
+///     table: None,
+///     span: proc_macro2::Span::call_site(),
+/// };
+/// let (value, docstring, table) = step_content_to_tokens(&step.text, None, None);
+/// assert_eq!(value.to_string(), "\"I have 5 apples\"");
+/// assert_eq!(docstring.to_string(), "None");
+/// assert_eq!(table.to_string(), "None");
+/// ```
+fn step_content_to_tokens(
+    text: &str,
+    docstring: Option<&str>,
+    table: Option<&[Vec<String>]>,
+) -> StepTokens {
+    let value_lit = cell_to_lit(text);
+    let docstring_tokens = docstring.map_or_else(
+        || quote! { None },
+        |content| {
+            let lit = syn::LitStr::new(content, proc_macro2::Span::call_site());
+            quote! { Some(#lit) }
+        },
+    );
+    (
+        quote! { #value_lit },
+        docstring_tokens,
+        generate_table_tokens(table),
+    )
+}
+
+/// Convert one parsed step into tokens, optionally substituting placeholders.
+///
+/// `context` is `None` for a regular scenario, where the step is used as
+/// parsed, and `Some` for a scenario outline, where the Examples row's values
+/// replace `<placeholder>` tokens in the step text, docstring, and table cells.
+fn step_to_tokens(
+    step: &crate::parsing::feature::ParsedStep,
+    context: Option<&SubstitutionContext<'_>>,
+) -> Result<StepTokens, TokenStream2> {
+    let Some(context) = context else {
+        return Ok(step_content_to_tokens(
+            &step.text,
+            step.docstring.as_deref(),
+            step.table.as_deref(),
+        ));
+    };
+
+    let step_text = StepText::new(step.text.clone());
+    let step_docstring = step
+        .docstring
+        .as_ref()
+        .map(|doc| Docstring::new(doc.clone()));
+    let (text, docstring, table) = substitute_step_content(
+        &step_text,
+        step_docstring.as_ref(),
+        step.table.as_deref(),
+        context,
+    )
+    .map_err(|error| {
+        let err = syn::Error::new(proc_macro2::Span::call_site(), error.to_string());
+        err.into_compile_error()
+    })?;
+
+    Ok(step_content_to_tokens(
+        &text,
+        docstring.as_deref(),
+        table.as_deref(),
+    ))
+}
+
+/// Process every step into the four parallel token vectors.
+///
+/// Resolving keywords is a cross-step pass: `And` and `But` inherit the
+/// previous primary keyword, so it cannot be folded into the per-step loop.
+fn process_steps_with_context(
+    steps: &[crate::parsing::feature::ParsedStep],
+    context: Option<&SubstitutionContext<'_>>,
+) -> Result<ProcessedStepTokens, TokenStream2> {
+    let keyword_tokens = resolve_keyword_tokens(steps);
+    debug_assert_eq!(keyword_tokens.len(), steps.len());
+
+    let mut values = Vec::with_capacity(steps.len());
+    let mut docstrings = Vec::with_capacity(steps.len());
+    let mut tables = Vec::with_capacity(steps.len());
+    for step in steps {
+        let (value, docstring, table) = step_to_tokens(step, context)?;
+        values.push(value);
+        docstrings.push(docstring);
+        tables.push(table);
+    }
+
+    Ok((keyword_tokens, values, docstrings, tables))
+}
+
+/// Process parsed steps into tokens for keywords, values, and tables.
+///
+/// # Examples
+/// ```rust,ignore
+/// use crate::StepKeyword;
+/// use crate::parsing::feature::ParsedStep;
+/// // Note: `span` is available only with the `compile-time-validation` feature.
+/// let steps = vec![ParsedStep {
+///     keyword: StepKeyword::Given,
+///     text: "x".into(),
+///     docstring: None,
+///     table: None,
+///     span: proc_macro2::Span::call_site(),
+/// }];
+/// let (k, v, t) = process_steps(&steps);
+/// assert_eq!(v.len(), 1);
+/// ```
+pub(crate) fn process_steps(
+    steps: &[crate::parsing::feature::ParsedStep],
+) -> (
+    Vec<TokenStream2>,
+    Vec<TokenStream2>,
+    Vec<TokenStream2>,
+    Vec<TokenStream2>,
+) {
+    let Ok(processed) = process_steps_with_context(steps, None) else {
+        // Without a substitution context there is no placeholder lookup, which
+        // is the only fallible step in the shared path.
+        unreachable!("processing steps without substitution cannot fail");
+    };
+    processed
+}
+
+/// Provides the internal `substitute_table_placeholders` operation.
+fn substitute_table_placeholders(
+    table: &[Vec<String>],
+    context: &SubstitutionContext<'_>,
+) -> Result<Vec<Vec<String>>, crate::parsing::placeholder::PlaceholderError> {
+    table
+        .iter()
+        .map(|table_row| {
+            table_row
+                .iter()
+                .map(|cell| {
+                    substitute_placeholders(
+                        cell,
+                        context.headers.as_slice(),
+                        context.row.as_slice(),
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()
+}
+
+/// Substitutes placeholders in step text, docstring, and table cells.
+///
+/// Returns the substituted text, docstring, and table for a single step given
+/// the substitution context containing Examples table headers and row values.
+fn substitute_step_content(
+    text: &StepText,
+    docstring: Option<&Docstring>,
+    table: Option<&[Vec<String>]>,
+    context: &SubstitutionContext<'_>,
+) -> Result<SubstitutedStepContent, crate::parsing::placeholder::PlaceholderError> {
+    let substituted_text = substitute_placeholders(
+        text.as_str(),
+        context.headers.as_slice(),
+        context.row.as_slice(),
+    )?;
+
+    let substituted_docstring = docstring
+        .map(|d| {
+            substitute_placeholders(
+                d.as_str(),
+                context.headers.as_slice(),
+                context.row.as_slice(),
+            )
+        })
+        .transpose()?;
+
+    let substituted_table = table
+        .map(|t| substitute_table_placeholders(t, context))
+        .transpose()?;
+
+    Ok((substituted_text, substituted_docstring, substituted_table))
+}
+
+/// Process steps with placeholder substitution for one Examples row.
+///
+/// Substitutes `<placeholder>` tokens in step text, docstrings, and table cells
+/// with values from the given Examples row, then converts to token streams.
+///
+/// # Arguments
+///
+/// * `steps` - The parsed steps from the scenario
+/// * `headers` - Column headers from the Examples table
+/// * `row` - Values for the current row, aligned with headers
+///
+/// # Returns
+///
+/// A tuple of token stream vectors for keywords, values, docstrings, and tables
+/// with all placeholders substituted.
+pub(crate) fn process_steps_substituted(
+    steps: &[crate::parsing::feature::ParsedStep],
+    headers: &ExampleHeaders,
+    row: &ExampleRow,
+) -> Result<ProcessedStepTokens, proc_macro2::TokenStream> {
+    let context = SubstitutionContext::new(headers, row);
+    process_steps_with_context(steps, Some(&context))
+}

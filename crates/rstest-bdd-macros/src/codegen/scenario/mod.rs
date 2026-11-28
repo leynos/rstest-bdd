@@ -1,12 +1,12 @@
 //! Code generation for scenario tests.
 //!
 //! This module coordinates code generation for a BDD scenario or outline across
-//! seven focused sub-modules:
+//! eight focused sub-modules:
 //!
 //! - [`adapters`] — resolves adapter APIs and fallback diagnostics once per expansion boundary.
 //! - [`boundary`] — applies shared adapter decisions at the macro-expansion boundary.
-//!
 //! - [`domain`] — shared types for steps, examples, and docstrings.
+//! - [`emit`] — the metadata projection and item assembler shared by both scenario shapes.
 //! - [`helpers`] — step-processing utilities and case-attribute generators.
 //! - [`metadata`] — feature-path and scenario-name wrappers for generated code.
 //! - [`runtime`] — async wrapper and harness-orchestrated runtime tokens.
@@ -14,9 +14,10 @@
 //!   hints into the correct set of test attributes (`#[rstest::rstest]`, `#[tokio::test]`,
 //!   `#[gpui::test]`).
 //!
-//! Public entry points are [`generate_scenario`] and
-//! [`generate_scenario_outline`], which delegate to the internal helpers
-//! after resolving adapter API paths once at the expansion boundary.
+//! The crate-internal entry point is [`generate_scenario_code`], which resolves
+//! adapter API paths once, projects the shared metadata, and then dispatches to
+//! the regular or outline assembly path. [`emit_scenario_test`] wraps the
+//! finished body in the item both paths share.
 
 use std::borrow::Cow;
 
@@ -53,6 +54,7 @@ use runtime::{
     ContextIterators,
     OutlineTestTokensConfig,
     ProcessedSteps,
+    ScenarioMetadata,
     TestTokensConfig,
     generate_test_tokens,
 };
@@ -149,27 +151,72 @@ fn steps_contain_placeholders(steps: &[crate::parsing::feature::ParsedStep]) -> 
     })
 }
 
+/// The shape-specific materials for one generated scenario item.
+struct ScenarioItem<'a> {
+    /// The test signature, with any shape-specific parameters inserted.
+    signature: Cow<'a, syn::Signature>,
+    /// Attributes generated once per Examples row.
+    case_attrs: Vec<TokenStream2>,
+    /// The generated test body.
+    body: TokenStream2,
+}
+
 /// Generate the runtime test for a single scenario.
+///
+/// Both scenario shapes share this assembly path: the harness rejection, the
+/// adapter resolution, the metadata projection, and the final item emission
+/// happen once here. Only step processing, case attributes, and the hidden
+/// case-index parameter differ, and those live in the two `assemble_*`
+/// functions.
 pub(crate) fn generate_scenario_code(
     config: &ScenarioConfig<'_>,
     ctx_prelude: impl Iterator<Item = TokenStream2>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
     ctx_postlude: impl Iterator<Item = TokenStream2>,
 ) -> TokenStream2 {
-    // Check if this is a scenario outline with placeholders in steps
-    let is_outline_with_placeholders =
-        config.examples.is_some() && steps_contain_placeholders(&config.steps);
+    if let Some(rejection) = reject_async_harness(config) {
+        return rejection;
+    }
+
+    let adapters = resolve_scenario_adapters(config);
+    let harness_resolution = adapters.resolutions.harness.as_ref();
+    let attributes_resolution = adapters.resolutions.attributes.as_ref();
+    let metadata = scenario_metadata(
+        config,
+        harness_resolution.map(|resolution| resolution.api_path.clone()),
+    );
     let ctx = ContextConfig {
         prelude: ctx_prelude,
         inserts: ctx_inserts,
         postlude: ctx_postlude,
     };
 
-    if is_outline_with_placeholders {
-        generate_outline_scenario_code(config, ctx)
+    let is_outline_with_placeholders =
+        config.examples.is_some() && steps_contain_placeholders(&config.steps);
+    let item = if is_outline_with_placeholders {
+        match assemble_outline_scenario(config, metadata, ctx) {
+            Ok(item) => item,
+            Err(error) => return error,
+        }
     } else {
-        generate_regular_scenario_code(config, ctx)
-    }
+        assemble_regular_scenario(config, metadata, ctx)
+    };
+
+    let ScenarioItem {
+        mut signature,
+        case_attrs,
+        body,
+    } = item;
+    emit_scenario_test(
+        config,
+        &mut signature,
+        ScenarioEmit {
+            harness_resolution,
+            attributes_resolution,
+            case_attrs: &case_attrs,
+            body,
+        },
+    )
 }
 
 /// Reject unsupported combinations of a harness and an async scenario.
@@ -189,37 +236,29 @@ fn reject_async_harness(config: &ScenarioConfig<'_>) -> Option<TokenStream2> {
     Some(err.into_compile_error())
 }
 
-/// Generate code for a regular scenario (no placeholder substitution).
-fn generate_regular_scenario_code<P, I, Q>(
-    config: &ScenarioConfig<'_>,
+/// Assemble the body, signature, and case attributes for a regular scenario.
+///
+/// A regular scenario consumes its parsed steps directly. Its signature is
+/// borrowed unchanged, because it gains no hidden parameters.
+fn assemble_regular_scenario<'a, P, I, Q>(
+    config: &'a ScenarioConfig<'_>,
+    metadata: ScenarioMetadata<'a>,
     ctx: ContextConfig<P, I, Q>,
-) -> TokenStream2
+) -> ScenarioItem<'a>
 where
     P: Iterator<Item = TokenStream2>,
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
-    if let Some(rejection) = reject_async_harness(config) {
-        return rejection;
-    }
-
     let (keyword_tokens, values, docstrings, tables) = process_steps(&config.steps);
     debug_assert_eq!(keyword_tokens.len(), config.steps.len());
-    let processed_steps = ProcessedSteps {
-        keyword_tokens,
-        values,
-        docstrings,
-        tables,
-    };
-    let adapters = resolve_scenario_adapters(config);
-    let harness_resolution = adapters.resolutions.harness.as_ref();
-    let attributes_resolution = adapters.resolutions.attributes.as_ref();
-    let metadata = scenario_metadata(
-        config,
-        harness_resolution.map(|resolution| resolution.api_path.clone()),
-    );
     let test_config = TestTokensConfig {
-        processed_steps,
+        processed_steps: ProcessedSteps {
+            keyword_tokens,
+            values,
+            docstrings,
+            tables,
+        },
         metadata,
     };
     let case_attrs = config
@@ -230,17 +269,12 @@ where
         &test_config,
         ContextIterators::new(ctx.prelude, ctx.inserts, ctx.postlude),
     );
-    let mut signature = Cow::Borrowed(config.sig);
-    emit_scenario_test(
-        config,
-        &mut signature,
-        ScenarioEmit {
-            harness_resolution,
-            attributes_resolution,
-            case_attrs: &case_attrs,
-            body,
-        },
-    )
+
+    ScenarioItem {
+        signature: Cow::Borrowed(config.sig),
+        case_attrs,
+        body,
+    }
 }
 
 /// Substitute each Examples row's placeholders into the scenario's steps.
@@ -271,67 +305,53 @@ fn substituted_outline_steps<'a>(
     Some((examples, substituted))
 }
 
-/// Generate code for a scenario outline with placeholder substitution.
-fn generate_outline_scenario_code<P, I, Q>(
-    config: &ScenarioConfig<'_>,
+/// Assemble the body, signature, and case attributes for a scenario outline.
+///
+/// An outline substitutes each Examples row into the steps and prepends the
+/// hidden case-index parameter, so the generated test can select the row's
+/// substituted step array at runtime.
+fn assemble_outline_scenario<'a, P, I, Q>(
+    config: &'a ScenarioConfig<'_>,
+    metadata: ScenarioMetadata<'a>,
     ctx: ContextConfig<P, I, Q>,
-) -> TokenStream2
+) -> Result<ScenarioItem<'a>, TokenStream2>
 where
     P: Iterator<Item = TokenStream2>,
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
-    if let Some(rejection) = reject_async_harness(config) {
-        return rejection;
-    }
-
     let Some((examples, substituted)) = substituted_outline_steps(config) else {
-        let err = syn::Error::new(
+        let error = syn::Error::new(
             proc_macro2::Span::call_site(),
             "Scenario outline examples missing",
         );
-        return err.into_compile_error();
+        return Err(error.into_compile_error());
     };
-    let all_rows_steps = match substituted {
-        Ok(steps) => steps,
-        Err(err) => return err,
-    };
+    let all_rows_steps = substituted?;
 
-    let adapters = resolve_scenario_adapters(config);
-    let harness_resolution = adapters.resolutions.harness.as_ref();
-    let attributes_resolution = adapters.resolutions.attributes.as_ref();
-    let metadata = scenario_metadata(
-        config,
-        harness_resolution.map(|resolution| resolution.api_path.clone()),
-    );
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,
         metadata,
     };
-
     let case_attrs = generate_indexed_case_attrs(examples);
     let body = generate_test_tokens(
         &outline_config,
         ContextIterators::new(ctx.prelude, ctx.inserts, ctx.postlude),
     );
 
-    // Add the hidden case index parameter to the signature
-    let mut signature: Cow<'_, syn::Signature> = Cow::Owned((*config.sig).clone());
+    // The hidden index parameter must come first so each `#[case(...)]` can
+    // carry the row index ahead of the row's own values.
+    let mut signature: Cow<'a, syn::Signature> = Cow::Owned(config.sig.clone());
     let case_idx_param: syn::FnArg = syn::parse_quote! {
         #[case] __rstest_bdd_case_idx: usize
     };
     signature.to_mut().inputs.insert(0, case_idx_param);
 
-    emit_scenario_test(
-        config,
-        &mut signature,
-        ScenarioEmit {
-            harness_resolution,
-            attributes_resolution,
-            case_attrs: &case_attrs,
-            body,
-        },
-    )
+    Ok(ScenarioItem {
+        signature,
+        case_attrs,
+        body,
+    })
 }
 
 #[cfg(test)]

@@ -32,9 +32,11 @@ macro_rules! parse_attr {
     }};
 }
 mod adapter_sharing;
+mod assembly_snapshot;
 mod gpui_policy;
 mod harness_defaults;
 mod runtime_split;
+mod step_tokens;
 mod trait_assertions;
 
 fn kw(ts: &TokenStream2) -> syn::Result<crate::StepKeyword> {
