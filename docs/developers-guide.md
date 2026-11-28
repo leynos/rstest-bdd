@@ -3501,6 +3501,15 @@ boundary. When any error fires, only errors are returned: rustc's handling of
 lints beside a `compile_error!` varies, and both error messages already carry
 the fix where one applies.
 
+##### Packaged-fixture staging
+
+The published-GPUI staging step packages each crate in
+`PUBLISHED_GPUI_E2E_PACKAGES` and patches the not-yet-published workspace
+crates through `PUBLISHED_GPUI_E2E_PACKAGE_PATCHES`. Cargo resolves a package's
+dev-dependencies while it prepares the package, even though they are stripped
+from the published manifest, so `rstest-bdd-harness-tokio` is patched there for
+resolution but stays out of the packaged set: the fixture does not depend on it.
+
 ##### Channels
 
 On nightly, the boundary calls `proc_macro::Diagnostic::spanned` with

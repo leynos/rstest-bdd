@@ -231,6 +231,12 @@ fn check_empty_results(
     }
 }
 
+/// Run both halves of the warning channel, in order.
+fn emit_scenario_warnings(resolutions: &crate::codegen::SharedPolicyDiagnostics) -> TokenStream2 {
+    resolutions.emit_native_warnings();
+    resolutions.warning_tokens()
+}
+
 /// Warn about the deprecated `runtime` compatibility alias.
 ///
 /// The alias combined with an explicit harness is an error decided before this
@@ -343,11 +349,11 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
     // could not fail per scenario before this diagnostic existed, so it keeps
     // compiling and keeps its warnings.
     let fallback_diagnostics = if tests.is_empty() {
-        resolutions.emit_warnings()
+        emit_scenario_warnings(&resolutions)
     } else if let Some(error_tokens) = resolutions.errors() {
         return error_tokens;
     } else {
-        resolutions.emit_warnings()
+        emit_scenario_warnings(&resolutions)
     };
     // Emitted after the error decision so E002 replaces this warning for the
     // configuration it reports, on both channels.

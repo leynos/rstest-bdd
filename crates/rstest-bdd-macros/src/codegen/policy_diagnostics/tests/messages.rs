@@ -25,6 +25,7 @@ fn state(inputs: PolicyInputs, written: &str) -> DiagnosticState {
     let ident = Ident::new(written, Span::call_site());
     DiagnosticState {
         inputs,
+        manifest_error: None,
         slots: SlotIdents {
             harness: Some(ident.clone()),
             attributes: Some(ident),

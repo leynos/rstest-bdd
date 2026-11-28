@@ -315,7 +315,8 @@ fn scenario_diagnostics(
     if let Some(errors) = resolutions.errors() {
         return Err(errors.into());
     }
-    let warnings = resolutions.emit_warnings();
+    resolutions.emit_native_warnings();
+    let warnings = resolutions.warning_tokens();
     Ok((resolutions, warnings))
 }
 

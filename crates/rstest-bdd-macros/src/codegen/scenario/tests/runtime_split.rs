@@ -80,7 +80,7 @@ fn aliased_harness_scenario_output() -> String {
         None,
         scenario_facts(),
     );
-    let fallback_diagnostics = resolutions.emit_warnings();
+    let fallback_diagnostics = resolutions.warning_tokens();
     let config = ScenarioConfig {
         attrs: &attrs,
         vis: &vis,

@@ -19,6 +19,8 @@ pub(crate) mod tracking;
 pub(crate) mod wrapper;
 #[cfg(test)]
 pub(crate) use policy_diagnostics::Framework;
+#[cfg(all(test, not(rstest_bdd_nightly)))]
+pub(crate) use policy_diagnostics::ResolveError;
 pub(crate) use policy_diagnostics::{
     CrateResolver,
     ScenarioFacts,
@@ -163,7 +165,10 @@ fn is_imported_adapter_type_path(
     spec: &CrateSpec,
     resolver: &dyn CrateResolver,
 ) -> bool {
-    path.segments.len() == 1 && resolver.resolved_root(spec.package_name).is_some()
+    path.segments.len() == 1
+        && resolver
+            .resolved_root(spec.package_name)
+            .is_ok_and(|root| root.is_some())
 }
 
 /// Determine whether the final path segment is one of the expected identifiers.
@@ -185,7 +190,7 @@ fn path_root_matches_crate(
     root.ident == spec.default_crate_name
         || resolver
             .resolved_root(spec.package_name)
-            .is_some_and(|resolved| resolved == root.ident)
+            .is_ok_and(|resolved| resolved.is_some_and(|ident| ident == root.ident))
 }
 
 /// Resolve a dependency specification to a generated crate path.

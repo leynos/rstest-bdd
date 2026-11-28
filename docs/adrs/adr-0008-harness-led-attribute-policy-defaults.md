@@ -341,3 +341,17 @@ defaults from arbitrary crates.
   abstraction whose first-party adapters supply these defaults.
 
 [adr-0027-harness]: adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md
+
+## Amendments
+
+### 2026-11-28: the `runtime` alias selects the Tokio hint
+
+The accepted text above says the deprecated `runtime = "tokio-current-thread"`
+alias does not change attribute selection. The code has always selected the
+Tokio test-attribute hint from that alias when no first-party harness is
+recognized. Every configuration in which the difference is observable is now the
+`E002` error, so the departure changes nothing visible.
+
+Recorded by
+[ADR-0029](adr-0029-evidence-based-harness-and-policy-diagnostics.md); the
+accepted text above is unchanged.

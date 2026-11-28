@@ -14,6 +14,7 @@ use rstest_bdd_policy::TestAttributeHint;
 use super::{
     super::{
         CrateResolver,
+        ResolveError,
         SlotClass,
         classify_harness_path,
         classify_policy_path,
@@ -57,9 +58,11 @@ impl TestResolver {
 }
 
 impl CrateResolver for TestResolver {
-    fn resolved_root(&self, _: &str) -> Option<Ident> { self.root.clone() }
+    fn resolved_root(&self, _: &str) -> Result<Option<Ident>, ResolveError> {
+        Ok(self.root.clone())
+    }
 
-    fn is_direct_dependency(&self, _: &str) -> bool { self.dependency }
+    fn is_direct_dependency(&self, _: &str) -> Result<bool, ResolveError> { Ok(self.dependency) }
 }
 
 /// The canonical adapter type names per framework.

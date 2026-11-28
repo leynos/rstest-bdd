@@ -29,18 +29,44 @@ use crate::codegen::{
     path_last_ident_matches,
 };
 
+/// A Cargo-state read that could not be answered.
+///
+/// `CrateNotFound` is not an error: it is the normal answer for a package the
+/// caller does not depend on. A manifest that cannot be read or parsed is
+/// different, and folding it into absence would silently downgrade recognition
+/// and suggested paths, so it stays explicit.
+#[derive(Debug)]
+pub(crate) struct ResolveError {
+    /// The package whose Cargo state could not be read.
+    pub(crate) package: String,
+    /// The underlying failure.
+    pub(crate) source: proc_macro_crate::Error,
+}
+
+impl std::fmt::Display for ResolveError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "could not read the Cargo state for `{}`: {}",
+            self.package, self.source
+        )
+    }
+}
+
 /// Cargo's answer about one first-party adapter crate.
 pub(crate) trait CrateResolver {
-    /// The root identifier under which `package_name` is a direct dependency,
-    /// or `None` when it is not one.
-    fn resolved_root(&self, package_name: &str) -> Option<Ident>;
+    /// The root identifier under which `package_name` is a direct dependency.
+    ///
+    /// `Ok(None)` is the normal "not a dependency" answer; `Err` means the
+    /// manifest state could not be read at all.
+    fn resolved_root(&self, package_name: &str) -> Result<Option<Ident>, ResolveError>;
 
     /// Whether syntactic evidence alone may treat `package_name` as present.
     ///
     /// Production ties this to [`Self::resolved_root`]; the unit-test
     /// implementation keeps the historical stub in which a syntactic
     /// candidate counts as present even though no renamed root can match.
-    fn is_direct_dependency(&self, package_name: &str) -> bool;
+    fn is_direct_dependency(&self, package_name: &str) -> Result<bool, ResolveError>;
 }
 
 /// The resolver used by every real macro expansion.
@@ -49,17 +75,25 @@ pub(crate) struct ProcMacroCrateResolver;
 
 #[cfg(not(test))]
 impl CrateResolver for ProcMacroCrateResolver {
-    fn resolved_root(&self, package_name: &str) -> Option<Ident> {
-        let found = proc_macro_crate::crate_name(package_name).ok()?;
-        let name = match found {
-            proc_macro_crate::FoundCrate::Itself => package_name.replace('-', "_"),
-            proc_macro_crate::FoundCrate::Name(name) => name,
-        };
-        Some(Ident::new(&name, proc_macro2::Span::call_site()))
+    fn resolved_root(&self, package_name: &str) -> Result<Option<Ident>, ResolveError> {
+        match proc_macro_crate::crate_name(package_name) {
+            Ok(found) => {
+                let name = match found {
+                    proc_macro_crate::FoundCrate::Itself => package_name.replace('-', "_"),
+                    proc_macro_crate::FoundCrate::Name(name) => name,
+                };
+                Ok(Some(Ident::new(&name, proc_macro2::Span::call_site())))
+            }
+            Err(proc_macro_crate::Error::CrateNotFound { .. }) => Ok(None),
+            Err(source) => Err(ResolveError {
+                package: package_name.to_owned(),
+                source,
+            }),
+        }
     }
 
-    fn is_direct_dependency(&self, package_name: &str) -> bool {
-        proc_macro_crate::crate_name(package_name).is_ok()
+    fn is_direct_dependency(&self, package_name: &str) -> Result<bool, ResolveError> {
+        self.resolved_root(package_name).map(|root| root.is_some())
     }
 }
 
@@ -75,9 +109,9 @@ pub(crate) struct SyntacticCrateResolver;
 
 #[cfg(test)]
 impl CrateResolver for SyntacticCrateResolver {
-    fn resolved_root(&self, _: &str) -> Option<Ident> { None }
+    fn resolved_root(&self, _: &str) -> Result<Option<Ident>, ResolveError> { Ok(None) }
 
-    fn is_direct_dependency(&self, _: &str) -> bool { true }
+    fn is_direct_dependency(&self, _: &str) -> Result<bool, ResolveError> { Ok(true) }
 }
 
 /// The resolver a boundary uses when none is injected.
@@ -142,7 +176,7 @@ fn evidence_framework(path: &syn::Path, resolver: &dyn CrateResolver) -> Option<
             let spec = adapter_spec(*framework);
             path_last_ident_matches(path, spec.adapter_type_names)
                 && crate_identifier_below_root(path, spec, resolver)
-                && resolver.is_direct_dependency(spec.package_name)
+                && resolves_to(resolver.is_direct_dependency(spec.package_name))
         })
 }
 
@@ -156,7 +190,7 @@ fn crate_identifier_below_root(
     spec: &CrateSpec,
     resolver: &dyn CrateResolver,
 ) -> bool {
-    let renamed = resolver.resolved_root(spec.package_name);
+    let renamed = read_root(resolver.resolved_root(spec.package_name));
     path.segments.iter().skip(1).any(|segment| {
         segment.ident == spec.default_crate_name
             || renamed.as_ref().is_some_and(|root| segment.ident == *root)
@@ -169,4 +203,16 @@ pub(super) fn adapter_spec(framework: Framework) -> &'static CrateSpec {
         Framework::Tokio => &TOKIO_HARNESS,
         Framework::Gpui => &GPUI_HARNESS,
     }
+}
+
+/// A boolean Cargo answer, with an unreadable manifest treated as absence.
+///
+/// Absence is the conservative reading: it never claims first-party evidence
+/// the manifest did not establish. [`SharedPolicyDiagnostics`](super::SharedPolicyDiagnostics)
+/// reports the unreadable manifest itself, so the absence is not silent.
+fn resolves_to(answer: Result<bool, ResolveError>) -> bool { answer.unwrap_or(false) }
+
+/// A resolved root, with an unreadable manifest treated as unresolvable.
+fn read_root(answer: Result<Option<Ident>, ResolveError>) -> Option<Ident> {
+    answer.unwrap_or_default()
 }

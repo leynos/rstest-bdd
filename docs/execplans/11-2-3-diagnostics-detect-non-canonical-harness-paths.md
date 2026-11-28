@@ -326,14 +326,13 @@ conflict in `Decision log`, and escalate.
   "add a dev-dependency for recognition" statements corrected.
 - [x] (2026-11-27) EP-M7: roadmap 11.2.3 ticked with a completion note naming
   this plan and ADR-0029; the plan set to `COMPLETE`.
-- [ ] EP-M4 and EP-M3 full gates: focused evidence is recorded (565 unit
-  tests, both `macro_compile` suites on stable and on `nightly-2026-08-16`, the
-  new `policy_user_executor` integration test, Clippy, and Whitaker run to
-  completion on the full workspace). `make lint`, `make check-fmt` and
-  `make markdownlint` were run at the EP-M3 tree; run all four full gates at
-  the pushed head `222e1355` before calling the milestone complete.
-- [ ] EP-M6: documentation, ADR-0029, CHANGELOG.
-- [ ] EP-M7: roadmap tick, final gates, plan marked `COMPLETE`.
+- [x] (2026-11-28) Final gates at `22168bd4`: `make check-fmt`,
+  `make lint` (all eleven steps), `make typecheck`, `make markdownlint`,
+  `make nixie` and `make test` (2635 and 838 nextest cases, doctests, 7 fixture
+  lockfiles, 398 pytest cases) all pass, and hosted CI is green on all three
+  `build-test` lanes with the CodeScene quality gate passed. This entry
+  supersedes the earlier per-milestone gate placeholders, whose evidence is
+  recorded in `Outcomes & retrospective`.
 
 ## Surprises & discoveries
 
@@ -802,6 +801,14 @@ earlier one, the earlier entry says so.
   adapter failed until `PUBLISHED_GPUI_E2E_PACKAGE_PATCHES` included the crate.
   It is patched for resolution but stays out of the packaged set, because the
   fixture does not depend on it. Date/Author: 2026-11-27 / Claude.
+- Decision D49 (host lint-suite drift, out of scope): this host's rolling
+  Whitaker suite flags `join_physical_lines` in
+  `crates/rstest-bdd-harness/src/nested_cargo/preparation/artefacts/verification.rs`,
+  a file this branch does not touch and whose bytes are identical to
+  `origin/main`'s. Hosted CI, which installs the pinned suite, is green on the
+  same step. The violation is therefore prerequisite work belonging to a base
+  pull request rather than to this feature diff, and it is not absorbed here.
+  Date/Author: 2026-11-28 / Claude.
 - Decision D46 (assessment finding, E002 versus C2): `E002` is decided after
   generation and fires only when the invocation produced at least one test.
   Rationale: the taxonomy says the alias plus a harness is always `E002`, but

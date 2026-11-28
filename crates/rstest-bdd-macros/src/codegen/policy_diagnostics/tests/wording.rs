@@ -12,6 +12,7 @@ use super::super::{
     CrateResolver,
     DiagnosticState,
     PolicyInputs,
+    ResolveError,
     SlotIdents,
     classify_harness_path,
     classify_policy_path,
@@ -25,9 +26,11 @@ use super::super::{
 struct RenamedResolver;
 
 impl CrateResolver for RenamedResolver {
-    fn resolved_root(&self, _: &str) -> Option<Ident> { Some(Ident::new("tok", Span::call_site())) }
+    fn resolved_root(&self, _: &str) -> Result<Option<Ident>, ResolveError> {
+        Ok(Some(Ident::new("tok", Span::call_site())))
+    }
 
-    fn is_direct_dependency(&self, _: &str) -> bool { true }
+    fn is_direct_dependency(&self, _: &str) -> Result<bool, ResolveError> { Ok(true) }
 }
 
 /// Render one state with both slots spelled `written`.
@@ -39,6 +42,7 @@ fn render_with(
     let ident = Ident::new(written, Span::call_site());
     render(&DiagnosticState {
         inputs,
+        manifest_error: None,
         slots: SlotIdents {
             harness: Some(ident.clone()),
             attributes: Some(ident),

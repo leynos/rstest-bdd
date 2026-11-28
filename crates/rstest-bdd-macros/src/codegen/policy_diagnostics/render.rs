@@ -173,10 +173,14 @@ fn canonical_policy_path(resolver: &dyn CrateResolver, framework: Framework) -> 
 /// write `tok::TokioHarness`, not the name it does not have.
 fn canonical_root(resolver: &dyn CrateResolver, framework: Framework) -> String {
     let spec = classify::adapter_spec(framework);
-    resolver.resolved_root(spec.package_name).map_or_else(
-        || spec.default_crate_name.to_owned(),
-        |ident| ident.to_string(),
-    )
+    resolver
+        .resolved_root(spec.package_name)
+        .ok()
+        .flatten()
+        .map_or_else(
+            || spec.default_crate_name.to_owned(),
+            |ident| ident.to_string(),
+        )
 }
 
 /// E001, spanned at the `attributes` path that adds no executor.

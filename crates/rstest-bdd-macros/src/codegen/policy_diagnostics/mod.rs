@@ -33,8 +33,10 @@ mod tests;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 
 #[cfg(test)]
+pub(crate) use self::classify::ResolveError;
+#[cfg(test)]
 pub(crate) use self::model::Framework;
-use self::model::{PolicyInputs, diagnose};
+use self::model::{Framework as ProbeFramework, PolicyInputs, diagnose};
 pub(crate) use self::{
     classify::{CrateResolver, classify_harness_path, classify_policy_path, default_resolver},
     model::{PolicyFindings, SlotClass},
@@ -63,6 +65,8 @@ pub(crate) struct SharedPolicyDiagnostics {
 struct DiagnosticState {
     /// The explicit user arguments, already classified.
     inputs: PolicyInputs,
+    /// A Cargo state that could not be read, when one was encountered.
+    manifest_error: Option<String>,
     /// The terminal identifier of each explicit path.
     slots: SlotIdents,
     /// What the classifier found.
@@ -117,10 +121,24 @@ impl SharedPolicyDiagnostics {
         attributes: Option<&syn::Path>,
         facts: ScenarioFacts,
     ) -> Self {
+        Self::for_scenario_with(harness, attributes, facts, default_resolver())
+    }
+
+    /// Resolve a `#[scenario]` expansion against an injected resolver.
+    ///
+    /// Boundary verification uses this to exercise the production wiring with a
+    /// chosen Cargo answer instead of the unit-test stub.
+    pub(crate) fn for_scenario_with(
+        harness: Option<&syn::Path>,
+        attributes: Option<&syn::Path>,
+        facts: ScenarioFacts,
+        resolver: &'static dyn CrateResolver,
+    ) -> Self {
         Self::resolve(
             harness,
             harness,
             attributes,
+            resolver,
             Shape::Scenario {
                 is_async: facts.is_async,
                 has_executor_attr: facts.has_executor_attr,
@@ -141,10 +159,28 @@ impl SharedPolicyDiagnostics {
         attributes: Option<&syn::Path>,
         runtime_alias: bool,
     ) -> Self {
+        Self::for_scenarios_with(
+            harness,
+            effective_harness,
+            attributes,
+            runtime_alias,
+            default_resolver(),
+        )
+    }
+
+    /// Resolve a `scenarios!` expansion against an injected resolver.
+    pub(crate) fn for_scenarios_with(
+        harness: Option<&syn::Path>,
+        effective_harness: Option<&syn::Path>,
+        attributes: Option<&syn::Path>,
+        runtime_alias: bool,
+        resolver: &'static dyn CrateResolver,
+    ) -> Self {
         Self::resolve(
             harness,
             effective_harness,
             attributes,
+            resolver,
             Shape::Scenarios { runtime_alias },
         )
     }
@@ -155,7 +191,15 @@ impl SharedPolicyDiagnostics {
     /// exists so `codegen::scenario` can resolve the paths a caller supplied
     /// without pretending a boundary ran.
     pub(crate) fn resolve_api(harness: Option<&syn::Path>, attributes: Option<&syn::Path>) -> Self {
-        let resolver = default_resolver();
+        Self::resolve_api_with(harness, attributes, default_resolver())
+    }
+
+    /// Resolve API paths only, against an injected resolver.
+    pub(crate) fn resolve_api_with(
+        harness: Option<&syn::Path>,
+        attributes: Option<&syn::Path>,
+        resolver: &'static dyn CrateResolver,
+    ) -> Self {
         Self {
             harness: harness.map(|path| resolve_harness_api_with(path, resolver)),
             attributes: attributes.map(|path| resolve_harness_api_with(path, resolver)),
@@ -168,9 +212,10 @@ impl SharedPolicyDiagnostics {
         explicit_harness: Option<&syn::Path>,
         effective_harness: Option<&syn::Path>,
         attributes: Option<&syn::Path>,
+        resolver: &'static dyn CrateResolver,
         shape: Shape,
     ) -> Self {
-        let resolver = default_resolver();
+        let manifest_error = first_manifest_error(resolver);
         let harness = explicit_harness.map_or(SlotClass::Absent, |path| {
             classify_harness_path(path, resolver)
         });
@@ -200,6 +245,7 @@ impl SharedPolicyDiagnostics {
             attributes: attributes.map(|path| resolve_harness_api_with(path, resolver)),
             state: Some(DiagnosticState {
                 inputs,
+                manifest_error,
                 slots: SlotIdents {
                     harness: explicit_harness.and_then(terminal_ident),
                     attributes: attributes.and_then(terminal_ident),
@@ -228,21 +274,57 @@ impl SharedPolicyDiagnostics {
     /// cannot fail per scenario, and compiled before this diagnostic existed,
     /// so the boundary decides whether the error applies after generation.
     pub(crate) fn errors(&self) -> Option<TokenStream2> {
-        self.state.as_ref().and_then(render::errors)
+        let state = self.state.as_ref()?;
+        if let Some(error) = &state.manifest_error {
+            let message = format!(
+                "rstest-bdd cannot read the Cargo manifest, so harness and \
+                 attribute-policy paths cannot be resolved: {error}"
+            );
+            return Some(
+                syn::Error::new(proc_macro2::Span::call_site(), message).into_compile_error(),
+            );
+        }
+        render::errors(state)
     }
 
-    /// Emit the warnings this boundary owns.
-    ///
-    /// Call this at most once per boundary and only when [`Self::errors`] is
-    /// `None`, because nightly emission is a side effect.
-    pub(crate) fn emit_warnings(&self) -> TokenStream2 {
-        let Some(state) = self.state.as_ref() else {
-            return TokenStream2::new();
-        };
-        let warnings = render::warnings(state);
-        emit::emit_native(&warnings);
-        emit::warning_tokens(&warnings)
+    /// The warning tokens this boundary owns. Pure.
+    pub(crate) fn warning_tokens(&self) -> TokenStream2 {
+        self.state.as_ref().map_or_else(TokenStream2::new, |state| {
+            emit::warning_tokens(&render::warnings(state))
+        })
     }
+
+    /// Emit the native warnings this boundary owns.
+    ///
+    /// This is the command half: call it at most once per boundary, and only
+    /// when [`Self::errors`] is `None`, because nightly emission is a side
+    /// effect.
+    pub(crate) fn emit_native_warnings(&self) {
+        if let Some(state) = self.state.as_ref() {
+            emit::emit_native(&render::warnings(state));
+        }
+    }
+}
+
+/// The first Cargo state that could not be read, if any.
+///
+/// The adapter crates are probed once per boundary so an unreadable manifest is
+/// reported as a hard error rather than silently disabling recognition.
+fn first_manifest_error(resolver: &dyn CrateResolver) -> Option<String> {
+    [ProbeFramework::Tokio, ProbeFramework::Gpui]
+        .into_iter()
+        .find_map(|framework| {
+            let spec = classify::adapter_spec(framework);
+            resolver
+                .resolved_root(spec.package_name)
+                .err()
+                .map(|error| {
+                    format!(
+                        "rstest-bdd cannot read the Cargo manifest, so harness and \
+                     attribute-policy paths cannot be resolved: {error}"
+                    )
+                })
+        })
 }
 
 /// The terminal identifier of a supplied path.
