@@ -293,7 +293,10 @@ twice the expected net change to allow for tests.
   compacted array. Rationale: the behaviour is identical at comparison base
   `8cfc3476`, so it is not introduced by this refactor, and changing the
   emitted indices is a behaviour change outside the issue's scope. It is
-  recorded here for a follow-up, and the PR reply states the boundary.
+  recorded here for a follow-up, and the PR reply states the boundary. The
+  follow-up should also add direct unit tests for `generate_case_attrs` and
+  `generate_indexed_case_attrs`: the `row_has_values` filter and the `usize`
+  index prefix currently run only through the snapshot and integration paths.
   Date/Author: 2026-11-28, implementation agent.
 
 ## Outcomes & retrospective
@@ -328,8 +331,10 @@ outset.
 
 The expansion path below describes the tree at the milestone-3 revision. The
 pre-refactor names it replaced were `generate_regular_scenario_code` and
-`generate_outline_scenario_code` in a single `helpers.rs`; see
-`Artefacts and notes` for the `470c20ae` layout.
+`generate_outline_scenario_code` in
+`crates/rstest-bdd-macros/src/codegen/scenario/mod.rs`; the per-step helpers
+lived in a single `helpers.rs` beside it. See `Artefacts and notes` for the
+`470c20ae` layout.
 
 The expansion path is:
 
@@ -685,12 +690,13 @@ fn assemble_outline_scenario<'a, P, I, Q>(
 ) -> Result<ScenarioItem<'a>, TokenStream2>;
 ```
 
-Reuse policy: `step_to_tokens` is the only per-step literal builder; the two
-processors are its only call-sites. `scenario_metadata` and
-`emit_scenario_test` remain the only metadata projection and item assembler;
-the shared path in `generate_scenario_code` is their only call-site. New
-callers must delegate rather than reimplement the literals or the `quote!`
-block.
+Reuse policy: `step_to_tokens` is the only per-step literal builder. Its only
+direct call-site is `process_steps_with_context`; `process_steps` and
+`process_steps_substituted` reach it through that shared loop.
+`scenario_metadata` and `emit_scenario_test` remain the only metadata
+projection and item assembler; the shared path in `generate_scenario_code` is
+their only call-site. New callers must delegate rather than reimplement the
+literals or the `quote!` block.
 
 ## Revision note
 
