@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: APPROVED
+Status: COMPLETE
 
 Tracking issue: <https://github.com/leynos/rstest-bdd/issues/911>
 
@@ -186,7 +186,7 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
 - [x] `EP-M2`: explicit offline mode at every repository-owned spawn.
 - [x] `EP-M3`: test-process offline default for third-party and indirect spawns.
 - [x] `EP-M4`: CI network denial.
-- [ ] `EP-M5`: execution-trace audit, ADR and documentation.
+- [x] `EP-M5`: execution-trace audit, ADR and documentation.
 
 ## Surprises & discoveries
 
@@ -452,7 +452,46 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
 
 ## Outcomes & retrospective
 
-Not yet started. To be completed at each milestone and at the end of the work.
+Complete as of 2026-11-28. All five milestones landed and the acceptance
+criteria are evidenced:
+
+- `AC-1`: every Cargo spawn this repository constructs carries `--offline`
+  (with `--locked` where it compiles) and `CARGO_NET_OFFLINE`; the spawns it
+  does not construct inherit the `[env]` default. The execution trace found no
+  violating `cargo` child in three runs, and the Layer-2 exclusion run named
+  exactly the third-party queries the audit table predicted.
+- `AC-2`: the prefetch reads only committed lockfiles through `--locked`, and a
+  missing package fails the run before any test starts.
+- `AC-3`: the Linux coverage lanes select `offline-proof`, whose wrapper runs
+  every test in a private network namespace; the seeded offender proves the
+  denial is real.
+- `AC-4`: the audit table is complete and the trace found no unlisted spawn.
+
+What went well. The two-layer design survived contact with a base branch that
+had already implemented parts of it: main had split `staging.rs`, made the
+rebuild harness and the UI-lint Clippy command offline, and added a
+`cargo fetch --locked` warm line to `make test`. Recognising that early turned
+six conflicted files into one obsolete commit and five genuine gaps.
+
+What cost time. The branch sat for three weeks, and rebasing was not a
+formality: two fixture manifests had arrived without setup scripts, a new
+`build-only` coverage job broke the prefetch-ordering contract, and the stable
+toolchain moved to clippy 1.100.0, which turned an unrelated
+`used_underscore_binding` warning into a gate failure that main had already
+fixed. Each was diagnosed from evidence rather than assumed to be the branch's
+fault.
+
+What would be done differently. The refactoring commit should not have been
+started before checking whether the base branch had already done it; the plan
+anticipated exactly that ("unless PR 782 has already split the file") and the
+check was one `git ls-tree` away. Both mutation controls — the witness and the
+network denial — proved worth the extra runs: each turned "the test passes"
+into "the test fails when the protection is removed."
+
+Remaining gaps, recorded rather than hidden: Windows has no kernel denial; the
+`RSTEST_BDD_RUN_MACROTEST=1` route is untraced because `cargo expand` is not
+installed here; and trybuild and macrotest still resolve without `--locked`,
+which offline mode makes fail-closed but does not make reproducible.
 
 ## Conformance basis
 
@@ -959,6 +998,36 @@ touching the rest of the contract. Delete `target/tests/issue-911-exec.trace`
 after recording its summary.
 
 ## Artifacts and notes
+
+### Execution trace (2026-11-28)
+
+Three `strace -f -qq -e trace=execve -v -s 8192` runs, each analysed for
+`cargo` execs whose environment carries `NEXTEST_RUN_ID`. A child counts as
+offline when its arguments include `--offline` or `--frozen`, or its
+environment sets `CARGO_NET_OFFLINE` to `true` or `1`.
+
+| Run                                  | cargo children | violations |
+| ------------------------------------ | -------------- | ---------- |
+| `offline_contract` (all three tests) | 14             | 0          |
+| `cargo-bdd` offline witness          | 15             | 0          |
+| trybuild `step_macros_compile`       | 237            | 0          |
+
+The witness run's extra child is the CLI's nested `cargo metadata`, which
+carries the variable and no flag — the `cli_child_environment` row of the audit
+table, observed.
+
+The Layer-2 exclusion run removed the `[env]` entry, re-prepared the fixture
+trees (the preparation fingerprint covers the Cargo configuration, so the stamp
+had to be re-earned), and re-traced `step_macros_compile`: 237 cargo children,
+five without their own evidence — two `cargo -vV` version probes and three
+`cargo metadata --no-deps`, all trybuild's. Those are the audit table's Layer-2
+rows exactly. Everything else still carried a flag: 201 `--offline`, 14
+`fetch`, 10 `clippy`, 5 `check`, and 2 metadata queries from this repository's
+own builders.
+
+The `RSTEST_BDD_RUN_MACROTEST=1` route was not traced: `cargo expand` is not
+installed on this host, so that route cannot run here. This is a gap in the
+evidence, not a claim of coverage.
 
 All of the following were measured during planning, on the base revision, with
 Cargo 1.99.1 and Nextest 0.9.133. They come from scratch projects, not this

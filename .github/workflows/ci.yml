@@ -577,8 +577,13 @@ jobs:
       # The gate runs after the Rust setup and workspace build have populated
       # the Cargo cache, and it never passes --offline: a lockfile that only
       # resolves from a partial cache would hide the drift this step exists to
-      # catch. The rebuild-invalidation experiment keeps its own --offline
-      # runs because that test verifies reproducible nested-Cargo behaviour.
+      # catch. That is why it is a different concern from
+      # `make prefetch-fixture-deps`, which every test route runs first: the
+      # prefetch makes a locked offline resolution possible from a cache it
+      # filled itself, and this gate proves the resolution is still correct
+      # against a full registry view. The rebuild-invalidation experiment
+      # keeps its own --offline runs because that test verifies reproducible
+      # nested-Cargo behaviour.
       - name: Check standalone fixture lockfiles
         if: ${{ matrix.tools }}
         run: make check-fixture-lockfiles

@@ -91,7 +91,17 @@ truth for requirements, design rationale, process notes, and planning.
 
 - [.github/workflows](../.github/workflows/) contains Continuous Integration
   (CI) workflows and GitHub automation.
-- [.cargo](../.cargo/) contains Cargo configuration, including nextest policy.
+- [.cargo](../.cargo/) contains Cargo configuration. Its `[env]` table sets
+  `CARGO_NET_OFFLINE` for every process Cargo starts, which is the default
+  layer of the offline contract in
+  [ADR-0029](adrs/adr-0029-offline-nested-cargo-test-contract.md); the nextest
+  policy in [.config/nextest.toml](../.config/nextest.toml) holds the fixture
+  prefetch setup scripts and the `offline-proof` wrapper profile.
+- The contract that keeps those two in step lives in
+  [tests/workflow_contracts](../tests/workflow_contracts/):
+  `offline_test_contract_test.py` pins the setup scripts against the manifests
+  tests spawn, and `offline_proof_contract_test.py` pins the wrapper profile
+  and the Linux lanes that select it.
 - [.config](../.config/) contains tool configuration used by the local and CI
   workflows.
 - [scripts](../scripts/) contains repository automation and policy-enforcement

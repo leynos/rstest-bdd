@@ -4326,7 +4326,7 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   `make test-workflow-contracts` — enforce this contract, including a
   Hypothesis test that executes the push step against generated hostile ref
   names.
-- The mutation lane pre-fetches standalone fixture dependencies with
+- Every test route pre-fetches standalone fixture dependencies with
   `make prefetch-fixture-deps`, which runs
   `scripts/check_fixture_lockfiles.py --fetch`: that mode runs
   `cargo fetch --locked --manifest-path <fixture>/Cargo.toml` for every
@@ -4355,12 +4355,13 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
 - It is needed because the nested-cargo harnesses
   (`crates/rstest-bdd/tests/feature_rebuild_invalidation.rs` and its
   `harness/addition.rs` module) build their fixtures with `--locked --offline`,
-  and the mutation lane runs no outer online workspace build to warm that cache:
-  `.github/workflows/mutation-testing.yml` passes the target as the reusable
-  workflow's `setup-commands`, which runs in each mutants job before
-  cargo-mutants starts. Without it the baseline fails, because nothing has
-  downloaded the crates the fixture lockfiles pin (`proc-macro-error-attr3` was
-  the crate that surfaced it).
+  and no route runs an outer online workspace build that would warm that cache.
+  `make test` depends on the target; Nextest runs the same fetches as setup
+  scripts before any test binary starts; and the mutation lane passes the
+  target as the reusable workflow's `setup-commands`, which runs in each
+  mutants job before cargo-mutants starts. Without it the baseline fails,
+  because nothing has downloaded the crates the fixture lockfiles pin
+  (`proc-macro-error-attr3` was the crate that surfaced it).
 - Keep the two mechanisms apart: `make check-fixture-lockfiles` proves a
   lockfile still resolves against a full, online registry view and never passes
   `--offline` (a lockfile that only resolves from a partial cache would hide
@@ -4386,6 +4387,51 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
 - The binary is registered in the `cargo-spawning` nextest group
   (`max-threads = 1`); when adding another such test, update the worst-case
   arithmetic comment in `.config/nextest.toml`.
+
+### Test-spawned Cargo must run offline (ADR-0029)
+
+Every Cargo process a test starts is a potential registry client, and it holds
+the host's package-cache lock while it resolves. The contract has three layers
+and a proof; [ADR-0029](adrs/adr-0029-offline-nested-cargo-test-contract.md)
+carries the rationale, and this section is the working checklist.
+
+**Adding a Cargo spawn.** Build the command in a pure function that returns it
+without running it, next to the code that calls it. Give it `--offline` and
+`--locked` when it compiles anything, and set
+`.env("CARGO_NET_OFFLINE", "true")` on the child. Add a unit test that reads
+`get_args()` and `get_envs()` and asserts both, so the intent is reviewable
+without a Cargo run. If the command is handed to another function that may
+append arguments, run it inline instead: a handoff makes the spawn
+unreviewable, and Concordat's `nested-cargo-offline-tests` rule reports it as
+`indeterminate` rather than offline.
+
+**Adding a fixture manifest.** A test that builds a fixture must have its
+packages present before the run starts. Add the manifest to the project's
+prefetch route and, in this repository, to the `[[profile.default.scripts]]`
+setup list in `.config/nextest.toml`;
+`tests/workflow_contracts/offline_test_contract_test.py` fails until the
+literal list matches the manifests the tests actually spawn.
+
+**On a setup-script failure.** Nextest reports `error: setup script failed`
+before any test runs. That is the intended signal for a cold cache: run
+`make prefetch-fixture-deps` online once, then re-run the suite. Do not drop
+`--offline` from the setup script to make it pass, and do not treat the failure
+as a flaky test.
+
+**Fetching something new.** `.cargo/config.toml` sets
+`CARGO_NET_OFFLINE = "true"` under `[env]` *without* `force`, so one command
+can opt out: `CARGO_NET_OFFLINE=false cargo add <crate>`. Keep `force` off.
+Ordinary `cargo build` is unaffected either way, because Cargo ignores `[env]`
+when resolving its own build.
+
+**What the proof profile is for.** `cargo nextest run --profile offline-proof`
+runs every test on Linux inside `unshare --net`, so a green run demonstrates
+the suite needs no network at all. It inherits the default profile's setup
+scripts, timeouts and test groups; `cargo nextest show-config test-groups`
+confirms the group limits survive. Locally it needs unprivileged user
+namespaces: if `unshare --net --map-current-user true` fails, the host's
+AppArmor policy is restricting them, and the CI lanes relax
+`kernel.apparmor_restrict_unprivileged_userns` before the suite starts.
 
 ### Macro-emitted token streams carry no absolute path literal
 

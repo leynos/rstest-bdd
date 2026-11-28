@@ -3656,6 +3656,40 @@ material and harness-led attribute-policy defaults; see
 [Phase 9](roadmap.md#9-harness-adapters-and-attribute-plugins) for the
 remaining items and acceptance criteria.
 
+### 3.13 Test-spawned Cargo runs offline (ADR-0029)
+
+Tests in this workspace start their own `cargo`: fixture builds, trybuild
+cases, the UI-lint Clippy run, the Whitaker gate, and `cargo-bdd`'s nested
+metadata and test commands. Each one shares the host's package-cache lock, so
+an unnoticed registry lookup can stall an unrelated repository's gate for
+minutes. ADR-0029 records the three-layer contract:
+
+- **Prefetch.** `make prefetch-fixture-deps` fetches every manifest a test
+  route spawns Cargo against, with `--locked`, and Nextest runs one setup
+  script per manifest before any test binary starts. A cold cache therefore
+  fails at the start of the run, naming the command, instead of becoming a
+  network request mid-test.
+- **Evidence at every repository-owned spawn.** Each command is built by a
+  pure function whose argument list and environment a test asserts, so
+  `--offline` (with `--locked` where the invocation compiles) and
+  `CARGO_NET_OFFLINE` are reviewable rather than incidental. The nested-Cargo
+  harness pushes its own value last, because the last write is the one Cargo
+  reads.
+- **A default for everything else.** `.cargo/config.toml` sets
+  `CARGO_NET_OFFLINE = "true"` under `[env]`, without `force`, which reaches
+  build scripts and third-party crates this repository cannot edit while
+  leaving ordinary builds and dependency updates online.
+
+The Linux coverage lanes add a fourth element: they select
+`profile.offline-proof` in `.config/nextest.toml`, whose one wrapper rule runs
+every test through `unshare --net --map-current-user`. Offline mode makes Cargo
+refuse the network; the namespace makes it absent. A green run under that
+profile therefore demonstrates the suite needs no network, which no amount of
+offline flags alone can show.
+
+[ADR-0029](adrs/adr-0029-offline-nested-cargo-test-contract.md) carries the
+full rationale, including why each layer is insufficient alone.
+
 ### Scenario state management design (2025-03-16)
 
 - Added a dedicated `state` module exposing `Slot<T>` to encapsulate shared
