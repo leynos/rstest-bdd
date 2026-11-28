@@ -335,19 +335,17 @@ def test_unrelated_lines_are_ignored(tmp_path: Path) -> None:
 def test_a_real_writers_known_compilation_is_rejected_end_to_end(
     tmp_path: Path,
 ) -> None:
-    """The negative control, driven through the producer's own output.
+    """The negative control, driven through a transcribed build output.
 
-    Every other rejection case here writes a synthetic count. That leaves the
-    control open in one direction: the judgement could reject a number no real
-    producer would ever file, and the workflow would still look protected. This
-    case files the count a real nested ``cargo`` reported — transcribed here as
-    the two ``Compiling`` lines such a build emits — through the same line
-    format the timed command appends, and requires the judgement to reject it.
+    Every other rejection case here writes a bare count. This case counts the
+    two ``Compiling`` lines of a transcribed nested ``cargo`` stderr in Python,
+    files that count as a timed line with the Python helper, and requires the
+    judgement to reject it.
 
     No real build is run to obtain the transcription: a test of this evidence
-    machinery is not worth a real compile. The two ``Compiling`` lines stand in
-    for what ``count_compiling`` counts, and ``cargo-bdd``'s report tests pin
-    that the production writer's line parses as this reader expects.
+    machinery is not worth a real compile. Neither the Rust ``count_compiling``
+    nor the Rust writer is exercised here; ``cargo-bdd``'s report tests pin
+    that the production writer's lines parse as this reader expects.
     """
     real_stderr = "   Compiling alpha v0.1.0\n   Compiling beta v0.2.0\n    Finished\n"
     compiling = sum(

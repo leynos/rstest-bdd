@@ -8,9 +8,10 @@
 //! that nobody has recently afforded.
 //!
 //! The lines are produced by the same [`record_to`] the gate and the timed
-//! command call, and the count is produced by the same [`count_compiling`] the
-//! timed path uses, so what is checked here is the production writer rather
-//! than a copy of its format.
+//! command call, so what is checked here is the production writer rather than
+//! a copy of its format. The counts are literals: `count_compiling` has its
+//! own unit tests in the harness crate, and no real build is run here to
+//! produce one.
 
 use std::path::Path;
 
