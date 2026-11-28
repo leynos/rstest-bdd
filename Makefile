@@ -227,7 +227,12 @@ PUBLISHED_GPUI_E2E_PACKAGES := \
 	rstest-bdd-macros \
 	rstest-bdd \
 	rstest-bdd-harness-gpui
-PUBLISHED_GPUI_E2E_PACKAGE_PATCHES := $(foreach package,$(PUBLISHED_GPUI_E2E_PACKAGES),\
+# Cargo resolves a package's dev-dependencies while it prepares the package,
+# even though they are stripped from the published manifest. The GPUI adapter's
+# test suite depends on the Tokio adapter, so that path patch is needed here as
+# well; it is not part of the fixture's own dependency set, so it is patched but
+# not packaged.
+PUBLISHED_GPUI_E2E_PACKAGE_PATCHES := $(foreach package,$(PUBLISHED_GPUI_E2E_PACKAGES) rstest-bdd-harness-tokio,\
 	--config 'patch.crates-io.$(package).path="$(CURDIR)/crates/$(package)"')
 
 check-published-gpui: ## Compile the published gpui 0.2.2 documentation fixture

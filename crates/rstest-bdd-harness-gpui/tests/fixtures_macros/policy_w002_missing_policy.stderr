@@ -1,0 +1,23 @@
+error: use of deprecated unit struct `_::RstestBddMissingAttributePolicy`: rstest-bdd[W002]: no attribute policy could be inferred from this harness path and `#[gpui::test]` was not applied. Write `rstest_bdd_harness_gpui::GpuiHarness`, or add `attributes = rstest_bdd_harness_gpui::GpuiAttributePolicy` (which restores the attribute but leaves warning W001 for the harness path).
+  --> tests/fixtures_macros/policy_w002_missing_policy.rs:30:54
+   |
+30 |     harness = nested::deep::rstest_bdd_harness_gpui::GpuiHarness,
+   |                                                      ^^^^^^^^^^^
+   |
+note: the lint level is defined here
+  --> tests/fixtures_macros/policy_w002_missing_policy.rs:7:9
+   |
+ 7 | #![deny(deprecated)]
+   |         ^^^^^^^^^^
+
+error: use of deprecated unit struct `_::RstestBddUnrecognizedAdapterPath`: rstest-bdd[W001]: this path was not recognized as the first-party `GpuiAttributePolicy`, so base harness API types were used and `#[gpui::test]` was not applied. Write `rstest_bdd_harness_gpui::GpuiAttributePolicy`.
+  --> tests/fixtures_macros/policy_w002_missing_policy.rs:36:57
+   |
+36 |     attributes = nested::deep::rstest_bdd_harness_gpui::GpuiAttributePolicy,
+   |                                                         ^^^^^^^^^^^^^^^^^^^
+
+error: use of deprecated unit struct `_::RstestBddUnrecognizedAdapterPath`: rstest-bdd[W001]: this path was not recognized as the first-party `GpuiHarness`, so base harness API types were used. Write `rstest_bdd_harness_gpui::GpuiHarness`.
+  --> tests/fixtures_macros/policy_w002_missing_policy.rs:44:54
+   |
+44 |     harness = nested::deep::rstest_bdd_harness_gpui::GpuiHarness,
+   |                                                      ^^^^^^^^^^^

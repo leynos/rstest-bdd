@@ -1791,8 +1791,10 @@ Imported single-segment recognition only applies to unaliased adapter type
 names. Renamed or aliased imports, such as
 `use rstest_bdd_harness_tokio::TokioHarness as MyHarness`, are not recognized
 by the macro; callers must use the full canonical crate-root path used in
-`rstest-bdd-policy`, add an explicit `rstest-bdd-harness` dependency, or expose
-the adapter under its original name for the macro to resolve it.
+`rstest-bdd-policy`, or expose the adapter under its original unaliased name
+for the macro to resolve it. Adding an explicit `rstest-bdd-harness` dependency
+makes a re-exported path compile but does not remove the diagnostic described
+below.
 
 Unknown harness paths still fall back to runtime compatibility behaviour
 because procedural macros do not evaluate arbitrary third-party
@@ -1800,48 +1802,56 @@ because procedural macros do not evaluate arbitrary third-party
 `#[tokio::test]` is omitted for synchronous test signatures because Tokio
 requires `async fn`.
 
-When an unresolved path retains the canonical Tokio or GPUI crate identifier
-immediately before the adapter type, the macro emits a fallback warning that
-recommends the canonical crate-root path or a direct `rstest-bdd-harness`
-development dependency under the canonical crate resolution name
-`rstest_bdd_harness`. A renamed dependency key cannot satisfy the generated
-fallback paths. For example, `alias::rstest_bdd_harness_tokio::TokioHarness`
-supplies this evidence. `custom::TokioHarness` does not: unrelated third-party
-adapters remain valid fallback paths without the diagnostic even when the
-first-party adapter crate is present.
+**Policy diagnostics (ADR-0029).** Five diagnostics report the conditions under
+which a `harness` or `attributes` path, or a combination of selectors, silently
+changes the shape of the generated test. Each message begins with a stable,
+searchable code:
 
-The accepted warning-channel and emission-ownership decision is recorded in
-[ADR-0017](adrs/adr-0017-toolchain-aware-adapter-fallback-diagnostics.md).
+- `rstest-bdd[W001]`: a `harness` or `attributes` path carries first-party
+  evidence but is not the canonical spelling, so base harness API types were
+  used.
+- `rstest-bdd[W002]`: an evidenced harness has no `attributes = ...` and the
+  canonical spelling would emit an attribute the expansion does not. In
+  practice this is the GPUI harness, whose `#[gpui::test]` is unconditional.
+- `rstest-bdd[W003]`: the harness selection and the explicit `attributes`
+  policy name different frameworks; the explicit policy takes precedence.
+- `rstest-bdd[E001]`: an `async fn` scenario has no executor, because
+  `attributes = ...` adds none and no `harness` provides one.
+- `rstest-bdd[E002]`: `scenarios!` combines
+  `runtime = "tokio-current-thread"` with `harness = ...`, although the harness
+  already selects the runtime.
 
-The `codegen::adapter_fallback` module owns this diagnostic. Resolution is a
-pure decision that returns the selected base API crate path and optional
-qualifying fallback metadata. Each macro expansion resolves each supplied
-`harness` or `attributes` path once at its boundary and reuses the decision for
-runtime code, trait assertions, and one diagnostic. The two paths remain
-independent.
+Evidence is three conditions together: the terminal path segment is a
+first-party adapter type name, the adapter crate's identifier appears anywhere
+below the root segment, and the crate is a direct dependency of the caller.
+This resolvability conjunct keeps a custom type such as `custom::TokioHarness`
+silent, because ADR-0008 declares harness-only third-party usage valid; a path
+with no first-party evidence is not diagnosed.
 
-`#[scenario]` and `scenarios!` each own a boundary. `scenarios!` resolves both
-supplied paths before it iterates the discovered scenarios and shares the
-result with every generated test, so the contract is one diagnostic per
-distinct qualifying supplied path regardless of how many scenarios the feature
-directory yields. Supplying an aliased `harness` and an aliased `attributes`
-together therefore yields exactly two diagnostics.
+For the three warnings, stable arrives through a generated deprecated item, and
+`#![deny(deprecated)]` or `-D warnings` turns one into an error; nightly uses a
+native warning. The documented stable opt-out is a module-level
+`#[allow(deprecated)]`, because the marker is a sibling item of the generated
+test that a function-level allow cannot reach; nightly native warnings cannot
+be suppressed, and the two errors cannot be suppressed at all.
 
-On nightly, the macro-expansion boundary passes that metadata to
-`proc_macro::Diagnostic::spanned` with `proc_macro::Level::Warning` and calls
-`.emit()`. Stable toolchains instead use a generated deprecated-item reference
-carrying the same message. The stable diagnostic is a warning by default, while
-`#![deny(deprecated)]` escalates it to an error. The two implementations are
-mutually exclusive, so a qualifying fallback emits exactly one diagnostic.
+Errors suppress warnings at the same expansion boundary. `E001` and `E002` fire
+only on configurations that already fail to compile, so a clearer error rejects
+nothing new. When either fires, the boundary emits no warnings: rustc's
+handling of lints beside a `compile_error!` varies, and both messages already
+carry the fix where one applies.
 
-`crates/rstest-bdd-macros/build.rs` uses `rustc_version::version_meta()` and
-`rustc_version::Channel::Nightly` to set `rstest_bdd_nightly`.
-`crates/rstest-bdd-macros/src/lib.rs` enables `proc_macro_diagnostic` only for
-non-test nightly builds. The `rustversion` attributes in
-`crates/rstest-bdd-harness-tokio/tests/macro_compile.rs` register stable and
-nightly `trybuild` cases separately. This direct adapter-fallback path is
-distinct from `utils::warnings::emit_warning`, which handles runtime and
-registry warnings. `proc-macro-error3` supports other macro errors only.
+Every diagnostic names a fix that removes the finding it is attached to.
+Workarounds belong in the user-facing guide, not in the message: adding a direct
+`rstest-bdd-harness` dependency makes a re-exported path compile, but it does
+not remove `W001`. The channel and ownership contract remains that of
+[ADR-0017](adrs/adr-0017-toolchain-aware-adapter-fallback-diagnostics.md):
+`codegen::policy_diagnostics` is the only emitter, resolution is pure, and only
+the two expansion boundaries emit. `scenarios!` resolves once before iterating
+the discovered scenarios, so a feature directory holding many scenarios still
+reports one diagnostic per supplied path rather than one per generated test.
+[ADR-0029](adrs/adr-0029-evidence-based-harness-and-policy-diagnostics.md)
+records the evidence rule, the code set, and the fix-convergence lemma.
 
 The user-facing guidance for this feature should lead with harness-only
 first-party configuration, with explicit `attributes = ...` documented as the
@@ -2256,10 +2266,17 @@ The release strategy is therefore split by compatibility risk:
   `ScenarioState`, `StepArgs`, `Slot`, `StepContext`, `StepError`, and
   `StepResult` as a strict subset of the crate root, and the facade re-exports
   each of them, so an integration test reaches its whole surface through one
-  import. See [ADR-0028](adrs/adr-0028-publish-a-facade-prelude.md). Remaining
-  candidates, not yet shipped: a typed borrow-error enum, and generated-wrapper
-  coverage for mutable harness context plus scenario state. A first-party
-  scenario-state helper (`ScenarioStore<T>` in `rstest-bdd`,
+  import. See [ADR-0028](adrs/adr-0028-publish-a-facade-prelude.md). Delivered:
+  harness and attribute-policy diagnostics (roadmap 11.2.3). Five code-prefixed
+  diagnostics report a non-canonical first-party path, a missing attribute
+  policy, conflicting framework selectors, a missing executor, and the runtime
+  alias combined with a harness. See
+  [ADR-0029](adrs/adr-0029-evidence-based-harness-and-policy-diagnostics.md)
+  and ExecPlan
+  `docs/execplans/11-2-3-diagnostics-detect-non-canonical-harness-paths.md`.
+  Remaining candidates, not yet shipped: a typed borrow-error enum, and
+  generated-wrapper coverage for mutable harness context plus scenario state. A
+  first-party scenario-state helper (`ScenarioStore<T>` in `rstest-bdd`,
   `GpuiScenarioStore` in `rstest-bdd-harness-gpui`) and a cleanup-guard fixture
   macro were proposed under
   [ADR-0011](adrs/adr-0011-first-party-scenario-state-and-cleanup.md) but were

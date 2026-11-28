@@ -86,7 +86,7 @@ struct FeatureProcessingContext<'a> {
     /// Locally visible identities for compile-time step validation.
     library_validation_names: Option<&'a [Box<str>]>,
     /// Adapter API paths resolved once for the whole `scenarios!` expansion.
-    resolutions: &'a crate::codegen::SharedAdapterResolutions,
+    resolutions: &'a crate::codegen::SharedPolicyDiagnostics,
 }
 
 /// Provides the internal `resolve_manifest_directory` operation.
@@ -231,34 +231,51 @@ fn check_empty_results(
     }
 }
 
-/// Provides the internal `emit_runtime_deprecation_warning` operation.
-fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::Path>) {
+/// Generate every scenario, then decide whether an error replaces the module.
+///
+/// `E002` is decided after generation: an invocation that produces no test
+/// could not fail per scenario before this diagnostic existed, so it keeps
+/// compiling (decision `D46`).
+fn generate_and_diagnose(
+    feature_paths: &[PathBuf],
+    ctx: &FeatureProcessingContext<'_>,
+    tag_filter: Option<&TagFilter>,
+) -> Result<(Vec<TokenStream2>, Vec<TokenStream2>), TokenStream2> {
+    let (tests, mut errors) = generate_tests_from_features(feature_paths, ctx);
+    check_empty_results(&tests, &mut errors, tag_filter);
+    if tests.is_empty() {
+        return Ok((tests, errors));
+    }
+    if let Some(error_tokens) = ctx.resolutions.errors() {
+        return Err(error_tokens);
+    }
+    Ok((tests, errors))
+}
+
+/// Run both halves of the warning channel, in order.
+fn emit_scenario_warnings(resolutions: &crate::codegen::SharedPolicyDiagnostics) -> TokenStream2 {
+    resolutions.emit_native_warnings();
+    resolutions.warning_tokens()
+}
+
+/// Warn about the deprecated `runtime` compatibility alias.
+///
+/// The alias combined with an explicit harness is an error decided before this
+/// runs, so this only ever describes the alias on its own.
+fn emit_runtime_deprecation_warning(runtime: RuntimeMode) {
     if runtime != RuntimeMode::TokioCurrentThread {
         return;
     }
-    if harness.is_some() {
-        emit_warning(
-            Span::call_site(),
-            concat!(
-                "the `runtime = \"tokio-current-thread\"` argument is ",
-                "deprecated and redundant when an explicit `harness` is set; ",
-                "remove the `runtime` argument"
-            )
-            .to_owned(),
-            None,
-        );
-    } else {
-        emit_warning(
-            Span::call_site(),
-            concat!(
-                "the `runtime = \"tokio-current-thread\"` syntax is ",
-                "deprecated; use ",
-                "`harness = rstest_bdd_harness_tokio::TokioHarness` instead"
-            )
-            .to_owned(),
-            None,
-        );
-    }
+    emit_warning(
+        Span::call_site(),
+        concat!(
+            "the `runtime = \"tokio-current-thread\"` syntax is ",
+            "deprecated; use ",
+            "`harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+        )
+        .to_owned(),
+        None,
+    );
 }
 /// Provides the internal `scenarios` operation.
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
@@ -296,9 +313,18 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
         libraries,
     } = args;
     let dir = PathBuf::from(dir_lit.value());
-
-    emit_runtime_deprecation_warning(runtime, harness.as_ref());
-
+    // The alias plus an explicit harness is E002. Deciding it first means the
+    // error replaces both the per-scenario rejections and the nightly
+    // "redundant" warning that used to describe a fatal configuration.
+    let effective_harness =
+        resolve_harness_path(harness.as_ref(), runtime_compatibility_alias(runtime));
+    let resolutions =
+        crate::codegen::SharedPolicyDiagnostics::for_scenarios(crate::codegen::ScenariosRequest {
+            harness: harness.as_ref(),
+            effective_harness: effective_harness.as_ref(),
+            attributes: attributes.as_ref(),
+            runtime_alias: runtime_compatibility_alias(runtime).is_some(),
+        });
     let tag_filter = match parse_tag_filter(tag_lit) {
         Ok(filter) => filter,
         Err(err_tokens) => return err_tokens,
@@ -319,19 +345,11 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
         }
     };
 
-    // Resolve the supplied adapter paths once for the whole expansion. Every
-    // generated scenario reuses this decision, so a feature directory with many
-    // scenarios reports one diagnostic per supplied path instead of one per
-    // generated test.
-    let effective_harness =
-        resolve_harness_path(harness.as_ref(), runtime_compatibility_alias(runtime));
-    let resolutions = crate::codegen::SharedAdapterResolutions::resolve(
-        effective_harness.as_ref(),
-        attributes.as_ref(),
-    );
+    // Every generated scenario reuses the resolution decided above, so a
+    // feature directory with many scenarios still reports one diagnostic per
+    // supplied path rather than one per generated test.
     let scope = library_scope_tokens(libraries.as_deref());
     let library_validation_names = libraries.as_deref().map(library_validation_names);
-    let fallback_diagnostics = resolutions.emit_diagnostics();
 
     let ctx = FeatureProcessingContext {
         manifest_dir: &manifest_dir,
@@ -345,9 +363,14 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
         library_validation_names: library_validation_names.as_deref(),
         resolutions: &resolutions,
     };
-    let (tests, mut errors) = generate_tests_from_features(&feature_paths, &ctx);
-
-    check_empty_results(&tests, &mut errors, tag_filter.as_ref());
+    let (tests, errors) = match generate_and_diagnose(&feature_paths, &ctx, tag_filter.as_ref()) {
+        Ok(generated) => generated,
+        Err(error_tokens) => return error_tokens,
+    };
+    let fallback_diagnostics = emit_scenario_warnings(&resolutions);
+    // Emitted after the error decision so E002 replaces this warning for the
+    // configuration it reports, on both channels.
+    emit_runtime_deprecation_warning(runtime);
 
     generate_scenarios_module(GeneratedScenariosModule {
         dir,

@@ -37,7 +37,7 @@ mod metadata;
 
 mod runtime;
 
-mod test_attrs;
+pub(crate) mod test_attrs;
 
 use adapters::resolve_scenario_adapters;
 pub(crate) use domain::*;
@@ -114,7 +114,7 @@ pub(crate) struct ScenarioConfig<'a> {
     /// Optional attribute policy type path for compile-time trait assertion.
     pub(crate) attributes: Option<&'a syn::Path>,
     /// Boundary resolution; direct code-generation tests may use the pure local resolver.
-    pub(crate) resolutions: Option<&'a crate::codegen::SharedAdapterResolutions>,
+    pub(crate) resolutions: Option<&'a crate::codegen::SharedPolicyDiagnostics>,
     /// Boundary tokens for `#[scenario]`; `scenarios!` emits around its module.
     pub(crate) fallback_diagnostics: Option<&'a TokenStream2>,
     /// Closed step-library scope emitted into the executor.
@@ -217,6 +217,23 @@ pub(crate) fn generate_scenario_code(
             body,
         },
     )
+}
+
+/// Reject unsupported combinations of a harness and an async scenario.
+///
+/// Exposed so the expansion boundary can decide it before either channel
+/// emits a warning: an error must not arrive beside a diagnostic about the
+/// same configuration (decision D9).
+pub(crate) fn reject_async_harness_error() -> TokenStream2 {
+    let err = syn::Error::new(
+        proc_macro2::Span::call_site(),
+        concat!(
+            "combining `harness` with `async fn` scenarios is not supported; use a synchronous ",
+            "scenario function with `TokioHarness` instead (the harness provides the Tokio runtime ",
+            "for step functions)",
+        ),
+    );
+    err.into_compile_error()
 }
 
 /// Reject unsupported combinations of a harness and an async scenario.

@@ -35,6 +35,7 @@ mod adapter_sharing;
 mod assembly_snapshot;
 mod gpui_policy;
 mod harness_defaults;
+mod reported_attributes;
 mod runtime_split;
 mod step_tokens;
 mod trait_assertions;

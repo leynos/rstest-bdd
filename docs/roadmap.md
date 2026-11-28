@@ -1090,12 +1090,19 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `docs/v0-7-0-migration-guide.md`. See ExecPlan
   `docs/execplans/11-2-2-prelude-exposes-step-result-and-context-helpers.md` and
   `docs/adrs/adr-0028-publish-a-facade-prelude.md`.
-- [ ] 11.2.3. Diagnostics detect non-canonical harness paths and missing or
+- [x] 11.2.3. Diagnostics detect non-canonical harness paths and missing or
   ambiguous attribute-policy annotations, with actionable guidance such as
   adding `attributes = ...` explicitly or using the canonical path. Finish
   line: trybuild tests cover non-canonical, missing, and ambiguous policy cases
   and assert the suggested fix text. Design Doc: `docs/rstest-bdd-design.md`
-  §§2.7.3-2.7.6.4. (Telefono)
+  §§2.7.3-2.7.6.4. (Telefono) Completed 2026-11-27: five code-prefixed
+  diagnostics (W001 to W003, E001 and E002) are emitted by
+  `codegen::policy_diagnostics`, each with the consequence that occurred and a
+  fix that removes it; `trybuild` fixtures on both channels pin every code's
+  text and span, an `insta` snapshot pins every wording variant, and the finite
+  state space is enumerated in the unit suite. See
+  `docs/execplans/11-2-3-diagnostics-detect-non-canonical-harness-paths.md` and
+  `docs/adrs/adr-0029-evidence-based-harness-and-policy-diagnostics.md`.
 - [ ] 11.2.4. The test suite demonstrates v0.6.x compatibility for mutable
   world, fallible fixture, Tokio harness, GPUI harness with shared context,
   GPUI harness with mutable context and scenario state, and scenario outline

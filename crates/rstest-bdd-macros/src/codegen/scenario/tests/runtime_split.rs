@@ -75,8 +75,13 @@ fn aliased_harness_scenario_output() -> String {
     let block: syn::Block = syn::parse_quote!({});
     let tags = Vec::new();
     let harness: syn::Path = syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
-    let resolutions = crate::codegen::SharedAdapterResolutions::resolve(Some(&harness), None);
-    let fallback_diagnostics = resolutions.emit_diagnostics();
+    let resolutions =
+        crate::codegen::SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+            harness: Some(&harness),
+            attributes: None,
+            facts: scenario_facts(),
+        });
+    let fallback_diagnostics = resolutions.warning_tokens();
     let config = ScenarioConfig {
         attrs: &attrs,
         vis: &vis,
@@ -150,7 +155,7 @@ fn local_adapter_resolution_does_not_emit_stable_fallback_diagnostics() {
     .to_string();
 
     assert!(
-        !output.contains("struct RstestBddFirstPartyAdapterFallback"),
+        !output.contains("struct RstestBdd"),
         "pure local resolution must not emit a fallback diagnostic: {output}"
     );
 }
@@ -162,9 +167,7 @@ fn aliased_harness_scenario_emits_one_stable_fallback_diagnostic() {
     let output = aliased_harness_scenario_output();
 
     assert_eq!(
-        output
-            .matches("struct RstestBddFirstPartyAdapterFallback")
-            .count(),
+        output.matches("struct RstestBdd").count(),
         1,
         "fallback diagnostic marker should be emitted once: {output}"
     );
@@ -179,10 +182,17 @@ fn aliased_harness_scenario_omits_stable_fallback_marker_on_nightly() {
     let output = aliased_harness_scenario_output();
 
     assert_eq!(
-        output
-            .matches("struct RstestBddFirstPartyAdapterFallback")
-            .count(),
+        output.matches("struct RstestBdd").count(),
         0,
         "nightly emits a native diagnostic instead of the marker: {output}"
     );
+}
+
+/// Diagnostic facts for a test scenario with no user attributes.
+fn scenario_facts() -> crate::codegen::ScenarioFacts {
+    crate::codegen::ScenarioFacts {
+        is_async: false,
+        has_executor_attr: false,
+        has_gpui_test_attr: false,
+    }
 }

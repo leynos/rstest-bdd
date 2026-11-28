@@ -1946,6 +1946,7 @@ dependencies = [
  "rstest",
  "rstest-bdd",
  "rstest-bdd-harness",
+ "rstest-bdd-harness-tokio",
  "rstest-bdd-macros",
  "rstest-bdd-test-macros",
  "rustversion",

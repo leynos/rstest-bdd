@@ -11,12 +11,12 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 use super::ScenarioConfig;
-use crate::codegen::{HarnessApiResolution, SharedAdapterResolutions};
+use crate::codegen::{HarnessApiResolution, SharedPolicyDiagnostics};
 
 /// The adapter decision for one scenario.
 pub(super) struct ScenarioAdapters<'a> {
     /// Shared, pure adapter resolutions for this generated scenario.
-    pub(super) resolutions: Cow<'a, SharedAdapterResolutions>,
+    pub(super) resolutions: Cow<'a, SharedPolicyDiagnostics>,
 }
 
 /// Select the adapter API paths this expansion should generate against.
@@ -30,7 +30,7 @@ pub(super) fn resolve_scenario_adapters<'a>(
 ) -> ScenarioAdapters<'a> {
     config.resolutions.map_or_else(
         || ScenarioAdapters {
-            resolutions: Cow::Owned(SharedAdapterResolutions::resolve(
+            resolutions: Cow::Owned(SharedPolicyDiagnostics::resolve_api(
                 config.harness,
                 config.attributes,
             )),

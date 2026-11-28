@@ -43,12 +43,17 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         "tests/fixtures_macros/scenario_custom_tokio_harness_name.rs",
         "tests/fixtures_macros/scenarios_attributes_tokio.rs",
         "tests/fixtures_macros/scenarios_harness_tokio_default.rs",
+        "tests/fixtures_macros/policy_opt_out.rs",
+        "tests/fixtures_macros/rstest_async_test_attr_accepted_canary.rs",
+        "tests/fixtures_macros/policy_e002_empty_expansion.rs",
     ] {
         tests.pass(case);
     }
     for case in [
         "tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs",
         "tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs",
+        "tests/fixtures_macros/scenarios_policy_e002_runtime_alias_with_harness.rs",
+        "tests/fixtures_macros/rstest_async_requires_test_attr_canary.rs",
     ] {
         tests.compile_fail(case);
     }
@@ -65,6 +70,7 @@ fn compile_fail_stable_fallback_warnings(tests: &trybuild::TestCases) {
         "tests/fixtures_macros/scenarios_attributes_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenarios_multi_scenario_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenarios_combined_alias_fallback_warning.rs",
+        "tests/fixtures_macros/policy_w001_noncanonical.rs",
     ] {
         tests.compile_fail(case);
     }
@@ -95,6 +101,9 @@ fn nightly_fallback_emits_one_proc_macro_warning() -> Result<(), Box<dyn std::er
     tests.compile_fail("tests/fixtures_macros/nightly_registry_empty_warning.rs");
     tests.compile_fail("tests/fixtures_macros/nightly_adapter_fallback_warning.rs");
     tests.compile_fail("tests/fixtures_macros/nightly_multi_scenario_alias_fallback_warning.rs");
+    tests.compile_fail(
+        "tests/fixtures_macros/nightly_policy_warning_suppressed_by_fixture_error.rs",
+    );
     Ok(())
 }
 #[test]
@@ -143,6 +152,10 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
     copy_file(
         &crate_root.join("tests/fixtures_macros/scenarios_multi_fallback.feature"),
         &trybuild_root.join("scenarios_multi_fallback.feature"),
+    )?;
+    copy_file(
+        &crate_root.join("tests/fixtures_macros/empty_policy_e002.feature"),
+        &trybuild_root.join("empty_policy_e002.feature"),
     )?;
     Ok(())
 }

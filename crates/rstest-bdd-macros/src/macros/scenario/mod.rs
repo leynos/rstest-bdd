@@ -21,6 +21,7 @@
 //! ```
 
 mod args;
+mod diagnostics;
 pub(super) mod paths;
 mod return_kind;
 mod selection;
@@ -40,6 +41,7 @@ use crate::parsing::feature::{
 };
 use self::{
     args::{ScenarioArgs, library_scope_tokens, library_validation_names},
+    diagnostics::build_scenario_diagnostics,
     paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
@@ -222,17 +224,18 @@ fn try_scenario(
         allow_skipped,
     } = resolve_scenario(args, &mut item_fn)?;
 
+    // Diagnostics are built before the signature is borrowed mutably, and
+    // `#[scenario]` always generates one test, so an error may replace it.
+    let (resolutions, fallback_diagnostics) = build_scenario_diagnostics(args, &item_fn)?;
     let sig = &mut item_fn.sig;
     let fixture_setup = resolve_fixture_setup(sig, return_kind)?;
+    // Emit only once no later step can reject this boundary. On stable the
+    // warning tokens die with the discarded expansion, but a native nightly
+    // warning is already printed, so emitting earlier would leave a warning
+    // beside an error, which ADR-0029 forbids.
+    resolutions.emit_native_warnings();
 
     let path = PathBuf::from(path_lit.value());
-    // `#[scenario]` owns this expansion boundary, so it emits each fallback
-    // diagnostic once before its generated code consumes the shared decision.
-    let resolutions = crate::codegen::SharedAdapterResolutions::resolve(
-        args.harness.as_ref(),
-        args.attributes.as_ref(),
-    );
-    let fallback_diagnostics = resolutions.emit_diagnostics();
     let ScenarioData {
         name: scenario_name,
         steps,

@@ -1,0 +1,5 @@
+error: rstest-bdd[E002]: `runtime = "tokio-current-thread"` cannot be combined with `harness = ...`; the harness already selects the runtime. Remove `runtime = ...`.
+  --> tests/fixtures_macros/scenarios_policy_e002_runtime_alias_with_harness.rs:21:41
+   |
+21 |     harness = rstest_bdd_harness_tokio::TokioHarness,
+   |                                         ^^^^^^^^^^^^
