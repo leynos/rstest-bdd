@@ -332,7 +332,7 @@ def test_unrelated_lines_are_ignored(tmp_path: Path) -> None:
     )
 
 
-def test_a_real_writers_known_compilation_is_rejected_end_to_end(
+def test_a_transcribed_builds_compilation_count_is_rejected_end_to_end(
     tmp_path: Path,
 ) -> None:
     """The negative control, driven through a transcribed build output.
@@ -351,7 +351,7 @@ def test_a_real_writers_known_compilation_is_rejected_end_to_end(
     compiling = sum(
         1 for line in real_stderr.splitlines() if line.strip().startswith("Compiling")
     )
-    assert compiling == 2, "the recorded build must hold two status lines"
+    assert compiling == 2, "the transcribed stderr must hold two status lines"
     write_reports(tmp_path, (GATE_SOURCE, 0), (TIMED_SOURCE, compiling))
     with pytest.raises(StepFailureError, match="not reused"):
         expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
