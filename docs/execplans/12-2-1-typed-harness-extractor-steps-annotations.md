@@ -170,7 +170,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
   compile with an `on_unimplemented` message naming the `#[from(..)]` opt-out;
   aliases and renamed imports are documented as unsupported (D4, D12).
 - R3. Roadmap 11.2.2 landed on the target branch in PR #773 and remains
-  unchanged at target `470c20ae`. The prelude exports eleven names (thirteen
+  unchanged at target `01ad8521`. The prelude exports eleven names (thirteen
   items counting the `ScenarioState` and `StepArgs` traits and derive macros),
   is a strict subset of the crate root, and has a drift gate in
   `scripts/check_prelude_exports.py` under `make lint`. It does not yet export
@@ -283,9 +283,18 @@ Hard invariants. Violating one requires escalation, not a workaround.
   results are recorded below.
 - [x] (2026-11-28) On the rebased candidate, `make check-fmt`, `make lint`,
   `make test`, and `make typecheck` passed. The previously blocking fresh-crate
-  reporting test passed locally in 20.685 seconds against its 120-second bound;
-  a local timeout on it is accepted as non-blocking, and its result is to be
-  verified in CI. The final Markdown pass is recorded in the commit message.
+  reporting test passed locally in 20.685 seconds and in CI in 0.108 seconds; a
+  local timeout on it would have been accepted as non-blocking, but the
+  exemption was not needed. The final Markdown pass is recorded in the commit
+  message.
+- [x] (2026-11-28) Rebased the five branch commits from `f629bff9` onto target
+  `01ad8521`; the exclusive boundary was `470c20ae`. All five range-diff
+  entries match. Reviewed the four intervening commits: PR #989 deletes the
+  fresh-crate reporting test as out of scope, PR #990 removes the deprecated
+  skip-encoding API, PR #991 shares scenario/outline codegen assembly, and PR
+  #992 uses `concat!` for a preparation failure message. The deleted test's
+  timeout exemption is dropped, and none of the intervening commits changes the
+  plan's design facts. Gate results are recorded below.
 - [ ] Plan approved by the user.
 - [ ] EP-M0 orientation and green baseline.
 - [ ] EP-M1 permanent lint-posture gate.
@@ -560,7 +569,7 @@ they apply to the generated wrapper only, never to the user's function.
 
 ### File-length pressure
 
-Line counts re-measured against target `origin/main` `470c20ae` (unchanged since
+Line counts re-measured against target `origin/main` `01ad8521` (unchanged since
 `6308b9af`): `context/mod.rs` 396, `arguments/mod.rs` 395,
 `args/classify/mod.rs` 381, `args/classify/tests.rs` 385,
 `args/classify/fixture_or_step.rs` 351, `args/extract.rs` 331, `args/mod.rs`
@@ -596,7 +605,7 @@ EP-M0 with `python3 scripts/check_rs_file_lengths.py`.
 ## Conformance basis
 
 Upstream artefacts, rechecked at target `origin/main` commit
-`470c20ae27ef6ed9e97d361c738666a8cad22175`:
+`01ad8521c91917774f1604928c22f609b712d2cc`:
 
 - RM-12.2.1: `docs/roadmap.md` entry 12.2.1, with finish-line clauses FL-1
   (`Harness<T>` covered by macro tests), FL-2 (`HarnessMut<T>` covered), FL-3
@@ -859,7 +868,7 @@ after another, never in parallel, with output teed to `/tmp`.
 
 At implementation start, rebase onto the current target branch and re-read the
 roadmap and design documents. Confirm 11.2.2 remains complete and inspect the
-11.2.3 roadmap entry; as of target `470c20ae`, no 11.2.3 ExecPlan exists (R3).
+11.2.3 roadmap entry; as of target `01ad8521`, no 11.2.3 ExecPlan exists (R3).
 Run the commit gates and record the baseline. Re-measure file lengths. Read
 `StepContext::insert_value`, `try_borrow`, and `try_borrow_mut` and confirm A2
 as restated. Search for steps with more than one harness-context parameter in
@@ -1188,7 +1197,7 @@ COMPLETE, then push and open the implementation PR.
 
 All commands run from the repository root. Long outputs are teed to `/tmp`:
 
-On target `470c20ae`, `make test` prepares nested fixtures before each nextest
+On target `01ad8521`, `make test` prepares nested fixtures before each nextest
 pass, using `PREPARE_FLAGS` for the selected package and feature set. The
 `rstest-bdd` no-default-features pass gets its own preparation run. Every
 nextest recipe selects `profile.local`, which allows a 360-minute run, a
@@ -1598,10 +1607,11 @@ in every PR workflow). PR #986 is directly relevant to the previous candidate's
 blocker: every Makefile nextest recipe now selects `profile.local`, which
 allows a 360-minute run, a 240-minute preparation period, and 120 minutes for
 each compile-test binary. The nested-Cargo preparation command bound is 25
-minutes, and the default preparation period is 80 minutes. The fresh-crate
-reporting test keeps its own 120-second command bound; only its comment moved
-to the new preparation figure. PR #988 adds concurrency blocks to two workflows
-and changes no Rust source.
+minutes, and the default preparation period is 80 minutes. At that target the
+fresh-crate reporting test kept its own 120-second command bound; only its
+comment moved to the new preparation figure. PR #989 later deleted the test as
+out of scope. PR #988 adds concurrency blocks to two workflows and changes no
+Rust source.
 
 The four planning commits were replayed from `6d57d021` onto the new target,
 with exclusive replay boundary `6308b9af`. All four range-diff entries match,
@@ -1622,11 +1632,36 @@ nextest tests in 1,953 seconds, 3/3 second-graph preparation tests, every
 doctest passing, 838/838 no-default-features tests, the fixture lockfiles
 checked, and 398 Python tests. The previously blocking
 `cargo-bdd::cli::preparation::report::a_real_cargo_build_is_counted_and_filed_as_a_rebuild`
-passed in 20.685 seconds against its 120-second bound. A local timeout on that
-test is accepted as non-blocking by explicit instruction, with its result to be
-verified in CI; it passed locally, so the exemption was not needed. The final
-Markdown pass (`make check-fmt`, `make markdownlint`, and `make nixie`) is
-recorded in the commit message that carries this revision.
+passed in 20.685 seconds against its 120-second bound, and in CI in 0.108
+seconds on head `f629bff9` (run `46102224155`). PR #989 later deleted the test
+as out of scope, so the exemption is moot and no branch change is needed. The
+final Markdown pass (`make check-fmt`, `make markdownlint`, and `make nixie`)
+is recorded in the commit message that carries this revision.
+
+### Rebase validation on 2026-11-28 (PR #989 refresh)
+
+The target advanced from `470c20ae27ef6ed9e97d361c738666a8cad22175` to
+`01ad8521c91917774f1604928c22f609b712d2cc` through PR #989 (delete the test
+that spends a real cargo build testing the evidence machinery), PR #990 (remove
+the deprecated skip-encoding API), PR #991 (share scenario/outline codegen
+assembly and step-to-token logic), and PR #992 (use `concat!` for the harness
+preparation failure message). PR #989 removes
+`a_real_cargo_build_is_counted_and_filed_as_a_rebuild` from
+`crates/cargo-bdd/tests/cli/preparation/tests/report.rs` as out of scope,
+because it ran a real nested Cargo build under a 120-second bound only to test
+the test infrastructure. The timeout exemption recorded above is therefore
+dropped; no branch change existed for that test, and the rebase simply adopts
+main's removal. PR #990, PR #991, and PR #992 change Rust source outside this
+plan's cited files; the near-cap line counts in this plan were re-measured at
+the new target and are unchanged.
+
+The five branch commits were replayed from `f629bff9` onto the new target, with
+exclusive replay boundary `470c20ae`. All five range-diff entries match,
+without conflicts. Recovery refs are retained under
+`refs/recovery/rebase-886-20261128b/`. The branch delta against the new target
+remains this ExecPlan only, so the Markdown gates are its commit gateways; the
+full code gates were last run on the `470c20ae` candidate and are recorded
+above, and CI verifies the rebased tree on the pushed head.
 
 ### Implementation evidence
 
@@ -1777,5 +1812,14 @@ pub(crate) fn check_harness_borrows(args: &[Arg]) -> syn::Result<()>;
   across boundary `6308b9af`, and the plan's target references and gate
   evidence are refreshed. All four directed gates passed on the rebased tree;
   the previously blocking fresh-crate reporting test passed locally in 20.685
-  seconds and is to be confirmed in CI. The plan remains DRAFT and
-  implementation approval is still pending.
+  seconds and in CI in 0.108 seconds on head `f629bff9`. The plan remains DRAFT
+  and implementation approval is still pending.
+- 2026-11-28: refreshed the current target to
+  `01ad8521c91917774f1604928c22f609b712d2cc`. PR #989 deletes the fresh-crate
+  reporting test as out of scope for the repository, so the timeout exemption
+  and its CI verification are dropped; no branch change existed for that test.
+  PR #990 removes the deprecated skip-encoding API, PR #991 shares
+  scenario/outline codegen assembly, and PR #992 uses `concat!` for a
+  preparation failure message. The five branch commits replayed unchanged
+  across boundary `470c20ae`, and the plan's target references are refreshed.
+  The plan remains DRAFT and implementation approval is still pending.
