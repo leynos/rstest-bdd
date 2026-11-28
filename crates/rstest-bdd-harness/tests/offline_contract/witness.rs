@@ -40,12 +40,17 @@ fn write_scratch_crate() -> std::io::Result<tempfile::TempDir> {
 }
 
 /// Run `cargo fetch --locked` in *dir* with offline mode removed.
+///
+/// The child is bounded by the shared nested-Cargo runner: a fetch that waits
+/// on the package-cache lock would otherwise hang the test with no report,
+/// which is exactly the failure mode the bound exists to turn into a named
+/// error.
 fn fetch_without_offline_mode(dir: &std::path::Path) -> std::io::Result<std::process::Output> {
-    Command::new(env!("CARGO"))
-        .current_dir(dir)
+    let mut cmd = Command::new(env!("CARGO"));
+    cmd.current_dir(dir)
         .env_remove("CARGO_NET_OFFLINE")
-        .args(["fetch", "--locked"])
-        .output()
+        .args(["fetch", "--locked"]);
+    rstest_bdd_harness::nested_cargo::run_bounded(&mut cmd)
 }
 
 /// Whether this run is the one that executes inside the wrapper.

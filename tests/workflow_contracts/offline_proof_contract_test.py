@@ -201,16 +201,33 @@ def test_linux_test_lanes_can_start_the_wrapper(
     job: dict[str, typ.Any],
     step: dict[str, typ.Any],
 ) -> None:
-    """The lane relaxes the userns restriction and proves the wrapper starts."""
+    """The lane relaxes the userns restriction and proves the wrapper starts.
+
+    Order matters: a lane that relaxes the restriction after the suite starts
+    would still pass a presence-only check while every test failed to launch,
+    so the preparation is required to be an earlier step than the run.
+    """
     assert (step.get("env", {}) or {}).get("NEXTEST_PROFILE") == PROOF_PROFILE, (
         "the proof-profile check above must run first; this test explains it"
     )
-    runs = "\n".join(str(candidate.get("run", "")) for candidate in steps(job))
-    assert USERNS_RESTRICTION in runs, (
+    job_steps = steps(job)
+    coverage_index = job_steps.index(step)
+    preparation = [
+        index
+        for index, candidate in enumerate(job_steps)
+        if USERNS_RESTRICTION in str(candidate.get("run", ""))
+    ]
+
+    assert preparation, (
         f"{workflow_name}:{job_name} selects the proof profile but never "
         f"relaxes {USERNS_RESTRICTION}, so every test would fail to start"
     )
-    assert "unshare --net --map-current-user true" in runs, (
+    assert min(preparation) < coverage_index, (
+        f"{workflow_name}:{job_name} must relax {USERNS_RESTRICTION} in an "
+        "earlier step than the run it enables"
+    )
+    probe = job_steps[min(preparation)].get("run", "")
+    assert "unshare --net --map-current-user true" in str(probe), (
         f"{workflow_name}:{job_name} must prove the wrapper starts before the "
         "suite does; without that, an unrunnable wrapper looks like a failure "
         "of the tests rather than of the lane"

@@ -65,7 +65,10 @@ fn cargo_bdd_fails_closed_without_cached_packages() -> Result<()> {
         scratch.path(),
     );
     cmd.args(["steps"]);
-    let output = cmd.output()?;
+    // Bounded: the CLI waits on its own nested Cargo, and this test holds the
+    // `#[serial]` lock while it does. An unbounded wait here would stall every
+    // remaining test in the binary behind a wedged child, with no report.
+    let output = nested_cargo::run_bounded(&mut cmd)?;
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(

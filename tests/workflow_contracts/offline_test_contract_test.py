@@ -244,11 +244,10 @@ def test_prefetch_precedes_coverage(workflow_name: str, job_name: str) -> None:
         for index, step in enumerate(job_steps)
         if step.get("name") == PREFETCH_STEP
     ]
-    coverage = [
-        index
-        for index, step in enumerate(job_steps)
-        if str(step.get("uses", "")).startswith(COVERAGE_ACTION)
-    ]
+    # Only the steps that run the suite. A job may compile the instrumented
+    # tests before its prefetch, and a `build-only` step starts no test, so
+    # counting it would demand an order the lane has no reason to keep.
+    coverage = [index for index, step in enumerate(job_steps) if _runs_the_suite(step)]
 
     assert len(prefetch) == 1, (
         f"{workflow_name}:{job_name} must declare exactly one {PREFETCH_STEP!r} "

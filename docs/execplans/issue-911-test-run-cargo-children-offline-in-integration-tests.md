@@ -808,8 +808,17 @@ therefore fails the test.
 End state: CI's Linux lane runs every test in a namespace, green. Local proof:
 
 ```bash
-NEXTEST_PROFILE=offline-proof make test 2>&1 | tee /tmp/test-offline-rstest-bdd-issue-911.out
+RUSTFLAGS="-D warnings -Clink-arg=-fuse-ld=mold" \
+  cargo nextest run --profile offline-proof --workspace --all-targets \
+  --all-features 2>&1 | tee /tmp/test-offline-rstest-bdd-issue-911.out
 ```
+
+The profile is a command-line argument, not
+`NEXTEST_PROFILE=offline-proof make test`. `make test` runs
+`nextest run --profile local`, and a `--profile` argument outranks the
+environment variable, so the variable would select nothing there. The CI lanes
+set `NEXTEST_PROFILE` only because the coverage action passes no `--profile` of
+its own.
 
 Planning confirmed that `/run/user/1000/buildlimits/*.sock` are filesystem
 sockets and that `build-limits-status` reports healthy inside the namespace, so
