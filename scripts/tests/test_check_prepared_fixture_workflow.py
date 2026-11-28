@@ -332,30 +332,26 @@ def test_unrelated_lines_are_ignored(tmp_path: Path) -> None:
     )
 
 
-def test_a_real_writers_known_compilation_is_rejected_end_to_end(
+def test_a_transcribed_builds_compilation_count_is_rejected_end_to_end(
     tmp_path: Path,
 ) -> None:
-    """The negative control, driven through the producer's own output.
+    """The negative control, driven through a transcribed build output.
 
-    Every other rejection case here writes a synthetic count. That leaves the
-    control open in one direction: the judgement could reject a number no real
-    producer would ever file, and the workflow would still look protected. This
-    case files the count a real nested ``cargo`` reported — transcribed here as
-    the two ``Compiling`` lines such a build emits — through the same line
-    format the timed command appends, and requires the judgement to reject it.
+    Every other rejection case here writes a bare count. This case counts the
+    two ``Compiling`` lines of a transcribed nested ``cargo`` stderr in Python,
+    files that count as a timed line with the Python helper, and requires the
+    judgement to reject it.
 
-    The transcription is pinned from the other side by ``cargo-bdd``'s
-    ``a_real_cargo_build_is_counted_and_filed_as_a_rebuild``, which spawns a
-    real build, counts its captured stderr with ``count_compiling`` and writes
-    the result with the production writer. Together the two cases cover the
-    path end to end: one proves the writer's line parses here, the other proves
-    what it files is rejected.
+    No real build is run to obtain the transcription: a test of this evidence
+    machinery is not worth a real compile. Neither the Rust ``count_compiling``
+    nor the Rust writer is exercised here; ``cargo-bdd``'s report tests pin
+    that the production writer's lines parse as this reader expects.
     """
     real_stderr = "   Compiling alpha v0.1.0\n   Compiling beta v0.2.0\n    Finished\n"
     compiling = sum(
         1 for line in real_stderr.splitlines() if line.strip().startswith("Compiling")
     )
-    assert compiling == 2, "the recorded build must hold two status lines"
+    assert compiling == 2, "the transcribed stderr must hold two status lines"
     write_reports(tmp_path, (GATE_SOURCE, 0), (TIMED_SOURCE, compiling))
     with pytest.raises(StepFailureError, match="not reused"):
         expect_pass_without_rebuild(a_result(), target_dir=tmp_path, previous_counts=0)
