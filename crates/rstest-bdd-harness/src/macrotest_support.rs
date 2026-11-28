@@ -22,8 +22,10 @@ use std::{
 
 use crate::nested_cargo::{self, Preparation, PreparationSummary};
 
+mod cargo_query;
 mod snapshots;
 
+use cargo_query::metadata_command;
 pub use snapshots::{assert_snapshot_contains, assert_snapshot_omits, snapshot_refresh_is_enabled};
 
 /// Computes the Cargo target root trybuild builds its generated crates into.
@@ -43,10 +45,7 @@ pub use snapshots::{assert_snapshot_contains, assert_snapshot_omits, snapshot_re
 ///
 /// Returns the `cargo metadata` error when the manifest cannot be resolved.
 pub fn trybuild_target_root(manifest_path: &Path) -> Result<PathBuf, Box<dyn Error>> {
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .manifest_path(manifest_path)
-        .no_deps()
-        .exec()?;
+    let metadata = metadata_command(manifest_path).exec()?;
     Ok(metadata
         .target_directory
         .into_std_path_buf()

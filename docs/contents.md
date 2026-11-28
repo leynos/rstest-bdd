@@ -151,6 +151,10 @@
   re-export the procedural macros from `rstest-bdd` and to publish
   `rstest_bdd::prelude` as a gated subset of the crate root.
 
+- [ADR 0029: run nested Cargo offline in tests][adr-0029] records the
+  three-layer offline contract: a prefetch, evidence at every spawn, Cargo's
+  `[env]` default, and the Linux network-namespace proof profile.
+
 ## Execution plans
 
 - [Execution plans](execplans/) contains implementation plans for roadmap
@@ -178,6 +182,7 @@
 [adr-0026]: adrs/adr-0026-adopt-ortho-config-for-the-cargo-bdd-cli.md
 [adr-0027-harness]: adrs/adr-0027-harness-adapter-crates-for-framework-specific-test-integration.md
 [adr-0028]: adrs/adr-0028-publish-a-facade-prelude.md
+[adr-0029]: adrs/adr-0029-offline-nested-cargo-test-contract.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md

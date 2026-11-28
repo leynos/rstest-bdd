@@ -67,6 +67,11 @@ pub(crate) fn cli_child_environment(
     // than replacing it.
     let redirects = empty_configuration_home_variables(&vars)?;
     vars.extend(redirects);
+    // Pushed last so it wins: `env_from_vars` collects the pairs into a map,
+    // where a later duplicate key replaces an earlier one. The CLI's nested
+    // `cargo` therefore runs offline whatever the caller inherited, which is
+    // what makes a test run independent of the network.
+    vars.push((OsString::from("CARGO_NET_OFFLINE"), OsString::from("true")));
     nested_cargo::env_from_vars(
         vars,
         Some(&workspace_root().join("target")),

@@ -202,6 +202,20 @@ jobs:
           printf 'SCCACHE_GHA_ENABLED=%s\n' "$gha_enabled" >> "$GITHUB_ENV"
           printf 'runner=%s vcpus=%s sccache-gha=%s\n' \
             "$RUNNER_OS" "$vcpus" "$gha_enabled"
+          # The Linux coverage lane runs every test inside a private network
+          # namespace (`NEXTEST_PROFILE=offline-proof`). Ubuntu's AppArmor
+          # policy refuses unprivileged user namespaces by default, so the
+          # wrapper could not start at all. Relax that where the knob exists,
+          # then prove the wrapper really starts: a lane that cannot relax it
+          # must be red rather than let the wrapper turn into a false pass.
+          if [[ "$RUNNER_OS" != 'Windows' ]]; then
+            userns_restriction=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+            if [[ -e "$userns_restriction" ]]; then
+              sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+              grep -qx 0 "$userns_restriction"
+            fi
+            unshare --net --map-current-user true
+          fi
 
       - name: Compute cache keys
         shell: bash
@@ -439,6 +453,17 @@ jobs:
           "$sccache_bin" --version | grep -Fx "$expected_version"
           printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
           printf 'RUSTC_WRAPPER=%s\n' "$sccache_bin" >> "$GITHUB_ENV"
+          # The `offline-proof` profile starts every test inside a private
+          # network namespace, where sccache's default TCP port on loopback
+          # does not exist. A filesystem socket is reachable from inside the
+          # namespace, so the cache keeps working under the proof profile.
+          # Windows has no namespace wrapper and no use for the variable, and
+          # sccache ignores it there, so it is set on Linux only.
+          if [[ "$RUNNER_OS" != 'Windows' ]]; then
+            uds_dir="${RUNNER_TEMP:-/tmp}/sccache"
+            mkdir -p "$uds_dir"
+            printf 'SCCACHE_SERVER_UDS=%s/sccache.sock\n' "$uds_dir" >> "$GITHUB_ENV"
+          fi
           # Zero the counters before the first compilation so the reported
           # statistics describe this job's builds rather than installer noise.
           "$sccache_bin" --zero-stats
@@ -552,8 +577,13 @@ jobs:
       # The gate runs after the Rust setup and workspace build have populated
       # the Cargo cache, and it never passes --offline: a lockfile that only
       # resolves from a partial cache would hide the drift this step exists to
-      # catch. The rebuild-invalidation experiment keeps its own --offline
-      # runs because that test verifies reproducible nested-Cargo behaviour.
+      # catch. That is why it is a different concern from
+      # `make prefetch-fixture-deps`, which every test route runs first: the
+      # prefetch makes a locked offline resolution possible from a cache it
+      # filled itself, and this gate proves the resolution is still correct
+      # against a full registry view. The rebuild-invalidation experiment
+      # keeps its own --offline runs because that test verifies reproducible
+      # nested-Cargo behaviour.
       - name: Check standalone fixture lockfiles
         if: ${{ matrix.tools }}
         run: make check-fixture-lockfiles
@@ -581,6 +611,14 @@ jobs:
             pkg-config
           rustup toolchain install nightly-2026-08-07 --profile minimal
           make e2e-published-gpui
+
+      # The Nextest setup scripts fetch with `--offline`, so every package has
+      # to be in the cache before the suite starts. This is the one step in
+      # the test route allowed to reach the network. It runs on every lane,
+      # Windows included: the runner has GNU Make, and a lane that skipped it
+      # would fail its setup scripts instead of its tests.
+      - name: Prefetch fixture dependencies
+        run: make prefetch-fixture-deps
 
       # The single Linux execution. `--all-features` subsumes the former
       # strict-validation lane, because `strict-compile-time-validation`
@@ -614,6 +652,10 @@ jobs:
           # debuginfo, so a backtrace would otherwise appear here and not on
           # the Windows lanes.
           RUST_BACKTRACE: '0'
+          # Run every test in a private network namespace. Offline mode makes
+          # Cargo refuse to use the network; this makes the network
+          # unreachable, so a green run proves the suite needs none.
+          NEXTEST_PROFILE: offline-proof
         with:
           cache-provider: external
           output-path: coverage.xml

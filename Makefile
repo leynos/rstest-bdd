@@ -117,9 +117,12 @@ clean: ## Remove build artefacts
 	$(CARGO) clean
 	rm -rf .uv-cache .uv-tools
 
-test: build-python ## Run tests with warnings treated as errors
+test: build-python prefetch-fixture-deps ## Run tests with warnings treated as errors
 	# Warm the package cache first, failing the target if it cannot be warmed, so
 	# nested builds in the tests resolve nothing under the shared cache lock.
+	# `prefetch-fixture-deps` has already fetched the root workspace and every
+	# fixture manifest; this line keeps the guard visible here and stays a no-op
+	# on a warm cache.
 	$(CARGO) fetch --locked
 	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) build --bin $(APP) --bin todo-cli $(BUILD_JOBS)
 	# Prepare the nested-Cargo fixtures outside the timed pass, with exactly the
@@ -344,12 +347,16 @@ check-fixture-lockfiles: check-published-gpui-e2e-lock ## Validate every fixture
 update-fixture-lockfiles: update-published-gpui-e2e-lock ## Regenerate every fixture lockfile via cargo generate-lockfile
 	$(PROJECT_PYTHON) scripts/check_fixture_lockfiles.py --refresh
 
-# Warm ~/.cargo/registry from every committed fixture lockfile. The nested
-# cargo-spawning harnesses build their fixtures with `--locked --offline`, and
-# the mutation lane, unlike the ordinary CI lane, runs no outer online
-# workspace build that would have resolved those lockfiles already, so this
-# prefetch has to finish before cargo-mutants starts.
-prefetch-fixture-deps: ## Warm the Cargo cache for the mutation lane's offline fixture builds
+# Warm ~/.cargo/registry from the root lockfile and every committed fixture
+# lockfile. Every test route spawns Cargo with `--offline`, and the mutation
+# lane runs no outer online workspace build that would have resolved those
+# lockfiles already, so the prefetch has to finish before any test starts.
+# The root fetch comes first because the fixture gate deliberately skips the
+# workspace root, and the root's own test binaries spawn Cargo too. This is
+# the one place in the test route that is allowed to reach the network: the
+# Nextest lane denies it, so the packages must already be here.
+prefetch-fixture-deps: ## Warm the Cargo cache for every offline test route
+	$(CARGO) fetch --locked
 	$(PROJECT_PYTHON) scripts/check_fixture_lockfiles.py --fetch
 
 # Compile the fixture dependency graphs the nested-Cargo suites need, before

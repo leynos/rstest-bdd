@@ -242,3 +242,33 @@ fn target_directory_uses_running_test_executable() {
 
     assert_eq!(trybuild_target_directory(workspace_root), expected);
 }
+
+/// The metadata fallback queries without resolving dependencies or the network.
+///
+/// The query only reads `target_directory`, so `--no-deps` keeps it from
+/// building a resolve graph and `CARGO_NET_OFFLINE` keeps it off the network.
+/// Both are asserted on the built command rather than by running Cargo.
+#[test]
+fn the_metadata_fallback_is_offline_and_skips_dependencies() {
+    let command = metadata_command(Utf8Path::new("/workspace"));
+    let cargo = command.cargo_command();
+    let args = cargo
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    let offline = cargo
+        .get_envs()
+        .find(|(key, _)| *key == std::ffi::OsStr::new("CARGO_NET_OFFLINE"))
+        .and_then(|(_, value)| value);
+
+    assert!(
+        args.iter().any(|arg| arg == "--no-deps"),
+        "the target-root query must not build a dependency graph; got {args:?}"
+    );
+    assert_eq!(
+        offline,
+        Some(std::ffi::OsStr::new("true")),
+        "the target-root query must run offline, so a cold cache cannot turn \
+         this fallback into a network request"
+    );
+}

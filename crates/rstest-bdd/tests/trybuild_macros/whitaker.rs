@@ -66,7 +66,28 @@ fn whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures() {
 }
 
 fn cargo_dylint_available() -> bool {
-    command_succeeds(Command::new("cargo").arg("dylint").arg("--version"))
+    // Run the probe here rather than lending it to `command_succeeds`: a
+    // command passed to another function may have arguments or environment
+    // appended there, so an audit cannot tell this `--version` probe from real
+    // work. Running it inline keeps the whole invocation visible.
+    match dylint_probe_command().output() {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
+    }
+}
+
+/// Build the `cargo dylint --version` availability probe.
+///
+/// Offline mode is set here rather than left to the caller: the probe reads no
+/// registry, and a nested invocation that inherits an online default would
+/// still be a network-shaped child in a suite meant to need no network.
+fn dylint_probe_command() -> Command {
+    let mut command = Command::new("cargo");
+    command
+        .env("CARGO_NET_OFFLINE", "true")
+        .arg("dylint")
+        .arg("--version");
+    command
 }
 
 fn whitaker_available() -> bool { command_succeeds(Command::new("whitaker").arg("--version")) }
@@ -122,6 +143,9 @@ fn whitaker_lint_command(repo_root: &Utf8Path) -> Command {
     for name in COVERAGE_ENV {
         command.env_remove(name);
     }
+    // The fixture depends only on what the prefetch already fetched, so the
+    // gate must not resolve anything while it runs.
+    command.env("CARGO_NET_OFFLINE", "true");
     command
 }
 
@@ -137,6 +161,30 @@ fn the_whitaker_fixture_command_inherits_no_coverage_instrumentation() {
             .get_envs()
             .any(|(key, value)| key == name && value.is_none());
         assert!(removed, "{name} must be removed from the fixture command");
+    }
+}
+
+/// The probe and the gate run offline, so neither adds a network dependency.
+///
+/// A probe reads only its own version, and the gate's fixture depends only on
+/// what the prefetch fetched. Both are asserted on the built command: the
+/// alternative — observing them — would need a cold cache and an index request
+/// this suite exists to avoid.
+#[test]
+fn both_whitaker_commands_run_offline() {
+    let probe = dylint_probe_command();
+    let gate = whitaker_lint_command(Utf8Path::new("."));
+
+    for (label, command) in [("dylint probe", &probe), ("lint gate", &gate)] {
+        let offline = command
+            .get_envs()
+            .find(|(key, _)| *key == std::ffi::OsStr::new("CARGO_NET_OFFLINE"))
+            .and_then(|(_, value)| value);
+        assert_eq!(
+            offline,
+            Some(std::ffi::OsStr::new("true")),
+            "the {label} must run offline"
+        );
     }
 }
 

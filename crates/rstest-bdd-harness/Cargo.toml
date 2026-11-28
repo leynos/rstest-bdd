@@ -29,8 +29,11 @@ tracing.workspace = true
 # `testing`-gated helpers (notably `FailingHarness`) without relying on the
 # caller passing `--all-features`.
 rstest-bdd-harness = { path = ".", features = ["testing"] }
+camino.workspace = true
+cap-std.workspace = true
 insta.workspace = true
 proptest.workspace = true
 rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
 tempfile.workspace = true
+toml.workspace = true

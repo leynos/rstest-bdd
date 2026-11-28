@@ -13,6 +13,10 @@ accepted = ["inventario", "mis"]
 
 [patterns]
 ignore = [
+  # AppArmor is the upstream project's name. The mould/Armour correction does
+  # not apply to it, and the name appears in Markdown, YAML, TOML and Python
+  # comments alike, so one exact-token pattern covers them all.
+  '\bAppArmor\b',
   # "mold" names the linker (https://github.com/rui314/mold) in these
   # contexts only; the mould correction stays active elsewhere.
   "-fuse-ld=mold",

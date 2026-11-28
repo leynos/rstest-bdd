@@ -222,9 +222,18 @@ against it with a controlled child environment. The following guarantees apply:
 - The regression suite's dep-info assertion is a direct filesystem check
   (rustc's `.d` file), deliberately _not_ mediated by the macros under test, so
   a macro bug cannot mask the regression it is meant to prove.
+- Every nested `cargo` runs offline. The spawn says so itself with `--offline`
+  (and `--locked` where it compiles) plus `CARGO_NET_OFFLINE`; Cargo applies
+  the repository's `[env]` default to the spawns this repository does not
+  construct; and the packages are present before the run because the fixtures
+  are prefetched from their committed lockfiles. A test that needs a package
+  nobody fetched fails at the start of the run, naming the fetch, rather than
+  reaching the registry mid-test. [ADR-0029][adr-0029] is the decision record.
 
 See `crates/rstest-bdd/tests/feature_rebuild_invalidation/` for the worked
 harness and `docs/developers-guide.md` for the conventions.
+
+[adr-0029]: adrs/adr-0029-offline-nested-cargo-test-contract.md
 
 ### Cold fixture builds belong to preparation, not to an assertion
 
