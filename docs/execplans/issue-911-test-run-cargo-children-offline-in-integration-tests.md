@@ -1241,3 +1241,10 @@ Concordat `nested-cargo-offline-tests` at `075a69f3` reports
 `verdict: compliant`. Its first run reported `indeterminate` for the Whitaker
 probe: the probe was lent to a helper, and a handoff hides what the callee
 appends. Running the probe inline makes it visible and the finding disappears.
+
+2026-11-28, final: all five milestones complete at `cfeb9c61`. Six gates are
+green at that exact revision — `check-fmt`, `lint` (all eleven steps), `test`
+(2607 nextest, 841 no-default-features, doc tests, 398 pytest),
+`test-workflow-contracts` (371), `markdownlint` (147 files) and `nixie`. The
+milestone CodeRabbit CLI review raised five findings, all fixed in `cfeb9c61`;
+the confirmation pass reported none.
