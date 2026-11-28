@@ -817,6 +817,20 @@ earlier one, the earlier entry says so.
   passes the whole workspace. The lesson is that a lint the repository has
   already adopted is not drift when it fires; the adoption record is the
   evidence. Date/Author: 2026-11-28 / Claude.
+- Decision D50 (post-completion review, CodeRabbit 03:38 round): three findings
+  remained unresolved while the delivery had reported the round as
+  dispositioned. Two were prose overstatements: the empty-expansion exception
+  was stated in the E001 changelog entry rather than E002's, and both the
+  changelog and the migration guide called an empty expansion unconditionally
+  safe although a `tags` filter that matches no scenario still fails. The third
+  was a real nightly defect: `#[scenario]` emitted W001 through
+  `proc_macro::Diagnostic` before `resolve_fixture_setup` could reject a
+  `Result`-typed fixture, leaving a warning beside an error. Emission now waits
+  for the boundary's last fallible step, and
+  `nightly_policy_warning_suppressed_by_fixture_error` pins the silence. The
+  lesson: a review round is not dispositioned until every thread carries a
+  reply; the review decision alone hid three open findings. Fixed in `65e5e2cf`
+  and `c46d0d17`. Date/Author: 2026-11-28 / Claude.
 - Decision D46 (assessment finding, E002 versus C2): `E002` is decided after
   generation and fires only when the invocation produced at least one test.
   Rationale: the taxonomy says the alias plus a harness is always `E002`, but
