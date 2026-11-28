@@ -1,0 +1,16 @@
+error: scenarios with fallible fixtures (`Result<T, E>` or `StepResult<T, E>`) must return `Result<(), E>` or `StepResult<(), E>` to propagate fixture initialization errors
+  --> tests/fixtures_macros/nightly_policy_warning_suppressed_by_fixture_error.rs:29:1
+   |
+29 | / #[scenario(
+30 | |     path = "basic.feature",
+31 | |     harness = alias::rstest_bdd_harness_tokio::TokioHarness,
+32 | | )]
+   | |__^
+   |
+   = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: nightly warning snapshot sentinel
+  --> tests/fixtures_macros/nightly_policy_warning_suppressed_by_fixture_error.rs:35:1
+   |
+35 | compile_error!("nightly warning snapshot sentinel");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

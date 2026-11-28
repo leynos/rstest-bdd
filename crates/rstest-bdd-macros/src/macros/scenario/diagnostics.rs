@@ -3,6 +3,47 @@
 //! Gathering them here keeps `try_scenario` from growing and keeps the
 //! `rstest` rule in one place.
 
+use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
+
+use super::args::ScenarioArgs;
+
+/// Build the diagnostics this `#[scenario]` expansion owns.
+///
+/// The macro cannot evaluate trait methods, so the function's signature and
+/// attributes are all the evidence the decision has. An error replaces the
+/// generated test, because `#[scenario]` always generates exactly one.
+///
+/// Warnings are returned, not emitted: the caller emits them only after the
+/// boundary's last fallible step succeeds, so a rejection cannot be
+/// accompanied by a warning on either channel.
+pub(super) fn build_scenario_diagnostics(
+    args: &ScenarioArgs,
+    item_fn: &syn::ItemFn,
+) -> std::result::Result<(crate::codegen::SharedPolicyDiagnostics, TokenStream2), TokenStream> {
+    let facts = crate::codegen::ScenarioFacts {
+        is_async: item_fn.sig.asyncness.is_some(),
+        has_executor_attr: has_executor_attr(&item_fn.attrs),
+        has_gpui_test_attr: has_gpui_test_attr(&item_fn.attrs),
+    };
+    // This rejection predates the diagnostics and is an error, so it must be
+    // decided before either channel speaks (decision D9).
+    if facts.is_async && args.harness.is_some() {
+        return Err(crate::codegen::scenario::reject_async_harness_error().into());
+    }
+    let resolutions =
+        crate::codegen::SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+            harness: args.harness.as_ref(),
+            attributes: args.attributes.as_ref(),
+            facts,
+        });
+    if let Some(errors) = resolutions.errors() {
+        return Err(errors.into());
+    }
+    let warnings = resolutions.warning_tokens();
+    Ok((resolutions, warnings))
+}
+
 /// Whether a user-written attribute satisfies `rstest`'s asynchronous-test
 /// rule.
 ///

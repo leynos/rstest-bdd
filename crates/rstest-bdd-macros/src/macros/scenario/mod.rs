@@ -41,7 +41,7 @@ use crate::parsing::feature::{
 };
 use self::{
     args::{ScenarioArgs, library_scope_tokens, library_validation_names},
-    diagnostics::{has_executor_attr, has_gpui_test_attr},
+    diagnostics::build_scenario_diagnostics,
     paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
@@ -226,9 +226,14 @@ fn try_scenario(
 
     // Diagnostics are built before the signature is borrowed mutably, and
     // `#[scenario]` always generates one test, so an error may replace it.
-    let (resolutions, fallback_diagnostics) = scenario_diagnostics(args, &item_fn)?;
+    let (resolutions, fallback_diagnostics) = build_scenario_diagnostics(args, &item_fn)?;
     let sig = &mut item_fn.sig;
     let fixture_setup = resolve_fixture_setup(sig, return_kind)?;
+    // Emit only once no later step can reject this boundary. On stable the
+    // warning tokens die with the discarded expansion, but a native nightly
+    // warning is already printed, so emitting earlier would leave a warning
+    // beside an error, which ADR-0029 forbids.
+    resolutions.emit_native_warnings();
 
     let path = PathBuf::from(path_lit.value());
     let ScenarioData {
@@ -280,45 +285,6 @@ fn try_scenario(
         #tracking
         #generated
     }))
-}
-
-/// Build and emit the diagnostics this `#[scenario]` expansion owns.
-///
-/// The macro cannot evaluate trait methods, so the function's signature and
-/// attributes are all the evidence the decision has. An error replaces the
-/// generated test, because `#[scenario]` always generates exactly one.
-fn scenario_diagnostics(
-    args: &ScenarioArgs,
-    item_fn: &syn::ItemFn,
-) -> std::result::Result<
-    (
-        crate::codegen::SharedPolicyDiagnostics,
-        proc_macro2::TokenStream,
-    ),
-    TokenStream,
-> {
-    let facts = crate::codegen::ScenarioFacts {
-        is_async: item_fn.sig.asyncness.is_some(),
-        has_executor_attr: has_executor_attr(&item_fn.attrs),
-        has_gpui_test_attr: has_gpui_test_attr(&item_fn.attrs),
-    };
-    // This rejection predates the diagnostics and is an error, so it must be
-    // decided before either channel speaks (decision D9).
-    if facts.is_async && args.harness.is_some() {
-        return Err(crate::codegen::scenario::reject_async_harness_error().into());
-    }
-    let resolutions =
-        crate::codegen::SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
-            harness: args.harness.as_ref(),
-            attributes: args.attributes.as_ref(),
-            facts,
-        });
-    if let Some(errors) = resolutions.errors() {
-        return Err(errors.into());
-    }
-    resolutions.emit_native_warnings();
-    let warnings = resolutions.warning_tokens();
-    Ok((resolutions, warnings))
 }
 
 /// Provides the internal `parse_tag_filter` operation.

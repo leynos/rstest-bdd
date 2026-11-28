@@ -101,6 +101,9 @@ fn nightly_fallback_emits_one_proc_macro_warning() -> Result<(), Box<dyn std::er
     tests.compile_fail("tests/fixtures_macros/nightly_registry_empty_warning.rs");
     tests.compile_fail("tests/fixtures_macros/nightly_adapter_fallback_warning.rs");
     tests.compile_fail("tests/fixtures_macros/nightly_multi_scenario_alias_fallback_warning.rs");
+    tests.compile_fail(
+        "tests/fixtures_macros/nightly_policy_warning_suppressed_by_fixture_error.rs",
+    );
     Ok(())
 }
 #[test]
