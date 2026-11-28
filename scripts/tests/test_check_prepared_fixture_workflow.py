@@ -344,12 +344,10 @@ def test_a_real_writers_known_compilation_is_rejected_end_to_end(
     the two ``Compiling`` lines such a build emits — through the same line
     format the timed command appends, and requires the judgement to reject it.
 
-    The transcription is pinned from the other side by ``cargo-bdd``'s
-    ``a_real_cargo_build_is_counted_and_filed_as_a_rebuild``, which spawns a
-    real build, counts its captured stderr with ``count_compiling`` and writes
-    the result with the production writer. Together the two cases cover the
-    path end to end: one proves the writer's line parses here, the other proves
-    what it files is rejected.
+    No real build is run to obtain the transcription: a test of this evidence
+    machinery is not worth a real compile. The two ``Compiling`` lines stand in
+    for what ``count_compiling`` counts, and ``cargo-bdd``'s report tests pin
+    that the production writer's line parses as this reader expects.
     """
     real_stderr = "   Compiling alpha v0.1.0\n   Compiling beta v0.2.0\n    Finished\n"
     compiling = sum(

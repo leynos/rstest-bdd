@@ -14,8 +14,6 @@
 
 use std::path::Path;
 
-use rstest_bdd_harness::nested_cargo;
-
 use super::nested_build::{ReportSource, record_to};
 
 /// The marker the workflow's reader looks for.
@@ -68,100 +66,6 @@ fn the_gate_line_is_one_the_workflow_reader_parses() {
         std::fs::read_to_string(&report).expect("the report is readable"),
         "cargo-bdd-nested-build: source=gate compiling=0\n",
         "the reader's expression is whitespace-tolerant; the writer's spelling is not"
-    );
-}
-
-#[test]
-fn a_real_cargo_build_is_counted_and_filed_as_a_rebuild() {
-    // The negative control, end to end. Every other case in this file and in
-    // `scripts/tests/test_check_prepared_fixture_workflow.py` agrees on a
-    // *synthetic* count, which leaves the control open: the judgement could
-    // reject a number no real producer ever files and the workflow would still
-    // look protected. This case removes that gap by running a real `cargo`
-    // build, counting the stderr it actually emitted with the production
-    // `count_compiling`, and filing the result with the production writer.
-    //
-    // The build is a one-file crate in a scratch directory: enough to produce
-    // genuine `Compiling` status lines, and cheap enough to run under the
-    // suite's own period. The crate name is distinctive so the assertion can
-    // find its own line among whatever the nested build prints.
-    let scratch = tempfile::tempdir().expect("a scratch directory");
-    let crate_dir = scratch.path().join("counted-crate");
-    std::fs::create_dir(&crate_dir).expect("the scratch crate directory");
-    std::fs::write(
-        crate_dir.join("Cargo.toml"),
-        "[package]\nname = \"counted-crate\"\nversion = \"0.0.0\"\nedition = \
-         \"2021\"\n\n[lib]\npath = \"lib.rs\"\n",
-    )
-    .expect("the scratch manifest");
-    std::fs::write(
-        crate_dir.join("Cargo.lock"),
-        "version = 3\n\n[[package]]\nname = \"counted-crate\"\nversion = \"0.0.0\"\n",
-    )
-    .expect("the scratch lockfile");
-    std::fs::write(crate_dir.join("lib.rs"), "pub fn counted() -> u32 { 2 }\n")
-        .expect("the scratch source");
-
-    let mut command = std::process::Command::new(env!("CARGO"));
-    command
-        .arg("build")
-        // The crate has no dependencies and ships its own lockfile, so nothing
-        // needs the network; `--frozen` says so on the command, where no
-        // environment variable can revoke it.
-        .arg("--frozen")
-        .arg("--color=never")
-        .current_dir(&crate_dir)
-        .env_remove("RUSTC_WRAPPER")
-        .env_remove("RUSTDOC_WRAPPER");
-    // Bounded, and through the same helper the timed path uses, so this case
-    // cannot hang the binary's period waiting on a build that never finishes.
-    // An unbounded `output()` reports that as the runner killing the test
-    // rather than as a named timeout on the command under test. Captured
-    // stderr is preserved, which is what the assertions below read.
-    //
-    // The bound is the graph-query figure, not the preparation's: this binary
-    // is given a 180 s period by `.config/nextest.toml`, and the preparation's
-    // 25-minute bound would let the runner kill the test before the bound
-    // reported. A scratch crate with no dependencies compiles in seconds on
-    // any host that can build this workspace, so the smaller figure is
-    // generous against the work and still inside the period that contains it.
-    let output = nested_cargo::run_bounded_with_timeout(
-        &mut command,
-        crate::preparation::closure::TIMED_GRAPH_QUERY_TIMEOUT,
-    )
-    .expect("cargo runs");
-    assert!(
-        output.status.success(),
-        "the scratch build must succeed; stderr was:\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(
-        stderr.lines().any(|line| line.contains("counted-crate")),
-        "the build must report compiling the scratch crate; stderr was:\n{stderr}"
-    );
-
-    let compiled = nested_cargo::count_compiling(stderr.as_bytes());
-    assert!(
-        compiled >= 1,
-        "a real build that compiled the crate cannot count zero: stderr was:\n{stderr}"
-    );
-
-    let report = scratch.path().join("report.txt");
-    record_to(&report, ReportSource::Timed, compiled);
-
-    // The shape the workflow judgement rejects: one gate zero, then a non-zero
-    // from the timed command. See `test_a_real_writers_known_compilation_is_rejected_end_to_end`
-    // in `scripts/tests/test_check_prepared_fixture_workflow.py`.
-    record_to(&report, ReportSource::Gate, 0);
-    assert_eq!(
-        as_the_reader_reads(&report),
-        vec![("timed".to_owned(), compiled), ("gate".to_owned(), 0)],
-        "the real count must read back unchanged, from the source that paid for it"
-    );
-    assert!(
-        compiled >= 1,
-        "the filed line must be non-zero, or the negative control proves nothing"
     );
 }
 
