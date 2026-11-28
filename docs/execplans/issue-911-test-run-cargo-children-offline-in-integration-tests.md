@@ -185,7 +185,7 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   deadline.
 - [x] `EP-M2`: explicit offline mode at every repository-owned spawn.
 - [x] `EP-M3`: test-process offline default for third-party and indirect spawns.
-- [ ] `EP-M4`: CI network denial.
+- [x] `EP-M4`: CI network denial.
 - [ ] `EP-M5`: execution-trace audit, ADR and documentation.
 
 ## Surprises & discoveries
@@ -778,6 +778,24 @@ compile admission should keep working locally. Conformance check: is the time
 within tolerance, and is the watchdog ladder in `docs/developers-guide.md`
 still correct? Recovery: remove the `NEXTEST_PROFILE` setting, which restores
 the previous behaviour.
+
+Outcome (2026-11-28): the wrapper, profile, contract and seeded offender all
+land locally. Measured on this host, one test under
+`NEXTEST_PROFILE=offline-proof` passes through `unshare`; with the
+`run-wrapper` line commented out, the offender child reaches the index and
+reports `no matching package`, so the control is decisive in both directions.
+One deviation is recorded: `SCCACHE_SERVER_UDS` is exported on the Linux lane
+of **both** workflows rather than only the merge gate, and the sysctl prelude
+likewise sits in every repeated copy of the runner-configuration step. The
+repository's `coverage_publisher_setup_test` holds those repeated steps equal
+across workflows, and a block present in one copy and absent from another fails
+that contract. The published-GPUI E2E lock contract already asserted only the
+`ci.yml` lane, so nothing else moved.
+
+Two fixtures that main added while this branch sat — `macros_direct` and
+`prelude_only` — had no setup script; that gap is fixed in the preceding
+commit, and `coverage-warmup` (a `build-only` lane) is now excluded from the
+prefetch-ordering contract rather than being demanded a prefetch it cannot use.
 
 ### `EP-M5`: Execution-trace audit, ADR and documentation
 

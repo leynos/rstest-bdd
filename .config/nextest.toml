@@ -5,7 +5,7 @@
 # to 0.9.115 because a custom profile only inherits `profile.default.scripts`
 # from that release, and the offline-proof profile relies on that inheritance.
 nextest-version = "0.9.115"
-experimental = ["setup-scripts"]
+experimental = ["setup-scripts", "wrapper-scripts"]
 
 [profile.default]
 # Kill any test once it crosses 60s.
@@ -235,6 +235,39 @@ test-group = "cargo-spawning"
 [profile.long]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 global-timeout = "30m"
+
+# The proof profile: every test runs inside a private network namespace.
+#
+# Offline mode makes Cargo refuse to *use* the network; it does not make the
+# network unreachable. A suite that passes under `offline-proof` has therefore
+# proved it needs none, rather than merely that nothing asked. The Linux
+# coverage lanes set `NEXTEST_PROFILE=offline-proof`.
+#
+# Everything else — the setup scripts, the timeouts, the `cargo-spawning` group
+# — is inherited from `profile.default`, which is why this profile declares no
+# overrides of its own. `show-config` is the way to confirm that inheritance
+# after an edit; `offline_test_contract_test.py` pins the shape.
+[profile.offline-proof]
+
+[[profile.offline-proof.scripts]]
+# Every test, on Linux only. Windows has no equivalent kernel denial that the
+# runner can grant, so its lanes keep the default profile.
+filter = "all()"
+platform = 'cfg(target_os = "linux")'
+run-wrapper = "no-network"
+
+# The wrapper itself: a fresh network namespace with no interfaces but the
+# loopback the kernel creates, so a child that reaches for the network finds
+# nothing to reach.
+#
+# `--map-current-user` keeps the invoking user's identity, so the wrapper does
+# not need root and the test binary keeps the permissions it was built with.
+# Unprivileged user namespaces are restricted by AppArmor on the Ubuntu runner
+# images, so the Linux coverage lanes relax that restriction in their
+# runner-configuration step; a lane where the wrapper cannot run fails every
+# test rather than passing them silently.
+[scripts.wrapper.no-network]
+command = ["unshare", "--net", "--map-current-user"]
 
 # One setup script per manifest a test spawns Cargo against. The list is
 # literal because Nextest reads a static file; `offline_test_contract_test.py`
