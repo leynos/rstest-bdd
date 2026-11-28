@@ -801,14 +801,22 @@ earlier one, the earlier entry says so.
   adapter failed until `PUBLISHED_GPUI_E2E_PACKAGE_PATCHES` included the crate.
   It is patched for resolution but stays out of the packaged set, because the
   fixture does not depend on it. Date/Author: 2026-11-27 / Claude.
-- Decision D49 (host lint-suite drift, out of scope): this host's rolling
-  Whitaker suite flags `join_physical_lines` in
+- Decision D49 (prerequisite lint fix, kept separable): the run first reported
+  D49 as host drift, because this host's rolling Whitaker suite flagged
+  `join_physical_lines` in
   `crates/rstest-bdd-harness/src/nested_cargo/preparation/artefacts/verification.rs`,
-  a file this branch does not touch and whose bytes are identical to
-  `origin/main`'s. Hosted CI, which installs the pinned suite, is green on the
-  same step. The violation is therefore prerequisite work belonging to a base
-  pull request rather than to this feature diff, and it is not absorbed here.
-  Date/Author: 2026-11-28 / Claude.
+  a file this branch does not touch and whose bytes matched `origin/main`'s.
+  That framing was wrong. ADR-0013's 2026-11-08 amendment says the repository
+  adopted `string_continuation_style` and rewrote 162 continued literals across
+  81 files, so a surviving occurrence is a miss from that sweep, not a change
+  in the suite's rules. The site used only positional `{}` placeholders, which
+  `concat!()` reproduces exactly; the other continued literals in the harness
+  crates rely on implicitly captured format arguments and must stay whole,
+  because implicit capture cannot read through a macro call. The rewrite is
+  commit `b29242b1`, separate from the diagnostic work, and with it the suite
+  passes the whole workspace. The lesson is that a lint the repository has
+  already adopted is not drift when it fires; the adoption record is the
+  evidence. Date/Author: 2026-11-28 / Claude.
 - Decision D46 (assessment finding, E002 versus C2): `E002` is decided after
   generation and fires only when the invocation produced at least one test.
   Rationale: the taxonomy says the alias plus a harness is always `E002`, but
