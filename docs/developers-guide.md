@@ -3032,19 +3032,54 @@ one processed step set; `OutlineTestTokensConfig` owns the per-Examples-row
 sets. Both implementations expose the common metadata and select their own
 `CodeComponents` implementation.
 
-`generate_test_tokens_for_config` owns the common assembly sequence: it
+`assemble_test_tokens_with_context` owns the common assembly sequence: it
 materializes the context iterators, creates scenario literals, wraps the user
 block for its return and async semantics, and selects the harness or
 non-harness assembly path. Keep behaviour shared here when it applies to both
 scenario shapes.
 
-`generate_test_tokens` and `generate_test_tokens_outline` remain intentionally
-typed entry points. Keep outline-specific row substitution and case-index
-handling in the outline path, and keep regular-step processing in the regular
-path; do not widen the private trait into a public configuration API merely to
-make those shapes look identical. The `reject_async_harness` check is applied
-before both paths, so an `async fn` combined with `harness` is rejected for
-regular scenarios and scenario outlines alike.
+`generate_test_tokens<P, I, Q>(config: &impl ScenarioTestConfig, …)` is the
+single generic entry point, dispatched through the `ScenarioTestConfig` trait
+rather than through per-shape functions. Keep outline-specific row substitution
+and case-index handling in the outline path, and keep regular-step processing
+in the regular path; do not widen the private trait into a public configuration
+API merely to make those shapes look identical. The `reject_async_harness`
+check runs once in `generate_scenario_code`, before the shape dispatch, so an
+`async fn` combined with `harness` is rejected for regular scenarios and
+scenario outlines alike.
+
+### Canonical scenario codegen helpers
+
+Three helpers are the canonical seam between the two scenario shapes. A change
+that makes the shapes agree, or that alters how a step or an item is emitted,
+belongs in one of these helpers rather than in a shape function.
+
+- **Ownership.** `step_to_tokens` lives in
+  `crates/rstest-bdd-macros/src/codegen/scenario/helpers/steps.rs` and is
+  module-private. `scenario_metadata` and `emit_scenario_test` live in
+  `crates/rstest-bdd-macros/src/codegen/scenario/emit.rs` and are `pub(super)`.
+  All three are scoped to the scenario codegen layer; none is part of a public
+  or crate-wide API.
+- **Permitted call-sites.** `step_to_tokens` may be called only from
+  `process_steps_with_context`, which serves both `process_steps` and
+  `process_steps_substituted`. `scenario_metadata` and `emit_scenario_test` may
+  be called only from `generate_scenario_code`; the shape-specific
+  `assemble_regular_scenario` and `assemble_outline_scenario` functions return a
+  `ScenarioItem` and must not emit the item themselves. New callers must
+  delegate to these helpers rather than reimplement the literals or the
+  `quote!` block.
+- **Composition rules.** `step_to_tokens` takes `None` for a regular scenario,
+  which uses the parsed step verbatim, and `Some(&SubstitutionContext)` for an
+  outline row, which substitutes placeholders first. The two assembly paths
+  differ only in their step processing, their case attributes, and whether the
+  signature gains the hidden `#[case] __rstest_bdd_case_idx: usize` parameter;
+  the item envelope and its attribute order are fixed by `emit_scenario_test`.
+
+The shapes are pinned by
+`crates/rstest-bdd-macros/src/codegen/scenario/tests/step_tokens.rs` (the
+value, docstring, and table token shapes shared by both processors) and
+`crates/rstest-bdd-macros/src/codegen/scenario/tests/assembly_snapshot.rs` (an
+`insta` snapshot of the fully assembled regular and outline items).
 
 ## Assertion vocabulary: `googletest`, `pretty_assertions`, and `insta`
 

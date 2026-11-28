@@ -153,7 +153,10 @@ twice the expected net change to allow for tests.
 - [x] (2026-11-28 04:55Z) `EP-M2` gates: the two `insta` snapshots recorded
       before the refactor were unchanged after it; `make check-fmt`,
       `make lint`, and `make test` (2597 nextest tests) passed.
-- [ ] `EP-M3`: developer-guide correction and canonical-pattern documentation.
+- [x] (2026-11-28 05:20Z) `EP-M3` implementation: corrected the three stale
+      claims in "Shared scenario-token assembly" and added "Canonical scenario
+      codegen helpers" with the ownership, call-site, and composition bullets.
+      `make fmt` and `make markdownlint` passed.
 - [ ] Delivery: push branch, open draft PR, CodeRabbit review, merge.
 
 ## Surprises & discoveries
@@ -225,25 +228,63 @@ twice the expected net change to allow for tests.
   two existing concerns (step tokens and case attributes) and leaves the shared
   literal builder with a single owner. File sizes after the split are 99, 302,
   and 61 lines. Date/Author: 2026-11-28, implementation agent.
+- D5. Decision: reject CodeRabbit's minor suggestion to mark the outline
+  fixture's `count` parameter with `#[case]`. Rationale: outline generation
+  preserves the user's signature and marks only its own hidden
+  `__rstest_bdd_case_idx`; rstest binds `#[case(...)]` values to unmarked
+  parameters positionally. Evidence: `crates/rstest-bdd/tests/scenario.rs:104`
+  declares `fn outline(num: String)` without the marker, and `:130` asserts a
+  row-specific value (`num == "2"`), so the unmarked binding is the shipped
+  contract that the snapshot must record. Date/Author: 2026-11-28,
+  implementation agent.
 
 ## Outcomes & retrospective
 
-Pending implementation.
+The two scenario shapes now share both seams the issue identified.
+
+- `process_steps` and `process_steps_substituted` route through one
+  `step_to_tokens` and one accumulator loop, so the value, docstring, and table
+  token shapes cannot drift.
+- `generate_scenario_code` performs the harness rejection, adapter
+  resolution, metadata projection, and item emission once. The shape functions
+  differ only in step processing, case attributes, and the hidden case-index
+  parameter.
+- The development guide now describes the helpers that exist and records
+  their ownership, permitted call-sites, and composition rules.
+
+The assembly refactor changed no generated token: the snapshots recorded before
+it matched byte-for-byte after it. The step-token pins likewise passed both
+before and after, which is the correct evidence for a pure extraction.
+
+What would be done differently next time: the issue's line references had aged,
+and `emit.rs` already contained two of the requested helpers. A first pass that
+checks the named symbols against the current tree, before planning the
+extraction, would have shortened the plan. The Whitaker module cap was
+foreseeable from the file's starting size and could have been budgeted from the
+outset.
 
 ## Context and orientation
+
+The expansion path below describes the tree at the milestone-3 revision. The
+pre-refactor names it replaced were `generate_regular_scenario_code` and
+`generate_outline_scenario_code` in a single `helpers.rs`; see
+`Artefacts and notes` for the `470c20ae` layout.
 
 The expansion path is:
 
 1. `crates/rstest-bdd-macros/src/codegen/scenario/mod.rs` —
-   `generate_scenario_code` decides between a regular scenario and an outline
-   with placeholders
-   (`config.examples.is_some() && steps_contain_placeholders(&config.steps)`),
-   then calls `generate_regular_scenario_code` or
-   `generate_outline_scenario_code`.
-2. `crates/rstest-bdd-macros/src/codegen/scenario/helpers.rs` — per-step and
-   per-row processing. `process_steps` builds keyword, value, docstring, and
+   `generate_scenario_code` rejects an async harness, resolves adapters,
+   projects the metadata, then decides between a regular scenario and an
+   outline with placeholders
+   (`config.examples.is_some() && steps_contain_placeholders(&config.steps)`).
+   `assemble_regular_scenario` or `assemble_outline_scenario` returns a
+   `ScenarioItem`, and `emit_scenario_test` emits it.
+2. `crates/rstest-bdd-macros/src/codegen/scenario/helpers/` — per-step and
+   per-row processing, split into `steps.rs`, `case_attrs.rs`, and the shared
+   items in `mod.rs`. `process_steps` builds keyword, value, docstring, and
    table token vectors from parsed steps. `process_steps_substituted` does the
-   same after substituting `<placeholder>` tokens from one Examples row.
+   same after substituting `<placeholder>` tokens from one Examples row. Both
+   call `step_to_tokens` in `steps.rs`.
 3. `crates/rstest-bdd-macros/src/codegen/scenario/runtime/mod.rs` —
    `ScenarioTestConfig` and `generate_test_tokens<P, I, Q>` assemble the test
    body from `TestTokensConfig` or `OutlineTestTokensConfig`.
@@ -581,3 +622,6 @@ block.
   `generate_scenario_code`; the two shape functions now return a
   `ScenarioItem`. Snapshots recorded before the change were unchanged after it.
   EP-M3 remains as planned.
+- 2026-11-28: EP-M3 completion. The developer guide's three stale claims are
+  corrected and the canonical-helper subsection is in place. Only delivery
+  (push, draft pull request, review, merge) remains.
