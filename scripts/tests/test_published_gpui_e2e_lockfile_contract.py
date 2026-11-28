@@ -11,6 +11,7 @@ keeps that fixture inside the aggregate lockfile gates instead: a dedicated
 bump can never stale the fixture's `cargo test --locked` run.
 """
 
+import os
 import re
 import shutil
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - the test invokes the trusted local Makefile.
@@ -71,7 +72,20 @@ def _version_key(version: str) -> tuple[int, ...]:
 
 
 def run_staged_fixture_gate() -> subprocess.CompletedProcess[str]:
-    """Run the staged fixture gate through the local Make executable."""
+    """Run the staged fixture gate through the local Make executable.
+
+    The subprocess runs offline, so it needs the staged published-GPUI graph
+    already in the local Cargo cache: ``make stage-published-gpui-e2e`` (or a
+    prior ``make test``) must have run against the same fixture. A lane that
+    starts from a cold cache must run that online stage target first, as its
+    own setup step, rather than dropping the variable here.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The completed gate, whose streams the caller asserts on.
+    """
+    environment = {**os.environ, "CARGO_NET_OFFLINE": "true"}
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - the local Make executable is trusted.
         [shutil.which("make") or "make", "check-published-gpui-e2e-lock"],
         cwd=REPO_ROOT,
@@ -79,6 +93,7 @@ def run_staged_fixture_gate() -> subprocess.CompletedProcess[str]:
         text=True,
         check=False,
         timeout=900,
+        env=environment,
     )
 
 

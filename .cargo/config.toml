@@ -1,3 +1,12 @@
+# Test processes inherit this, so a Cargo child that this repository does not
+# construct — trybuild's metadata query above all — cannot reach the network.
+# The outer Cargo ignores `[env]` when it resolves a build, so ordinary builds
+# still fetch normally; `force` is deliberately not set, so one command can
+# still opt out with `CARGO_NET_OFFLINE=false`. `offline_contract` pins both
+# properties.
+[env]
+CARGO_NET_OFFLINE = "true"
+
 [profile.dev]
 opt-level = 1          # default is 0; 1 shrinks a bit without killing compile times
 debug = 0              # Keep development artefacts free of debug information

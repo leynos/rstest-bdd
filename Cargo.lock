@@ -1922,6 +1922,7 @@ dependencies = [
 name = "rstest-bdd-harness"
 version = "0.7.0"
 dependencies = [
+ "camino",
  "cargo_metadata",
  "insta",
  "proptest",
@@ -1930,6 +1931,7 @@ dependencies = [
  "rstest-bdd-test-macros",
  "tempfile",
  "thiserror 2.0.21",
+ "toml 1.1.8+spec-1.1.0",
  "tracing",
 ]
 

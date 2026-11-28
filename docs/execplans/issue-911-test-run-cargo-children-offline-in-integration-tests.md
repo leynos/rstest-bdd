@@ -184,7 +184,7 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   test passes in 371.75 s under `cargo test`, which imposes no per-test
   deadline.
 - [x] `EP-M2`: explicit offline mode at every repository-owned spawn.
-- [ ] `EP-M3`: test-process offline default for third-party and indirect spawns.
+- [x] `EP-M3`: test-process offline default for third-party and indirect spawns.
 - [ ] `EP-M4`: CI network denial.
 - [ ] `EP-M5`: execution-trace audit, ADR and documentation.
 
@@ -712,6 +712,15 @@ call, rather than dropping the variable.
 
 End state: a test run started through Cargo has offline mode by default.
 Recovery: revert. Remaining gap: nothing yet proves the network is unneeded.
+
+Outcome (2026-11-28): done. `offline_contract` was Red before the entry and is
+green after it; `cargo build -v` reports `Fresh rstest-bdd-harness` on a second
+build with no `Compiling rstest` line, so the entry does not invalidate
+compiled units; `.cargo/config.toml` is tracked and not gitignored, which is
+what cargo-mutants copies, so a mutation build keeps it. The published-GPUI E2E
+lockfile contract passes all eight cases with `CARGO_NET_OFFLINE=true` on the
+gate subprocess, including its `--locked was passed` assertion. Concordat
+`rust-build-defaults` reports `verdict: compliant`.
 
 ### `EP-M4`: CI network denial
 
