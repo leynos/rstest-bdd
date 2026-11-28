@@ -307,11 +307,12 @@ fn scenario_diagnostics(
     if facts.is_async && args.harness.is_some() {
         return Err(crate::codegen::scenario::reject_async_harness_error().into());
     }
-    let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenario(
-        args.harness.as_ref(),
-        args.attributes.as_ref(),
-        facts,
-    );
+    let resolutions =
+        crate::codegen::SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+            harness: args.harness.as_ref(),
+            attributes: args.attributes.as_ref(),
+            facts,
+        });
     if let Some(errors) = resolutions.errors() {
         return Err(errors.into());
     }

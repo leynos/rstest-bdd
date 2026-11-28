@@ -84,6 +84,83 @@ struct SlotIdents {
     attributes: Option<Ident>,
 }
 
+/// The paths one `#[scenario]` expansion supplies.
+#[derive(Clone, Copy)]
+pub(crate) struct ScenarioRequest<'a> {
+    /// The explicit `harness = ...` argument.
+    pub(crate) harness: Option<&'a syn::Path>,
+    /// The explicit `attributes = ...` argument.
+    pub(crate) attributes: Option<&'a syn::Path>,
+    /// The facts about the annotated function.
+    pub(crate) facts: ScenarioFacts,
+}
+
+/// The paths one `scenarios!` expansion supplies.
+#[derive(Clone, Copy)]
+pub(crate) struct ScenariosRequest<'a> {
+    /// The explicit `harness = ...` argument.
+    pub(crate) harness: Option<&'a syn::Path>,
+    /// The path generated code runs against, after any alias.
+    pub(crate) effective_harness: Option<&'a syn::Path>,
+    /// The explicit `attributes = ...` argument.
+    pub(crate) attributes: Option<&'a syn::Path>,
+    /// Whether the deprecated `runtime` alias was supplied.
+    pub(crate) runtime_alias: bool,
+}
+
+/// Either shape one boundary diagnoses.
+#[derive(Clone, Copy)]
+enum BoundaryRequest<'a> {
+    /// A `#[scenario]` expansion.
+    Scenario(ScenarioRequest<'a>),
+    /// A `scenarios!` expansion.
+    Scenarios(ScenariosRequest<'a>),
+}
+
+impl<'a> BoundaryRequest<'a> {
+    /// The explicit harness argument, if any.
+    fn explicit_harness(self) -> Option<&'a syn::Path> {
+        match self {
+            Self::Scenario(request) => request.harness,
+            Self::Scenarios(request) => request.harness,
+        }
+    }
+
+    /// The path generated code runs against, if any.
+    fn effective_harness(self) -> Option<&'a syn::Path> {
+        match self {
+            Self::Scenario(request) => request.harness,
+            Self::Scenarios(request) => request.effective_harness,
+        }
+    }
+
+    /// The explicit attributes argument, if any.
+    fn attributes(self) -> Option<&'a syn::Path> {
+        match self {
+            Self::Scenario(request) => request.attributes,
+            Self::Scenarios(request) => request.attributes,
+        }
+    }
+
+    /// The classified inputs, with the supplied classes.
+    fn inputs(self, harness: SlotClass, attributes: SlotClass) -> PolicyInputs {
+        match self {
+            Self::Scenario(request) => PolicyInputs::Scenario {
+                harness,
+                attributes,
+                is_async: request.facts.is_async,
+                has_executor_attr: request.facts.has_executor_attr,
+                has_gpui_test_attr: request.facts.has_gpui_test_attr,
+            },
+            Self::Scenarios(request) => PolicyInputs::Scenarios {
+                harness,
+                attributes,
+                runtime_alias: request.runtime_alias,
+            },
+        }
+    }
+}
+
 /// The facts the `#[scenario]` boundary knows about its function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ScenarioFacts {
@@ -95,33 +172,10 @@ pub(crate) struct ScenarioFacts {
     pub(crate) has_gpui_test_attr: bool,
 }
 
-/// The shape one boundary diagnoses.
-#[derive(Clone, Copy)]
-enum Shape {
-    /// A `#[scenario]` expansion.
-    Scenario {
-        /// Whether the annotated function is `async`.
-        is_async: bool,
-        /// Whether the function already carries an executor attribute.
-        has_executor_attr: bool,
-        /// Whether the function already carries `#[gpui::test]`.
-        has_gpui_test_attr: bool,
-    },
-    /// A `scenarios!` expansion.
-    Scenarios {
-        /// Whether the deprecated `runtime` alias was supplied.
-        runtime_alias: bool,
-    },
-}
-
 impl SharedPolicyDiagnostics {
     /// Resolve the inputs of a `#[scenario]` expansion.
-    pub(crate) fn for_scenario(
-        harness: Option<&syn::Path>,
-        attributes: Option<&syn::Path>,
-        facts: ScenarioFacts,
-    ) -> Self {
-        Self::for_scenario_with(harness, attributes, facts, default_resolver())
+    pub(crate) fn for_scenario(request: ScenarioRequest<'_>) -> Self {
+        Self::for_scenario_with(request, default_resolver())
     }
 
     /// Resolve a `#[scenario]` expansion against an injected resolver.
@@ -129,22 +183,10 @@ impl SharedPolicyDiagnostics {
     /// Boundary verification uses this to exercise the production wiring with a
     /// chosen Cargo answer instead of the unit-test stub.
     pub(crate) fn for_scenario_with(
-        harness: Option<&syn::Path>,
-        attributes: Option<&syn::Path>,
-        facts: ScenarioFacts,
+        request: ScenarioRequest<'_>,
         resolver: &'static dyn CrateResolver,
     ) -> Self {
-        Self::resolve(
-            harness,
-            harness,
-            attributes,
-            resolver,
-            Shape::Scenario {
-                is_async: facts.is_async,
-                has_executor_attr: facts.has_executor_attr,
-                has_gpui_test_attr: facts.has_gpui_test_attr,
-            },
-        )
+        Self::resolve(BoundaryRequest::Scenario(request), resolver)
     }
 
     /// Resolve the inputs of a `scenarios!` expansion.
@@ -153,36 +195,16 @@ impl SharedPolicyDiagnostics {
     /// the deprecated `runtime` alias supplies when the user wrote no harness.
     /// Classification deliberately uses `harness` instead (decision D21): an
     /// alias is not a supplied harness.
-    pub(crate) fn for_scenarios(
-        harness: Option<&syn::Path>,
-        effective_harness: Option<&syn::Path>,
-        attributes: Option<&syn::Path>,
-        runtime_alias: bool,
-    ) -> Self {
-        Self::for_scenarios_with(
-            harness,
-            effective_harness,
-            attributes,
-            runtime_alias,
-            default_resolver(),
-        )
+    pub(crate) fn for_scenarios(request: ScenariosRequest<'_>) -> Self {
+        Self::for_scenarios_with(request, default_resolver())
     }
 
     /// Resolve a `scenarios!` expansion against an injected resolver.
     pub(crate) fn for_scenarios_with(
-        harness: Option<&syn::Path>,
-        effective_harness: Option<&syn::Path>,
-        attributes: Option<&syn::Path>,
-        runtime_alias: bool,
+        request: ScenariosRequest<'_>,
         resolver: &'static dyn CrateResolver,
     ) -> Self {
-        Self::resolve(
-            harness,
-            effective_harness,
-            attributes,
-            resolver,
-            Shape::Scenarios { runtime_alias },
-        )
+        Self::resolve(BoundaryRequest::Scenarios(request), resolver)
     }
 
     /// Resolve API paths only, for direct code generation.
@@ -208,40 +230,21 @@ impl SharedPolicyDiagnostics {
     }
 
     /// Classify the explicit paths and decide the findings.
-    fn resolve(
-        explicit_harness: Option<&syn::Path>,
-        effective_harness: Option<&syn::Path>,
-        attributes: Option<&syn::Path>,
-        resolver: &'static dyn CrateResolver,
-        shape: Shape,
-    ) -> Self {
+    fn resolve(request: BoundaryRequest<'_>, resolver: &'static dyn CrateResolver) -> Self {
         let manifest_error = first_manifest_error(resolver);
+        let explicit_harness = request.explicit_harness();
+        let attributes = request.attributes();
         let harness = explicit_harness.map_or(SlotClass::Absent, |path| {
             classify_harness_path(path, resolver)
         });
         let attribute_slot = attributes.map_or(SlotClass::Absent, |path| {
             classify_policy_path(path, resolver)
         });
-        let inputs = match shape {
-            Shape::Scenario {
-                is_async,
-                has_executor_attr,
-                has_gpui_test_attr,
-            } => PolicyInputs::Scenario {
-                harness,
-                attributes: attribute_slot,
-                is_async,
-                has_executor_attr,
-                has_gpui_test_attr,
-            },
-            Shape::Scenarios { runtime_alias } => PolicyInputs::Scenarios {
-                harness,
-                attributes: attribute_slot,
-                runtime_alias,
-            },
-        };
+        let inputs = request.inputs(harness, attribute_slot);
         Self {
-            harness: effective_harness.map(|path| resolve_harness_api_with(path, resolver)),
+            harness: request
+                .effective_harness()
+                .map(|path| resolve_harness_api_with(path, resolver)),
             attributes: attributes.map(|path| resolve_harness_api_with(path, resolver)),
             state: Some(DiagnosticState {
                 inputs,

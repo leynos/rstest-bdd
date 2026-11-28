@@ -24,6 +24,8 @@ pub(crate) use policy_diagnostics::ResolveError;
 pub(crate) use policy_diagnostics::{
     CrateResolver,
     ScenarioFacts,
+    ScenarioRequest,
+    ScenariosRequest,
     SharedPolicyDiagnostics,
     SlotClass,
     classify_harness_path,

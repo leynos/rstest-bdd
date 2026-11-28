@@ -153,11 +153,11 @@ fn pure_resolution_selects_path_and_diagnostic_state(
 ) {
     let adapter_path = TestPath::new(adapter_path);
     let resolution = resolve_harness_api(adapter_path.parsed());
-    let findings = super::SharedPolicyDiagnostics::for_scenario(
-        Some(adapter_path.parsed()),
-        None,
-        scenario_facts(),
-    )
+    let findings = super::SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+        harness: Some(adapter_path.parsed()),
+        attributes: None,
+        facts: scenario_facts(),
+    })
     .findings();
 
     assert_eq!(resolution.api_path.to_string(), expected_path);

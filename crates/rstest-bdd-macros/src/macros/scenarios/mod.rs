@@ -297,12 +297,13 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
     // "redundant" warning that used to describe a fatal configuration.
     let effective_harness =
         resolve_harness_path(harness.as_ref(), runtime_compatibility_alias(runtime));
-    let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenarios(
-        harness.as_ref(),
-        effective_harness.as_ref(),
-        attributes.as_ref(),
-        runtime_compatibility_alias(runtime).is_some(),
-    );
+    let resolutions =
+        crate::codegen::SharedPolicyDiagnostics::for_scenarios(crate::codegen::ScenariosRequest {
+            harness: harness.as_ref(),
+            effective_harness: effective_harness.as_ref(),
+            attributes: attributes.as_ref(),
+            runtime_alias: runtime_compatibility_alias(runtime).is_some(),
+        });
     let tag_filter = match parse_tag_filter(tag_lit) {
         Ok(filter) => filter,
         Err(err_tokens) => return err_tokens,

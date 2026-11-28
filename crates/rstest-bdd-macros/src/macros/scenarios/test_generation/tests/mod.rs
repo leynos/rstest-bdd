@@ -38,7 +38,11 @@ fn deduplicates_duplicate_titles() {
 fn generated_scenario_metadata_uses_portable_feature_separators() {
     let rel_path = Path::new("tests").join("x.feature");
     let scope = quote!(::rstest_bdd::StepScope::global());
-    let resolutions = SharedPolicyDiagnostics::for_scenario(None, None, scenario_facts());
+    let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+        harness: None,
+        attributes: None,
+        facts: scenario_facts(),
+    });
     let ctx = ScenarioTestContext {
         feature_stem: "x",
         rel_path: &rel_path,

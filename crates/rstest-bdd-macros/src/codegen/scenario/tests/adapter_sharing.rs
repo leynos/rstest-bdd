@@ -88,7 +88,11 @@ fn scenario_output_with_shared_resolutions(
 #[test]
 fn boundary_emits_one_diagnostic_per_qualifying_path() {
     let harness = aliased_harness();
-    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, scenario_facts());
+    let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+        harness: Some(&harness),
+        attributes: None,
+        facts: scenario_facts(),
+    });
 
     assert_eq!(
         marker_count(&resolutions.warning_tokens()),
@@ -102,8 +106,11 @@ fn boundary_emits_one_diagnostic_per_qualifying_path() {
 fn boundary_emits_two_diagnostics_for_combined_harness_and_attributes() {
     let harness = aliased_harness();
     let attributes = aliased_attributes();
-    let resolutions =
-        SharedPolicyDiagnostics::for_scenario(Some(&harness), Some(&attributes), scenario_facts());
+    let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+        harness: Some(&harness),
+        attributes: Some(&attributes),
+        facts: scenario_facts(),
+    });
 
     assert_eq!(
         marker_count(&resolutions.warning_tokens()),
@@ -117,7 +124,11 @@ fn boundary_emits_two_diagnostics_for_combined_harness_and_attributes() {
 #[test]
 fn scenario_generated_from_shared_resolution_emits_no_diagnostic() {
     let harness = aliased_harness();
-    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, scenario_facts());
+    let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+        harness: Some(&harness),
+        attributes: None,
+        facts: scenario_facts(),
+    });
 
     let output = scenario_output_with_shared_resolutions(Some(&harness), &resolutions);
 
@@ -139,15 +150,11 @@ fn boundary_emits_three_diagnostics_for_evidence_and_conflict() {
     let harness: syn::Path = syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
     let attributes: syn::Path =
         syn::parse_quote!(alias::rstest_bdd_harness_gpui::GpuiAttributePolicy);
-    let resolutions = SharedPolicyDiagnostics::for_scenario(
-        Some(&harness),
-        Some(&attributes),
-        crate::codegen::ScenarioFacts {
-            is_async: false,
-            has_executor_attr: false,
-            has_gpui_test_attr: false,
-        },
-    );
+    let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+        harness: Some(&harness),
+        attributes: Some(&attributes),
+        facts: scenario_facts(),
+    });
 
     assert_eq!(
         marker_count(&resolutions.warning_tokens()),
@@ -161,7 +168,11 @@ fn boundary_emits_three_diagnostics_for_evidence_and_conflict() {
 #[test]
 fn canonical_path_yields_no_diagnostic() {
     let harness: syn::Path = syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness);
-    let resolutions = SharedPolicyDiagnostics::for_scenario(Some(&harness), None, scenario_facts());
+    let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+        harness: Some(&harness),
+        attributes: None,
+        facts: scenario_facts(),
+    });
 
     assert_eq!(
         marker_count(&resolutions.warning_tokens()),
@@ -205,9 +216,11 @@ fn boundary_with_an_injected_resolver_reports_no_evidence() {
     static RESOLVER: Unresolvable = Unresolvable;
     let harness: syn::Path = syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
     let resolutions = SharedPolicyDiagnostics::for_scenario_with(
-        Some(&harness),
-        None,
-        scenario_facts(),
+        crate::codegen::ScenarioRequest {
+            harness: Some(&harness),
+            attributes: None,
+            facts: scenario_facts(),
+        },
         &RESOLVER,
     );
 

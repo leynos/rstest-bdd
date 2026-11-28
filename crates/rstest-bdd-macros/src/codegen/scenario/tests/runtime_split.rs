@@ -75,11 +75,12 @@ fn aliased_harness_scenario_output() -> String {
     let block: syn::Block = syn::parse_quote!({});
     let tags = Vec::new();
     let harness: syn::Path = syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
-    let resolutions = crate::codegen::SharedPolicyDiagnostics::for_scenario(
-        Some(&harness),
-        None,
-        scenario_facts(),
-    );
+    let resolutions =
+        crate::codegen::SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+            harness: Some(&harness),
+            attributes: None,
+            facts: scenario_facts(),
+        });
     let fallback_diagnostics = resolutions.warning_tokens();
     let config = ScenarioConfig {
         attrs: &attrs,
