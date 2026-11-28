@@ -231,6 +231,27 @@ fn check_empty_results(
     }
 }
 
+/// Generate every scenario, then decide whether an error replaces the module.
+///
+/// `E002` is decided after generation: an invocation that produces no test
+/// could not fail per scenario before this diagnostic existed, so it keeps
+/// compiling (decision `D46`).
+fn generate_and_diagnose(
+    feature_paths: &[PathBuf],
+    ctx: &FeatureProcessingContext<'_>,
+    tag_filter: Option<&TagFilter>,
+) -> Result<(Vec<TokenStream2>, Vec<TokenStream2>), TokenStream2> {
+    let (tests, mut errors) = generate_tests_from_features(feature_paths, ctx);
+    check_empty_results(&tests, &mut errors, tag_filter);
+    if tests.is_empty() {
+        return Ok((tests, errors));
+    }
+    if let Some(error_tokens) = ctx.resolutions.errors() {
+        return Err(error_tokens);
+    }
+    Ok((tests, errors))
+}
+
 /// Run both halves of the warning channel, in order.
 fn emit_scenario_warnings(resolutions: &crate::codegen::SharedPolicyDiagnostics) -> TokenStream2 {
     resolutions.emit_native_warnings();
@@ -342,20 +363,11 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
         library_validation_names: library_validation_names.as_deref(),
         resolutions: &resolutions,
     };
-    let (tests, mut errors) = generate_tests_from_features(&feature_paths, &ctx);
-
-    check_empty_results(&tests, &mut errors, tag_filter.as_ref());
-
-    // E002 is decided after generation: an invocation that produces no test
-    // could not fail per scenario before this diagnostic existed, so it keeps
-    // compiling and keeps its warnings.
-    let fallback_diagnostics = if tests.is_empty() {
-        emit_scenario_warnings(&resolutions)
-    } else if let Some(error_tokens) = resolutions.errors() {
-        return error_tokens;
-    } else {
-        emit_scenario_warnings(&resolutions)
+    let (tests, errors) = match generate_and_diagnose(&feature_paths, &ctx, tag_filter.as_ref()) {
+        Ok(generated) => generated,
+        Err(error_tokens) => return error_tokens,
     };
+    let fallback_diagnostics = emit_scenario_warnings(&resolutions);
     // Emitted after the error decision so E002 replaces this warning for the
     // configuration it reports, on both channels.
     emit_runtime_deprecation_warning(runtime);

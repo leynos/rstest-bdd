@@ -86,41 +86,34 @@ fn scenario_output_with_shared_resolutions(
 
 #[cfg(not(rstest_bdd_nightly))]
 #[test]
-fn boundary_emits_one_diagnostic_per_qualifying_path() {
-    let harness = aliased_harness();
-    let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
-        harness: Some(&harness),
-        attributes: None,
-        facts: scenario_facts(),
-    });
+fn boundary_reports_only_qualifying_paths() {
+    let canonical: syn::Path = syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness);
+    let cases: [(&str, Option<syn::Path>, Option<syn::Path>, usize); 3] = [
+        ("aliased harness", Some(aliased_harness()), None, 1),
+        ("canonical harness", Some(canonical), None, 0),
+        (
+            "aliased harness and attributes",
+            Some(aliased_harness()),
+            Some(aliased_attributes()),
+            2,
+        ),
+    ];
 
-    assert_eq!(
-        marker_count(&resolutions.warning_tokens()),
-        1,
-        "one supplied path must yield one diagnostic"
-    );
+    for (label, harness, attributes, expected) in cases {
+        let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
+            harness: harness.as_ref(),
+            attributes: attributes.as_ref(),
+            facts: scenario_facts(),
+        });
+
+        assert_eq!(
+            marker_count(&resolutions.warning_tokens()),
+            expected,
+            "the {label} case must yield {expected} diagnostic(s)"
+        );
+    }
 }
 
-#[cfg(not(rstest_bdd_nightly))]
-#[test]
-fn boundary_emits_two_diagnostics_for_combined_harness_and_attributes() {
-    let harness = aliased_harness();
-    let attributes = aliased_attributes();
-    let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
-        harness: Some(&harness),
-        attributes: Some(&attributes),
-        facts: scenario_facts(),
-    });
-
-    assert_eq!(
-        marker_count(&resolutions.warning_tokens()),
-        2,
-        "harness and attributes are independent supplied paths"
-    );
-}
-
-/// Scenarios generated beneath a boundary must not repeat its diagnostic,
-/// which is what keeps a multi-scenario `scenarios!` expansion at one.
 #[test]
 fn scenario_generated_from_shared_resolution_emits_no_diagnostic() {
     let harness = aliased_harness();
@@ -160,24 +153,6 @@ fn boundary_emits_three_diagnostics_for_evidence_and_conflict() {
         marker_count(&resolutions.warning_tokens()),
         3,
         "two evidenced slots and a framework conflict render three warnings"
-    );
-}
-
-/// A canonical crate-root path is not a fallback, so nothing is emitted.
-#[cfg(not(rstest_bdd_nightly))]
-#[test]
-fn canonical_path_yields_no_diagnostic() {
-    let harness: syn::Path = syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness);
-    let resolutions = SharedPolicyDiagnostics::for_scenario(crate::codegen::ScenarioRequest {
-        harness: Some(&harness),
-        attributes: None,
-        facts: scenario_facts(),
-    });
-
-    assert_eq!(
-        marker_count(&resolutions.warning_tokens()),
-        0,
-        "canonical first-party paths must stay diagnostic-free"
     );
 }
 
