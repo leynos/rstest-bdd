@@ -62,10 +62,15 @@
   `find_step_with_mode` in favour of `lookup_step_with_metadata` and
   `find_step_with_metadata`; callers should project the needed `Step` field.
   `find_step_with_metadata` now returns `Option<ResolvedStep>`.
-- Deprecated `encode_skip_message` and `decode_skip_message` functions in favour
-  of `ExecutionError::Skip` variant. Use `ExecutionError::skip_message()` to
-  extract the optional skip message. These functions will be removed in a
-  future release.
+
+### Removed (Unreleased)
+
+- Removed the deprecated `encode_skip_message` and `decode_skip_message`
+  functions and their `SKIP_NONE_PREFIX` and `SKIP_SOME_PREFIX` constants. Use
+  the `ExecutionError::Skip` variant to signal a skip and
+  `ExecutionError::skip_message()` to extract its optional message. See the
+  v0.7.0 migration guide's
+  [removal subsection](../../docs/v0-7-0-migration-guide.md#replace-encode_skip_message-and-decode_skip_message).
 
 ### Known issues
 
