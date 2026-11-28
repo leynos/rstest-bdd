@@ -50,7 +50,7 @@ fn title_is_shown(cx: Harness<gpui::TestAppContext>) {
 
 `Harness<T>` is a shared, `Copy` view of the harness context and
 `HarnessMut<T>` an exclusive view. Each is a thin wrapper around a reference;
-the generated wrapper owns the underlying ADR-012 borrow guard exactly as it
+the generated wrapper owns the underlying ADR-0012 borrow guard exactly as it
 does for `&T` and `&mut T` today. Extractors therefore coexist with other
 fixtures, including `&mut World`, inside one step, and a step that takes
 `Harness<T>` can be called directly from a unit test with `Harness::new(&ctx)`.
@@ -87,7 +87,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
 
 - C1. The reserved key `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`
   (`"rstest_bdd_harness_context"`) stays the internal wire format between
-  scenario code generation and step wrappers (ADR-007 addendum). Extractors
+  scenario code generation and step wrappers (ADR-0007 addendum). Extractors
   bind that key; they do not introduce a second storage location.
 - C2. The legacy spelling `#[from(rstest_bdd_harness_context)]`, the
   parameter-named spelling, and the `#[harness_context]` marker keep compiling
@@ -96,7 +96,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
   every run. No deprecation warnings are added in this item.
 - C3. No existing public signature changes: `StepContext` methods,
   `FixtureRef`, `FixtureRefMut`, `FixtureBorrowError`, `StepError`,
-  `HarnessAdapter`, and `ScenarioRunRequest` are untouched. The ADR-007 closed
+  `HarnessAdapter`, and `ScenarioRunRequest` are untouched. The ADR-0007 closed
   set of `*_harness_context` wrapper methods on `StepContext` is not extended.
 - C4. New public items are limited to `rstest_bdd::Harness`,
   `rstest_bdd::HarnessMut`, their `new` constructors and standard trait
@@ -108,10 +108,10 @@ Hard invariants. Violating one requires escalation, not a workaround.
   dependency policy").
 - C6. No source file exceeds 400 lines (`scripts/check_rs_file_lengths.py`,
   run by `make lint`). Files at or near the cap
-  (`crates/rstest-bdd/src/context/mod.rs` 397 lines,
+  (`crates/rstest-bdd/src/context/mod.rs` 396 lines,
   `crates/rstest-bdd-macros/src/codegen/wrapper/arguments/mod.rs` 395,
   `.../args/classify/mod.rs` 381, `.../args/classify/tests.rs` 385,
-  `crates/rstest-bdd/tests/trybuild_macros.rs` 359) must not absorb new logic;
+  `crates/rstest-bdd/tests/trybuild_macros.rs` 373) must not absorb new logic;
   new logic goes in new sibling modules.
 - C7. Run-time diagnostics (Fluent `.ftl` messages in every locale under
   `crates/rstest-bdd/i18n/`) are not changed by this item. New diagnostics are
@@ -169,16 +169,17 @@ Hard invariants. Violating one requires escalation, not a workaround.
   through the sealed `HarnessView` trait, so a foreign `Harness` fails to
   compile with an `on_unimplemented` message naming the `#[from(..)]` opt-out;
   aliases and renamed imports are documented as unsupported (D4, D12).
-- R3. Roadmap 11.2.2 (public prelude; plan in DRAFT on branch
-  `11-2-2-public-prelude-execplan`) and 11.2.3 (harness-path diagnostics) touch
-  `crates/rstest-bdd/tests/trybuild_macros.rs`, `crates/rstest-bdd/Cargo.toml`,
-  and the users' guide. The 11.2.2 plan adds `scripts/check_prelude_exports.py`
-  to `make lint`, which fails unless every `pub use` in `prelude.rs` matches a
-  users' guide table and doctest. Severity: medium. Likelihood: medium.
-  Mitigation: EP-M0 rebases and re-reads both plans; EP-M6 updates
-  `prelude.rs`, its table, and its doctest together if the prelude has landed,
-  and otherwise records the admission decision for 11.2.2 in this plan's
-  `Outcomes & retrospective` and in the PR description.
+- R3. Roadmap 11.2.2 landed on the target branch in PR #773 and remains
+  unchanged at target `6308b9af`. The prelude exports eleven names (thirteen
+  items counting the `ScenarioState` and `StepArgs` traits and derive macros),
+  is a strict subset of the crate root, and has a drift gate in
+  `scripts/check_prelude_exports.py` under `make lint`. It does not yet export
+  the planned `Harness` or `HarnessMut` types. Severity: medium. Likelihood:
+  medium. Mitigation: EP-M0 records the landed export set and gate; EP-M6 adds
+  both extractor types to the root and prelude together, then updates the
+  users' guide table, import example, doctest, and drift gate. Roadmap 11.2.3
+  remains open and has no ExecPlan on the target branch, so it is not a pending
+  prerequisite for this work.
 - R4. The 400-line cap (C6). Severity: low. Likelihood: high. Mitigation: new
   modules `args/classify/harness_extractor/` and
   `arguments/harness_extractor.rs` in the macros crate, and
@@ -228,6 +229,52 @@ Hard invariants. Violating one requires escalation, not a workaround.
   executability). Verdict: proceed with conditions. Every finding is either
   folded into this revision or recorded as a rejected option in the Decision
   log.
+- [x] (2026-11-24) Reconciled target-branch references and prelude status
+  against `origin/main` at `0730e724`; approval remains pending.
+- [x] (2026-11-24) Replayed the three planning commits without conflicts;
+  all three patches are unchanged in the range comparison.
+- [x] (2026-11-25) Rebased those three planning commits onto target
+  `0df7fbec`; range comparison remains unchanged. Reviewed PR #979's Makefile
+  preparation changes and validated the current candidate through all gates
+  except `make test`.
+- [x] (2026-11-25) Recovery preparation later passed the CLI and feature-rebuild
+  cases; later preparation passed macro fixtures and GPUI, then timed out in
+  Tokio fixture preparation. A later preparation passed six cases before the
+  server timeout. The standalone server checks and a subsequent normal
+  preparation have since passed; the full test gate then ran, as recorded below.
+- [x] (2026-11-25) Current normal fixture preparation passed all seven cases;
+  the full `make test` gate then exited 2 after `runner::step_macros_compile`
+  timed out. Results are recorded below.
+- [x] (2026-11-25) The fresh-crate reporting test passed in the full run,
+  clearing the earlier focused-test failure. Later test recipes did not run.
+- [x] (2026-11-25) Rebased the three planning commits from
+  `ad4711575fe507d5e49352be8da4ba10f2a72491` onto target
+  `6308b9af2f32d023ec0fb444704a3417f2f81d18`; the exclusive boundary was
+  `0df7fbecf4eb5fa5f30af1fbe5692c7eb830c81a`. All three range-diff entries
+  match. Reviewed the four target commits since that boundary: documentation,
+  cognitive-complexity, dependency-pin, and workflow updates; none changes Rust
+  source.
+- [x] (2026-11-25) On candidate `9f073fdc976eb1a62ff61ddb5da576baa255ebee`,
+  `make fmt`, `make check-fmt`, and `make lint` passed. The lint run included
+  Clippy, rustdoc, registered Whitaker macro-aware complexity at 9, Python, and
+  repository script checks.
+- [x] (2026-11-25) On candidate `9f073fdc976eb1a62ff61ddb5da576baa255ebee`,
+  `make test` exited 2 during automatic nested-fixture preparation. Three
+  preparation cases passed; macro preparation timed out before the workspace
+  suite started. Full evidence is recorded below.
+- [x] (2026-11-25) The source-backed UI Clippy prebuild passed in 12 minutes 35
+  seconds. The full-test retry then passed six preparation cases and timed out
+  on server preparation before the workspace suite; details are recorded below.
+- [x] (2026-11-25) The server recovery matrix passed its width build, base
+  check, and width check. The unchanged full `make test` then passed automatic
+  preparation but exited 2 on the fresh-crate reporting test timeout. Later
+  test recipes did not run; details are recorded below. At that checkpoint,
+  `make typecheck` and documentation checks were pending.
+- [x] (2026-11-25) On the same candidate, `make typecheck` passed in 1,396.996
+  seconds, and `make fmt` plus `make check-fmt` passed again. Markdownlint
+  passed with zero errors, and Nixie passed. All non-test gates are green; the
+  fresh-crate reporting test timeout remains the current blocker. No commit or
+  push is ready.
 - [ ] Plan approved by the user.
 - [ ] EP-M0 orientation and green baseline.
 - [ ] EP-M1 permanent lint-posture gate.
@@ -235,7 +282,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
 - [ ] EP-M3 macro recognition and code generation.
 - [ ] EP-M4 harness-borrow conflict check.
 - [ ] EP-M5 compile tests, behavioural suite, and examples.
-- [ ] EP-M6 documentation, ADR-024, and prelude hand-off.
+- [ ] EP-M6 documentation, ADR-0029, and prelude hand-off.
 - [ ] EP-M7 roadmap tick, full gates, and pull request.
 
 ## Surprises & discoveries
@@ -315,8 +362,8 @@ Hard invariants. Violating one requires escalation, not a workaround.
   `Option<Harness<T>>` is out of scope. Rationale: recognition must happen at
   expansion time because it chooses the fixture key; keeping it a pure function
   of the parameter's own tokens keeps it predictable, and the sealed trait (O7)
-  catches misrecognition at compile time. This mirrors ADR-019's syntactic fast
-  path backed by a type-checked contract. Date/Author: 2026-10-15, planner.
+  catches misrecognition at compile time. This mirrors ADR-0019's syntactic
+  fast path backed by a type-checked contract. Date/Author: 2026-10-15, planner.
 - D5. Decision: the following are compile errors with targeted messages:
   `#[harness_context]` on an extractor type;
   `#[from(rstest_bdd_harness_context)]` on an extractor type; an extractor
@@ -353,7 +400,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
   which is correct for extractors; the macro already rejects extractors bound
   to placeholders. Date/Author: 2026-10-15, planner.
 - D9. Decision: no Verus or Kani artefact. The written argument for lemma L2′
-  in this plan (and in ADR-024) is the proof that bounded enumeration is
+  in this plan (and in ADR-0029) is the proof that bounded enumeration is
   complete; the enumeration is the executable check. Rationale: proving that a
   `RefCell` state-machine fold succeeds exactly when the counting predicate
   holds would be a genuine induction, not a restatement. Verus is still not
@@ -366,15 +413,15 @@ Hard invariants. Violating one requires escalation, not a workaround.
   dependency tolerance. Kani over a fixed-length array of modes would repeat
   the enumeration. The 11.2.1 precedent made the same call. Date/Author:
   2026-10-15, planner, after design review.
-- D10. Decision: record the design in a new ADR-024, "Typed harness-context
+- D10. Decision: record the design in a new ADR-0029, "Typed harness-context
   extractors", as the single canonical home for how step authors request
-  harness context, and add an `Amended by ADR-024` banner and `## Amendments`
-  entry to ADR-007. ADR-012 is not amended: borrow semantics are unchanged and
-  the conflict check is a compile-time projection of them. Rationale: this item
-  introduces type-directed parameter classification, new public types, a
+  harness context, and add an `Amended by ADR-0029` banner and `## Amendments`
+  entry to ADR-0007. ADR-0012 is not amended: borrow semantics are unchanged
+  and the conflict check is a compile-time projection of them. Rationale: this
+  item introduces type-directed parameter classification, new public types, a
   compile-time borrow rule that applies to existing spellings, and the v1
   spelling set; that is substantive under the documentation style guide, and
-  spreading it across a second ADR-007 addendum would scatter the authoring
+  spreading it across a second ADR-0007 addendum would scatter the authoring
   story further. Date/Author: 2026-10-15, planner.
 - D11. Decision: keep the roadmap's names, `Harness<T>` and `HarnessMut<T>`.
   Rationale: the finish line names them, and they are short where they are
@@ -414,7 +461,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
 ## Outcomes & retrospective
 
 Not started. To be completed at each milestone boundary and at completion,
-including reconciliation of discoveries with ADR-007, ADR-012, ADR-024, and
+including reconciliation of discoveries with ADR-0007, ADR-0012, ADR-0029, and
 design document §2.7.6.5.
 
 ## Context and orientation
@@ -444,7 +491,7 @@ scenario that builds the `StepContext` and runs the matching steps.
   `insert_owned_harness_context`
   (`crates/rstest-bdd-macros/src/codegen/scenario/runtime/harness.rs`).
 - *Guard*: `FixtureRef<'a, T>` or `FixtureRefMut<'a, T>`
-  (`crates/rstest-bdd/src/context/guards.rs`), the ADR-012 borrow handles
+  (`crates/rstest-bdd/src/context/guards.rs`), the ADR-0012 borrow handles
   returned by `StepContext::borrow_ref`/`borrow_mut`, which take `&self`.
   Distinct fixtures can be borrowed mutably at once; one fixture follows
   `RefCell` rules.
@@ -457,9 +504,14 @@ scenario that builds the `StepContext` and runs the matching steps.
 - *Harness access mode*: how a parameter borrows the harness context.
   `Shared`: `&T`, owned `T` (cloned from a shared borrow), or `Harness<T>`.
   `Exclusive`: `&mut T` or `HarnessMut<T>`.
-- *Commit gates*: `make check-fmt`, `make lint`, and `make test`, run one
-  after another (never in parallel) with output teed to `/tmp` as shown in
-  `Concrete steps`.
+- *Commit gates*: `make check-fmt`, `make test`, `make typecheck`, and
+  `make lint`, run one after another (never in parallel) with output teed to
+  `/tmp` as shown in `Concrete steps`.
+
+The current target uses Whitaker's macro-aware cognitive-complexity lint at a
+maximum of 9 (`dylint.toml`); new classifier helpers must meet that gate rather
+than raising its threshold. The documentation style guide also requires each
+Rust doctest example to import the documented item.
 
 ### The parameter classification pipeline
 
@@ -467,11 +519,12 @@ scenario that builds the `StepContext` and runs the matching steps.
 `crates/rstest-bdd-macros/src/codegen/wrapper/args/extract.rs` walks the step
 function's parameters in order. For each parameter it runs, first match wins:
 
-1. `#[step_args]` struct classification.
+1. `#[step_args]` struct classification (`extract_step_struct_attribute`,
+   then `classify_step_struct`).
 2. `classify_harness_context` (marker), deliberately before the placeholder
    short-circuit so the attribute is always stripped.
 3. If the name is not a placeholder: data-table and doc-string classifiers.
-4. `classify_step_or_fixture`: a placeholder match makes a step argument;
+4. `classify_fixture_or_step`: a placeholder match makes a step argument;
    anything else becomes `Arg::Fixture { pat, name, ty }`, with `name` taken
    from `#[from(name)]` or the normalized parameter name.
 
@@ -496,25 +549,26 @@ they apply to the generated wrapper only, never to the user's function.
 
 ### File-length pressure
 
-Line counts measured during reconnaissance: `context/mod.rs` 397,
-`arguments/mod.rs` 395, `args/classify/mod.rs` 381, `args/classify/tests.rs`
-385, `args/classify/fixture_or_step.rs` 352, `args/extract.rs` 326,
-`args/mod.rs` 232, `arguments/fixtures.rs` 245, `emit/mod.rs` 284,
-`context/harness.rs` 86, `context/guards.rs` 145, `tests/trybuild_macros.rs`
-359. Re-measure in EP-M0 with `python3 scripts/check_rs_file_lengths.py`.
+Line counts confirmed against target `origin/main` `6308b9af`: `context/mod.rs`
+396, `arguments/mod.rs` 395, `args/classify/mod.rs` 381,
+`args/classify/tests.rs` 385, `args/classify/fixture_or_step.rs` 351,
+`args/extract.rs` 331, `args/mod.rs` 232, `arguments/fixtures.rs` 245,
+`emit/mod.rs` 284, `context/harness.rs` 86, `context/guards.rs` 145, and
+`tests/trybuild_macros.rs` 373. Re-measure in EP-M0 with
+`python3 scripts/check_rs_file_lengths.py`.
 
 ### Skills and documentation to load before starting
 
-- Skills: `rust-router`, then `rust-types-and-apis` (view types and sealed
-  trait), `rust-unit-testing` (rstest, googletest, pretty_assertions, insta),
-  and `nextest` if a test needs scheduling attention; `execplans` for
-  maintaining this plan; `codegraph-mcp` for callers and impact;
-  `arch-decision-records` and `en-gb-oxendict-style` for ADR-024;
-  `commit-message` for commits; `pr-creation` for EP-M7.
-- Documents: `docs/adr-007-harness-context-injection.md` (wire format and the
-  11.2.1 addendum), `docs/adr-012-guard-based-stepcontext-borrowing.md`
-  (guards), `docs/adr-019-type-directed-step-return-classification.md`
-  (syntactic fast path plus type-checked contract), `docs/rstest-bdd-design.md`
+- Skills: `rust-router` for Rust API and test guidance, `nextest` if test
+  scheduling needs attention, `execplans` for maintaining this plan,
+  `codegraph-mcp` for callers and impact, `en-gb-oxendict-style` and
+  `docs/documentation-style-guide.md` for ADR-0029, `commit-message` for
+  commits, and `pr-creation` for EP-M7.
+- Documents: `docs/adrs/adr-0007-harness-context-injection.md` (wire format
+  and the 11.2.1 addendum),
+  `docs/adrs/adr-0012-guard-based-stepcontext-borrowing.md` (guards),
+  `docs/adrs/adr-0019-type-directed-step-return-classification.md` (syntactic
+  fast path plus type-checked contract), `docs/rstest-bdd-design.md`
   §§2.7.5–2.7.6.5, `docs/developers-guide.md` ("Macro implementation: fixture
   classification and normalization", "The `#[harness_context]` classifier
   stage", "Assertion vocabulary", "Staging fixtures for trybuild"),
@@ -530,19 +584,23 @@ Line counts measured during reconnaissance: `context/mod.rs` 397,
 
 ## Conformance basis
 
-Upstream artefacts, read at `origin/main` commit `8737d88f`:
+Upstream artefacts, rechecked at target `origin/main` commit
+`6308b9af2f32d023ec0fb444704a3417f2f81d18`:
 
 - RM-12.2.1: `docs/roadmap.md` entry 12.2.1, with finish-line clauses FL-1
   (`Harness<T>` covered by macro tests), FL-2 (`HarnessMut<T>` covered), FL-3
   (marker path covered), and FL-4 (those tests do not spell the reserved key).
 - DD-2.7.6.5: `docs/rstest-bdd-design.md` §2.7.6.5, remaining candidate
   "typed harness-context extractors that hide the reserved fixture key".
-- ADR-007 (Accepted 2026-03-03) and its 11.2.1 addendum: key-as-wire-format
+- ADR-0007 (Accepted 2026-03-03) and its 11.2.1 addendum: key-as-wire-format
   (C1), closed wrapper set (C3), marker semantics.
-- ADR-012 (Accepted 2026-06-11): `&self` borrows, guard types, concurrent
+- ADR-0012 (Accepted 2026-06-11): `&self` borrows, guard types, concurrent
   distinct mutable borrows; source of axiom A2.
-- ADR-019: precedent for syntactic classification backed by a type-checked
+- ADR-0019: precedent for syntactic classification backed by a type-checked
   contract and `on_unimplemented` (D4).
+- RM-11.2.2 and `docs/adrs/adr-0028-publish-a-facade-prelude.md`: the prelude
+  landed before this plan's target baseline; EP-M6 must preserve it as a strict
+  subset of the crate root and keep its users' guide export drift gate current.
 - Governing standards: `AGENTS.md`, `docs/documentation-style-guide.md`,
   `docs/developers-guide.md` workspace dependency policy.
 - There is no Terms of Reference document for this phase; the roadmap entry is
@@ -551,14 +609,14 @@ Upstream artefacts, read at `origin/main` commit `8737d88f`:
 Trace links:
 
 ```plaintext
-RM-12.2.1/FL-1 -> DD-2.7.6.5 -> ADR-024 -> EP-M2, EP-M3 -> O1, O2, O4, O5
+RM-12.2.1/FL-1 -> DD-2.7.6.5 -> ADR-0029 -> EP-M2, EP-M3 -> O1, O2, O4, O5
   -> harness_extractor tests, harness_extractors.rs suite
-RM-12.2.1/FL-2 -> DD-2.7.6.5 -> ADR-024 -> EP-M2, EP-M3, EP-M4 -> O2, O3, O4, O5, O11
+RM-12.2.1/FL-2 -> DD-2.7.6.5 -> ADR-0029 -> EP-M2, EP-M3, EP-M4 -> O2, O3, O4, O5, O11
   -> borrow_plan tests, harness_extractors.rs suite
-RM-12.2.1/FL-3 -> ADR-007 addendum -> EP-M3, EP-M5 -> O2, O4, O10
+RM-12.2.1/FL-3 -> ADR-0007 addendum -> EP-M3, EP-M5 -> O2, O4, O10
   -> marker rows in the same suites
-RM-12.2.1/FL-4 -> ADR-024 -> EP-M5 -> O6 -> reserved-key absence check
-ADR-012 -> A2 -> L1, L3 -> EP-M4 -> O3
+RM-12.2.1/FL-4 -> ADR-0029 -> EP-M5 -> O6 -> reserved-key absence check
+ADR-0012 -> A2 -> L1, L3 -> EP-M4 -> O3
 C9 -> D3, D14 -> EP-M1 -> O13 -> ui_lints harness_extractor_lint_clean
 ```
 
@@ -603,7 +661,7 @@ The admissibility predicate the classifier must implement is
   otherwise the fixture entry. The `values` map changes only through
   `StepContext::insert_value(&mut self, ..)`, which the borrow checker forbids
   while guards borrow the context. Guards from earlier steps have been dropped
-  before the next wrapper starts (ADR-012 lifecycle). The harness does not
+  before the next wrapper starts (ADR-0012 lifecycle). The harness does not
   borrow the context while a step wrapper runs.
 - A3. A procedural macro sees parameter types as tokens only; it cannot
   resolve paths or aliases. Recognition (O1) is therefore a syntactic contract,
@@ -773,7 +831,7 @@ comparisons of tokens and `StepError` values use `pretty_assertions`.
 ### Where formal verification is and is not warranted
 
 Verus is not warranted (D9). Lemma L2′ and the characterization L3 are recorded
-here and in ADR-024 as the written argument; the O3 enumeration is complete by
+here and in ADR-0029 as the written argument; the O3 enumeration is complete by
 L2′, so no generated-length property test is planned. Tests continue to cover
 the executable integration: O1, O2, O10, and O11 cover token classification,
 O4, O5, and O12 cover run-time behaviour, O7 and O9 cover the type-level
@@ -788,12 +846,13 @@ after another, never in parallel, with output teed to `/tmp`.
 
 ### EP-M0 — orientation and green baseline (no code changes)
 
-Rebase onto `origin/main`. Re-read the 11.2.2 and 11.2.3 plans' status lines
-(R3). Run the commit gates and record the baseline. Re-measure file lengths.
-Read `StepContext::insert_value`, `try_borrow`, and `try_borrow_mut` and
-confirm A2 as restated. Search for steps with more than one harness-context
-parameter in `crates/`, `examples/`, and `tests/fixtures/` and confirm none
-conflicts (R5):
+At implementation start, rebase onto the current target branch and re-read the
+roadmap and design documents. Confirm 11.2.2 remains complete and inspect the
+11.2.3 roadmap entry; as of target `6308b9af`, no 11.2.3 ExecPlan exists (R3).
+Run the commit gates and record the baseline. Re-measure file lengths. Read
+`StepContext::insert_value`, `try_borrow`, and `try_borrow_mut` and confirm A2
+as restated. Search for steps with more than one harness-context parameter in
+`crates/`, `examples/`, and `tests/fixtures/` and confirm none conflicts (R5):
 
 ```bash
 rg -n "harness_context" crates examples tests/fixtures --type rust
@@ -1017,18 +1076,18 @@ Acceptance: `cargo test -p rstest-bdd --test trybuild_macros`,
 `cargo test -p tokio-reminders` pass; the O6 search returns nothing for the new
 files and a match for the legacy fixture; commit gates green; commit.
 
-### EP-M6 — documentation, ADR-024, and prelude hand-off
+### EP-M6 — documentation, ADR-0029, and prelude hand-off
 
-- Write `docs/adr-024-typed-harness-context-extractors.md` (Status Proposed
-  until the implementation PR merges, then Accepted), recording D1, D3–D7, D9,
-  D11, D13, and D14 with options considered, the v1 spelling set, the L2′/L3
-  argument, migration impact, and the inputs it leaves for roadmap 12.2.4 (no
-  `'static` bound on the view types) and 12.2.6 (views are held for a whole
-  step, across `.await`). Add the `Amended by ADR-024` banner and
-  `## Amendments` entry to ADR-007. Index ADR-024 in `docs/contents.md`.
+- Write `docs/adrs/adr-0029-typed-harness-context-extractors.md` (Status
+  Proposed until the implementation PR merges, then Accepted), recording D1,
+  D3–D7, D9, D11, D13, and D14 with options considered, the v1 spelling set,
+  the L2′/L3 argument, migration impact, and the inputs it leaves for roadmap
+  12.2.4 (no `'static` bound on the view types) and 12.2.6 (views are held for
+  a whole step, across `.await`). Add the `Amended by ADR-0029` banner and
+  `## Amendments` entry to ADR-0007. Index ADR-0029 in `docs/contents.md`.
 - `docs/rstest-bdd-design.md` §2.7.6.5: mark the typed-extractor candidate
   delivered and summarize the recognition rule, the view types, and the
-  borrow-conflict rule, referencing ADR-024. Correct §2.7.5's GPUI prose that
+  borrow-conflict rule, referencing ADR-0029. Correct §2.7.5's GPUI prose that
   still says steps reach context through `rstest_bdd_harness_context`.
 - `docs/users-guide.md`: extend Table 2 in "Harness adapter and attribute
   policy" with `Harness<T>` and `HarnessMut<T>` rows, lead with extractors,
@@ -1052,10 +1111,11 @@ files and a match for the legacy fixture; commit gates green; commit.
 - `docs/roadmap.md`: add two proposed items under 12.2 with finish lines —
   harness-aware run-time diagnostics (D6, R7), and deprecating the
   parameter-named and `#[from(rstest_bdd_harness_context)]` spellings (D1).
-- Prelude (R3): if `rstest_bdd::prelude` exists, add `Harness` and
-  `HarnessMut` and update its table, doctest, and parity gate together;
-  otherwise record the admission decision for 11.2.2 in
-  `Outcomes & retrospective` and the PR description.
+- Prelude (R3): add `Harness` and `HarnessMut` to the crate-root exports and
+  `rstest_bdd::prelude` together. Update the users' guide export table and
+  import example, the prelude doctest, and `scripts/check_prelude_exports.py`
+  in the same milestone so the existing parity gate continues to enforce the
+  strict-subset contract recorded by ADR-0028.
 
 Acceptance: `make fmt`, `make markdownlint`, and `make nixie` pass (stage
 documentation by path, because `make fmt` may reformat unrelated files); commit
@@ -1064,10 +1124,10 @@ gates green; commit.
 ### EP-M7 — roadmap tick, full gates, and pull request
 
 Mark 12.2.1 done in `docs/roadmap.md` with a completion note naming this plan
-and ADR-024. Run the commit gates plus `make markdownlint` and `make nixie` on
+and ADR-0029. Run the commit gates plus `make markdownlint` and `make nixie` on
 the final commit. Complete `Outcomes & retrospective`, reconcile every
-discovery with ADR-007, ADR-012, ADR-024, and §2.7.6.5, set Status to COMPLETE,
-then push and open the implementation PR.
+discovery with ADR-0007, ADR-0012, ADR-0029, and §2.7.6.5, set Status to
+COMPLETE, then push and open the implementation PR.
 
 ## Milestones and plateaus
 
@@ -1103,8 +1163,8 @@ then push and open the implementation PR.
   check: examples use public API only. Recovery: revert fixture additions.
   Remaining gaps: documentation. Compatibility decision: none.
 - EP-M6. Outcome: documentation and ADRs consistent with the code.
-  Requirements: DD-2.7.6.5, ADR-007 amendment, ADR-024. Evidence: Markdown
-  gates. Conformance check: every decision in this plan appears in ADR-024 or
+  Requirements: DD-2.7.6.5, ADR-0007 amendment, ADR-0029. Evidence: Markdown
+  gates. Conformance check: every decision in this plan appears in ADR-0029 or
   the design document. Recovery: revert the documentation commit. Remaining
   gaps: roadmap tick. Compatibility decision: none.
 - EP-M7. Outcome: roadmap item done. Requirements: RM-12.2.1 in full.
@@ -1117,11 +1177,17 @@ then push and open the implementation PR.
 
 All commands run from the repository root. Long outputs are teed to `/tmp`:
 
+On target `6308b9af`, `make test` prepares nested fixtures before each nextest
+pass, using `PREPARE_FLAGS` for the selected package and feature set. The
+`rstest-bdd` no-default-features pass gets its own preparation run.
+
 ```bash
 BRANCH=$(git branch --show-current)
+set -o pipefail
 make check-fmt 2>&1 | tee "/tmp/check-fmt-rstest-bdd-$BRANCH.out"
-make lint 2>&1 | tee "/tmp/lint-rstest-bdd-$BRANCH.out"
 make test 2>&1 | tee "/tmp/test-rstest-bdd-$BRANCH.out"
+make typecheck 2>&1 | tee "/tmp/typecheck-rstest-bdd-$BRANCH.out"
+make lint 2>&1 | tee "/tmp/lint-rstest-bdd-$BRANCH.out"
 ```
 
 Record the revision a gate ran against (`git rev-parse HEAD` before and after)
@@ -1177,7 +1243,7 @@ Acceptance criteria (behavioural):
 
 Quality criteria:
 
-- Tests: `make test` passes.
+- Tests and type safety: `make test` and `make typecheck` pass.
 - Verification: O1–O13 discharged as described; the EP-M4 mutations are
   caught.
 - Lint and format: `make check-fmt`, `make lint`, `make markdownlint`, and
@@ -1194,6 +1260,320 @@ inspected before committing. The EP-M4 temporary test step is deleted in the
 same milestone.
 
 ## Artefacts and notes
+
+### Rebase validation on 2026-11-24
+
+PR #886 targets `main`. The frozen target was
+`0730e72463ed8596d1f75a0169f4bc9dc81a3593`; the exclusive replay boundary was
+`0669195f97563cd8416b94969d2a27feae2120b2`. The three planning commits were
+replayed from `e59a294cf247b304e369044416161c9576556aad` to
+`45ac5e0425cbb84447c07cb34595e9c989de0854`, without conflicts or lockfile
+changes. Native Git merging with `zdiff3` replaced ambient Weave selection for
+this operation. Recovery refs are retained under
+`refs/recovery/rebase-886-20261124/`.
+
+The rebased tree plus this draft's target-reference corrections passed
+`make fmt`, `make check-fmt`, `make typecheck`, `make lint`,
+`make markdownlint`, and `make nixie`. The initial `make test` run failed in
+CLI fixture preparation after its nested Cargo build exceeded 540 seconds.
+Nextest reported 2,396 passing tests, one failure, seven skipped tests, and 193
+tests not run.
+
+Recovery continued on 2026-11-25 using the supported
+`make prepare-nested-fixtures` target. Cold build and check configurations for
+the CLI, macro, GPUI, and server fixtures exposed further preparation timeouts.
+Exact captured Cargo commands and source-confirmed check configurations were
+built sequentially outside the preparation timer, using the existing shared
+caches and compiler wrappers. No deadlines or preparation stamps were changed.
+The final preparation run passed all seven cases in 645.4 seconds, including
+the server case in 623.799 seconds.
+
+The subsequent full `make test` run still failed, at a different boundary:
+`cargo-bdd::cli::preparation::report::a_real_cargo_build_is_counted_and_filed_as_a_rebuild`.
+Its nested Cargo command exceeded the 120-second wall-clock bound; the test
+finished after 120.058 seconds. Captured stderr contains only the start of
+compilation for a fresh temporary `counted-crate`, with no compiler diagnostic.
+This result does not establish why that compilation exceeded the bound. Nextest
+reported 2,430 passing tests, one failure, seven skipped tests, and 159 tests
+not run. The later doctest, no-default-feature, fixture-lockfile, and
+Python-test recipes did not run. The test is unchanged from the frozen target;
+the only tracked modification remains this plan.
+
+At that checkpoint, publication remained blocked pending a successful full test
+gate. Reusable fixture-preparation failures were resolved; the fresh-crate
+reporting test was the remaining observed blocker. Later evidence below shows
+that test passing. This draft remains unapproved, and implementation has not
+begun.
+
+Gate logs are local files under `/tmp`. The initial naming pattern is
+`<gate>-<worktree-id>-<branch>.out`, where the worktree identifier is
+`f2541359-5ef5-4078-b195-d8fe74341e83` and the branch is
+`12-2-1-typed-harness-extractor-steps-annotations`. The successful preparation
+log uses gate prefix `prepare-nested-fixtures-server-all-configs-ready`; the
+latest full test log uses `test-server-all-configs-ready`. The rebase receipt is
+`/tmp/rstest-bdd-pr886-rebase-receipt.json`. These local logs are execution
+evidence, not portable prerequisites.
+
+### Rebase validation on 2026-11-25
+
+The target advanced from `0730e72463ed8596d1f75a0169f4bc9dc81a3593` to
+`0df7fbecf4eb5fa5f30af1fbe5692c7eb830c81a` through PR #979. That commit
+prepares nested fixtures before each test pass using matching `PREPARE_FLAGS`;
+it also updates nextest comments and developer guidance and changes Python
+workflow-contract tests. It changes no Rust source. The prior seven-case
+preparation pass predates this update and does not validate the new `make test`
+sequencing.
+
+The three planning commits were replayed from previous candidate
+`45ac5e0425cbb84447c07cb34595e9c989de0854` to current candidate
+`ad4711575fe507d5e49352be8da4ba10f2a72491`, with exclusive replay boundary
+`0730e72463ed8596d1f75a0169f4bc9dc81a3593`. The range comparison matches all
+three commits, with no conflicts. Recovery refs are retained under
+`refs/recovery/rebase-886-20261125/`. Previous-candidate green gates are
+historical; the current-candidate results follow.
+
+On `ad471157`, `make fmt`, `make check-fmt`, `make typecheck`, `make lint`,
+`make markdownlint`, and `make nixie` passed. The full lint target completed
+Clippy, rustdoc, Whitaker, Python, and repository script checks.
+
+The first `make test` run on the refreshed target failed in its automatic
+preparation phase: `cargo-bdd::cli::preparation::nested_fixture_preparation`
+exceeded the 540-second nested-Cargo bound and finished after 542.834 seconds.
+Only one of seven preparation cases ran; the other six were cancelled. The
+timed workspace suite and subsequent test recipes did not run. Captured output
+records compiler-admission waits. A surviving descendant Cargo process was
+verified as belonging to this run and exited naturally before any cleanup
+signal; its compiler children also exited before the remaining gates started.
+
+Gate logs from that attempt use the pattern
+`/tmp/<gate>-target-refresh-20261125-f2541359-<branch>.out`, with the branch
+name recorded above. The final formatting log inserts `-final-plan-edit` after
+`20261125`. That preparation failure blocked acceptance at the time; neither
+deadlines nor compiler admission were bypassed. Later recovery records below
+supersede that blocker.
+
+A focused reproduction of
+`preparation::report::a_real_cargo_build_is_counted_and_filed_as_a_rebuild`
+failed after 120.06 seconds. The captured test output is
+`/tmp/rstest-bdd-report-timeout-probe-test.out`; admission samples are in
+`/tmp/rstest-bdd-report-timeout-probe-evidence.jsonl`. The earlier full test
+run recorded above had 2,430 passes, one failure, seven skips, and 159 tests
+not run; it predates the target refresh, so its result is not current-candidate
+acceptance evidence.
+
+The focused run's admission samples show the supervisor healthy with four of
+four compile slots held. The test's `___` compiler metadata request waited from
+10.1 to 91.9 seconds; its `counted_crate` compiler request was queued for 2.7
+seconds at elapsed 102.53 and 13.0 seconds at elapsed 112.94. This is evidence
+that compile admission caused that sampled timeout. The child Cargo process
+still uses `build.rustc-wrapper` from `~/.cargo/config.toml` despite the test
+removing the variable from the child environment. This explains the sampled run
+but did not clear the full test gate at that time. The CLI preparation failure
+recorded above was later resolved, as the recovery evidence below shows. At
+that checkpoint, commit and publication remained blocked; implementation had
+not begun and this ExecPlan remained unapproved.
+
+### Nested-fixture recovery on 2026-11-25
+
+A later `make prepare-nested-fixtures` run passed the CLI preparation case in
+442.531 seconds, then the feature-rebuild case exceeded its 540-second bound at
+540.433 seconds; the remaining five cases did not run. Building the exact
+generated feature-rebuild fixture separately then passed in 569.2 seconds.
+
+The next normal preparation run passed the CLI case in 4.385 seconds,
+feature-rebuild in 302.978 seconds, and prelude in 275.116 seconds. Its
+canonical log is:
+
+```text
+/tmp/prepare-nested-fixtures-feature-rebuild-current-ready-f2541359-12-2-1-typed-harness-extractor-steps-annotations.out
+```
+
+Macro `trybuild` fixture preparation timed out at 1,800.029 seconds; three
+cases did not run. No run-owned processes remained after that failure. Later
+preparation resolved the CLI and feature-rebuild failures; macro fixture
+preparation was then the current observed blocker. The following recovery
+record updates that status.
+
+At the preceding update, a runner was warming the source-confirmed macro
+preparation graphs sequentially outside the test timer. The tracked matrix is
+`/tmp/rstest-bdd-current-core-prebuild-matrix.json` and covers base build, wide
+build, base check, wide check, and UI Clippy. It used the shared Cargo cache
+and configured compiler wrappers; no source, deadline, or preparation stamp was
+changed. The matrix had not completed at that point. The next recovery record
+contains its results and the following normal preparation run.
+
+### Nested-fixture recovery update on 2026-11-25
+
+All five source-confirmed macro preparation graphs in the core matrix passed:
+base build in 238 seconds, wide build in 880.8 seconds, base check in 461.8
+seconds, wide check in 521.7 seconds, and UI Clippy in 1,593.6 seconds.
+
+The next normal preparation run, recorded in
+`/tmp/prepare-nested-fixtures-core-current-ready-f2541359-12-2-1-typed-harness-extractor-steps-annotations.out`,
+passed CLI in 4.430 seconds, feature-rebuild in 7.194 seconds, prelude in
+3.118 seconds, and macro `trybuild` fixtures in 669.115 seconds. GPUI fixture
+preparation timed out at 1,800.006 seconds; two cases did not run. The GPUI
+passing fixture printed `ok` and the base check completed in 7 minutes 27
+seconds. A later width-check attempt was interrupted, so it has no pass result.
+
+A separate width-140 GPUI check was then running against the valid generated
+stub target, using the current captured configuration and environment; its
+later pass is recorded below. No expected-failure fixture was used as a
+warm-up. No run-owned processes remained after the normal preparation timeout.
+No source, deadline, or preparation stamp changed. The macro and GPUI
+preparation timeouts were resolved by later runs. At this checkpoint, all
+non-test gates had passed, but `make test` was not green and commit and
+publication remained blocked. The subsequent full-test result is recorded below.
+
+### Nested-fixture recovery update, continued
+
+The standalone width-140 GPUI check passed. The subsequent normal preparation
+run is recorded in
+`/tmp/prepare-nested-fixtures-gpui-current-width-ready-f2541359-12-2-1-typed-harness-extractor-steps-annotations.out`.
+Its first four cases passed. GPUI preparation (case 5) passed in 577.939
+seconds, and Tokio preparation (case 6) passed in 550.069 seconds. The server
+preparation (case 7) later timed out at 1,800.036 seconds; no other cases were
+unrun. Six of seven cases passed. The full `make test` had not started.
+
+The root log for the server case shows `find_feature_files_result.rs` passing,
+then output about checking dependency lines before the timeout. It does not
+show that a width build was still running. No processes owned by the timed-out
+preparation run remain.
+
+At the preceding update, two standalone checks were running against the
+generated server stub, one with the base configuration and one with width 140.
+They used the current captured configuration and source. The tracking matrix is
+`/tmp/rstest-bdd-current-server-check-matrix.json`.
+
+### Server fixture recovery update, continued
+
+The standalone server checks both passed: the base-configuration check took 8
+minutes 34 seconds, and the width-140 check took 11 minutes 43 seconds. The
+subsequent normal `make prepare-nested-fixtures` run passed all seven cases in
+452.610 seconds, including server preparation in 432.197 seconds. Its log is:
+
+```text
+/tmp/prepare-nested-fixtures-server-current-checks-ready-f2541359-12-2-1-typed-harness-extractor-steps-annotations.out
+```
+
+The full `make test` gate started after this preparation. Its result is
+recorded below. All non-test gates had passed; acceptance, commit, and
+publication remained pending at that point.
+
+### Full test result on 2026-11-25 (previous candidate)
+
+On candidate `ad4711575fe507d5e49352be8da4ba10f2a72491`, `make test` exited 2.
+Its automatic nested-fixture preparation passed all seven cases. The workspace
+test pass reported 2,546 passing tests, one timeout, seven skipped tests, and
+43 tests not run. The timed-out test was `runner::step_macros_compile`, at
+1,200.007 seconds. The fresh-crate reporting test that timed out in an earlier
+run passed in 78.444 seconds, clearing that earlier blocker for this run. The
+later doctest, no-default-feature, fixture-lockfile, and Python-test recipes
+did not run.
+
+The captured full-test log is
+`/tmp/test-server-current-checks-ready-f2541359-12-2-1-typed-harness-extractor-steps-annotations.out`.
+No owned child processes remained after the gate exited. Source review found
+that `trybuild` cleans its generated package before each fixture and that the
+fixture dependencies are already warmed, so a batched build would not preserve
+the needed artefacts; no batch build was started. At that checkpoint, the
+observed blocker was the unchanged 20-minute `runner::step_macros_compile`
+timeout under shared compiler admission. No source or deadline changes were
+made. The subsequent rebase onto `6308b9af` requires a fresh run of all gates;
+those results are pending.
+
+### Rebase validation on 2026-11-25 (target refresh)
+
+The target advanced from `0df7fbecf4eb5fa5f30af1fbe5692c7eb830c81a` to
+`6308b9af2f32d023ec0fb444704a3417f2f81d18`. The four intervening commits update
+the cognitive-complexity lint and its documentation, pin the Lading reference,
+refresh the documentation style guide, and use the shared delayed-PR-comment
+workflow. They change no Rust source. The prelude and roadmap observations
+remain unchanged. The current lint gate includes
+`macro_aware_cognitive_complexity` with a maximum of 9; the updated style guide
+requires imports in Rust doctest examples. The installed Whitaker suite is
+`0.3.0-15-g730fb830`; `whitaker list` confirmed the macro-aware lint is
+registered without building the suite.
+
+The three planning commits were replayed from
+`ad4711575fe507d5e49352be8da4ba10f2a72491` onto the new target, with exclusive
+replay boundary `0df7fbecf4eb5fa5f30af1fbe5692c7eb830c81a`. All three
+range-diff entries match, without conflicts. Current candidate:
+`9f073fdc976eb1a62ff61ddb5da576baa255ebee`. Recovery refs are retained under
+`refs/recovery/rebase-886-6308-refresh/`; the rebase receipt is
+`/tmp/rstest-bdd-pr886-6308-rebase.json`.
+
+At that checkpoint, no validation gate had completed on this candidate. An
+accidental `make test` invocation was interrupted during the initial binary
+build, before the workspace test pass; it provides no gate result. The previous
+candidate's `make test` timeout remains historical evidence and does not
+determine the new candidate's gate result. The plan remains DRAFT and
+implementation approval is pending.
+
+### Candidate validation update on 2026-11-25
+
+On candidate `9f073fdc976eb1a62ff61ddb5da576baa255ebee`, `make fmt`,
+`make check-fmt`, and `make lint` passed. The lint run completed Clippy,
+rustdoc, the registered Whitaker macro-aware cognitive-complexity lint at 9,
+Python checks, and repository script checks.
+
+The first normal `make test` exited 2 during automatic nested-fixture
+preparation. CLI preparation passed in 177.492 seconds, feature-rebuild in
+182.429 seconds, and prelude in 96.675 seconds. Macro preparation timed out at
+1,800.016 seconds after the base build, wide build, base check, and wide check
+finished; its UI Clippy probe was active at the timeout. The other three
+preparation cases did not run, and the workspace test suite did not start. The
+log is `/tmp/test-target6308-f2541359-<branch>.out`. All owned child processes
+have since exited.
+
+The source-backed UI Clippy prebuild with the same shared cache, flags, and
+compiler wrappers subsequently passed in 12 minutes 35 seconds. The full-test
+retry result is recorded below. `make typecheck` and documentation checks
+remain pending. The plan remains DRAFT and implementation approval is pending.
+
+### Server preparation recovery and full-test result on 2026-11-25
+
+The full-test retry, logged at
+`/tmp/test-target6308-ui-ready-rstest-bdd-<branch>.out`, exited 2 during
+automatic nested-fixture preparation. Six of seven cases passed: CLI,
+feature-rebuild, prelude, macro preparation in 1.731 seconds, GPUI in 785.956
+seconds, and Tokio in 550.998 seconds. Server preparation timed out at
+1,800.010 seconds. Its base build completed after 26 minutes 7 seconds, then
+the width-140 passing-fixture build timed out. The workspace test suite did not
+start. All owned child processes have exited.
+
+The authorized server recovery matrix
+`/tmp/rstest-bdd-target6308-server-recovery-matrix.json` passed all three
+remaining checks: width build, base check in 13 minutes 22 seconds, and width
+check in 11 minutes 32 seconds. Their logs are
+`/tmp/target6308-server-build-width.out`,
+`/tmp/target6308-server-check-base.out`, and
+`/tmp/target6308-server-check-width.out`.
+
+The unchanged full `make test` then passed automatic preparation in 540.314
+seconds, including server preparation in 533.700 seconds. Its workspace pass
+reported 2,430 passes, including two tests classified as leaky, one failure,
+seven skipped tests, and 159 tests not run. The failure was the fresh-crate
+reporting test, which timed out at 120.050 seconds in its nested Cargo command
+against the 120-second bound (`report.rs:132`). Stderr contained only
+`Compiling counted-crate`, with no compiler diagnostic. Subsequent test recipes
+did not run. The captured log is
+`/tmp/test-target6308-server-ready-rstest-bdd-<branch>.out`; all owned child
+processes have exited.
+
+The current blocker is this fresh-crate reporting test timeout. The earlier
+macro-preparation and server-preparation timeouts were resolved by the recovery
+steps above. No deadline, source, or preparation-stamp changes were made.
+`make typecheck` passed in 1,396.996 seconds. `make fmt` and `make check-fmt`
+passed again; `make lint`, `make markdownlint` (zero errors in 44.083 seconds),
+and `make nixie` (1.186 seconds) also passed. All non-test gates are green. The
+current test failure blocks commit and push; the plan remains DRAFT.
+
+The final gate logs use
+`/tmp/<gate>-target6308-final-record-rstest-bdd-<branch>.out` for typecheck,
+format, format check, Markdownlint, and Nixie.
+
+### Implementation evidence
 
 To be filled during implementation: EP-M1 Clippy transcripts and negative
 control, the EP-M4 pre-change run-time failure, mutation transcripts, and
@@ -1282,3 +1662,54 @@ pub(crate) fn check_harness_borrows(args: &[Arg]) -> syn::Result<()>;
   written type and gains follow-up roadmap items (D6); the v1 spelling set was
   named (D1); and the naming question was recorded for approval (D11).
   Remaining work is unchanged in shape: approval, then EP-M0 to EP-M7.
+- 2026-11-24: refreshed this draft against target `origin/main`
+  `0730e72463ed8596d1f75a0169f4bc9dc81a3593`. Roadmap 11.2.2 and ADR-0028 now
+  describe the landed prelude; EP-M6 has a concrete export, documentation, and
+  drift-gate update. Updated ADR paths and reserved the next available ADR
+  number, 0029, because 0024 is already assigned. Refreshed source line counts,
+  classifier names, and the sequential `make typecheck` gate. The plan remains
+  DRAFT and implementation approval is still pending.
+- 2026-11-25: refreshed current target and candidate identities to
+  `0df7fbecf4eb5fa5f30af1fbe5692c7eb830c81a` and
+  `ad4711575fe507d5e49352be8da4ba10f2a72491`. Recorded PR #979's per-pass
+  nested-fixture preparation change and the new timeout evidence. The focused
+  sample supports compile-admission queueing as its timeout cause. Recorded the
+  current candidate's passing non-test gates and its separate CLI preparation
+  timeout. The prior rebase receipt is retained as history; commit and
+  publication were blocked at that checkpoint. This plan remains DRAFT and
+  unapproved.
+- 2026-11-25: updated the nested-fixture recovery record. The standalone GPUI
+  width check and later GPUI and Tokio preparations passed; the server
+  preparation was still running at that point; later entries record its timeout
+  and subsequent pass. The full `make test` result is recorded below.
+- 2026-11-25: recorded the server preparation timeout and current standalone
+  checks against base and width-140 configurations. Six preparation cases had
+  passed; the full `make test` gate had not started at that point.
+- 2026-11-25: recorded passing base and width-140 standalone server checks and
+  the subsequent 7/7 normal preparation run. The full `make test` gate had
+  started at that point; its result is recorded below.
+- 2026-11-25: recorded the full test result: automatic preparation passed 7/7,
+  while the workspace pass timed out in `runner::step_macros_compile`. The
+  earlier fresh-crate reporting test passed; later test recipes remain unrun.
+- 2026-11-25: updated the blocker after source review. `trybuild` removes its
+  generated package per fixture and dependencies were already warmed, so no
+  batch build was started. The 20-minute macro test timeout remained the
+  blocker at that checkpoint.
+- 2026-11-25: refreshed the current target to
+  `6308b9af2f32d023ec0fb444704a3417f2f81d18` and candidate to
+  `9f073fdc976eb1a62ff61ddb5da576baa255ebee`. The three planning commits
+  replayed unchanged across boundary `0df7fbec`; reviewed intervening
+  documentation, lint, dependency-pin, and workflow changes. Recorded the new
+  lint threshold and doctest import rule. On the refreshed candidate,
+  formatting and lint gates passed; the full test gate was active at this
+  checkpoint. Typecheck and documentation checks remained pending. This plan is
+  still DRAFT and unapproved.
+- 2026-11-25: recorded the first `make test` result on candidate `9f073fdc`:
+  automatic preparation passed three cases and timed out in macro preparation
+  before the workspace suite. The UI Clippy prebuild subsequently passed; the
+  full-test retry passed six preparation cases and timed out on server
+  preparation before the workspace suite. The server matrix then passed all
+  three checks. The unchanged full test passed preparation but timed out in the
+  fresh-crate reporting test; later recipes did not run. Typecheck, formatting,
+  lint, Markdownlint, and Nixie then passed; the current test failure blocks
+  commit and push. The plan remains DRAFT.
