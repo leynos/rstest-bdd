@@ -253,46 +253,6 @@ Callers of `record_bypassed_steps_with_tags` migrate to the same form; the
 descriptor already borrows the tag slice, so drop the `_with_tags` suffix and
 pass `&tags` to `with_tags`.
 
-### Replace `encode_skip_message` and `decode_skip_message` (v0.7.0)
-
-> This subsection describes v0.7.0 behaviour, not a v0.6.0 change. It is
-> included here so readers upgrading off 0.6.x can plan the move in one
-> place. The [crate changelog](../crates/rstest-bdd/CHANGELOG.md) is the
-> authoritative record; no ADR covers this removal.
-
-The deprecated `encode_skip_message` and `decode_skip_message` helpers are
-removed, together with their `SKIP_NONE_PREFIX` and `SKIP_SOME_PREFIX`
-constants. The prefix-byte protocol they implemented is superseded by the
-structured `ExecutionError::Skip` variant, which carries the optional message
-directly.
-
-A step handler signals a skip by returning
-`Ok(StepExecution::Skipped { message })`; its signature stays
-`Result<StepExecution, StepError>`. The runtime converts that outcome into
-`ExecutionError::Skip { message }` when it handles the step result, so produce
-the skip through `StepExecution::Skipped`, not by constructing the error in a
-handler. Consumers that hold the resulting `ExecutionError` extract the message
-with `ExecutionError::skip_message()`:
-
-```rust
-use rstest_bdd::ExecutionError;
-
-let error = ExecutionError::Skip {
-    message: Some("fixture forced skip".to_owned()),
-};
-assert_eq!(error.skip_message(), Some("fixture forced skip"));
-```
-
-Replace `encode_skip_message(Some(message))` with
-`StepExecution::Skipped { message: Some(message) }` in the producer, and replace
-`decode_skip_message(encoded)` with `error.skip_message()` in the consumer.
-The replacement is not a drop-in decoder: `decode_skip_message` accepted an
-encoded `String`, while `skip_message()` reads an `ExecutionError` and returns
-`Option<&str>`. Change both ends to carry the structured error, and call
-`.map(str::to_owned)` when the consumer needs an owned message. Use `is_skip()`
-to tell a skip apart from a non-skip error; `skip_message()` returns `None` for
-a skip that carries no message.
-
 ## New features available by extending existing practice
 
 - `rstest-bdd-harness` provides shared harness adapter and attribute-policy
@@ -878,9 +838,6 @@ input set is updated.
 - [ ] Replace direct `record_bypassed_steps` and
   `record_bypassed_steps_with_tags` calls with the `BypassedScenario`
   descriptor form.
-- [ ] Replace `encode_skip_message` and `decode_skip_message` calls with
-  `ExecutionError::Skip` and `ExecutionError::skip_message()`.
-  [Details](#replace-encode_skip_message-and-decode_skip_message-v070).
 - [ ] Re-baseline JUnit history, ownership and quarantine rules after the
   one-time `classname` discontinuity (feature paths are now manifest-relative).
 - [ ] Replace any feature-file path with a manifest-relative path when the

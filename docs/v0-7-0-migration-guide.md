@@ -66,6 +66,45 @@ let request = StepExecutionRequest {
 };
 ```
 
+### Replace `encode_skip_message` and `decode_skip_message`
+
+> This subsection records a v0.7.0 removal. The
+> [crate changelog](../crates/rstest-bdd/CHANGELOG.md) is the authoritative
+> record; no ADR covers this removal.
+
+The deprecated `encode_skip_message` and `decode_skip_message` helpers are
+removed, together with their `SKIP_NONE_PREFIX` and `SKIP_SOME_PREFIX`
+constants. The prefix-byte protocol they implemented is superseded by the
+structured `ExecutionError::Skip` variant, which carries the optional message
+directly.
+
+A step handler signals a skip by returning
+`Ok(StepExecution::Skipped { message })`; its signature stays
+`Result<StepExecution, StepError>`. The runtime converts that outcome into
+`ExecutionError::Skip { message }` when it handles the step result, so produce
+the skip through `StepExecution::Skipped`, not by constructing the error in a
+handler. Consumers that hold the resulting `ExecutionError` extract the message
+with `ExecutionError::skip_message()`:
+
+```rust
+use rstest_bdd::ExecutionError;
+
+let error = ExecutionError::Skip {
+    message: Some("fixture forced skip".to_owned()),
+};
+assert_eq!(error.skip_message(), Some("fixture forced skip"));
+```
+
+Replace `encode_skip_message(Some(message))` with
+`StepExecution::Skipped { message: Some(message) }` in the producer, and replace
+`decode_skip_message(encoded)` with `error.skip_message()` in the consumer.
+The replacement is not a drop-in decoder: `decode_skip_message` accepted an
+encoded `String`, while `skip_message()` reads an `ExecutionError` and returns
+`Option<&str>`. Change both ends to carry the structured error, and call
+`.map(str::to_owned)` when the consumer needs an owned message. Use `is_skip()`
+to tell a skip apart from a non-skip error; `skip_message()` returns `None` for
+a skip that carries no message.
+
 ## New scoped-vocabulary model
 
 Unannotated definitions and scenarios remain compatible through the built-in
@@ -357,6 +396,10 @@ it is not a prelude item. Everything else is in the prelude: `given`, `when`,
   `skipped` of true is not free either: plain `steps` then lists the steps
   bypassed by skipped scenarios rather than every registered step, so set it
   only where that listing is what you want.
+- [ ] Replace `encode_skip_message` and `decode_skip_message` calls with
+  `StepExecution::Skipped` in the producer and `ExecutionError::skip_message()`
+  in the consumer.
+  [Details](#replace-encode_skip_message-and-decode_skip_message).
 
 ## Common errors
 

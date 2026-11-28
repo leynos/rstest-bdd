@@ -68,7 +68,9 @@
 - Removed the deprecated `encode_skip_message` and `decode_skip_message`
   functions and their `SKIP_NONE_PREFIX` and `SKIP_SOME_PREFIX` constants. Use
   the `ExecutionError::Skip` variant to signal a skip and
-  `ExecutionError::skip_message()` to extract its optional message.
+  `ExecutionError::skip_message()` to extract its optional message. See the
+  v0.7.0 migration guide's
+  [removal subsection](../docs/v0-7-0-migration-guide.md#replace-encode_skip_message-and-decode_skip_message).
 
 ### Known issues
 

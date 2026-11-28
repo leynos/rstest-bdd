@@ -98,7 +98,7 @@
   functions and their `SKIP_NONE_PREFIX` and `SKIP_SOME_PREFIX` constants. Use
   the `ExecutionError::Skip` variant to signal a skip and
   `ExecutionError::skip_message()` to extract its optional message. See
-  [Replace `encode_skip_message` and `decode_skip_message` (v0.7.0)](v0-6-0-migration-guide.md#replace-encode_skip_message-and-decode_skip_message-v070)
+  [Replace `encode_skip_message` and `decode_skip_message` (v0.7.0)](v0-7-0-migration-guide.md#replace-encode_skip_message-and-decode_skip_message)
   in the v0.6.0 migration guide.
 
 - Deprecated `From<&str>` for `StepKeyword`; use `StepKeyword::try_from` or
