@@ -42,8 +42,11 @@ emit/epilogue sequence.
 After this change, a maintainer can read one step-to-tokens function and one
 scenario-assembly path, and know that a regular scenario and a scenario outline
 cannot diverge in literal shape or item structure. The observable behaviour is
-unchanged: generated tokens for every existing fixture stay byte-identical, and
-new pinning tests plus `insta` snapshots prove it.
+unchanged: two `insta` snapshots recorded before the extraction reproduce
+byte-for-byte afterwards, and the existing compile-time and behavioural suites
+continue to cover the other generated shapes. The snapshots are the byte-level
+evidence; the wider suites are behavioural and compile-time evidence, not a
+byte comparison of every expansion.
 
 Success is observable when:
 
@@ -307,9 +310,12 @@ The two scenario shapes now share both seams the issue identified.
 - The development guide now describes the helpers that exist and records
   their ownership, permitted call-sites, and composition rules.
 
-The assembly refactor changed no generated token: the snapshots recorded before
-it matched byte-for-byte after it. The step-token pins likewise passed both
-before and after, which is the correct evidence for a pure extraction.
+For the two configurations the snapshots record, the assembly refactor changed
+no generated token: the snapshots matched byte-for-byte before and after it.
+The step-token pins likewise passed both before and after, which is the correct
+evidence for a pure extraction. Neither artefact claims byte equality for every
+possible expansion; the existing suites carry that wider coverage at the
+behavioural and compile-time level.
 
 What would be done differently next time: the issue's line references had aged,
 and `emit.rs` already contained two of the requested helpers. A first pass that
