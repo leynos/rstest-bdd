@@ -30,15 +30,17 @@
   that `attributes = ...` adds none and no `harness` provides one. It is a
   `compile_error!`, so `-D warnings` and `#[allow(deprecated)]` do not change
   it; it fires only where compilation already failed, so no program that
-  compiled before stops compiling. An invocation that generates no test is
-  never rejected.
+  compiled before stops compiling.
 
 - Added `rstest-bdd[E002]`: `scenarios!` combining
   `runtime = "tokio-current-thread"` with `harness = ...` now reports that the
   harness already selects the runtime. It is a `compile_error!`, so
   `-D warnings` and `#[allow(deprecated)]` do not change it; it fires only
   where compilation already failed, so no program that compiled before stops
-  compiling.
+  compiling. An invocation that generates no test is not rejected, because no
+  per-scenario rejection could have run before this diagnostic existed. An
+  invocation whose `tags` filter matches no scenario still fails with the
+  existing no-match error, which predates this change.
 
 - `rstest-bdd-harness::binary_test_support`, a `#[doc(hidden)]` test-support
   module, gained `target_directory_of`. It returns the target root of a test

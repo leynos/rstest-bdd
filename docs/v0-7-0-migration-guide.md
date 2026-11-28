@@ -319,17 +319,21 @@ each trigger, message, and fix.
 The change is additive: no program that compiled before stops compiling unless
 its build denies warnings. On stable Rust that denial can come from
 `-D warnings` or from a crate-level `#![deny(deprecated)]`; a native nightly
-warning is not a lint and is not escalated by either. An invocation that
-generates no test is never rejected, because nothing could have failed per
-scenario before the diagnostics existed. `E001` and `E002` fire only on
-configurations that already failed to compile. The warnings are new, so a crate
-that builds with stable build with `-D warnings` or `#![deny(deprecated)]` sees
-a build failure until it resolves the finding. On stable Rust a warning arrives
-through the `deprecated` lint; on nightly it is a native warning. The
-documented stable opt-out is a module-level `#[allow(deprecated)]`, because the
-marker is a sibling item of the generated test that a function-level allow
-cannot reach. Nightly native warnings cannot be suppressed. `E001` and `E002`
-are `compile_error!`s on both channels and cannot be suppressed.
+warning is not a lint and is not escalated by either. `E001` and `E002` are
+decided per generated test, so they fire only on configurations that already
+failed to compile; an invocation that generates no test is not rejected by
+either, because nothing could have failed per scenario before the diagnostics
+existed. That exemption describes these diagnostics' own ordering, not a
+promise about unrelated rejections: an invocation whose `tags` expression
+matches no scenario still fails with `no scenarios matched tag expression`. The
+warnings are new, so a crate whose stable build denies them with `-D warnings`
+or `#![deny(deprecated)]` sees a build failure until it resolves the finding.
+On stable Rust a warning arrives through the `deprecated` lint; on nightly it
+is a native warning. The documented stable opt-out is a module-level
+`#[allow(deprecated)]`, because the marker is a sibling item of the generated
+test that a function-level allow cannot reach. Nightly native warnings cannot
+be suppressed. `E001` and `E002` are `compile_error!`s on both channels and
+cannot be suppressed.
 
 ## Migration checklist
 
