@@ -109,6 +109,18 @@ def _version_tuple(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in version.split("."))
 
 
+def _runs_the_suite(step: dict[str, typ.Any]) -> bool:
+    """Whether *step* runs the workspace suite rather than only compiling it.
+
+    ``build-only`` steps warm the compiler cache for another lane; nextest's
+    timers never start and no test is executed, so neither a prefetch nor an
+    offline proof means anything there.
+    """
+    if not str(step.get("uses", "")).startswith(COVERAGE_ACTION):
+        return False
+    return str(step.get("with", {}).get("build-only", "")).lower() != "true"
+
+
 def _coverage_jobs() -> list[tuple[str, str]]:
     """Return every ``(workflow, job)`` that starts the workspace suite."""
     found: list[tuple[str, str]] = []
@@ -116,10 +128,7 @@ def _coverage_jobs() -> list[tuple[str, str]]:
         for job_name, job_document in jobs(workflow_name).items():
             if "steps" not in job_document:
                 continue
-            if any(
-                str(step.get("uses", "")).startswith(COVERAGE_ACTION)
-                for step in steps(job_document)
-            ):
+            if any(_runs_the_suite(step) for step in steps(job_document)):
                 found.append((workflow_name, job_name))
     return found
 

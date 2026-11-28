@@ -36,6 +36,8 @@ setup = [
     "feature-addition",
     "rebuild-invalidation",
     "ui-lints",
+    "macros-direct",
+    "prelude-only",
 ]
 
 [test-groups.cargo-spawning]
@@ -281,4 +283,24 @@ command = [
     "--offline",
     "--manifest-path",
     "crates/rstest-bdd/tests/ui_lints/Cargo.toml",
+]
+
+[scripts.setup.macros-direct]
+command = [
+    "cargo",
+    "fetch",
+    "--locked",
+    "--offline",
+    "--manifest-path",
+    "crates/rstest-bdd/tests/fixtures/macros_direct/Cargo.toml",
+]
+
+[scripts.setup.prelude-only]
+command = [
+    "cargo",
+    "fetch",
+    "--locked",
+    "--offline",
+    "--manifest-path",
+    "crates/rstest-bdd/tests/fixtures/prelude_only/Cargo.toml",
 ]
