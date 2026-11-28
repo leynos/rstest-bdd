@@ -11,12 +11,15 @@ use proptest::prelude::*;
 use rstest::rstest;
 use rstest_bdd_policy::TestAttributeHint;
 
-use super::super::{
-    CrateResolver,
-    SlotClass,
-    classify_harness_path,
-    classify_policy_path,
-    model::Framework,
+use super::{
+    super::{
+        CrateResolver,
+        SlotClass,
+        classify_harness_path,
+        classify_policy_path,
+        model::Framework,
+    },
+    enumerator::class_name,
 };
 
 /// A resolver with a chosen Cargo answer.
@@ -197,13 +200,66 @@ proptest! {
     }
 }
 
+/// Insert `prefixes` after the root segment of `path`.
+///
+/// The root keeps its meaning, so recognition is unaffected; an evidenced
+/// path keeps its crate identifier below the root, and a foreign path stays
+/// foreign.
+fn decorate(path: &syn::Path, prefixes: &[String]) -> syn::Path {
+    let mut segments: Vec<syn::PathSegment> = path.segments.iter().cloned().collect();
+    for prefix in prefixes {
+        let ident = syn::Ident::new(prefix, Span::call_site());
+        let tail = segments.pop().expect("a witness has at least one segment");
+        segments.push(syn::parse_quote!(#ident));
+        segments.push(tail);
+    }
+    let mut decorated = path.clone();
+    decorated.segments = segments.into_iter().collect();
+    decorated
+}
+
+/// The class `witness` must hold after `prefixes` are inserted and under
+/// `resolver`.
+///
+/// Two classes are not decoration-invariant, and both are properties of the
+/// recognition rules rather than accidents: the base policy is matched by its
+/// exact two-segment path, and an evidenced path needs its crate resolvable.
+fn expected_after_decoration(
+    class: SlotClass,
+    prefixes: usize,
+    resolver: &TestResolver,
+) -> SlotClass {
+    match class {
+        SlotClass::Recognized(TestAttributeHint::RstestOnly) if prefixes > 0 => SlotClass::Foreign,
+        SlotClass::Evidenced(_) if !resolver.dependency => SlotClass::Foreign,
+        other => other,
+    }
+}
+
 proptest! {
     #[test]
-    fn class_first_witnesses_round_trip(class in prop::sample::select(&WITNESS_CLASSES[..])) {
-        let Some(path) = harness_witness(class) else {
+    fn class_first_witnesses_survive_generated_paths(
+        class in prop::sample::select(&WITNESS_CLASSES[..]),
+        prefixes in prop::collection::vec("[a-z][a-z0-9_]{0,7}".prop_map(|n| format!("mod_{n}")), 0..=3),
+        dependency in any::<bool>(),
+        renamed in any::<bool>(),
+    ) {
+        let Some(witness) = harness_witness(class) else {
             return Err(TestCaseError::fail("a witness class must have a path"));
         };
-        prop_assert_eq!(classify_harness_path(&path, &TestResolver::resolvable()), class);
+        let resolver = TestResolver {
+            root: renamed.then(|| Ident::new("tok", Span::call_site())),
+            dependency,
+        };
+        let decorated = decorate(&witness, &prefixes);
+
+        prop_assert_eq!(
+            classify_harness_path(&decorated, &resolver),
+            expected_after_decoration(class, prefixes.len(), &resolver),
+            "class {} with {} prefixes",
+            class_name(class),
+            prefixes.len()
+        );
     }
 }
 

@@ -37,6 +37,15 @@ fn with_nested_gpui_harness() {}
 )]
 fn with_nested_gpui_policy() {}
 
+/// The user already wrote `#[gpui::test]`, so the attribute is present and
+/// the missing-policy claim is false: this must render W001 without it.
+#[scenario(
+    path = "basic.feature",
+    harness = nested::deep::rstest_bdd_harness_gpui::GpuiHarness,
+)]
+#[gpui::test]
+fn with_nested_gpui_harness_and_user_attribute() {}
+
 const _: &str = include_str!("basic.feature");
 
 fn main() {}

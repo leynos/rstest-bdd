@@ -802,6 +802,40 @@ earlier one, the earlier entry says so.
   adapter failed until `PUBLISHED_GPUI_E2E_PACKAGE_PATCHES` included the crate.
   It is patched for resolution but stays out of the packaged set, because the
   fixture does not depend on it. Date/Author: 2026-11-27 / Claude.
+- Decision D46 (assessment finding, E002 versus C2): `E002` is decided after
+  generation and fires only when the invocation produced at least one test.
+  Rationale: the taxonomy says the alias plus a harness is always `E002`, but
+  an invocation over an empty feature directory generated no test, so no
+  per-scenario rejection could have run and it compiled before this diagnostic
+  existed. `C2` forbids a new rejection, so the taxonomy takes the narrower
+  reading. The `pass` fixture `policy_e002_empty_expansion` pins that case, and
+  `E002` is never made unconditional. Date/Author: 2026-11-27 / Claude.
+- Decision D47 (assessment findings, verification): the `scenarios!` alias plus
+  GPUI policy is added as a second W003 block in the same fixture;
+  `adapter_sharing` gains the three-marker witness `D32` describes; the path
+  property gains class-first round-trip generation over generated path
+  decorations and resolver states; the GPUI-attribute predicate reuses the
+  generator's own two-segment check; and the pre-existing async-with-harness
+  rejection is decided at the boundary, before either channel emits, so no
+  warning can accompany it. Date/Author: 2026-11-27 / Claude.
+- Decision D48 (tolerance overage, escalated to the plan owner): three
+  tolerances are exceeded, and they are recorded rather than silently accepted.
+  - Production source, excluding `*/tests/*` paths and the 58 inline test
+    lines, grows by about 1,050 net lines against a 700 tolerance. The feature
+    is one new module of eight files replacing a 308-line one; the remainder is
+    the boundary plumbing the plan's own milestones required.
+  - 51 non-fixture files change against a 40 tolerance. The excess is eight
+    documentation files, ten test modules, the two harness registration files,
+    the new fixtures' feature file, and the Makefile patch.
+  - The Tokio `macro_compile` wall-clock is 545.6 s against the 408.1 s EP-M0
+    contended baseline, about +34% against a 25% tolerance. The plan's own
+    acceptance criteria added five fixtures to that suite, and measured runs of
+    the same suite range from 20 s to 545 s on this host by compile-queue
+    depth, so the figure is contended-host time rather than code cost.
+
+  The disposition requested is acceptance of the overage, because the excess is
+  the plan's own required scope rather than scope creep. Date/Author:
+  2026-11-27 / Claude.
 - Decision D43 (EP-M4): `PolicyInputs` moves to `inputs.rs` when the model
   module reached 412 lines. Rationale: C7's module-length gate again, split
   along the seam between "what the boundary knows" and "what the decision
@@ -965,13 +999,13 @@ same text through the same emitter.
 Warnings use both channels and are suppressed at a boundary that also emits an
 error (decision D9). Errors use `compile_error!` on every toolchain.
 
-| Code | Roadmap class | Kind    | Fires when                                                                                    | Fixes offered                                                     |
-| ---- | ------------- | ------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| W001 | non-canonical | warning | a `harness` or `attributes` path has evidence but is not recognized (and W002 does not apply) | write the canonical path (rendered with the resolved crate root)  |
-| W002 | missing       | warning | the harness has evidence, `attributes` is absent, and the canonical harness would emit more   | canonical harness path; or add `attributes = <canonical policy>`  |
-| W003 | ambiguous     | warning | the implied harness family and the policy family are different frameworks (Tokio versus GPUI) | remove `attributes = ...`; or use the policy matching the harness |
-| E001 | missing       | error   | `#[scenario]` `async fn`, no harness, `attributes` present, and no executor attribute results | remove `attributes`; use the Tokio policy; add an executor attr   |
-| E002 | ambiguous     | error   | `scenarios!` with `runtime = "tokio-current-thread"` and an explicit `harness`                | remove `runtime = ...`                                            |
+| Code | Roadmap class | Kind    | Fires when                                                                                                          | Fixes offered                                                     |
+| ---- | ------------- | ------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| W001 | non-canonical | warning | a `harness` or `attributes` path has evidence but is not recognized (and W002 does not apply)                       | write the canonical path (rendered with the resolved crate root)  |
+| W002 | missing       | warning | the harness has evidence, `attributes` is absent, and the canonical harness would emit more                         | canonical harness path; or add `attributes = <canonical policy>`  |
+| W003 | ambiguous     | warning | the implied harness family and the policy family are different frameworks (Tokio versus GPUI)                       | remove `attributes = ...`; or use the policy matching the harness |
+| E001 | missing       | error   | `#[scenario]` `async fn`, no harness, `attributes` present, and no executor attribute results                       | remove `attributes`; use the Tokio policy; add an executor attr   |
+| E002 | ambiguous     | error   | `scenarios!` with `runtime = "tokio-current-thread"` and an explicit `harness`, when at least one test is generated | remove `runtime = ...`                                            |
 
 *Table 1: the five diagnostics, their roadmap class, and their fixes.*
 
@@ -1017,7 +1051,9 @@ the harness already selects the runtime. Remove `runtime = ...`.
 
 E001 appends "rstest-bdd cannot read third-party attribute policies" when the
 policy is third-party (`Foreign`). W001 for a Tokio path in synchronous code
-mentions only the base-API fallback.
+mentions only the base-API fallback. `E002` applies only to an invocation that
+generates at least one test: an empty feature directory compiled before this
+diagnostic existed, so rejecting it would breach `C2` (decision `D46`).
 
 Explicitly out of scope, recorded so that a reviewer can challenge it:
 
@@ -2090,7 +2126,16 @@ with its `.stderr`. The logs are `/tmp/epm0-exp-tokio6.out`,
    `#![deny(deprecated)]`, reported both. The module-level opt-out fixture
    compiled and passed under the same crate-level deny.
 
-To be filled during implementation:
+Not recorded, and stated here rather than left as an open item:
+
+- per-milestone red/green transcripts as separate log files: the red and green
+  states are recorded in `Progress` and in the commit sequence, but the raw
+  transcripts were not archived;
+- hand-seeded fault diffs: the seeded faults named in `Verification plan` were
+  reasoned through while the lemmas were written and are not preserved as diffs;
+- `proptest` generator seeds: no failing seed arose, so none is recorded.
+
+Recorded during implementation:
 
 - red and green transcripts per milestone;
 - nightly transcripts with the toolchain version;

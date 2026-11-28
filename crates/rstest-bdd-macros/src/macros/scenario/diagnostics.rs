@@ -85,6 +85,7 @@ mod tests {
 
     #[rstest]
     #[case("#[gpui::test]", true)]
+    #[case("#[gpui::test(flavor = \"current_thread\")]", true)]
     #[case("#[test]", false)]
     #[case("#[tokio::test]", false)]
     #[case("#[should_panic]", false)]

@@ -15,3 +15,9 @@ error: use of deprecated unit struct `_::RstestBddUnrecognizedAdapterPath`: rste
    |
 36 |     attributes = nested::deep::rstest_bdd_harness_gpui::GpuiAttributePolicy,
    |                                                         ^^^^^^^^^^^^^^^^^^^
+
+error: use of deprecated unit struct `_::RstestBddUnrecognizedAdapterPath`: rstest-bdd[W001]: this path was not recognized as the first-party `GpuiHarness`, so base harness API types were used. Write `rstest_bdd_harness_gpui::GpuiHarness`.
+  --> tests/fixtures_macros/policy_w002_missing_policy.rs:44:54
+   |
+44 |     harness = nested::deep::rstest_bdd_harness_gpui::GpuiHarness,
+   |                                                      ^^^^^^^^^^^
