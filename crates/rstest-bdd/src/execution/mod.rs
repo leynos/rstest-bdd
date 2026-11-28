@@ -12,7 +12,7 @@
 //! - [`TestAttributeHint`]: Canonical definition for test attribute generation hints, re-exported
 //!   from `rstest_bdd_policy`.
 //! - [`StepExecutionRequest`]: Groups step data and diagnostic context for execution.
-//! - Helper functions for step execution, fixture validation, and skip encoding. `RuntimeMode` and
+//! - Helper functions for step execution and fixture validation. `RuntimeMode` and
 //!   `TestAttributeHint` are re-exported from `rstest_bdd_policy`, the shared source of truth used
 //!   by the macro crate. Runtime and macro tests guard that single-source policy boundary.
 
@@ -25,6 +25,17 @@ use std::{any::Any, sync::Arc};
 
 pub use error::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 use fixtures::validate_required_fixtures;
+/// Runtime mode for scenario test execution (canonical definition).
+///
+/// This type is re-exported from `rstest_bdd_policy` to keep the public API in
+/// `rstest_bdd::execution` stable for downstream users.
+pub use rstest_bdd_policy::RuntimeMode;
+/// Hint for which test attributes the macro layer should generate
+/// (canonical definition).
+///
+/// This type is re-exported from `rstest_bdd_policy` to keep the public API in
+/// `rstest_bdd::execution` stable for downstream users.
+pub use rstest_bdd_policy::TestAttributeHint;
 use unwind::guarded;
 
 use crate::{
@@ -38,24 +49,6 @@ use crate::{
     find_step_with_metadata_in_scope,
     registry::mark_step_used,
 };
-
-/// Prefix character for encoded skip messages with no message content.
-pub(crate) const SKIP_NONE_PREFIX: char = '\u{0}';
-
-/// Prefix character for encoded skip messages with message content.
-pub(crate) const SKIP_SOME_PREFIX: char = '\u{1}';
-
-/// Runtime mode for scenario test execution (canonical definition).
-///
-/// This type is re-exported from `rstest_bdd_policy` to keep the public API in
-/// `rstest_bdd::execution` stable for downstream users.
-pub use rstest_bdd_policy::RuntimeMode;
-/// Hint for which test attributes the macro layer should generate
-/// (canonical definition).
-///
-/// This type is re-exported from `rstest_bdd_policy` to keep the public API in
-/// `rstest_bdd::execution` stable for downstream users.
-pub use rstest_bdd_policy::TestAttributeHint;
 
 /// Resolve the registered step described by an execution request.
 fn resolve_step_for_request(
@@ -96,110 +89,6 @@ fn handle_step_result(
             feature_path: request.feature_path.to_owned(),
             scenario_name: request.scenario_name.to_owned(),
         }),
-    }
-}
-
-/// Encode a skip message for propagation through the executor loop.
-///
-/// The encoding uses prefix characters to distinguish between skip requests
-/// with and without messages, allowing the skip signal to be transmitted
-/// through `Result<_, String>` return types.
-///
-/// # Deprecation
-///
-/// This function is deprecated in favour of using [`ExecutionError::Skip`]
-/// directly. The new error type provides structured skip handling without
-/// string encoding.
-///
-/// # Arguments
-///
-/// * `message` - Optional skip message to encode
-///
-/// # Returns
-///
-/// An encoded string starting with `SKIP_NONE_PREFIX` (no message) or
-/// `SKIP_SOME_PREFIX` followed by the message content.
-///
-/// # Examples
-///
-/// ```
-/// use rstest_bdd::execution::{decode_skip_message, encode_skip_message};
-///
-/// // Round-trip with no message
-/// let encoded = encode_skip_message(None);
-/// assert_eq!(decode_skip_message(encoded), None);
-///
-/// // Round-trip with message
-/// let encoded = encode_skip_message(Some("reason".to_string()));
-/// assert_eq!(decode_skip_message(encoded), Some("reason".to_string()));
-/// ```
-#[deprecated(
-    since = "0.8.0",
-    note = "Use ExecutionError::Skip variant instead of string encoding"
-)]
-#[must_use]
-pub fn encode_skip_message(message: Option<String>) -> String {
-    message.map_or_else(
-        || SKIP_NONE_PREFIX.to_string(),
-        |msg| {
-            let mut encoded = String::with_capacity(1 + msg.len());
-            encoded.push(SKIP_SOME_PREFIX);
-            encoded.push_str(&msg);
-            encoded
-        },
-    )
-}
-
-/// Decode an encoded skip message.
-///
-/// Reverses the encoding performed by [`encode_skip_message`], extracting
-/// the original message content from the prefixed format.
-///
-/// # Deprecation
-///
-/// This function is deprecated in favour of using [`ExecutionError::Skip`]
-/// directly. The new error type provides structured skip handling without
-/// string encoding. Use [`ExecutionError::skip_message`] to extract skip
-/// messages from the new error type.
-///
-/// # Arguments
-///
-/// * `encoded` - The encoded skip message string
-///
-/// # Returns
-///
-/// `None` if the message was encoded without content, `Some(message)` otherwise.
-/// Malformed input is returned as-is wrapped in `Some` for diagnostic purposes.
-///
-/// # Examples
-///
-/// ```
-/// use rstest_bdd::execution::{decode_skip_message, encode_skip_message};
-///
-/// let encoded = encode_skip_message(Some("test".to_string()));
-/// assert_eq!(decode_skip_message(encoded), Some("test".to_string()));
-/// ```
-#[deprecated(
-    since = "0.8.0",
-    note = "Use ExecutionError::skip_message() instead of string decoding"
-)]
-#[must_use]
-pub fn decode_skip_message(encoded: String) -> Option<String> {
-    match encoded.chars().next() {
-        Some(c) if c == SKIP_NONE_PREFIX => None,
-        Some(c) if c == SKIP_SOME_PREFIX => {
-            // Safe: prefix_len is the byte length of the first char we just matched
-            let prefix_len = c.len_utf8();
-            Some(encoded.get(prefix_len..)?.to_owned())
-        }
-        // Defensive fallback: preserve unexpected or malformed input rather than
-        // panicking. This handles edge cases such as:
-        // - Empty strings (no prefix character present)
-        // - Future format changes where the prefix characters evolve
-        // - Corrupted messages from unexpected runtime conditions
-        // Returning the original input wrapped in `Some` allows downstream code
-        // to inspect and diagnose the unexpected format.
-        _ => Some(encoded),
     }
 }
 

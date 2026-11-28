@@ -253,6 +253,37 @@ Callers of `record_bypassed_steps_with_tags` migrate to the same form; the
 descriptor already borrows the tag slice, so drop the `_with_tags` suffix and
 pass `&tags` to `with_tags`.
 
+### Replace `encode_skip_message` and `decode_skip_message` (v0.7.0)
+
+> This subsection describes v0.7.0 behaviour, not a v0.6.0 change. It is
+> included here so readers upgrading off 0.6.x can plan the move in one
+> place. The [crate changelog](../crates/rstest-bdd/CHANGELOG.md) is the
+> authoritative record; no ADR covers this removal.
+
+The deprecated `encode_skip_message` and `decode_skip_message` helpers are
+removed, together with their `SKIP_NONE_PREFIX` and `SKIP_SOME_PREFIX`
+constants. The prefix-byte protocol they implemented is superseded by the
+structured `ExecutionError::Skip` variant, which carries the optional message
+directly.
+
+Signal a skip by returning `Err(ExecutionError::Skip { message })`. Generated
+scenario code already does this when a step returns
+`StepExecution::Skipped { message }`. Extract the message with
+`ExecutionError::skip_message()`:
+
+```rust
+use rstest_bdd::ExecutionError;
+
+let error = ExecutionError::Skip {
+    message: Some("fixture forced skip".to_owned()),
+};
+assert_eq!(error.skip_message(), Some("fixture forced skip"));
+```
+
+Replace `encode_skip_message(Some(message))` with
+`ExecutionError::Skip { message: Some(message) }`, and replace
+`decode_skip_message(encoded)` with `error.skip_message()`.
+
 ## New features available by extending existing practice
 
 - `rstest-bdd-harness` provides shared harness adapter and attribute-policy
@@ -838,6 +869,9 @@ input set is updated.
 - [ ] Replace direct `record_bypassed_steps` and
   `record_bypassed_steps_with_tags` calls with the `BypassedScenario`
   descriptor form.
+- [ ] Replace `encode_skip_message` and `decode_skip_message` calls with
+  `ExecutionError::Skip` and `ExecutionError::skip_message()`.
+  [Details](#replace-encode_skip_message-and-decode_skip_message-v070).
 - [ ] Re-baseline JUnit history, ownership and quarantine rules after the
   one-time `classname` discontinuity (feature paths are now manifest-relative).
 - [ ] Replace any feature-file path with a manifest-relative path when the

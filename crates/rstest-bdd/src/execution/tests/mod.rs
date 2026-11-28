@@ -5,7 +5,6 @@
 //! - [`RuntimeMode`] and [`TestAttributeHint`] enum behaviour and mapping
 //! - [`ExecutionError`] variant construction, `is_skip()`, and `skip_message()`
 //! - Skip message extraction logic (mirroring generated code behaviour)
-//! - Deprecated skip encoding functions (scheduled for removal)
 //!
 //! These tests validate the core execution types used by generated scenario code
 //! and direct registry consumers.
@@ -91,66 +90,6 @@ fn test_attribute_hint_exhaustive_variant_guard() {
         TestAttributeHint::RstestWithTokioCurrentThread => 1,
         TestAttributeHint::RstestWithGpuiTest => 2,
     };
-}
-
-#[expect(
-    deprecated,
-    reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/409 - testing deprecated skip encoding functions"
-)]
-mod deprecated_skip_encoding {
-    //! Tests for deprecated skip encoding functions.
-    //!
-    //! FIXME: Remove this module when deprecated skip encoding functions are
-    //! removed. See: <https://github.com/leynos/rstest-bdd/issues/409>
-
-    use rstest::rstest;
-
-    use super::super::{
-        SKIP_NONE_PREFIX,
-        SKIP_SOME_PREFIX,
-        decode_skip_message,
-        encode_skip_message,
-    };
-
-    #[test]
-    fn encode_skip_message_none_produces_prefix_only() {
-        let encoded = encode_skip_message(None);
-        assert_eq!(encoded.len(), 1);
-        assert_eq!(encoded.chars().next(), Some(SKIP_NONE_PREFIX));
-    }
-
-    #[test]
-    fn encode_skip_message_some_includes_message() {
-        let encoded = encode_skip_message(Some("test message".to_owned()));
-        assert!(encoded.starts_with(SKIP_SOME_PREFIX));
-        assert!(encoded.contains("test message"));
-    }
-
-    #[rstest]
-    #[case::none(None)]
-    #[case::some(Some("skip reason".to_owned()))]
-    #[case::empty_string(Some(String::new()))]
-    #[case::unicode(Some("Unicode: 😀 🎉".to_owned()))]
-    fn decode_skip_message_round_trip(#[case] input: Option<String>) {
-        let encoded = encode_skip_message(input.clone());
-        let decoded = decode_skip_message(encoded);
-        assert_eq!(decoded, input);
-    }
-
-    #[test]
-    fn decode_skip_message_malformed_input_preserved() {
-        // Malformed input (no valid prefix) should be returned as-is
-        let malformed = "unexpected input".to_owned();
-        let decoded = decode_skip_message(malformed.clone());
-        assert_eq!(decoded, Some(malformed));
-    }
-
-    #[test]
-    fn decode_skip_message_empty_string_preserved() {
-        // Empty string has no prefix character
-        let decoded = decode_skip_message(String::new());
-        assert_eq!(decoded, Some(String::new()));
-    }
 }
 
 // ============================================================================
