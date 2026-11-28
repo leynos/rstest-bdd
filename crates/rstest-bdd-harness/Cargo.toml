@@ -30,6 +30,7 @@ tracing.workspace = true
 # caller passing `--all-features`.
 rstest-bdd-harness = { path = ".", features = ["testing"] }
 camino.workspace = true
+cap-std.workspace = true
 insta.workspace = true
 proptest.workspace = true
 rstest.workspace = true

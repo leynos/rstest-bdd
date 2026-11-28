@@ -1923,6 +1923,7 @@ name = "rstest-bdd-harness"
 version = "0.7.0"
 dependencies = [
  "camino",
+ "cap-std",
  "cargo_metadata",
  "insta",
  "proptest",
