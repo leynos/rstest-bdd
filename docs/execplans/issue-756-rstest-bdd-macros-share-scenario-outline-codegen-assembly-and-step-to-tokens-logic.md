@@ -157,6 +157,9 @@ twice the expected net change to allow for tests.
       claims in "Shared scenario-token assembly" and added "Canonical scenario
       codegen helpers" with the ownership, call-site, and composition bullets.
       `make fmt` and `make markdownlint` passed.
+- [x] (2026-11-28 05:30Z) Rebased onto `origin/main` at `8cfc3476`; the only
+      base delta is #989, which touches `cargo-bdd` tests and a Python test.
+      `make check-fmt` and `make test` passed again at the rebased head.
 - [ ] Delivery: push branch, open draft PR, CodeRabbit review, merge.
 
 ## Surprises & discoveries
@@ -199,6 +202,20 @@ twice the expected net change to allow for tests.
   `mod.rs` restructure. Impact: the extraction preserved the generated item
   exactly, including attribute order, the hidden case-index parameter, and the
   substituted step constants.
+- Observation: at 05:12 UTC on 2026-11-28, another agent's estate scan
+  repointed the shared `~/.local/share/whitaker/installed_lint_paths.json` at
+  an experimental suite in `~/.cache/whitaker-estate-scan/`. The experimental
+  suite then failed `make lint-whitaker` on
+  `crates/rstest-bdd-harness/src/nested_cargo/preparation/artefacts/verification.rs`,
+  a file this branch never touches and whose content is identical on
+  `origin/main`. Evidence: the state file's timestamp and contents; two full
+  `make lint` passes earlier in the session (02:1x and 04:5x) with the released
+  suite; `git diff 470c20ae..HEAD -- crates/rstest-bdd-harness` is empty; and
+  `origin/main`'s Linux `build-test`, which runs `make lint` with installer
+  0.2.12, is green. Impact: the local lint verdict after 05:12 is not the
+  repository's gate. Delivery uses the PR's CI run for the authoritative
+  result, and the shared installer state is left untouched because another
+  agent owns it.
 
 ## Decision log
 
