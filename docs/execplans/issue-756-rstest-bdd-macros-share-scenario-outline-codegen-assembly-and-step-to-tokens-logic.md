@@ -637,8 +637,12 @@ test result: ok. 2 passed
 ```
 
 The base tree, which still contains the duplicated generators, reproduces both
-committed snapshots byte-for-byte, so the assembly refactor provably changed no
-generated token.
+committed snapshots byte-for-byte, so the assembly refactor changed no
+generated token for either recorded configuration. The claim is bounded by the
+two snapshots: they exercise a regular scenario with a docstring and a data
+table, and an outline with two substituted rows. Other configurations are
+covered by the existing compile-time and behavioural suites, not by these
+snapshots.
 
 ## Interfaces and dependencies
 
